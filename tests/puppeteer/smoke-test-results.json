@@ -1,0 +1,31 @@
+{
+  "passed": 3,
+  "failed": 2,
+  "tests": [
+    {
+      "name": "Page loads and basic UI exists",
+      "passed": true,
+      "error": null
+    },
+    {
+      "name": "Python code execution works",
+      "passed": true,
+      "error": null
+    },
+    {
+      "name": "Asset management works",
+      "passed": false,
+      "error": "Assets panel did not open"
+    },
+    {
+      "name": "Basic file operations",
+      "passed": true,
+      "error": null
+    },
+    {
+      "name": "p5.js sketch execution",
+      "passed": false,
+      "error": "Attempted to use detached Frame 'F2A678C58FEE67BBECB44E3D9F383D9E'."
+    }
+  ]
+}

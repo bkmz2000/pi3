@@ -1,0 +1,21 @@
+{
+    "compilerOptions": {
+      "composite": true,
+      "tsBuildInfoFile": "./node_modules/.tsbuildinfo.app",
+      "jsx": "react-jsx",
+      "module": "ESNext",
+      "target": "ESNext",
+      "lib": ["ESNext", "DOM"],
+      "moduleResolution": "Bundler",
+      "strict": true,
+      "resolveJsonModule": true,
+      "isolatedModules": true,
+      "esModuleInterop": true,
+      "skipLibCheck": true,
+      "types": ["vite/client"],
+      "declaration": true,
+      "emitDeclarationOnly": true,
+      "outDir": "./.tsbuild/app"
+    },
+    "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.json", "src/vite-env.d.ts"]
+  }

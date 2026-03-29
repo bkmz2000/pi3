@@ -1,0 +1,93 @@
+{
+  "app": {
+    "loading": "Загрузка среды выполнения Python...",
+    "loadingHint": "При первом запуске это может занять несколько секунд. После этого Python будет кэширован для более быстрого запуска.",
+    "copyConsole": "Копировать консоль",
+    "clearConsole": "Очистить консоль",
+    "inputPlaceholder": "Введите данные здесь..."
+  },
+  "sideMenu": {
+    "close": "Закрыть",
+    "run": "Запустить",
+    "stop": "Остановить",
+    "loading": "Загрузка...",
+    "projects": "Проекты",
+    "assets": "Ресурсы",
+    "settings": "Настройки",
+    "examples": "Примеры",
+    "yourProjects": "Ваши проекты",
+    "newProjectTooltip": "Новый проект",
+    "newProject": "+ Новый",
+    "noProjects": "Проектов пока нет. Создайте новый или скопируйте пример.",
+    "importProjectTooltip": "Импорт проекта",
+    "exportProjectTooltip": "Экспорт проекта",
+    "deleteProjectTooltip": "Удалить проект",
+    "cancel": "Отмена",
+    "create": "Создать",
+    "createProject": "Создать новый проект",
+    "projectName": "Название проекта",
+    "projectNamePlaceholder": "Введите название проекта",
+    "importProjectTitle": "Импорт проекта",
+    "importProjectInstructions": "Выберите файл проекта (.zip) для импорта. Проект будет добавлен в список ваших проектов.",
+    "autoSave": "Автосохранение",
+    "vimMode": "Режим Vim",
+    "showHitboxes": "Показать хитбоксы",
+    "selectedAssets": "Выбранные ресурсы",
+    "availableAssets": "Доступные ресурсы",
+    "noAssetsSelected": "Ресурсы не выбраны. Нажмите на ресурсы ниже, чтобы добавить их.",
+    "remove": "Удалить",
+    "editSpriteTooltip": "Редактировать спрайт",
+    "newSprite": "Новый спрайт",
+    "spriteNamePlaceholder": "название спрайта",
+    "example": "(пример)",
+    "loadingProjects": "Загрузка проектов...",
+    "failedExport": "Не удалось экспортировать проект. Попробуйте ещё раз.",
+    "failedImport": "Не удалось импортировать проект. Убедитесь, что это корректный файл проекта."
+  },
+  "fileBar": {
+    "deleteConfirm": "Вы уверены, что хотите удалить \"{{filename}}\"?",
+    "renameFile": "Переименовать файл",
+    "closeFile": "Закрыть {{filename}}",
+    "newFileTooltip": "Новый файл",
+    "untitled": "без_названия.py"
+  },
+  "spriteEditor": {
+    "title": "Редактор спрайтов",
+    "close": "Закрыть",
+    "select": "Выбор",
+    "rectangle": "Прямоугольник",
+    "ellipse": "Эллипс",
+    "line": "Линия",
+    "pen": "Перо",
+    "polygon": "Многоугольник",
+    "text": "Текст",
+    "fill": "Заливка",
+    "enableFill": "Включить заливку",
+    "disableFill": "Отключить заливку",
+    "stroke": "Обводка",
+    "width": "Ширина",
+    "undo": "Отменить",
+    "redo": "Повторить",
+    "deleteSelected": "Удалить выбранное",
+    "polygonHint": "Нажимайте для добавления вершин. Двойной клик или Enter для завершения.",
+    "freehandHint": "Рисуйте от руки. Отпустите около начала, чтобы автоматически замкнуть и залить.",
+    "save": "Сохранить",
+    "exportPng": "Экспорт PNG",
+    "enterText": "Введите текст:",
+    "customColor": "Свой цвет",
+    "centerHint": "Центр (точка вращения спрайта)"
+  },
+  "canvas": {
+    "label": "холст"
+  },
+  "console": {
+    "checking": "Проверка на ошибки...",
+    "syntaxError": "Обнаружена синтаксическая ошибка ({{count}} проблем(а))",
+    "noErrors": "Ошибок не найдено. Запуск скрипта...",
+    "errorFormat": "  {{message}} (строка {{line}})"
+  },
+  "errors": {
+    "cannotFork": "Невозможно скопировать пользовательский проект",
+    "notExample": "Текущий проект не является примером"
+  }
+}

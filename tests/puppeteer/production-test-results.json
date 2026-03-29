@@ -1,0 +1,66 @@
+{
+  "passed": 12,
+  "failed": 0,
+  "tests": [
+    {
+      "name": "Core UI elements",
+      "passed": true,
+      "error": null
+    },
+    {
+      "name": "Python code execution",
+      "passed": true,
+      "error": null
+    },
+    {
+      "name": "p5.js sketch execution",
+      "passed": true,
+      "error": null
+    },
+    {
+      "name": "Asset management",
+      "passed": true,
+      "error": null
+    },
+    {
+      "name": "Project management",
+      "passed": true,
+      "error": null
+    },
+    {
+      "name": "Error handling",
+      "passed": true,
+      "error": null
+    },
+    {
+      "name": "Console output",
+      "passed": true,
+      "error": null
+    },
+    {
+      "name": "Sprite editor",
+      "passed": true,
+      "error": null
+    },
+    {
+      "name": "Hello world example",
+      "passed": true,
+      "error": null
+    },
+    {
+      "name": "Snake example",
+      "passed": true,
+      "error": null
+    },
+    {
+      "name": "Bounce example",
+      "passed": true,
+      "error": null
+    },
+    {
+      "name": "Sokoban example",
+      "passed": true,
+      "error": null
+    }
+  ]
+}

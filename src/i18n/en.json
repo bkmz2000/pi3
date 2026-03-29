@@ -1,0 +1,93 @@
+{
+  "app": {
+    "loading": "Loading Python runtime...",
+    "loadingHint": "This may take a few seconds on first load. After that, Python will be cached for faster startup.",
+    "copyConsole": "Copy console",
+    "clearConsole": "Clear console",
+    "inputPlaceholder": "Type input here..."
+  },
+  "sideMenu": {
+    "close": "Close",
+    "run": "Run",
+    "stop": "Stop",
+    "loading": "Loading...",
+    "projects": "Projects",
+    "assets": "Assets",
+    "settings": "Settings",
+    "examples": "Examples",
+    "yourProjects": "Your Projects",
+    "newProjectTooltip": "New project",
+    "newProject": "+ New",
+    "noProjects": "No projects yet. Create one or fork an example.",
+    "importProjectTooltip": "Import project",
+    "exportProjectTooltip": "Export project",
+    "deleteProjectTooltip": "Delete project",
+    "cancel": "Cancel",
+    "create": "Create",
+    "createProject": "Create New Project",
+    "projectName": "Project Name",
+    "projectNamePlaceholder": "Enter project name",
+    "importProjectTitle": "Import Project",
+    "importProjectInstructions": "Select a project file (.zip) to import. The project will be added to your projects list.",
+    "autoSave": "Auto-save",
+    "vimMode": "Vim mode",
+    "showHitboxes": "Show hitboxes",
+    "selectedAssets": "Selected Assets",
+    "availableAssets": "Available Assets",
+    "noAssetsSelected": "No assets selected. Click on assets below to add them.",
+    "remove": "Remove",
+    "editSpriteTooltip": "Edit sprite",
+    "newSprite": "New sprite",
+    "spriteNamePlaceholder": "sprite name",
+    "example": "(example)",
+    "loadingProjects": "Loading projects...",
+    "failedExport": "Failed to export project. Please try again.",
+    "failedImport": "Failed to import project: Please make sure it's a valid project file."
+  },
+  "fileBar": {
+    "deleteConfirm": "Are you sure you want to delete \"{{filename}}\"?",
+    "renameFile": "Rename file",
+    "closeFile": "Close {{filename}}",
+    "newFileTooltip": "New file",
+    "untitled": "untitled.py"
+  },
+  "spriteEditor": {
+    "title": "Sprite Editor",
+    "close": "Close",
+    "select": "Select",
+    "rectangle": "Rectangle",
+    "ellipse": "Ellipse",
+    "line": "Line",
+    "pen": "Pen",
+    "polygon": "Polygon",
+    "text": "Text",
+    "fill": "Fill",
+    "enableFill": "Enable fill",
+    "disableFill": "Disable fill",
+    "stroke": "Stroke",
+    "width": "Width",
+    "undo": "Undo",
+    "redo": "Redo",
+    "deleteSelected": "Delete selected",
+    "polygonHint": "Click to add vertices. Double-click or press Enter to close.",
+    "freehandHint": "Draw freehand. Release near start to auto-close and fill.",
+    "save": "Save",
+    "exportPng": "Export PNG",
+    "enterText": "Enter text:",
+    "customColor": "Custom",
+    "centerHint": "Center (where the sprite rotates)"
+  },
+  "canvas": {
+    "label": "canvas"
+  },
+  "console": {
+    "checking": "Checking for errors...",
+    "syntaxError": "Syntax error found ({{count}} issue(s))",
+    "noErrors": "No errors found. Starting the script...",
+    "errorFormat": "  {{message}} (line {{line}})"
+  },
+  "errors": {
+    "cannotFork": "Cannot fork a user project",
+    "notExample": "Current project is not an example"
+  }
+}

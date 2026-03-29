@@ -1,0 +1,1619 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`SpriteEditor - Snapshot Tests renders correctly when closed 1`] = `<div />`;
+
+exports[`SpriteEditor - Snapshot Tests renders correctly when open 1`] = `
+<div>
+  <div
+    aria-label="spriteEditor.title"
+    aria-modal="true"
+    class="fixed inset-0 z-50 flex items-center justify-center bg-black/70"
+    data-testid="sprite-editor-modal"
+    role="dialog"
+  >
+    <div
+      class="bg-cyan-800 border border-cyan-600 rounded-xl shadow-2xl p-4 w-[480px]"
+      data-testid="sprite-editor-content"
+    >
+      <div
+        class="flex items-center justify-between gap-4 mb-3"
+      >
+        <button
+          class="px-3 py-1.5 rounded text-xs bg-cyan-600 hover:bg-cyan-500 text-white font-medium"
+          data-testid="save-svg-button"
+        >
+          spriteEditor.save
+        </button>
+        <input
+          class="bg-transparent text-white font-mono text-sm border-b border-white/20 outline-none w-32"
+          data-testid="sprite-name-input"
+          placeholder="sideMenu.spriteNamePlaceholder"
+          value="sprite"
+        />
+        <button
+          aria-label="spriteEditor.close"
+          class="text-white/40 hover:text-white"
+          data-testid="close-button"
+        >
+          <svg
+            fill="currentColor"
+            height="20"
+            stroke="currentColor"
+            stroke-width="0"
+            viewBox="0 0 24 24"
+            width="20"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              d="M0 0h24v24H0z"
+              fill="none"
+            />
+            <path
+              d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
+            />
+          </svg>
+        </button>
+      </div>
+      <div
+        class="flex gap-3"
+      >
+        <div
+          class="flex flex-col gap-1"
+        >
+          <button
+            class="w-8 h-8 rounded text-base flex items-center justify-center transition-colors
+                  bg-white/10 hover:bg-white/20 text-white/70"
+            data-testid="tool-select"
+            title="spriteEditor.select"
+          >
+            <svg
+              fill="currentColor"
+              height="18"
+              stroke="currentColor"
+              stroke-width="0"
+              viewBox="0 0 24 24"
+              width="18"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M0 0h24v24H0z"
+                fill="none"
+              />
+              <path
+                d="M5 15h2V8.41L18.59 20 20 18.59 8.41 7H15V5H5v10z"
+              />
+            </svg>
+          </button>
+          <button
+            class="w-8 h-8 rounded text-base flex items-center justify-center transition-colors
+                  bg-cyan-600 text-white"
+            data-testid="tool-rect"
+            title="spriteEditor.rectangle"
+          >
+            <svg
+              fill="currentColor"
+              height="18"
+              stroke="currentColor"
+              stroke-width="0"
+              viewBox="0 0 24 24"
+              width="18"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M0 0h24v24H0z"
+                fill="none"
+              />
+              <path
+                d="M18 4H6c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 14H6V6h12v12z"
+              />
+            </svg>
+          </button>
+          <button
+            class="w-8 h-8 rounded text-base flex items-center justify-center transition-colors
+                  bg-white/10 hover:bg-white/20 text-white/70"
+            data-testid="tool-ellipse"
+            title="spriteEditor.ellipse"
+          >
+            <svg
+              fill="currentColor"
+              height="18"
+              stroke="currentColor"
+              stroke-width="0"
+              viewBox="0 0 24 24"
+              width="18"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M0 0h24v24H0z"
+                fill="none"
+              />
+              <path
+                d="M12 2C6.47 2 2 6.47 2 12s4.47 10 10 10 10-4.47 10-10S17.53 2 12 2z"
+              />
+            </svg>
+          </button>
+          <button
+            class="w-8 h-8 rounded text-base flex items-center justify-center transition-colors
+                  bg-white/10 hover:bg-white/20 text-white/70"
+            data-testid="tool-line"
+            title="spriteEditor.line"
+          >
+            <svg
+              fill="currentColor"
+              height="18"
+              stroke="currentColor"
+              stroke-width="0"
+              viewBox="0 0 24 24"
+              width="18"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M0 0h24v24H0z"
+                fill="none"
+              />
+              <path
+                d="m22 7.43-1.41-1.41-4.03 4.53L9.5 4 2 11.51l1.5 1.5 6.14-6.15 5.59 5.18-1.73 1.95-4-4L2 17.5 3.5 19l6-6.01 4 4 3.19-3.59 3.9 3.61L22 15.6l-3.98-3.7z"
+              />
+            </svg>
+          </button>
+          <button
+            class="w-8 h-8 rounded text-base flex items-center justify-center transition-colors
+                  bg-white/10 hover:bg-white/20 text-white/70"
+            data-testid="tool-freehand"
+            title="spriteEditor.pen"
+          >
+            <svg
+              fill="currentColor"
+              height="18"
+              stroke="currentColor"
+              stroke-width="0"
+              viewBox="0 0 24 24"
+              width="18"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M0 0h24v24H0z"
+                fill="none"
+              />
+              <path
+                d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a.996.996 0 0 0 0-1.41l-2.34-2.34a.996.996 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"
+              />
+            </svg>
+          </button>
+          <button
+            class="w-8 h-8 rounded text-base flex items-center justify-center transition-colors
+                  bg-white/10 hover:bg-white/20 text-white/70"
+            data-testid="tool-polygon"
+            title="spriteEditor.polygon"
+          >
+            <svg
+              fill="currentColor"
+              height="18"
+              stroke="currentColor"
+              stroke-width="0"
+              viewBox="0 0 24 24"
+              width="18"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M0 0h24v24H0z"
+                fill="none"
+              />
+              <path
+                d="M15 16v1.26l-6-3v-3.17L11.7 8H16V2h-6v4.9L7.3 10H3v6h5l7 3.5V22h6v-6z"
+              />
+            </svg>
+          </button>
+          <button
+            class="w-8 h-8 rounded text-base flex items-center justify-center transition-colors
+                  bg-white/10 hover:bg-white/20 text-white/70"
+            data-testid="tool-text"
+            title="spriteEditor.text"
+          >
+            <svg
+              fill="currentColor"
+              height="18"
+              stroke="currentColor"
+              stroke-width="0"
+              viewBox="0 0 24 24"
+              width="18"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M0 0h24v24H0z"
+                fill="none"
+              />
+              <path
+                d="M2.5 4v3h5v12h3V7h5V4h-13zm19 5h-9v3h3v7h3v-7h3V9z"
+              />
+            </svg>
+          </button>
+          <div
+            class="w-full h-px bg-white/20 my-1"
+          />
+          <button
+            class="w-8 h-8 rounded bg-white/10 hover:bg-white/20 text-white/70 disabled:opacity-30 flex items-center justify-center"
+            data-testid="undo-button"
+            disabled=""
+            title="spriteEditor.undo"
+          >
+            <svg
+              fill="currentColor"
+              height="16"
+              stroke="currentColor"
+              stroke-width="0"
+              viewBox="0 0 24 24"
+              width="16"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M0 0h24v24H0z"
+                fill="none"
+              />
+              <path
+                d="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z"
+              />
+            </svg>
+          </button>
+          <button
+            class="w-8 h-8 rounded bg-white/10 hover:bg-white/20 text-white/70 disabled:opacity-30 flex items-center justify-center"
+            data-testid="redo-button"
+            disabled=""
+            title="spriteEditor.redo"
+          >
+            <svg
+              fill="currentColor"
+              height="16"
+              stroke="currentColor"
+              stroke-width="0"
+              viewBox="0 0 24 24"
+              width="16"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M0 0h24v24H0z"
+                fill="none"
+              />
+              <path
+                d="M18.4 10.6C16.55 8.99 14.15 8 11.5 8c-4.65 0-8.58 3.03-9.96 7.22L3.9 16a8.002 8.002 0 0 1 7.6-5.5c1.95 0 3.73.72 5.12 1.88L13 16h9V7l-3.6 3.6z"
+              />
+            </svg>
+          </button>
+          <button
+            class="w-8 h-8 rounded bg-red-900/50 hover:bg-red-700/60 text-white/70 disabled:opacity-30 flex items-center justify-center"
+            data-testid="delete-button"
+            disabled=""
+            title="spriteEditor.deleteSelected"
+          >
+            <svg
+              fill="currentColor"
+              height="16"
+              stroke="currentColor"
+              stroke-width="0"
+              viewBox="0 0 24 24"
+              width="16"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M0 0h24v24H0z"
+                fill="none"
+              />
+              <path
+                d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"
+              />
+            </svg>
+          </button>
+        </div>
+        <div
+          class="flex-1 flex justify-center"
+        >
+          <div
+            class="rounded overflow-hidden border border-white/20"
+            style="width: 320px; height: 320px; background: rgb(255, 255, 255);"
+          >
+            <div
+              data-testid="sprite-canvas"
+              height="320"
+              style="cursor: crosshair;"
+              tabindex="0"
+              width="320"
+            >
+              <div>
+                <div />
+                <div
+                  points="152,160,168,160"
+                  stroke="#22d3ee"
+                  stroke-width="1"
+                />
+                <div
+                  points="160,152,160,168"
+                  stroke="#22d3ee"
+                  stroke-width="1"
+                />
+                <div
+                  fill="transparent"
+                  radius="3"
+                  stroke="#22d3ee"
+                  stroke-width="1"
+                  x="160"
+                  y="160"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div
+        class="flex items-center gap-3 mt-3"
+      >
+        <div
+          class="relative"
+        >
+          <button
+            class="flex items-center gap-2 px-3 py-1.5 rounded bg-white/10 hover:bg-white/20 text-white/80 text-xs"
+            data-testid="fill-color-button"
+          >
+            <span
+              class="text-[10px]"
+            >
+              spriteEditor.fill
+            </span>
+            <span
+              class="w-5 h-5 rounded border border-white/30"
+              style="background-color: rgb(74, 222, 128);"
+            />
+          </button>
+        </div>
+        <div
+          class="relative"
+        >
+          <button
+            class="flex items-center gap-2 px-3 py-1.5 rounded bg-white/10 hover:bg-white/20 text-white/80 text-xs"
+            data-testid="stroke-color-button"
+          >
+            <span
+              class="text-[10px]"
+            >
+              spriteEditor.stroke
+            </span>
+            <span
+              class="w-5 h-5 rounded border border-white/30"
+              style="background-color: rgb(30, 41, 59);"
+            />
+          </button>
+        </div>
+        <div
+          class="flex items-center gap-1"
+        >
+          <span
+            class="text-[10px] text-white/60 mr-1"
+          >
+            spriteEditor.stroke
+          </span>
+          <input
+            class="w-16 accent-cyan-500"
+            data-testid="stroke-width-input"
+            max="4"
+            min="0"
+            step="1"
+            type="range"
+            value="1"
+          />
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+`;
+
+exports[`SpriteEditor - Snapshot Tests renders with custom size 128 1`] = `
+<DocumentFragment>
+  <div
+    aria-label="spriteEditor.title"
+    aria-modal="true"
+    class="fixed inset-0 z-50 flex items-center justify-center bg-black/70"
+    data-testid="sprite-editor-modal"
+    role="dialog"
+  >
+    <div
+      class="bg-cyan-800 border border-cyan-600 rounded-xl shadow-2xl p-4 w-[480px]"
+      data-testid="sprite-editor-content"
+    >
+      <div
+        class="flex items-center justify-between gap-4 mb-3"
+      >
+        <button
+          class="px-3 py-1.5 rounded text-xs bg-cyan-600 hover:bg-cyan-500 text-white font-medium"
+          data-testid="save-svg-button"
+        >
+          spriteEditor.save
+        </button>
+        <input
+          class="bg-transparent text-white font-mono text-sm border-b border-white/20 outline-none w-32"
+          data-testid="sprite-name-input"
+          placeholder="sideMenu.spriteNamePlaceholder"
+          value="sprite"
+        />
+        <button
+          aria-label="spriteEditor.close"
+          class="text-white/40 hover:text-white"
+          data-testid="close-button"
+        >
+          <svg
+            fill="currentColor"
+            height="20"
+            stroke="currentColor"
+            stroke-width="0"
+            viewBox="0 0 24 24"
+            width="20"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              d="M0 0h24v24H0z"
+              fill="none"
+            />
+            <path
+              d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
+            />
+          </svg>
+        </button>
+      </div>
+      <div
+        class="flex gap-3"
+      >
+        <div
+          class="flex flex-col gap-1"
+        >
+          <button
+            class="w-8 h-8 rounded text-base flex items-center justify-center transition-colors
+                  bg-white/10 hover:bg-white/20 text-white/70"
+            data-testid="tool-select"
+            title="spriteEditor.select"
+          >
+            <svg
+              fill="currentColor"
+              height="18"
+              stroke="currentColor"
+              stroke-width="0"
+              viewBox="0 0 24 24"
+              width="18"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M0 0h24v24H0z"
+                fill="none"
+              />
+              <path
+                d="M5 15h2V8.41L18.59 20 20 18.59 8.41 7H15V5H5v10z"
+              />
+            </svg>
+          </button>
+          <button
+            class="w-8 h-8 rounded text-base flex items-center justify-center transition-colors
+                  bg-cyan-600 text-white"
+            data-testid="tool-rect"
+            title="spriteEditor.rectangle"
+          >
+            <svg
+              fill="currentColor"
+              height="18"
+              stroke="currentColor"
+              stroke-width="0"
+              viewBox="0 0 24 24"
+              width="18"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M0 0h24v24H0z"
+                fill="none"
+              />
+              <path
+                d="M18 4H6c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 14H6V6h12v12z"
+              />
+            </svg>
+          </button>
+          <button
+            class="w-8 h-8 rounded text-base flex items-center justify-center transition-colors
+                  bg-white/10 hover:bg-white/20 text-white/70"
+            data-testid="tool-ellipse"
+            title="spriteEditor.ellipse"
+          >
+            <svg
+              fill="currentColor"
+              height="18"
+              stroke="currentColor"
+              stroke-width="0"
+              viewBox="0 0 24 24"
+              width="18"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M0 0h24v24H0z"
+                fill="none"
+              />
+              <path
+                d="M12 2C6.47 2 2 6.47 2 12s4.47 10 10 10 10-4.47 10-10S17.53 2 12 2z"
+              />
+            </svg>
+          </button>
+          <button
+            class="w-8 h-8 rounded text-base flex items-center justify-center transition-colors
+                  bg-white/10 hover:bg-white/20 text-white/70"
+            data-testid="tool-line"
+            title="spriteEditor.line"
+          >
+            <svg
+              fill="currentColor"
+              height="18"
+              stroke="currentColor"
+              stroke-width="0"
+              viewBox="0 0 24 24"
+              width="18"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M0 0h24v24H0z"
+                fill="none"
+              />
+              <path
+                d="m22 7.43-1.41-1.41-4.03 4.53L9.5 4 2 11.51l1.5 1.5 6.14-6.15 5.59 5.18-1.73 1.95-4-4L2 17.5 3.5 19l6-6.01 4 4 3.19-3.59 3.9 3.61L22 15.6l-3.98-3.7z"
+              />
+            </svg>
+          </button>
+          <button
+            class="w-8 h-8 rounded text-base flex items-center justify-center transition-colors
+                  bg-white/10 hover:bg-white/20 text-white/70"
+            data-testid="tool-freehand"
+            title="spriteEditor.pen"
+          >
+            <svg
+              fill="currentColor"
+              height="18"
+              stroke="currentColor"
+              stroke-width="0"
+              viewBox="0 0 24 24"
+              width="18"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M0 0h24v24H0z"
+                fill="none"
+              />
+              <path
+                d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a.996.996 0 0 0 0-1.41l-2.34-2.34a.996.996 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"
+              />
+            </svg>
+          </button>
+          <button
+            class="w-8 h-8 rounded text-base flex items-center justify-center transition-colors
+                  bg-white/10 hover:bg-white/20 text-white/70"
+            data-testid="tool-polygon"
+            title="spriteEditor.polygon"
+          >
+            <svg
+              fill="currentColor"
+              height="18"
+              stroke="currentColor"
+              stroke-width="0"
+              viewBox="0 0 24 24"
+              width="18"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M0 0h24v24H0z"
+                fill="none"
+              />
+              <path
+                d="M15 16v1.26l-6-3v-3.17L11.7 8H16V2h-6v4.9L7.3 10H3v6h5l7 3.5V22h6v-6z"
+              />
+            </svg>
+          </button>
+          <button
+            class="w-8 h-8 rounded text-base flex items-center justify-center transition-colors
+                  bg-white/10 hover:bg-white/20 text-white/70"
+            data-testid="tool-text"
+            title="spriteEditor.text"
+          >
+            <svg
+              fill="currentColor"
+              height="18"
+              stroke="currentColor"
+              stroke-width="0"
+              viewBox="0 0 24 24"
+              width="18"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M0 0h24v24H0z"
+                fill="none"
+              />
+              <path
+                d="M2.5 4v3h5v12h3V7h5V4h-13zm19 5h-9v3h3v7h3v-7h3V9z"
+              />
+            </svg>
+          </button>
+          <div
+            class="w-full h-px bg-white/20 my-1"
+          />
+          <button
+            class="w-8 h-8 rounded bg-white/10 hover:bg-white/20 text-white/70 disabled:opacity-30 flex items-center justify-center"
+            data-testid="undo-button"
+            disabled=""
+            title="spriteEditor.undo"
+          >
+            <svg
+              fill="currentColor"
+              height="16"
+              stroke="currentColor"
+              stroke-width="0"
+              viewBox="0 0 24 24"
+              width="16"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M0 0h24v24H0z"
+                fill="none"
+              />
+              <path
+                d="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z"
+              />
+            </svg>
+          </button>
+          <button
+            class="w-8 h-8 rounded bg-white/10 hover:bg-white/20 text-white/70 disabled:opacity-30 flex items-center justify-center"
+            data-testid="redo-button"
+            disabled=""
+            title="spriteEditor.redo"
+          >
+            <svg
+              fill="currentColor"
+              height="16"
+              stroke="currentColor"
+              stroke-width="0"
+              viewBox="0 0 24 24"
+              width="16"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M0 0h24v24H0z"
+                fill="none"
+              />
+              <path
+                d="M18.4 10.6C16.55 8.99 14.15 8 11.5 8c-4.65 0-8.58 3.03-9.96 7.22L3.9 16a8.002 8.002 0 0 1 7.6-5.5c1.95 0 3.73.72 5.12 1.88L13 16h9V7l-3.6 3.6z"
+              />
+            </svg>
+          </button>
+          <button
+            class="w-8 h-8 rounded bg-red-900/50 hover:bg-red-700/60 text-white/70 disabled:opacity-30 flex items-center justify-center"
+            data-testid="delete-button"
+            disabled=""
+            title="spriteEditor.deleteSelected"
+          >
+            <svg
+              fill="currentColor"
+              height="16"
+              stroke="currentColor"
+              stroke-width="0"
+              viewBox="0 0 24 24"
+              width="16"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M0 0h24v24H0z"
+                fill="none"
+              />
+              <path
+                d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"
+              />
+            </svg>
+          </button>
+        </div>
+        <div
+          class="flex-1 flex justify-center"
+        >
+          <div
+            class="rounded overflow-hidden border border-white/20"
+            style="width: 384px; height: 384px; background: rgb(255, 255, 255);"
+          >
+            <div
+              data-testid="sprite-canvas"
+              height="384"
+              style="cursor: crosshair;"
+              tabindex="0"
+              width="384"
+            >
+              <div>
+                <div />
+                <div
+                  points="184,192,200,192"
+                  stroke="#22d3ee"
+                  stroke-width="1"
+                />
+                <div
+                  points="192,184,192,200"
+                  stroke="#22d3ee"
+                  stroke-width="1"
+                />
+                <div
+                  fill="transparent"
+                  radius="3"
+                  stroke="#22d3ee"
+                  stroke-width="1"
+                  x="192"
+                  y="192"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div
+        class="flex items-center gap-3 mt-3"
+      >
+        <div
+          class="relative"
+        >
+          <button
+            class="flex items-center gap-2 px-3 py-1.5 rounded bg-white/10 hover:bg-white/20 text-white/80 text-xs"
+            data-testid="fill-color-button"
+          >
+            <span
+              class="text-[10px]"
+            >
+              spriteEditor.fill
+            </span>
+            <span
+              class="w-5 h-5 rounded border border-white/30"
+              style="background-color: rgb(74, 222, 128);"
+            />
+          </button>
+        </div>
+        <div
+          class="relative"
+        >
+          <button
+            class="flex items-center gap-2 px-3 py-1.5 rounded bg-white/10 hover:bg-white/20 text-white/80 text-xs"
+            data-testid="stroke-color-button"
+          >
+            <span
+              class="text-[10px]"
+            >
+              spriteEditor.stroke
+            </span>
+            <span
+              class="w-5 h-5 rounded border border-white/30"
+              style="background-color: rgb(30, 41, 59);"
+            />
+          </button>
+        </div>
+        <div
+          class="flex items-center gap-1"
+        >
+          <span
+            class="text-[10px] text-white/60 mr-1"
+          >
+            spriteEditor.stroke
+          </span>
+          <input
+            class="w-16 accent-cyan-500"
+            data-testid="stroke-width-input"
+            max="4"
+            min="0"
+            step="1"
+            type="range"
+            value="1"
+          />
+        </div>
+      </div>
+    </div>
+  </div>
+</DocumentFragment>
+`;
+
+exports[`SpriteEditor - Snapshot Tests renders with default props 1`] = `
+<DocumentFragment>
+  <div
+    aria-label="spriteEditor.title"
+    aria-modal="true"
+    class="fixed inset-0 z-50 flex items-center justify-center bg-black/70"
+    data-testid="sprite-editor-modal"
+    role="dialog"
+  >
+    <div
+      class="bg-cyan-800 border border-cyan-600 rounded-xl shadow-2xl p-4 w-[480px]"
+      data-testid="sprite-editor-content"
+    >
+      <div
+        class="flex items-center justify-between gap-4 mb-3"
+      >
+        <button
+          class="px-3 py-1.5 rounded text-xs bg-cyan-600 hover:bg-cyan-500 text-white font-medium"
+          data-testid="save-svg-button"
+        >
+          spriteEditor.save
+        </button>
+        <input
+          class="bg-transparent text-white font-mono text-sm border-b border-white/20 outline-none w-32"
+          data-testid="sprite-name-input"
+          placeholder="sideMenu.spriteNamePlaceholder"
+          value="sprite"
+        />
+        <button
+          aria-label="spriteEditor.close"
+          class="text-white/40 hover:text-white"
+          data-testid="close-button"
+        >
+          <svg
+            fill="currentColor"
+            height="20"
+            stroke="currentColor"
+            stroke-width="0"
+            viewBox="0 0 24 24"
+            width="20"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              d="M0 0h24v24H0z"
+              fill="none"
+            />
+            <path
+              d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
+            />
+          </svg>
+        </button>
+      </div>
+      <div
+        class="flex gap-3"
+      >
+        <div
+          class="flex flex-col gap-1"
+        >
+          <button
+            class="w-8 h-8 rounded text-base flex items-center justify-center transition-colors
+                  bg-white/10 hover:bg-white/20 text-white/70"
+            data-testid="tool-select"
+            title="spriteEditor.select"
+          >
+            <svg
+              fill="currentColor"
+              height="18"
+              stroke="currentColor"
+              stroke-width="0"
+              viewBox="0 0 24 24"
+              width="18"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M0 0h24v24H0z"
+                fill="none"
+              />
+              <path
+                d="M5 15h2V8.41L18.59 20 20 18.59 8.41 7H15V5H5v10z"
+              />
+            </svg>
+          </button>
+          <button
+            class="w-8 h-8 rounded text-base flex items-center justify-center transition-colors
+                  bg-cyan-600 text-white"
+            data-testid="tool-rect"
+            title="spriteEditor.rectangle"
+          >
+            <svg
+              fill="currentColor"
+              height="18"
+              stroke="currentColor"
+              stroke-width="0"
+              viewBox="0 0 24 24"
+              width="18"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M0 0h24v24H0z"
+                fill="none"
+              />
+              <path
+                d="M18 4H6c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 14H6V6h12v12z"
+              />
+            </svg>
+          </button>
+          <button
+            class="w-8 h-8 rounded text-base flex items-center justify-center transition-colors
+                  bg-white/10 hover:bg-white/20 text-white/70"
+            data-testid="tool-ellipse"
+            title="spriteEditor.ellipse"
+          >
+            <svg
+              fill="currentColor"
+              height="18"
+              stroke="currentColor"
+              stroke-width="0"
+              viewBox="0 0 24 24"
+              width="18"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M0 0h24v24H0z"
+                fill="none"
+              />
+              <path
+                d="M12 2C6.47 2 2 6.47 2 12s4.47 10 10 10 10-4.47 10-10S17.53 2 12 2z"
+              />
+            </svg>
+          </button>
+          <button
+            class="w-8 h-8 rounded text-base flex items-center justify-center transition-colors
+                  bg-white/10 hover:bg-white/20 text-white/70"
+            data-testid="tool-line"
+            title="spriteEditor.line"
+          >
+            <svg
+              fill="currentColor"
+              height="18"
+              stroke="currentColor"
+              stroke-width="0"
+              viewBox="0 0 24 24"
+              width="18"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M0 0h24v24H0z"
+                fill="none"
+              />
+              <path
+                d="m22 7.43-1.41-1.41-4.03 4.53L9.5 4 2 11.51l1.5 1.5 6.14-6.15 5.59 5.18-1.73 1.95-4-4L2 17.5 3.5 19l6-6.01 4 4 3.19-3.59 3.9 3.61L22 15.6l-3.98-3.7z"
+              />
+            </svg>
+          </button>
+          <button
+            class="w-8 h-8 rounded text-base flex items-center justify-center transition-colors
+                  bg-white/10 hover:bg-white/20 text-white/70"
+            data-testid="tool-freehand"
+            title="spriteEditor.pen"
+          >
+            <svg
+              fill="currentColor"
+              height="18"
+              stroke="currentColor"
+              stroke-width="0"
+              viewBox="0 0 24 24"
+              width="18"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M0 0h24v24H0z"
+                fill="none"
+              />
+              <path
+                d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a.996.996 0 0 0 0-1.41l-2.34-2.34a.996.996 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"
+              />
+            </svg>
+          </button>
+          <button
+            class="w-8 h-8 rounded text-base flex items-center justify-center transition-colors
+                  bg-white/10 hover:bg-white/20 text-white/70"
+            data-testid="tool-polygon"
+            title="spriteEditor.polygon"
+          >
+            <svg
+              fill="currentColor"
+              height="18"
+              stroke="currentColor"
+              stroke-width="0"
+              viewBox="0 0 24 24"
+              width="18"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M0 0h24v24H0z"
+                fill="none"
+              />
+              <path
+                d="M15 16v1.26l-6-3v-3.17L11.7 8H16V2h-6v4.9L7.3 10H3v6h5l7 3.5V22h6v-6z"
+              />
+            </svg>
+          </button>
+          <button
+            class="w-8 h-8 rounded text-base flex items-center justify-center transition-colors
+                  bg-white/10 hover:bg-white/20 text-white/70"
+            data-testid="tool-text"
+            title="spriteEditor.text"
+          >
+            <svg
+              fill="currentColor"
+              height="18"
+              stroke="currentColor"
+              stroke-width="0"
+              viewBox="0 0 24 24"
+              width="18"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M0 0h24v24H0z"
+                fill="none"
+              />
+              <path
+                d="M2.5 4v3h5v12h3V7h5V4h-13zm19 5h-9v3h3v7h3v-7h3V9z"
+              />
+            </svg>
+          </button>
+          <div
+            class="w-full h-px bg-white/20 my-1"
+          />
+          <button
+            class="w-8 h-8 rounded bg-white/10 hover:bg-white/20 text-white/70 disabled:opacity-30 flex items-center justify-center"
+            data-testid="undo-button"
+            disabled=""
+            title="spriteEditor.undo"
+          >
+            <svg
+              fill="currentColor"
+              height="16"
+              stroke="currentColor"
+              stroke-width="0"
+              viewBox="0 0 24 24"
+              width="16"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M0 0h24v24H0z"
+                fill="none"
+              />
+              <path
+                d="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z"
+              />
+            </svg>
+          </button>
+          <button
+            class="w-8 h-8 rounded bg-white/10 hover:bg-white/20 text-white/70 disabled:opacity-30 flex items-center justify-center"
+            data-testid="redo-button"
+            disabled=""
+            title="spriteEditor.redo"
+          >
+            <svg
+              fill="currentColor"
+              height="16"
+              stroke="currentColor"
+              stroke-width="0"
+              viewBox="0 0 24 24"
+              width="16"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M0 0h24v24H0z"
+                fill="none"
+              />
+              <path
+                d="M18.4 10.6C16.55 8.99 14.15 8 11.5 8c-4.65 0-8.58 3.03-9.96 7.22L3.9 16a8.002 8.002 0 0 1 7.6-5.5c1.95 0 3.73.72 5.12 1.88L13 16h9V7l-3.6 3.6z"
+              />
+            </svg>
+          </button>
+          <button
+            class="w-8 h-8 rounded bg-red-900/50 hover:bg-red-700/60 text-white/70 disabled:opacity-30 flex items-center justify-center"
+            data-testid="delete-button"
+            disabled=""
+            title="spriteEditor.deleteSelected"
+          >
+            <svg
+              fill="currentColor"
+              height="16"
+              stroke="currentColor"
+              stroke-width="0"
+              viewBox="0 0 24 24"
+              width="16"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M0 0h24v24H0z"
+                fill="none"
+              />
+              <path
+                d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"
+              />
+            </svg>
+          </button>
+        </div>
+        <div
+          class="flex-1 flex justify-center"
+        >
+          <div
+            class="rounded overflow-hidden border border-white/20"
+            style="width: 320px; height: 320px; background: rgb(255, 255, 255);"
+          >
+            <div
+              data-testid="sprite-canvas"
+              height="320"
+              style="cursor: crosshair;"
+              tabindex="0"
+              width="320"
+            >
+              <div>
+                <div />
+                <div
+                  points="152,160,168,160"
+                  stroke="#22d3ee"
+                  stroke-width="1"
+                />
+                <div
+                  points="160,152,160,168"
+                  stroke="#22d3ee"
+                  stroke-width="1"
+                />
+                <div
+                  fill="transparent"
+                  radius="3"
+                  stroke="#22d3ee"
+                  stroke-width="1"
+                  x="160"
+                  y="160"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div
+        class="flex items-center gap-3 mt-3"
+      >
+        <div
+          class="relative"
+        >
+          <button
+            class="flex items-center gap-2 px-3 py-1.5 rounded bg-white/10 hover:bg-white/20 text-white/80 text-xs"
+            data-testid="fill-color-button"
+          >
+            <span
+              class="text-[10px]"
+            >
+              spriteEditor.fill
+            </span>
+            <span
+              class="w-5 h-5 rounded border border-white/30"
+              style="background-color: rgb(74, 222, 128);"
+            />
+          </button>
+        </div>
+        <div
+          class="relative"
+        >
+          <button
+            class="flex items-center gap-2 px-3 py-1.5 rounded bg-white/10 hover:bg-white/20 text-white/80 text-xs"
+            data-testid="stroke-color-button"
+          >
+            <span
+              class="text-[10px]"
+            >
+              spriteEditor.stroke
+            </span>
+            <span
+              class="w-5 h-5 rounded border border-white/30"
+              style="background-color: rgb(30, 41, 59);"
+            />
+          </button>
+        </div>
+        <div
+          class="flex items-center gap-1"
+        >
+          <span
+            class="text-[10px] text-white/60 mr-1"
+          >
+            spriteEditor.stroke
+          </span>
+          <input
+            class="w-16 accent-cyan-500"
+            data-testid="stroke-width-input"
+            max="4"
+            min="0"
+            step="1"
+            type="range"
+            value="1"
+          />
+        </div>
+      </div>
+    </div>
+  </div>
+</DocumentFragment>
+`;
+
+exports[`SpriteEditor - Snapshot Tests renders with initial name 1`] = `
+<DocumentFragment>
+  <div
+    aria-label="spriteEditor.title"
+    aria-modal="true"
+    class="fixed inset-0 z-50 flex items-center justify-center bg-black/70"
+    data-testid="sprite-editor-modal"
+    role="dialog"
+  >
+    <div
+      class="bg-cyan-800 border border-cyan-600 rounded-xl shadow-2xl p-4 w-[480px]"
+      data-testid="sprite-editor-content"
+    >
+      <div
+        class="flex items-center justify-between gap-4 mb-3"
+      >
+        <button
+          class="px-3 py-1.5 rounded text-xs bg-cyan-600 hover:bg-cyan-500 text-white font-medium"
+          data-testid="save-svg-button"
+        >
+          spriteEditor.save
+        </button>
+        <input
+          class="bg-transparent text-white font-mono text-sm border-b border-white/20 outline-none w-32"
+          data-testid="sprite-name-input"
+          placeholder="sideMenu.spriteNamePlaceholder"
+          value="mySprite"
+        />
+        <button
+          aria-label="spriteEditor.close"
+          class="text-white/40 hover:text-white"
+          data-testid="close-button"
+        >
+          <svg
+            fill="currentColor"
+            height="20"
+            stroke="currentColor"
+            stroke-width="0"
+            viewBox="0 0 24 24"
+            width="20"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              d="M0 0h24v24H0z"
+              fill="none"
+            />
+            <path
+              d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
+            />
+          </svg>
+        </button>
+      </div>
+      <div
+        class="flex gap-3"
+      >
+        <div
+          class="flex flex-col gap-1"
+        >
+          <button
+            class="w-8 h-8 rounded text-base flex items-center justify-center transition-colors
+                  bg-white/10 hover:bg-white/20 text-white/70"
+            data-testid="tool-select"
+            title="spriteEditor.select"
+          >
+            <svg
+              fill="currentColor"
+              height="18"
+              stroke="currentColor"
+              stroke-width="0"
+              viewBox="0 0 24 24"
+              width="18"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M0 0h24v24H0z"
+                fill="none"
+              />
+              <path
+                d="M5 15h2V8.41L18.59 20 20 18.59 8.41 7H15V5H5v10z"
+              />
+            </svg>
+          </button>
+          <button
+            class="w-8 h-8 rounded text-base flex items-center justify-center transition-colors
+                  bg-cyan-600 text-white"
+            data-testid="tool-rect"
+            title="spriteEditor.rectangle"
+          >
+            <svg
+              fill="currentColor"
+              height="18"
+              stroke="currentColor"
+              stroke-width="0"
+              viewBox="0 0 24 24"
+              width="18"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M0 0h24v24H0z"
+                fill="none"
+              />
+              <path
+                d="M18 4H6c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 14H6V6h12v12z"
+              />
+            </svg>
+          </button>
+          <button
+            class="w-8 h-8 rounded text-base flex items-center justify-center transition-colors
+                  bg-white/10 hover:bg-white/20 text-white/70"
+            data-testid="tool-ellipse"
+            title="spriteEditor.ellipse"
+          >
+            <svg
+              fill="currentColor"
+              height="18"
+              stroke="currentColor"
+              stroke-width="0"
+              viewBox="0 0 24 24"
+              width="18"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M0 0h24v24H0z"
+                fill="none"
+              />
+              <path
+                d="M12 2C6.47 2 2 6.47 2 12s4.47 10 10 10 10-4.47 10-10S17.53 2 12 2z"
+              />
+            </svg>
+          </button>
+          <button
+            class="w-8 h-8 rounded text-base flex items-center justify-center transition-colors
+                  bg-white/10 hover:bg-white/20 text-white/70"
+            data-testid="tool-line"
+            title="spriteEditor.line"
+          >
+            <svg
+              fill="currentColor"
+              height="18"
+              stroke="currentColor"
+              stroke-width="0"
+              viewBox="0 0 24 24"
+              width="18"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M0 0h24v24H0z"
+                fill="none"
+              />
+              <path
+                d="m22 7.43-1.41-1.41-4.03 4.53L9.5 4 2 11.51l1.5 1.5 6.14-6.15 5.59 5.18-1.73 1.95-4-4L2 17.5 3.5 19l6-6.01 4 4 3.19-3.59 3.9 3.61L22 15.6l-3.98-3.7z"
+              />
+            </svg>
+          </button>
+          <button
+            class="w-8 h-8 rounded text-base flex items-center justify-center transition-colors
+                  bg-white/10 hover:bg-white/20 text-white/70"
+            data-testid="tool-freehand"
+            title="spriteEditor.pen"
+          >
+            <svg
+              fill="currentColor"
+              height="18"
+              stroke="currentColor"
+              stroke-width="0"
+              viewBox="0 0 24 24"
+              width="18"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M0 0h24v24H0z"
+                fill="none"
+              />
+              <path
+                d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a.996.996 0 0 0 0-1.41l-2.34-2.34a.996.996 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"
+              />
+            </svg>
+          </button>
+          <button
+            class="w-8 h-8 rounded text-base flex items-center justify-center transition-colors
+                  bg-white/10 hover:bg-white/20 text-white/70"
+            data-testid="tool-polygon"
+            title="spriteEditor.polygon"
+          >
+            <svg
+              fill="currentColor"
+              height="18"
+              stroke="currentColor"
+              stroke-width="0"
+              viewBox="0 0 24 24"
+              width="18"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M0 0h24v24H0z"
+                fill="none"
+              />
+              <path
+                d="M15 16v1.26l-6-3v-3.17L11.7 8H16V2h-6v4.9L7.3 10H3v6h5l7 3.5V22h6v-6z"
+              />
+            </svg>
+          </button>
+          <button
+            class="w-8 h-8 rounded text-base flex items-center justify-center transition-colors
+                  bg-white/10 hover:bg-white/20 text-white/70"
+            data-testid="tool-text"
+            title="spriteEditor.text"
+          >
+            <svg
+              fill="currentColor"
+              height="18"
+              stroke="currentColor"
+              stroke-width="0"
+              viewBox="0 0 24 24"
+              width="18"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M0 0h24v24H0z"
+                fill="none"
+              />
+              <path
+                d="M2.5 4v3h5v12h3V7h5V4h-13zm19 5h-9v3h3v7h3v-7h3V9z"
+              />
+            </svg>
+          </button>
+          <div
+            class="w-full h-px bg-white/20 my-1"
+          />
+          <button
+            class="w-8 h-8 rounded bg-white/10 hover:bg-white/20 text-white/70 disabled:opacity-30 flex items-center justify-center"
+            data-testid="undo-button"
+            disabled=""
+            title="spriteEditor.undo"
+          >
+            <svg
+              fill="currentColor"
+              height="16"
+              stroke="currentColor"
+              stroke-width="0"
+              viewBox="0 0 24 24"
+              width="16"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M0 0h24v24H0z"
+                fill="none"
+              />
+              <path
+                d="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z"
+              />
+            </svg>
+          </button>
+          <button
+            class="w-8 h-8 rounded bg-white/10 hover:bg-white/20 text-white/70 disabled:opacity-30 flex items-center justify-center"
+            data-testid="redo-button"
+            disabled=""
+            title="spriteEditor.redo"
+          >
+            <svg
+              fill="currentColor"
+              height="16"
+              stroke="currentColor"
+              stroke-width="0"
+              viewBox="0 0 24 24"
+              width="16"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M0 0h24v24H0z"
+                fill="none"
+              />
+              <path
+                d="M18.4 10.6C16.55 8.99 14.15 8 11.5 8c-4.65 0-8.58 3.03-9.96 7.22L3.9 16a8.002 8.002 0 0 1 7.6-5.5c1.95 0 3.73.72 5.12 1.88L13 16h9V7l-3.6 3.6z"
+              />
+            </svg>
+          </button>
+          <button
+            class="w-8 h-8 rounded bg-red-900/50 hover:bg-red-700/60 text-white/70 disabled:opacity-30 flex items-center justify-center"
+            data-testid="delete-button"
+            disabled=""
+            title="spriteEditor.deleteSelected"
+          >
+            <svg
+              fill="currentColor"
+              height="16"
+              stroke="currentColor"
+              stroke-width="0"
+              viewBox="0 0 24 24"
+              width="16"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M0 0h24v24H0z"
+                fill="none"
+              />
+              <path
+                d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"
+              />
+            </svg>
+          </button>
+        </div>
+        <div
+          class="flex-1 flex justify-center"
+        >
+          <div
+            class="rounded overflow-hidden border border-white/20"
+            style="width: 320px; height: 320px; background: rgb(255, 255, 255);"
+          >
+            <div
+              data-testid="sprite-canvas"
+              height="320"
+              style="cursor: crosshair;"
+              tabindex="0"
+              width="320"
+            >
+              <div>
+                <div />
+                <div
+                  points="152,160,168,160"
+                  stroke="#22d3ee"
+                  stroke-width="1"
+                />
+                <div
+                  points="160,152,160,168"
+                  stroke="#22d3ee"
+                  stroke-width="1"
+                />
+                <div
+                  fill="transparent"
+                  radius="3"
+                  stroke="#22d3ee"
+                  stroke-width="1"
+                  x="160"
+                  y="160"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div
+        class="flex items-center gap-3 mt-3"
+      >
+        <div
+          class="relative"
+        >
+          <button
+            class="flex items-center gap-2 px-3 py-1.5 rounded bg-white/10 hover:bg-white/20 text-white/80 text-xs"
+            data-testid="fill-color-button"
+          >
+            <span
+              class="text-[10px]"
+            >
+              spriteEditor.fill
+            </span>
+            <span
+              class="w-5 h-5 rounded border border-white/30"
+              style="background-color: rgb(74, 222, 128);"
+            />
+          </button>
+        </div>
+        <div
+          class="relative"
+        >
+          <button
+            class="flex items-center gap-2 px-3 py-1.5 rounded bg-white/10 hover:bg-white/20 text-white/80 text-xs"
+            data-testid="stroke-color-button"
+          >
+            <span
+              class="text-[10px]"
+            >
+              spriteEditor.stroke
+            </span>
+            <span
+              class="w-5 h-5 rounded border border-white/30"
+              style="background-color: rgb(30, 41, 59);"
+            />
+          </button>
+        </div>
+        <div
+          class="flex items-center gap-1"
+        >
+          <span
+            class="text-[10px] text-white/60 mr-1"
+          >
+            spriteEditor.stroke
+          </span>
+          <input
+            class="w-16 accent-cyan-500"
+            data-testid="stroke-width-input"
+            max="4"
+            min="0"
+            step="1"
+            type="range"
+            value="1"
+          />
+        </div>
+      </div>
+    </div>
+  </div>
+</DocumentFragment>
+`;

@@ -37,3 +37,8 @@ Thumbs.db
 
 # Claude agent files
 .claude/
+
+# Project-specific (not tracked)
+CLAUDE.md
+AGENTS.md
+todo.md

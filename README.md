@@ -17,18 +17,43 @@ A browser-based Python IDE designed for teaching kids aged 10-12. Zero installat
 Create games using the simple `graphics` API:
 
 ```python
-import graphics as g
+from graphics import *
+from graphics.actors import Actor
 
-@g.setup
-def setup():
-    g.size(400, 400)
 
-@g.every(5)
-def game_loop():
-    g.fill("red")
-    g.circle(g.mouse_x(), g.mouse_y(), 20)
+def draw(self):
+    x, y = self.get_coords()
+    fill(self.color)
+    stroke("white")
+    rect(x - 50, y - 50, 100, 100)
 
-g.run()
+
+box = Actor(draw=draw, color="red")
+
+
+@setup
+def start():
+    size(700, 410)
+    box.set_coords(350, 205)
+
+
+@on_mouse_move
+def on_mouse_move(x, y):
+    box.set_coords(x, y)
+
+
+@on_mouse_click
+def on_mouse_click(x, y):
+    box.color = random_color()
+
+
+@every(1)
+def loop():
+    background("black")
+    box.draw()
+
+
+run()
 ```
 
 ### Use Actors for Game Objects
@@ -36,14 +61,20 @@ g.run()
 The `Actor` system makes game objects easy:
 
 ```python
-from graphics.actors import Actor
+from graphics import *
 
-def draw(self):
-    x, y = self.get_coords()
-    g.fill("blue")
-    g.rect(x - 25, y - 25, 50, 50)
+size(800, 800)
 
-player = Actor(x=200, y=200, draw=draw)
+ship = Actor(image=assets.sprites.ship, radius=20)
+
+@every(1)
+def loop():
+    background("black")
+    ship.point_to(mouse_x(), mouse_y())
+    ship.move_forward(5)
+    ship.draw()
+
+run()
 ```
 
 ### Create Sprites

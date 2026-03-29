@@ -8,8 +8,12 @@ import Snake from "../assets/examples/snake/snake.py?raw";
 import SnakeCfg from "../assets/examples/snake/snake_cfg.py?raw";
 import AppleCfg from "../assets/examples/snake/apple_cfg.py?raw";
 import Sokoban from "../assets/examples/sokoban/sokoban.py?raw";
-import Bounce from "../assets/examples/bounce/bounce.py?raw";
-import Asteroids from "../assets/examples/asteroids/asteroids (1)/files/main.py?raw";
+// import Bounce from "../assets/examples/bounce/bounce.py?raw";
+import Asteroids from "../assets/examples/asteroids/files/main.py?raw";
+import ShipSvg from "../assets/examples/asteroids/assets/ship.svg?url";
+import BulletSvg from "../assets/examples/asteroids/assets/bullet.svg?url";
+import BigAsteroidSvg from "../assets/examples/asteroids/assets/big_asteroid.svg?url";
+import SmallAsteroidSvg from "../assets/examples/asteroids/assets/small_asteroid.svg?url";
 import { PACK_ASSET_LIST } from "./assets";
 import { projectStorage, StoredProject } from "../utils/storage";
 import { importProjectFromFile } from "../utils/zip";
@@ -37,7 +41,14 @@ const Examples: Record<string, Project> = {
   "hello world": { files: { "main.py": HelloWorld }, assets: {} },
   input: { files: { "input.py": Input }, assets: {} },
   p5: { files: { "p5.py": P5 }, assets: {} },
-  snake: { files: { "snake.py": Snake, "snake_cfg.py": SnakeCfg, "apple_cfg.py": AppleCfg }, assets: {} },
+  snake: {
+    files: {
+      "snake.py": Snake,
+      "snake_cfg.py": SnakeCfg,
+      "apple_cfg.py": AppleCfg,
+    },
+    assets: {},
+  },
   sokoban: {
     files: { "sokoban.py": Sokoban },
     assets: pickAssets(
@@ -49,10 +60,15 @@ const Examples: Record<string, Project> = {
       "p1_front",
     ),
   },
-  "bounce (new API)": { files: { "bounce.py": Bounce }, assets: {} },
+  // "bounce (new API)": { files: { "bounce.py": Bounce }, assets: {} },
   asteroids: {
     files: { "main.py": Asteroids },
-    assets: pickAssets("asteroid", "bullet", "spaceship"),
+    assets: {
+      "ship.svg": ShipSvg,
+      "bullet.svg": BulletSvg,
+      "big_asteroid.svg": BigAsteroidSvg,
+      "small_asteroid.svg": SmallAsteroidSvg,
+    },
   },
 };
 type EditorState = {
@@ -284,7 +300,7 @@ export const useIde = create<IdeState>((set, get) => ({
 
     // Only fork if we're currently on an example (no currentProjectId)
     if (currentProjectId !== null) {
-      throw new Error(i18n.t('errors.cannotFork'));
+      throw new Error(i18n.t("errors.cannotFork"));
     }
 
     const exampleName = Object.keys(Examples).find(
@@ -292,7 +308,7 @@ export const useIde = create<IdeState>((set, get) => ({
     );
 
     if (!exampleName) {
-      throw new Error(i18n.t('errors.notExample'));
+      throw new Error(i18n.t("errors.notExample"));
     }
 
     return await get().forkExample(exampleName, project, newName);

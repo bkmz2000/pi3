@@ -39,6 +39,6 @@ Thumbs.db
 .claude/
 
 # Project-specific (not tracked)
-CLAUDE.md
-AGENTS.md
-todo.md
+./CLAUDE.md
+./AGENTS.md
+./todo.md

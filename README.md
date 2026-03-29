@@ -2,7 +2,7 @@
 
 A browser-based Python IDE designed for teaching kids aged 10-12. Zero installation — just open a URL and start coding!
 
-![pi³ IDE](https://via.placeholder.com/800x400?text=pi3+Python+IDE)
+<img width="1920" height="917" alt="image" src="https://github.com/user-attachments/assets/1e7ba6ee-a53a-4f0e-a457-37d158093373" />
 
 ## Features
 

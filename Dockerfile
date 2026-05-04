@@ -13,7 +13,7 @@ COPY public public/
 COPY src src/
 
 # Install dependencies (including dev for build)
-RUN npm ci
+RUN npm install
 
 # Build static assets
 RUN npm run build

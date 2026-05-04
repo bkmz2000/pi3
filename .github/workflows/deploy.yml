@@ -78,7 +78,7 @@ jobs:
             docker run -d \
               --name pi3 \
               --restart unless-stopped \
-              -p 80:5173 \
+              -p 8080:5173 \
               -v pi3-data:/app/data \
               ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
 

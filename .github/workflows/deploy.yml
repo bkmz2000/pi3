@@ -73,7 +73,7 @@ jobs:
             fi
             docker logout ${{ env.REGISTRY }} 2>/dev/null || true
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ${{ env.REGISTRY }} -u ${{ github.actor }} --password-stdin
-            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
             docker stop pi3 2>/dev/null || true
             docker rm pi3 2>/dev/null || true
             docker run -d \
@@ -81,7 +81,7 @@ jobs:
               --restart unless-stopped \
               -p 8080:5173 \
               -v pi3-data:/app/data \
-              ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+              ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
 
       - name: Deployment Summary
         if: success()

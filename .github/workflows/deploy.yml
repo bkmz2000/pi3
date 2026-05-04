@@ -71,6 +71,7 @@ jobs:
             if ! command -v docker &> /dev/null; then
               curl -fsSL https://get.docker.com | sh
             fi
+            docker logout ${{ env.REGISTRY }} 2>/dev/null || true
             docker login ${{ env.REGISTRY }} -u ${{ github.actor }} -p ${{ secrets.GITHUB_TOKEN }}
             docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
             docker stop pi3 2>/dev/null || true

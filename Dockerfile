@@ -5,6 +5,7 @@ WORKDIR /app
 
 # Copy package files
 COPY package*.json ./
+COPY .npmrc ./
 COPY vite.config.ts ./
 COPY tsconfig.json ./
 COPY tsconfig.node.json ./
@@ -14,7 +15,7 @@ COPY public public/
 COPY src src/
 
 # Install dependencies (including dev for build)
-RUN npm install
+RUN npm install --legacy-peer-deps
 
 # Build static assets
 RUN npm run build

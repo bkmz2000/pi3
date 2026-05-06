@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { useEditor } from "./state/IdeState";
 import { MdClose, MdAdd } from "react-icons/md";
+import { AuthSection } from "./components/user";
 
 export function FileTab({ name }: { name: string }) {
   const { t } = useTranslation();
@@ -190,6 +191,8 @@ export default function FileBar() {
   return (
     <>
       <div className="h-12 bg-cyan-700 flex flex-row items-end gap-1 px-2">
+        <AuthSection />
+        <div className="flex-1" />
         {Object.keys(project.files).map((name) => (
           <FileTab key={name} name={name} />
         ))}

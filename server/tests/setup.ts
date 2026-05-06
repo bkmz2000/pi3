@@ -1,4 +1,5 @@
 import Database from 'better-sqlite3';
+import { setTestDb } from '../db/index.js';
 
 export function createTestDb(): Database.Database {
   const db = new Database(':memory:');
@@ -58,7 +59,12 @@ export function createTestDb(): Database.Database {
     CREATE INDEX IF NOT EXISTS idx_users_api_token ON users(api_token);
   `);
 
+  setTestDb(db);
   return db;
 }
 
-export default { createTestDb };
+export function closeTestDb(): void {
+  setTestDb(undefined);
+}
+
+export default { createTestDb, closeTestDb };

@@ -7,8 +7,10 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const DB_PATH = process.env.DB_PATH || join(__dirname, '../../pi3.db');
 
 let db: Database.Database | undefined;
+let testDb: Database.Database | undefined;
 
 export function getDb(): Database.Database {
+  if (testDb) return testDb;
   if (!db) {
     db = new Database(DB_PATH);
     db.pragma('journal_mode = WAL');
@@ -17,11 +19,16 @@ export function getDb(): Database.Database {
   return db;
 }
 
+export function setTestDb(newDb: Database.Database | undefined): void {
+  testDb = newDb;
+}
+
 export function closeDb(): void {
   if (db) {
     db.close();
     db = undefined;
   }
+  testDb = undefined;
 }
 
 export function runMigrations(): void {

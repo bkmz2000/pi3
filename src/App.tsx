@@ -1,9 +1,12 @@
 import { useCallback, useEffect } from "react";
+import { Routes, Route, Navigate } from "react-router-dom";
 import CodeMirror from "@uiw/react-codemirror";
 import { python } from "@codemirror/lang-python";
 import { indentUnit, bracketMatching, indentOnInput } from "@codemirror/language";
 import { EditorState } from "@codemirror/state";
 import { EditorView, lineNumbers, highlightActiveLine, drawSelection, highlightSpecialChars } from "@codemirror/view";
+import { autocompletion, acceptCompletion } from "@codemirror/autocomplete";
+import { keymap } from "@codemirror/view";
 import Rail from "./SideMenu";
 import { useEditor } from "./state/IdeState";
 import { useIde } from "./state/IdeState";
@@ -13,6 +16,7 @@ import CanvasWindow from "./CanvasWindow";
 import LoadingScreen from "./components/LoadingScreen";
 import ConsolePanel from "./components/ConsolePanel";
 import { webideTheme, indentationGuideField } from "./editor/theme";
+import { ProjectsPage } from "./components/projects";
 
 function AppInner() {
   const changeFile = useEditor((s) => s.changeFile);
@@ -85,6 +89,13 @@ function AppInner() {
               indentationGuideField,
               webideTheme,
               EditorView.lineWrapping,
+              autocompletion({ defaultKeymap: true }),
+              keymap.of([
+                {
+                  key: "Tab",
+                  run: acceptCompletion,
+                },
+              ]),
             ]}
             height="100%"
             width="100%"
@@ -99,5 +110,11 @@ function AppInner() {
 }
 
 export default function App() {
-  return <AppInner />;
+  return (
+    <Routes>
+      <Route path="/projects" element={<ProjectsPage />} />
+      <Route path="/ide/:projectId" element={<AppInner />} />
+      <Route path="/" element={<Navigate to="/projects" replace />} />
+    </Routes>
+  );
 }

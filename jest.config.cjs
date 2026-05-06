@@ -8,6 +8,7 @@ const config = {
     '\\.(css|less|scss|sass)$': 'identity-obj-proxy',
     '^konva$': '<rootDir>/tests/unit/__mocks__/konva.cjs',
     '^react-konva$': '<rootDir>/tests/unit/__mocks__/react-konva.cjs',
+    '^../state/useUser$': '<rootDir>/tests/unit/__mocks__/useUser.js',
   },
   transform: {
     '^.+\\.(ts|tsx)$': ['ts-jest', {
@@ -18,8 +19,7 @@ const config = {
     '/node_modules/(?!(konva|react-konva)/)',
   ],
   testMatch: [
-    '**/__tests__/**/*.+(ts|tsx|js)',
-    '**/*.test.+(ts|tsx|js)',
+    '**/tests/unit/**/*.test.+(ts|tsx|js)',
   ],
   collectCoverageFrom: [
     'src/**/*.{ts,tsx}',

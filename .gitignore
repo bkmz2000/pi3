@@ -17,6 +17,10 @@ dist-ssr
 
 # TypeScript cache
 .tsbuildinfo
+.tsbuild/
+
+# Python cache
+__pycache__/
 
 # Test coverage
 coverage

@@ -1,42 +1,26 @@
-# Stage 1: Build
-FROM node:22-alpine AS builder
+FROM node:22-alpine
 
 WORKDIR /app
 
-# Copy package files
 COPY package*.json ./
 COPY .npmrc ./
 COPY vite.config.ts ./
 COPY tsconfig.json ./
 COPY tsconfig.node.json ./
 COPY tsconfig.app.json ./
+COPY tsconfig.server.json ./
 COPY index.html ./
 COPY public public/
 COPY src src/
+COPY server/ ./server/
 
-# Install dependencies (including dev for build)
 RUN npm install --legacy-peer-deps
 
-# Build static assets
 RUN npm run build
 
-# Stage 2: Production
-FROM node:22-alpine AS production
+EXPOSE 3001
 
-WORKDIR /app
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://localhost:3001/ || exit 1
 
-# Install serve to serve static files
-RUN npm install -g serve
-
-# Copy built assets from builder
-COPY --from=builder /app/dist ./dist
-
-# Expose port (Vite dev server default, adjust for production)
-EXPOSE 5173
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:5173/ || exit 1
-
-# Run serve to serve static files
-CMD ["serve", "-s", "dist", "-l", "5173"]
+CMD ["npx", "tsx", "server/index.ts"]

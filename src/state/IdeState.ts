@@ -21,6 +21,7 @@ import { importProjectFromFile } from "../utils/zip";
 export type PanelId = "projects" | "assets" | "settings" | null;
 
 export type Project = {
+  name?: string;
   files: Record<string, string>;
   currentFile?: string;
   assets: Record<string, string>;

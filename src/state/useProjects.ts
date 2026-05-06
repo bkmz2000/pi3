@@ -1,15 +1,15 @@
 import { create } from 'zustand';
-import { Project, getProjects, createProject, deleteProject, getProject } from './api';
-import { useEditor } from './IdeState';
+import { Project as ApiProject, getProjects, createProject, deleteProject, getProject } from './api';
+import { useEditor, Project } from './IdeState';
 
 interface ProjectsState {
-  projects: Project[];
+  projects: ApiProject[];
   loading: boolean;
   error: string | null;
   fetchProjects: () => Promise<void>;
-  addProject: (name: string, description?: string) => Promise<Project>;
+  addProject: (name: string, description?: string) => Promise<ApiProject>;
   removeProject: (id: string) => Promise<void>;
-  loadProject: (id: string) => Promise<void>;
+  loadProject: (id: string) => Promise<ApiProject>;
 }
 
 export const useProjects = create<ProjectsState>((set) => ({
@@ -58,11 +58,12 @@ export const useProjects = create<ProjectsState>((set) => ({
     try {
       const project = await getProject(id);
       const editor = useEditor.getState();
-      editor.setProject({
-        id: project.id,
+      const editorProject: Project = {
         name: project.name,
         files: {},
-      });
+        assets: {},
+      };
+      editor.changeCurrentProject(editorProject, id);
       set({ loading: false });
       return project;
     } catch (err) {

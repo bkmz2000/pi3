@@ -11,7 +11,7 @@
 - [x] 2.2 Copy source and run npm install
 - [x] 2.3 Build static assets with npm run build
 - [x] 2.4 Test Docker build locally succeeds
-- [ ] 2.5 Verify image size is reasonable (<200MB)
+- [x] 2.5 Verify image size is reasonable (<200MB)
 
 ## 3. Docker Compose
 
@@ -20,51 +20,43 @@
 - [x] 3.3 Add health check configuration
 - [x] 3.4 Configure port mapping (8080:5173)
 
-## 4. GitHub Container Registry Setup
+## 4. Server-side Build Setup
 
-- [x] 4.1 Add login to GHCR in CI workflow
-- [x] 4.2 Configure image tagging with commit SHA
-- [x] 4.3 Test push to GHCR
-- [x] 4.4 Set repository visibility (public)
+- [x] 4.1 Install Node.js on server (for docker build)
+- [x] 4.2 Clone repository to server at /app/pi3
+- [x] 4.3 Verify server can build Docker image locally
+- [x] 4.4 Configure git to pull from GitHub
 
-## 5. Server Configuration
+## 5. SSH Deploy Configuration
 
-- [x] 5.1 Verify Docker is installed on server
-- [x] 5.2 Set up GHCR credentials on server (`docker login ghcr.io`)
+- [x] 5.1 Configure SSH key as GitHub Actions secret
+- [x] 5.2 Verify SSH access to server from GitHub Actions
 - [x] 5.3 Configure nginx reverse proxy to pi3 container
 - [x] 5.4 Test HTTPS access via pi3.sys5.ru
 
-## 6. Deploy Script
+## 6. Deploy Workflow
 
-- [x] 6.1 Create `deploy.sh` script (pull image, restart container)
-- [x] 6.2 Add script to repository
-- [x] 6.3 Configure SSH key as GitHub Actions secret
-- [x] 6.4 Test deploy script via manual CI trigger
+- [x] 6.1 Create `.github/workflows/deploy.yml`
+- [x] 6.2 Add trigger on push to main branch only
+- [x] 6.3 Add SSH → git pull → docker build → restart steps
+- [x] 6.4 Add deploy notification to GitHub Actions summary
+- [x] 6.5 Test full deploy via workflow_dispatch
 
-## 7. Deploy Workflow
+## 7. Branch Protection
 
-- [x] 7.1 Create `.github/workflows/deploy.yml`
-- [x] 7.2 Add trigger on push to main branch only
-- [x] 7.3 Add build → push → SSH deploy steps
-- [x] 7.4 Add deploy notification to GitHub Actions summary
-- [x] 7.5 Test full deploy via workflow_dispatch (image builds, manual deploy works)
+- [ ] 7.1 Enable required status checks in GitHub branch protection
+- [ ] 7.2 Require CI pass before merge to main
+- [ ] 7.3 Verify PR cannot be merged when CI fails
 
-## 8. Branch Protection
+## 8. Documentation
 
-- [ ] 8.1 Enable required status checks in GitHub branch protection
-- [ ] 8.2 Require CI pass before merge to main
-- [ ] 8.3 Verify PR cannot be merged when CI fails
+- [x] 8.1 Add deployment instructions to README
+- [x] 8.2 Document server setup requirements
+- [x] 8.3 Document how to trigger manual deploy
+- [x] 8.4 Document rollback procedure
 
-## 9. Documentation
+## 9. Known Issues
 
-- [x] 9.1 Add deployment instructions to README
-- [x] 9.2 Document server setup requirements
-- [x] 9.3 Document how to trigger manual deploy
-- [x] 9.4 Document rollback procedure
-
-## 10. Known Issues
-
-- [x] 10.1 Server port 80 occupied by nginx → changed to 8080
-- [x] 10.2 Docker on server needed installation via `curl -fsSL https://get.docker.com | sh`
-- [x] 10.3 GHCR auth requires `docker logout` before `docker login --password-stdin`
-- [x] 10.4 nginx config needed proxy_pass to localhost:8080 for HTTPS
+- [x] 9.1 Server port 80 occupied by nginx → changed to 8080
+- [x] 9.2 Docker on server needed installation via `curl -fsSL https://get.docker.com | sh`
+- [x] 9.3 Server needs Node.js for docker build (no cloud build)

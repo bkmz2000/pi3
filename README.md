@@ -135,6 +135,84 @@ npm run test:puppeteer
 
 ---
 
+## Deployment
+
+pi3 uses Docker for production deployment with GitHub Actions CI/CD.
+
+### Quick Start (Local Docker)
+
+```bash
+# Build the Docker image
+docker build -t pi3 .
+
+# Run with docker-compose
+docker-compose up -d
+
+# Access at http://localhost
+```
+
+### Server Setup Requirements
+
+1. **Docker** - Install Docker Engine on the server
+2. **Docker Compose** - Install docker-compose plugin
+3. **Node.js** - Required for building the Docker image (or use cloud build)
+4. **Git** - For pulling latest code
+
+### Manual Deployment
+
+```bash
+# Pull latest code
+git pull origin main
+
+# Build the Docker image
+docker build -t pi3:latest .
+
+# Stop existing container
+docker stop pi3 || true
+docker rm pi3 || true
+
+# Run new container
+docker run -d \
+  --name pi3 \
+  --restart unless-stopped \
+  -p 8080:5173 \
+  -v pi3-data:/app/data \
+  pi3:latest
+```
+
+### Rollback Procedure
+
+To rollback to a previous version:
+
+```bash
+# SSH to server
+ssh user@server
+
+# Navigate to app directory
+cd /app/pi3
+
+# Checkout previous commit
+git checkout <previous-sha>
+
+# Rebuild and restart
+docker build -t pi3:latest .
+docker stop pi3 || true
+docker rm pi3 || true
+docker run -d \
+  --name pi3 \
+  --restart unless-stopped \
+  -p 8080:5173 \
+  -v pi3-data:/app/data \
+  pi3:latest
+```
+
+### GitHub Actions
+
+- **CI** runs on every PR and push to main (tests + lint)
+- **Deploy** automatically runs on merge to main (server-side build via SSH)
+
+---
+
 ## Architecture
 
 ### Technology Stack
@@ -146,7 +224,7 @@ npm run test:puppeteer
 | State | Zustand |
 | Code Editor | CodeMirror 6 |
 | Python Runtime | Pyodide (WebAssembly) |
-| Python Linter | Ruff (WASM) |
+| Python Linter | Pure Python (linter.py in Pyodide) |
 | Graphics | Canvas 2D API |
 | Sprite Editor | Konva.js |
 | Testing | Jest + Puppeteer |
@@ -164,7 +242,7 @@ src/
 ├── state/
 │   └── IdeState.ts           # Zustand stores
 ├── runner/
-│   ├── worker.ts             # Pyodide + Ruff worker
+│   ├── worker.ts             # Pyodide + Python linter worker
 │   └── RunnerProvider.tsx    # Worker interface
 ├── components/               # Reusable UI components
 ├── editor/
@@ -181,7 +259,7 @@ src/
 1. **Python in the Browser** — Pyodide runs Python compiled to WebAssembly in a Web Worker
 2. **Graphics** — The `graphics` module draws to an OffscreenCanvas transferred to the worker
 3. **Event Handling** — Mouse and keyboard events are captured in the main thread and sent to the worker
-4. **Linting** — Ruff WASM checks code for errors when you click Run
+4. **Linting** — Python linter checks code for errors when you click Run
 
 ---
 

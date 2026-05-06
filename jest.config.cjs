@@ -16,7 +16,7 @@ const config = {
     }],
   },
   transformIgnorePatterns: [
-    '/node_modules/(?!(konva|react-konva)/)',
+    '/node_modules/(?!(konva|react-konva|@testing-library)/)',
   ],
   testMatch: [
     '**/tests/unit/**/*.test.+(ts|tsx|js)',

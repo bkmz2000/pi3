@@ -10,6 +10,10 @@ services:
       - "8080:5173"
     volumes:
       - pi3-data:/app/data
+    environment:
+      - VITE_API_URL=http://localhost:3001
+    depends_on:
+      - api
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:5173/"]
       interval: 30s
@@ -17,6 +21,23 @@ services:
       retries: 3
       start_period: 10s
 
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.server
+    image: pi3-api:latest
+    container_name: pi3-api
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    volumes:
+      - pi3-db:/app/db
+    environment:
+      - PORT=3001
+      - DB_PATH=/app/db/pi3.db
+
 volumes:
   pi3-data:
+    driver: local
+  pi3-db:
     driver: local

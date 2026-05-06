@@ -46,3 +46,8 @@ Thumbs.db
 ./CLAUDE.md
 ./AGENTS.md
 ./todo.md
+
+# Database files
+*.db
+*.db-shm
+*.db-wal

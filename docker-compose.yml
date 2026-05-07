@@ -9,9 +9,9 @@ services:
       - HOST=0.0.0.0
       - PORT=3001
       - DB_PATH=/app/db/pi3.db
+    volumes:
+      - pi3-db:/app/db
 
 volumes:
-  pi3-data:
-    driver: local
   pi3-db:
     driver: local

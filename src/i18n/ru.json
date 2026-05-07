@@ -6,6 +6,17 @@
     "clearConsole": "Очистить консоль",
     "inputPlaceholder": "Введите данные здесь..."
   },
+  "auth": {
+    "signIn": "Войти",
+    "signOut": "Выйти",
+    "myProjects": "Мои проекты",
+    "yourName": "Ваше имя",
+    "enterYourName": "Введите своё имя для входа",
+    "cancel": "Отмена",
+    "signingIn": "Вход...",
+    "signInToViewProjects": "Войдите, чтобы увидеть проекты",
+    "needSignInToSeeProjects": "Вам нужно войти, чтобы видеть проекты."
+  },
   "sideMenu": {
     "close": "Закрыть",
     "run": "Запустить",
@@ -108,5 +119,15 @@
   "errors": {
     "cannotFork": "Невозможно скопировать пользовательский проект",
     "notExample": "Текущий проект не является примером"
+  },
+  "projects": {
+    "open": "Открыть",
+    "share": "Поделиться",
+    "delete": "Удалить",
+    "deleting": "Удаление...",
+    "confirmDelete": "Удалить \"{{name}}\"? Это действие нельзя отменить.",
+    "roleOwner": "Владелец",
+    "roleEditor": "Редактор",
+    "roleViewer": "Зритель"
   }
 }

@@ -1,5 +1,5 @@
 import { useCallback, useEffect } from "react";
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route } from "react-router-dom";
 import CodeMirror from "@uiw/react-codemirror";
 import { python } from "@codemirror/lang-python";
 import { indentUnit, bracketMatching, indentOnInput } from "@codemirror/language";
@@ -125,7 +125,7 @@ export default function App() {
       <Routes>
       <Route path="/projects" element={<ProjectsPage />} />
       <Route path="/ide/:projectId" element={<AppInner />} />
-      <Route path="/" element={<Navigate to="/projects" replace />} />
+<Route path="/" element={<AppInner />} />
       </Routes>
     </>
   );

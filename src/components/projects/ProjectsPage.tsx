@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useProjects } from '../../state/useProjects';
 import { useUser } from '../../state/useUser';
 import { ProjectCard } from './ProjectCard';
@@ -6,6 +7,7 @@ import { NewProjectDialog } from './NewProjectDialog';
 import { useNavigate } from 'react-router-dom';
 
 export function ProjectsPage() {
+  const { t } = useTranslation();
   const { projects, loading, error, fetchProjects } = useProjects();
   const { authState } = useUser();
   const [showNewProject, setShowNewProject] = useState(false);
@@ -24,7 +26,7 @@ export function ProjectsPage() {
   if (authState === 'loading') {
     return (
       <div className="flex h-full items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-gray-300 border-t-blue-500" />
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-cyan-700 border-t-cyan-400" />
       </div>
     );
   }
@@ -32,8 +34,8 @@ export function ProjectsPage() {
   if (authState !== 'logged_in') {
     return (
       <div className="flex h-full flex-col items-center justify-center p-8 text-center">
-        <h2 className="text-xl font-bold">Sign in to view your projects</h2>
-        <p className="mt-2 text-gray-500">You need to sign in to see your projects.</p>
+        <h2 className="text-xl font-bold text-cyan-900">{t('auth.signInToViewProjects')}</h2>
+        <p className="mt-2 text-gray-500">{t('auth.needSignInToSeeProjects')}</p>
       </div>
     );
   }
@@ -41,12 +43,12 @@ export function ProjectsPage() {
   return (
     <div className="mx-auto max-w-4xl p-8">
       <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-bold">My Projects</h1>
+        <h1 className="text-2xl font-bold text-cyan-900">{t('auth.myProjects')}</h1>
         <button
           onClick={() => setShowNewProject(true)}
-          className="rounded bg-blue-500 px-4 py-2 text-white hover:bg-blue-600"
+          className="rounded bg-cyan-500 px-4 py-2 text-white hover:bg-cyan-400"
         >
-          New Project
+          {t('sideMenu.newProject')}
         </button>
       </div>
 
@@ -56,17 +58,16 @@ export function ProjectsPage() {
 
       {loading && projects.length === 0 ? (
         <div className="flex justify-center py-12">
-          <div className="h-6 w-6 animate-spin rounded-full border-4 border-gray-300 border-t-blue-500" />
+          <div className="h-6 w-6 animate-spin rounded-full border-4 border-cyan-700 border-t-cyan-400" />
         </div>
       ) : projects.length === 0 ? (
-        <div className="rounded-lg border-2 border-dashed border-gray-300 p-12 text-center dark:border-gray-700">
-          <h2 className="text-xl font-medium text-gray-500">No projects yet</h2>
-          <p className="mt-2 text-sm text-gray-400">Create your first project to get started!</p>
+        <div className="rounded-lg border-2 border-dashed border-cyan-300 p-12 text-center">
+          <h2 className="text-xl font-medium text-cyan-700">{t('sideMenu.noProjects')}</h2>
           <button
             onClick={() => setShowNewProject(true)}
-            className="mt-4 rounded bg-blue-500 px-4 py-2 text-white hover:bg-blue-600"
+            className="mt-4 rounded bg-cyan-500 px-4 py-2 text-white hover:bg-cyan-400"
           >
-            Create Project
+            {t('sideMenu.createProject')}
           </button>
         </div>
       ) : (
@@ -76,6 +77,7 @@ export function ProjectsPage() {
               key={project.id}
               project={project}
               onSelect={handleSelectProject}
+              showManagement
             />
           ))}
         </div>

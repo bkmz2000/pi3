@@ -191,13 +191,13 @@ export default function FileBar() {
   return (
     <>
       <div className="h-12 bg-cyan-700 flex flex-row items-end gap-1 px-2">
-        <AuthSection />
         <div className="flex-1" />
         {Object.keys(project.files).map((name) => (
           <FileTab key={name} name={name} />
         ))}
 
         <NewFileTab />
+        <AuthSection />
       </div>
     </>
   );

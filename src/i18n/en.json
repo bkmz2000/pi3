@@ -6,6 +6,17 @@
     "clearConsole": "Clear console",
     "inputPlaceholder": "Type input here..."
   },
+  "auth": {
+    "signIn": "Sign In",
+    "signOut": "Sign Out",
+    "myProjects": "My Projects",
+    "yourName": "Your Name",
+    "enterYourName": "Enter your name to sign in",
+    "cancel": "Cancel",
+    "signingIn": "Signing in...",
+    "signInToViewProjects": "Sign in to view your projects",
+    "needSignInToSeeProjects": "You need to sign in to see your projects."
+  },
   "sideMenu": {
     "close": "Close",
     "run": "Run",
@@ -108,5 +119,15 @@
   "errors": {
     "cannotFork": "Cannot fork a user project",
     "notExample": "Current project is not an example"
+  },
+  "projects": {
+    "open": "Open",
+    "share": "Share",
+    "delete": "Delete",
+    "deleting": "Deleting...",
+    "confirmDelete": "Delete \"{{name}}\"? This cannot be undone.",
+    "roleOwner": "Owner",
+    "roleEditor": "Editor",
+    "roleViewer": "Viewer"
   }
 }

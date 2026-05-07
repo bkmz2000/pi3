@@ -1,4 +1,4 @@
-FROM node:22-alpine
+FROM node:22-alpine AS builder
 
 WORKDIR /app
 
@@ -22,9 +22,15 @@ RUN npm install --legacy-peer-deps
 
 RUN npm run build
 
-EXPOSE 3001
+FROM node:22-alpine
 
-HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:3001/api/health || exit 1
+WORKDIR /app
+
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/package*.json ./
+COPY --from=builder /app/server ./server
+COPY --from=builder /app/node_modules ./node_modules
+
+EXPOSE 3001
 
 CMD ["npx", "tsx", "server/index.ts"]

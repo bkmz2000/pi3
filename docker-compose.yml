@@ -6,7 +6,7 @@ services:
     image: pi3:latest
     container_name: pi3
     restart: unless-stopped
-ports:
+    ports:
       - "8080:3001"
     expose:
       - "3001"

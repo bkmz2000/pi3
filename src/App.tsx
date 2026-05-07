@@ -17,6 +17,15 @@ import LoadingScreen from "./components/LoadingScreen";
 import ConsolePanel from "./components/ConsolePanel";
 import { webideTheme, indentationGuideField } from "./editor/theme";
 import { ProjectsPage } from "./components/projects";
+import { useUser } from "./state/useUser";
+
+function SessionChecker() {
+  const checkSession = useUser((s) => s.checkSession);
+  useEffect(() => {
+    checkSession();
+  }, [checkSession]);
+  return null;
+}
 
 function AppInner() {
   const changeFile = useEditor((s) => s.changeFile);
@@ -111,10 +120,13 @@ function AppInner() {
 
 export default function App() {
   return (
-    <Routes>
+    <>
+      <SessionChecker />
+      <Routes>
       <Route path="/projects" element={<ProjectsPage />} />
       <Route path="/ide/:projectId" element={<AppInner />} />
       <Route path="/" element={<Navigate to="/projects" replace />} />
-    </Routes>
+      </Routes>
+    </>
   );
 }

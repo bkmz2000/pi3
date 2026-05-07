@@ -6,12 +6,12 @@ services:
     image: pi3:latest
     container_name: pi3
     restart: unless-stopped
-    ports:
+ports:
       - "8080:3001"
-    volumes:
-      - pi3-data:/app/data
-      - pi3-db:/app/db
+    expose:
+      - "3001"
     environment:
+      - HOST=0.0.0.0
       - PORT=3001
       - DB_PATH=/app/db/pi3.db
 

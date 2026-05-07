@@ -1,5 +1,4 @@
 from graphics import *
-from graphics.actors import Actor
 
 TILE_SIZE = 40
 
@@ -119,5 +118,7 @@ def draw():
     if left == 0:
         print("You won!!!")
 
+
+size(300, 300)
 
 run()

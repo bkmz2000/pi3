@@ -3,13 +3,11 @@ import express from 'express';
 import cors from 'cors';
 import request from 'supertest';
 import Database from 'better-sqlite3';
-import { createTestDb } from './setup.js';
+import { createTestDb, closeTestDb } from './setup.js';
 import { v4 as uuidv4 } from 'uuid';
 
 import usersRouter from '../routes/users.js';
 import projectsRouter from '../routes/projects.js';
-import filesRouter from '../routes/files.js';
-import sharesRouter from '../routes/shares.js';
 
 let app: express.Application;
 let db: Database.Database;
@@ -27,8 +25,6 @@ beforeAll(() => {
   app.use(express.json());
   app.use('/api/users', usersRouter);
   app.use('/api/projects', projectsRouter);
-  app.use('/api/projects', filesRouter);
-  app.use('/api/projects', sharesRouter);
 });
 
 beforeEach(() => {
@@ -64,6 +60,7 @@ beforeEach(() => {
 
 afterAll(() => {
   if (db) db.close();
+  closeTestDb();
 });
 
 describe('Users API', () => {

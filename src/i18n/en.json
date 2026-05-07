@@ -84,7 +84,26 @@
     "checking": "Checking for errors...",
     "syntaxError": "Syntax error found ({{count}} issue(s))",
     "noErrors": "No errors found. Starting the script...",
-    "errorFormat": "  {{message}} (line {{line}})"
+    "errorFormat": "  {{message}} ({{line}})"
+  },
+  "linter": {
+    "E999": "Syntax error",
+    "E999Colon": "Syntax error: expected ':'",
+    "E999Unclosed": "Syntax error: unclosed bracket or parenthesis",
+    "E999Unterminated": "Syntax error: unterminated string",
+    "E999Invalid": "Syntax error: invalid syntax",
+    "E999EOL": "Syntax error: premature end of line",
+    "E999Unmatched": "Syntax error: unmatched brackets or parentheses",
+    "E999Assign": "Syntax error: cannot assign to this expression",
+    "E101": "Indentation contains tabs",
+    "E111": "Indentation not multiple of 4 (found {{found}})",
+    "E225": "Unsupported operand types for {{op}}: '{{left}}' and '{{right}}'",
+    "E225Call": "{{method}}() argument must be {{expected}}, not {{found}}",
+    "E301": "Expected 2 blank lines between top-level definitions",
+    "E303": "Too many blank lines ({{count}})",
+    "E501": "Line too long ({{length}} > {{limit}})",
+    "F401": "'{{name}}' imported but unused",
+    "F821": "Undefined name '{{name}}'"
   },
   "errors": {
     "cannotFork": "Cannot fork a user project",

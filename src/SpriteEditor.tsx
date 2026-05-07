@@ -148,8 +148,8 @@ export default function SpriteEditor({
   }, [selectedId, shapes]);
 
   // Load initial sprite data if provided
-  const loadImageToShapes = useCallback(async () => {
-    if (!initialDataUrl) {
+  const loadImageToShapes = useCallback(async (dataUrl: string | undefined) => {
+    if (!dataUrl) {
       setShapes([]);
       setHistory([]);
       setFuture([]);
@@ -158,7 +158,7 @@ export default function SpriteEditor({
 
     try {
       // Extract SVG content from data URL
-      const svgContent = atob(initialDataUrl.split(',')[1]);
+      const svgContent = atob(dataUrl.split(',')[1]);
       const parser = new DOMParser();
       const doc = parser.parseFromString(svgContent, 'image/svg+xml');
       const svg = doc.querySelector('svg');
@@ -276,9 +276,8 @@ export default function SpriteEditor({
 
   useEffect(() => {
     if (initialDataUrl && open) {
-      // Use setTimeout to avoid calling setState synchronously within effect
       setTimeout(() => {
-        loadImageToShapes();
+        loadImageToShapes(initialDataUrl);
       }, 0);
     }
   }, [initialDataUrl, open, loadImageToShapes]);

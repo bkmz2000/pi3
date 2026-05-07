@@ -7,6 +7,7 @@ Import as: import graphics as g
 
 import math
 import traceback
+from typing import Any, Callable, Optional, Union
 
 _version = "1.0"
 
@@ -237,55 +238,70 @@ def _execute_draw_commands():
 # === SIZE ===
 
 
-def size(w, h):
+def size(w: Union[int, float], h: Union[int, float]) -> None:
     global _pending_size, _width, _height
     _pending_size = (int(w), int(h))
     _width = int(w)
     _height = int(h)
 
 
-def width():
+def width() -> int:
     return _width
 
 
-def height():
+def height() -> int:
     return _height
 
 
 # === DRAWING ===
 
 
-def circle(x, y, r):
+def circle(x: Union[int, float], y: Union[int, float], r: Union[int, float]) -> None:
     _draw_commands.append(("circle", (float(x), float(y), float(r)), {}))
 
 
-def rect(x, y, w, h):
+def rect(
+    x: Union[int, float],
+    y: Union[int, float],
+    w: Union[int, float],
+    h: Union[int, float],
+) -> None:
     _draw_commands.append(("rect", (float(x), float(y), float(w), float(h)), {}))
 
 
-def ellipse(x, y, w, h=None):
+def ellipse(
+    x: Union[int, float],
+    y: Union[int, float],
+    w: Union[int, float],
+    h: Optional[Union[int, float]] = None,
+) -> None:
     if h is None:
         h = w
     _draw_commands.append(("ellipse", (float(x), float(y), float(w), float(h)), {}))
 
 
-def line(x1, y1, x2, y2):
+def line(
+    x1: Union[int, float],
+    y1: Union[int, float],
+    x2: Union[int, float],
+    y2: Union[int, float],
+) -> None:
     _draw_commands.append(("line", (float(x1), float(y1), float(x2), float(y2)), {}))
 
 
-def point(x, y):
+def point(x: Union[int, float], y: Union[int, float]) -> None:
     _draw_commands.append(("point", (float(x), float(y)), {}))
 
 
-def text(s, x, y):
+def text(s: Any, x: Union[int, float], y: Union[int, float]) -> None:
     _draw_commands.append(("text", (str(s), float(x), float(y)), {}))
 
 
-def text_size(n):
+def text_size(n: Union[int, float]) -> None:
     _draw_commands.append(("text_size", (int(n),), {}))
 
 
-def text_align(horizontal, vertical=None):
+def text_align(horizontal: str, vertical: Optional[str] = None) -> None:
     h = horizontal.lower() if isinstance(horizontal, str) else horizontal
     v = vertical.lower() if vertical and isinstance(vertical, str) else vertical
     _draw_commands.append(("text_align", (h, v), {}))
@@ -294,7 +310,11 @@ def text_align(horizontal, vertical=None):
 # === COLOR ===
 
 
-def fill(r=None, g=None, b=None):
+def fill(
+    r: Optional[Union[int, float, str]] = None,
+    g: Optional[Union[int, float]] = None,
+    b: Optional[Union[int, float]] = None,
+) -> None:
     global _fill_color, _current_fill
     if r is None:
         _current_fill = False
@@ -311,13 +331,17 @@ def fill(r=None, g=None, b=None):
     _draw_commands.append(("fill", _fill_color, {}))
 
 
-def no_fill():
+def no_fill() -> None:
     global _current_fill
     _current_fill = False
     _draw_commands.append(("no_fill", (), {}))
 
 
-def stroke(r=None, g=None, b=None):
+def stroke(
+    r: Optional[Union[int, float, str]] = None,
+    g: Optional[Union[int, float]] = None,
+    b: Optional[Union[int, float]] = None,
+) -> None:
     global _stroke_color, _current_stroke
     if r is None:
         _current_stroke = False
@@ -334,19 +358,23 @@ def stroke(r=None, g=None, b=None):
     _draw_commands.append(("stroke", _stroke_color, {}))
 
 
-def no_stroke():
+def no_stroke() -> None:
     global _current_stroke
     _current_stroke = False
     _draw_commands.append(("no_stroke", (), {}))
 
 
-def stroke_width(w):
+def stroke_width(w: Union[int, float]) -> None:
     global _stroke_width
     _stroke_width = int(w)
     _draw_commands.append(("stroke_width", (int(w),), {}))
 
 
-def background(r, g=None, b=None):
+def background(
+    r: Union[int, float, str],
+    g: Optional[Union[int, float]] = None,
+    b: Optional[Union[int, float]] = None,
+) -> None:
     if isinstance(r, str):
         color = COLOR_NAMES.get(r.lower(), (0, 0, 0))
         _draw_commands.append(("background", color, {}))
@@ -359,23 +387,23 @@ def background(r, g=None, b=None):
 # === TRANSFORM ===
 
 
-def push():
+def push() -> None:
     _draw_commands.append(("push", (), {}))
 
 
-def pop():
+def pop() -> None:
     _draw_commands.append(("pop", (), {}))
 
 
-def translate(x, y):
+def translate(x: Union[int, float], y: Union[int, float]) -> None:
     _draw_commands.append(("translate", (float(x), float(y)), {}))
 
 
-def rotate(angle):
+def rotate(angle: Union[int, float]) -> None:
     _draw_commands.append(("rotate", (float(angle),), {}))
 
 
-def scale(x, y=None):
+def scale(x: Union[int, float], y: Optional[Union[int, float]] = None) -> None:
     if y is None:
         y = x
     _draw_commands.append(("scale", (float(x), float(y)), {}))
@@ -384,40 +412,46 @@ def scale(x, y=None):
 # === IMAGE ===
 
 
-def image(img_result, x, y, w=None, h=None):
+def image(
+    img_result: Any,
+    x: Union[int, float],
+    y: Union[int, float],
+    w: Optional[Union[int, float]] = None,
+    h: Optional[Union[int, float]] = None,
+) -> None:
     _draw_commands.append(("image", (img_result, float(x), float(y), w, h), {}))
 
 
-def image_mode(mode):
+def image_mode(mode: str) -> None:
     _draw_commands.append(("image_mode", (mode,), {}))
 
 
-def rect_mode(mode):
+def rect_mode(mode: str) -> None:
     _draw_commands.append(("rect_mode", (mode,), {}))
 
 
 # === INPUT ===
 
 
-def key_pressed(key):
+def key_pressed(key: str) -> bool:
     code = _KEY_CODES.get(key.lower(), 0)
     return code in _keys_down
 
 
-def mouse_x():
+def mouse_x() -> float:
     return _mouse_x
 
 
-def mouse_y():
+def mouse_y() -> float:
     return _mouse_y
 
 
-def frame_rate(fps):
+def frame_rate(fps: Union[int, float]) -> None:
     global _target_fps
     _target_fps = int(fps)
 
 
-def random(low, high=None):
+def random(low: Union[int, float], high: Optional[Union[int, float]] = None) -> float:
     import random as _random
 
     if high is None:
@@ -425,7 +459,7 @@ def random(low, high=None):
     return _random.uniform(low, high)
 
 
-def random_color():
+def random_color() -> str:
     import random as _random
 
     colors = list(COLOR_NAMES.keys())
@@ -435,8 +469,8 @@ def random_color():
 # === EVENTS ===
 
 
-def every(frames):
-    def decorator(func):
+def every(frames: int) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+    def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         if frames not in _every_handlers:
             _every_handlers[frames] = []
         _every_handlers[frames].append([0, func])
@@ -445,8 +479,8 @@ def every(frames):
     return decorator
 
 
-def on_key_press(*keys):
-    def decorator(func):
+def on_key_press(*keys: str) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+    def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         for key in keys:
             if key not in _key_handlers:
                 _key_handlers[key] = []
@@ -456,17 +490,19 @@ def on_key_press(*keys):
     return decorator
 
 
-def on_mouse_move(func):
+def on_mouse_move(func: Callable[[float, float], Any]) -> Callable[[float, float], Any]:
     _mouse_handlers.append(("move", func))
     return func
 
 
-def on_mouse_click(func):
+def on_mouse_click(
+    func: Callable[[float, float], Any],
+) -> Callable[[float, float], Any]:
     _mouse_handlers.append(("click", func))
     return func
 
 
-def setup(func):
+def setup(func: Callable[[], Any]) -> Callable[[], Any]:
     global _setup_func
     _setup_func = func
     return func
@@ -475,16 +511,20 @@ def setup(func):
 # === COLLISION ===
 
 
-def on_collide(other_actor_class):
-    def decorator(func):
+def on_collide(
+    other_actor_class: type,
+) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+    def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         _collision_handlers.append((other_actor_class, func))
         return func
 
     return decorator
 
 
-def on_collide_any(*actor_classes):
-    def decorator(func):
+def on_collide_any(
+    *actor_classes: type,
+) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+    def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         for cls in actor_classes:
             _collision_handlers.append((cls, func))
         return func
@@ -579,7 +619,7 @@ def _run_loop():
     tick()
 
 
-def run():
+def run() -> None:
     global _running, _ctx, _canvas, _width, _height, _setup_func
 
     if _canvas is None:
@@ -604,7 +644,7 @@ def run():
 # === STOP ===
 
 
-def stop():
+def stop() -> None:
     global _stop_requested, _pending_timer_id
     from js import clearTimeout
 

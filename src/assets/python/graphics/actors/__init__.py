@@ -104,53 +104,53 @@ class Actor:
                 graphics.rect(x - w / 2, y - h / 2, w, h)
         graphics.pop()
 
-    def point_to(self, x, y):
+    def point_to(self, x: float, y: float) -> None:
         dx = x - self._x
         dy = y - self._y
         angle_rad = math.atan2(dy, dx)
         angle_deg = angle_rad * 180.0 / math.pi
         self._angle = angle_deg
 
-    def set_coords(self, x, y):
+    def set_coords(self, x: float, y: float) -> None:
         self._x = float(x)
         self._y = float(y)
 
-    def get_coords(self):
+    def get_coords(self) -> tuple[float, float]:
         return (self._x, self._y)
 
-    def get_x(self):
+    def get_x(self) -> float:
         return self._x
 
-    def get_y(self):
+    def get_y(self) -> float:
         return self._y
 
-    def rotate_clockwise(self, degrees):
+    def rotate_clockwise(self, degrees: float) -> None:
         self._angle = (self._angle + float(degrees)) % 360
 
-    def get_angle(self):
+    def get_angle(self) -> float:
         return self._angle
 
-    def set_angle(self, degrees):
+    def set_angle(self, degrees: float) -> None:
         self._angle = float(degrees) % 360
 
-    def move_forward(self, distance):
+    def move_forward(self, distance: float) -> None:
         angle_rad = self._angle * math.pi / 180.0
         self._x += float(distance) * math.cos(angle_rad)
         self._y += float(distance) * math.sin(angle_rad)
 
-    def move_left(self, distance):
+    def move_left(self, distance: float) -> None:
         self._x -= float(distance)
 
-    def move_right(self, distance):
+    def move_right(self, distance: float) -> None:
         self._x += float(distance)
 
-    def move_up(self, distance):
+    def move_up(self, distance: float) -> None:
         self._y -= float(distance)
 
-    def move_down(self, distance):
+    def move_down(self, distance: float) -> None:
         self._y += float(distance)
 
-    def set_speed(self, vx, vy):
+    def set_speed(self, vx: float, vy: float) -> None:
         self._vx = float(vx)
         self._vy = float(vy)
 

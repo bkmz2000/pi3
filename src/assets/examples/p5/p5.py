@@ -9,9 +9,6 @@ def draw(self):
     rect(x - 50, y - 50, 100, 100)
 
 
-box = Actor(draw=draw, color="red")
-
-
 @setup
 def start():
     size(700, 410)
@@ -33,5 +30,7 @@ def loop():
     background("black")
     box.draw()
 
+
+box = Actor(draw=draw, color="red")
 
 run()

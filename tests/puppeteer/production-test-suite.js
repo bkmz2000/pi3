@@ -437,26 +437,26 @@ async function runProductionTests() {
       addTestResult('Snake example', false, error);
     }
     
-    // Test 11: Bounce Example (new graphics API)
-    console.log('\n11. Bounce Example');
+    // Test 11: Asteroids Example
+    console.log('\n11. Asteroids Example');
     try {
       await openProjectsPanel(page);
-      const found = await clickExample(page, 'bounce');
-      if (!found) throw new Error('Bounce example not found');
+      const found = await clickExample(page, 'asteroids');
+      if (!found) throw new Error('Asteroids example not found');
       await closeProjectsPanel(page);
       await clickRun(page);
       await sleep(3000);
       
-      // Check that canvas is visible and there's no error output
       const canvas = await page.$('canvas');
       const bodyText = await page.evaluate(() => document.body.textContent);
-      if (canvas && !bodyText.includes('UnboundLocalError') && !bodyText.includes('AttributeError')) {
-        addTestResult('Bounce example', true);
+      const hasError = bodyText.includes('Error') || bodyText.includes('Traceback');
+      if (canvas && !hasError) {
+        addTestResult('Asteroids example', true);
       } else {
-        throw new Error('Bounce example failed or canvas not visible');
+        throw new Error('Asteroids example failed or canvas not visible');
       }
     } catch (error) {
-      addTestResult('Bounce example', false, error);
+      addTestResult('Asteroids example', false, error);
     }
     
     // Test 12: Sokoban Example (with sprites)

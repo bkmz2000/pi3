@@ -1,15 +1,9 @@
 const CACHE_NAME = 'webide-v2';
 const PYODIDE_VERSION = '0.26.4';
-const RUFF_VERSION = '0.15.8';
 
 const PYODIDE_ASSETS = [
   `https://cdn.jsdelivr.net/pyodide/v${PYODIDE_VERSION}/full/pyodide.mjs`,
   `https://cdn.jsdelivr.net/pyodide/v${PYODIDE_VERSION}/full/pyodide.js`,
-];
-
-const RUFF_ASSETS = [
-  `https://cdn.jsdelivr.net/npm/@astral-sh/ruff-wasm-web@${RUFF_VERSION}/ruff_wasm.js`,
-  `https://cdn.jsdelivr.net/npm/@astral-sh/ruff-wasm-web@${RUFF_VERSION}/ruff_wasm_bg.wasm`,
 ];
 
 const APP_SHELL = [
@@ -21,7 +15,7 @@ const APP_SHELL = [
   '/icon-512.svg',
 ];
 
-const ALL_ASSETS = [...PYODIDE_ASSETS, ...RUFF_ASSETS];
+const ALL_ASSETS = [...PYODIDE_ASSETS];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -57,10 +51,9 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
   
   const isPyodide = url.href.includes('cdn.jsdelivr.net/pyodide');
-  const isRuff = url.href.includes('@astral-sh/ruff-wasm-web');
   const isAppShell = APP_SHELL.includes(url.pathname);
   
-  if (isPyodide || isRuff) {
+  if (isPyodide) {
     event.respondWith(
       caches.match(event.request).then((cachedResponse) => {
         if (cachedResponse) {

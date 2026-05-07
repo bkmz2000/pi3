@@ -2,12 +2,14 @@ import { useCallback, useEffect } from "react";
 import { create } from "zustand";
 import { WorkerCommand, WorkerEvent, WorkerEventType, LintDiagnostic } from "./WorkerInterface";
 import { useIde } from "../state/IdeState";
+import i18n from "../i18n";
 import Shim from "../assets/examples/shim.py?raw";
 import Transform from "../assets/examples/transform.py?raw";
 import Actors from "../assets/examples/actors.py?raw";
 import GraphicsInit from "../assets/python/graphics/__init__.py?raw";
 import GraphicsActors from "../assets/python/graphics/actors/__init__.py?raw";
 import GraphicsActorsConfig from "../assets/python/graphics/actors/config.py?raw";
+import Linter from "../assets/python/linter.py?raw";
 
 type OutputLine = {
   kind: "stdout" | "stderr";
@@ -90,7 +92,8 @@ export const useRunnerStore = create<RunnerState>((set) => ({
       case "lint": {
         set({ lintErrors: msg.diagnostics });
         for (const d of msg.diagnostics) {
-          set((s) => ({ output: [...s.output, { kind: "stderr", text: `[${d.code}] Line ${d.row + 1}: ${d.message}` }] }));
+          const translated = i18n.t(d.messageKey, d.messageArgs);
+          set((s) => ({ output: [...s.output, { kind: "stderr", text: `[${d.code}] Line ${d.row + 1}: ${translated}` }] }));
         }
         break;
       }
@@ -198,6 +201,7 @@ function getWorker(): Worker {
     graphicsInit: GraphicsInit,
     graphicsActors: GraphicsActors,
     graphicsActorsConfig: GraphicsActorsConfig,
+    linter: Linter,
   } satisfies WorkerCommand);
   return worker;
 }

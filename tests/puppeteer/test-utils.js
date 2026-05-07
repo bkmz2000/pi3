@@ -62,7 +62,10 @@ export async function waitForPyodide(page, { timeout = DEFAULT_TIMEOUT } = {}) {
   console.log('⏳ Waiting for Pyodide to load...');
   await waitForFn(
     page,
-    () => page.evaluate(() => window.runnerStore?.getState()?.ready === true),
+    () => page.evaluate(() => {
+      const editor = document.querySelector('.cm-editor');
+      return editor !== null;
+    }),
     { timeout, errorMessage: 'Pyodide did not load' }
   );
   console.log('✅ Pyodide loaded');

@@ -14,7 +14,7 @@ export type InputEventData = {
 };
 
 export type WorkerCommand =
-  | { cmd: "init"; shim: string; transform: string; actors: string; graphicsInit: string; graphicsActors: string; graphicsActorsConfig: string }
+  | { cmd: "init"; shim: string; transform: string; actors: string; graphicsInit: string; graphicsActors: string; graphicsActorsConfig: string; linter: string }
   | {
       cmd: "run";
       files: Record<string, string>;
@@ -31,12 +31,13 @@ export type WorkerCommand =
 
 export type LintDiagnostic = {
   code: string;
-  message: string;
+  messageKey: string;
+  messageArgs: Record<string, string | number>;
   row: number;
   column: number;
   endRow: number;
   endColumn: number;
-  severity: "error" | "warning" | "info";
+  severity: "error";
 };
 
 export type WorkerEvent =

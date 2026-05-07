@@ -35,24 +35,24 @@ export function useRunButton(options: UseRunButtonOptions = {}) {
     try {
       const code = project.files[currentFile] ?? "";
       const filename = currentFile || "main.py";
-      _appendOutput("stdout", t('console.checking'));
-      const diagnostics: LintDiagnostic[] = await lint(code, filename);
-
-      if (diagnostics.length > 0) {
-        clear();
-        _appendOutput("stderr", t('console.syntaxError', { count: diagnostics.length }));
-        for (const d of diagnostics) {
-          _appendOutput("stderr", t('console.errorFormat', { message: d.message, line: d.row + 1 }));
-        }
-        return;
-      }
-
-      _appendOutput("stdout", t('console.noErrors'));
-
+      
+      // Save if there are dirty files
       if (dirtyFiles.size > 0) {
         saveCurrentProject();
         markClean();
       }
+      
+      clear();  // Clear previous output
+      _appendOutput("stdout", t('console.checking'));
+      const diagnostics: LintDiagnostic[] = await lint(code, filename);
+
+      if (diagnostics.length > 0) {
+        _appendOutput("stderr", t('console.syntaxError', { count: diagnostics.length }));
+        // Diagnostics are already displayed by RunnerProvider's message handler
+        return;
+      }
+
+      _appendOutput("stdout", t('console.noErrors'));
       options.onBeforeRun?.();
       run(project.files, project.assets, currentFile);
     } finally {

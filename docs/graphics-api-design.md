@@ -33,6 +33,25 @@ g.size(400, 400)          # Planned: create a 400x400 window
 g.run()                   # Execute all plans
 ```
 
+```mermaid
+sequenceDiagram
+    participant Code
+    participant Queue
+    participant Canvas
+
+    Code->>Queue: g.circle(100, 100, 50)
+    Note over Queue: Queue: circle plan
+    Code->>Queue: g.rect(200, 200, 80, 40)
+    Note over Queue: Queue: rect plan
+    Code->>Queue: g.size(400, 400)
+    Note over Queue: Queue: size plan
+    Code->>Queue: g.run()
+    Queue->>Canvas: execute all plans
+    Note over Canvas: Creates window
+    Note over Canvas: Draws circle
+    Note over Canvas: Draws rectangle
+```
+
 This means:
 - Drawing commands can be called anywhere, anytime
 - If no window exists, commands are queued

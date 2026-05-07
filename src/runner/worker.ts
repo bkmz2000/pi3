@@ -7,46 +7,6 @@ let activePaths: string[] = [];
 let pendingInterruptBuffer: Uint8Array | null = null;
 let pendingOffscreen: OffscreenCanvas | null = null;
 
-interface RuffRawDiagnostic {
-  code: string;
-  message: string;
-  start_location: { row: number; column: number };
-  end_location: { row: number; column: number };
-}
-
-type RuffWorkspace = {
-  check(code: string): RuffRawDiagnostic[];
-};
-
-let ruffWorkspace: RuffWorkspace | null = null;
-let ruffInitPromise: Promise<void> | null = null;
-
-async function initRuff(): Promise<void> {
-  if (ruffWorkspace) return;
-  if (ruffInitPromise) return ruffInitPromise;
-
-  ruffInitPromise = (async () => {
-    try {
-      const CDN = "https://cdn.jsdelivr.net/npm/@astral-sh/ruff-wasm-web@0.15.8/";
-      const { default: init, Workspace, PositionEncoding } = await import(/* @vite-ignore */ `${CDN}ruff_wasm.js`);
-      await init();
-      ruffWorkspace = new Workspace({
-        "indent-width": 4,
-        "line-length": 100,
-        lint: {
-          select: ["E", "F", "W"],
-          ignore: ["W292", "F401", "F403", "F405"],
-        },
-      }, PositionEncoding.Utf16);
-      console.log("Worker: Ruff initialized");
-    } catch (err) {
-      console.error("Worker: Failed to initialize Ruff:", err);
-    }
-  })();
-
-  return ruffInitPromise;
-}
-
 function post(e: WorkerEvent) {
   self.postMessage(e);
 }
@@ -89,6 +49,7 @@ async function initPyodide(
   graphicsInit: string,
   graphicsActors: string,
   graphicsActorsConfig: string,
+  linter: string,
 ) {
   console.log("Worker: Writing modules to filesystem...");
   p.FS.writeFile("/_shim_p5.py", shim);
@@ -110,6 +71,9 @@ async function initPyodide(
   p.FS.writeFile("/graphics/actors/__init__.py", graphicsActors);
   p.FS.writeFile("/graphics/actors/config.py", graphicsActorsConfig);
   
+  // Write linter module
+  p.FS.writeFile("/linter.py", linter);
+  
   console.log("Worker: Files written, running Python initialization...");
 
   p.globals.set(
@@ -128,6 +92,7 @@ import sys
 sys.path.insert(0, "/")
 import _shim_p5 as _shim
 _shim._ide_init(_ide_post_output, _ide_post_input_request)
+import linter
     `);
     console.log("Worker: Python initialization completed successfully");
   } catch (err: unknown) {
@@ -295,7 +260,7 @@ self.onmessage = async (e: MessageEvent<WorkerCommand>) => {
       console.log("Worker: Initializing Pyodide...");
       const p = await ensurePyodide();
       console.log("Worker: Pyodide loaded, initializing modules...");
-      await initPyodide(p, msg.shim, msg.transform, msg.actors, msg.graphicsInit, msg.graphicsActors, msg.graphicsActorsConfig);
+      await initPyodide(p, msg.shim, msg.transform, msg.actors, msg.graphicsInit, msg.graphicsActors, msg.graphicsActorsConfig, msg.linter);
       console.log("Worker: Initialization complete, posting ready");
       post({ type: "ready" });
     } catch (err: unknown) {
@@ -356,25 +321,104 @@ self.onmessage = async (e: MessageEvent<WorkerCommand>) => {
     if (pyodide) pyodide.setInterruptBuffer(new Uint8Array(msg.buffer));
     else pendingInterruptBuffer = new Uint8Array(msg.buffer);
   } else if (msg.cmd === "lint") {
-    await initRuff();
-    if (!ruffWorkspace) {
+    if (!pyodide) {
       post({ type: "lint", diagnostics: [] });
       return;
     }
     try {
-      const rawDiagnostics = ruffWorkspace.check(msg.code);
-      const diagnostics: LintDiagnostic[] = rawDiagnostics.map((d) => ({
-        code: d.code || "",
-        message: d.message,
-        row: d.start_location.row - 1,
-        column: d.start_location.column,
-        endRow: d.end_location.row - 1,
-        endColumn: d.end_location.column,
-        severity: d.code?.startsWith("E") ? "error" : d.code?.startsWith("F") ? "error" : "warning",
-      }));
+      const pyodideGlobals = pyodide.globals;
+      pyodideGlobals.set("_lint_code", msg.code);
+      pyodideGlobals.set("_lint_filename", msg.filename || "main.py");
+      
+      // Use our custom linter for style checks, mypy for type checking
+      const result = await pyodide.runPythonAsync(`
+import sys
+sys.path.insert(0, "/")
+
+async def ensure_mypy():
+    try:
+        import mypy.api
+        return mypy.api
+    except ImportError:
+        import micropip
+        await micropip.install("mypy")
+        import mypy.api
+        return mypy.api
+
+# Write code to temp file for mypy
+with open("/_lint_code.py", "w") as f:
+    f.write(_lint_code)
+
+mypy = await ensure_mypy()
+
+# Run mypy with text output (easier to parse than JSON)
+# --follow-imports=skip to avoid errors on graphics module
+# --ignore-missing-imports to suppress Import errors
+exit_code, stdout, stderr = mypy.api.run([
+    "/_lint_code.py",
+    "--no-error-summary",
+    "--show-error-codes",
+    "--follow-imports=skip",
+    "--ignore-missing-imports",
+])
+
+diagnostics = []
+
+# mypy outputs format: "file:line:col: error: msg [code]"
+import re
+pattern = r'([^:]+):(\\d+):(\\d+): (\\w+): (.+?)(?: \\[(\\w+)\\])?$'
+
+for line in stdout.split('\\n'):
+    if not line.strip():
+        continue
+    match = re.match(pattern, line.strip())
+    if match:
+        filename, line_num, col, severity, message, code = match.groups()
+        
+        # Map mypy codes to our codes
+        our_code = "E999"  # default
+        if code:
+            if code == "attr-defined" or code == "no-redef":
+                our_code = "F821"  # undefined name
+            elif code == "arg-type" or code == "call-overload":
+                our_code = "E225"  # type mismatch
+            elif code == "misc":
+                our_code = "E999"
+        
+        # Extract meaningful message for translation
+        if "Unsupported" in message:
+            our_code = "E225"
+        
+        diagnostics.append({
+            "code": our_code,
+            "messageKey": f"linter.{our_code}",
+            "messageArgs": {"raw": message},
+            "row": int(line_num) - 1,
+            "column": int(col),
+            "endRow": int(line_num) - 1,
+            "endColumn": int(col) + len(message.split()[0]) if message.split() else int(col) + 1,
+            "severity": "error",
+        })
+
+diagnostics
+`);
+      
+      const diagnostics: LintDiagnostic[] = result.toJs({ dict_converter: Object.fromEntries });
+      
+      pyodideGlobals.delete("_lint_code");
+      pyodideGlobals.delete("_lint_filename");
+      
       post({ type: "lint", diagnostics });
     } catch (err) {
       console.error("Worker: Lint error:", err);
+      try {
+        const errorInfo = await pyodide.runPythonAsync(
+          `import traceback; traceback.format_exc()`
+        );
+        console.error("Worker: Python traceback:", String(errorInfo));
+      } catch {
+        // ignore
+      }
       post({ type: "lint", diagnostics: [] });
     }
   }

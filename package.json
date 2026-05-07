@@ -32,7 +32,7 @@
     "test:runner": "node tests/run-tests.js",
     "test": "jest",
     "test:unit": "jest",
-    "test:server": "node --experimental-vm-modules node_modules/jest/bin/jest.js --config jest.server.config.js",
+    "test:server": "node --experimental-vm-modules node_modules/jest/bin/jest.js --config server/tests/jest.server.config.js --rootDir .",
     "test:watch": "jest --watch"
   },
   "dependencies": {
@@ -53,6 +53,7 @@
     "react-i18next": "^17.0.0",
     "react-icons": "^5.6.0",
     "react-konva": "^19.2.3",
+    "react-router-dom": "^7.14.2",
     "tailwindcss": "^4.2.1",
     "uuid": "^11.0.0",
     "zustand": "^5.0.11"
@@ -60,6 +61,8 @@
   "devDependencies": {
     "@eslint/js": "^9.39.1",
     "@jest/globals": "^30.3.0",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
     "@types/better-sqlite3": "^7.6.11",
     "@types/cors": "^2.8.17",
     "@types/express": "^5.0.0",

@@ -1,5 +1,4 @@
 import { create } from "zustand";
-import i18n from "../i18n";
 
 import HelloWorld from "../assets/examples/hello_world/hello_world.py?raw";
 import Input from "../assets/examples/input/input.py?raw";
@@ -8,15 +7,15 @@ import Snake from "../assets/examples/snake/snake.py?raw";
 import SnakeCfg from "../assets/examples/snake/snake_cfg.py?raw";
 import AppleCfg from "../assets/examples/snake/apple_cfg.py?raw";
 import Sokoban from "../assets/examples/sokoban/sokoban.py?raw";
-// import Bounce from "../assets/examples/bounce/bounce.py?raw";
 import Asteroids from "../assets/examples/asteroids/files/main.py?raw";
 import ShipSvg from "../assets/examples/asteroids/assets/ship.svg?url";
 import BulletSvg from "../assets/examples/asteroids/assets/bullet.svg?url";
 import BigAsteroidSvg from "../assets/examples/asteroids/assets/big_asteroid.svg?url";
 import SmallAsteroidSvg from "../assets/examples/asteroids/assets/small_asteroid.svg?url";
 import { PACK_ASSET_LIST } from "./assets";
-import { projectStorage, StoredProject } from "../utils/storage";
-import { importProjectFromFile } from "../utils/zip";
+import { projectStorage } from "../utils/storage";
+import { importProjectFromFile as importZipFile } from "../utils/zip";
+import { getProjects, createProject as apiCreateProject, updateProject as apiUpdateProject, deleteProject as apiDeleteProject, saveProjectContent, getProject as apiGetProject, Project as ApiProject } from "./api";
 
 export type PanelId = "projects" | "assets" | "settings" | null;
 
@@ -26,8 +25,6 @@ export type Project = {
   currentFile?: string;
   assets: Record<string, string>;
 };
-
-export type UserProject = StoredProject;
 
 function pickAssets(...names: string[]): Record<string, string> {
   const byName = Object.fromEntries(
@@ -61,7 +58,6 @@ const Examples: Record<string, Project> = {
       "p1_front",
     ),
   },
-  // "bounce (new API)": { files: { "bounce.py": Bounce }, assets: {} },
   asteroids: {
     files: { "main.py": Asteroids },
     assets: {
@@ -72,12 +68,12 @@ const Examples: Record<string, Project> = {
     },
   },
 };
+
 type EditorState = {
   currentFile: string;
   project: Project;
   currentProjectId: string | null;
   dirtyFiles: Set<string>;
-  lastSaveTime: number;
 
   changeCurrentFile: (name: string) => void;
   changeCurrentProject: (project: Project, projectId?: string) => void;
@@ -88,7 +84,6 @@ type EditorState = {
   toggleAsset: (name: string, url: string) => void;
   renameFile: (oldName: string, newName: string) => void;
   markClean: () => void;
-  updateLastSaveTime: () => void;
 };
 
 export const useEditor = create<EditorState>((set) => ({
@@ -97,20 +92,16 @@ export const useEditor = create<EditorState>((set) => ({
   currentProjectId: null,
 
   dirtyFiles: new Set(),
-  lastSaveTime: Date.now(),
 
   changeFile: (name, text) =>
     set((s) => {
       // Check if we're editing an example project (no currentProjectId)
       if (s.currentProjectId === null) {
-        // Auto-fork the example
         const exampleName = Object.keys(Examples).find(
           (key) => Examples[key] === s.project,
         );
 
         if (exampleName) {
-          // This will be handled by the component that calls changeFile
-          // We'll just mark it as dirty for now
           const files = { ...s.project.files, [name]: text };
           const project = { ...s.project, files };
 
@@ -145,7 +136,6 @@ export const useEditor = create<EditorState>((set) => ({
       currentFile: Object.keys(project.files)[0] ?? "",
       currentProjectId: projectId || null,
       dirtyFiles: new Set(),
-      lastSaveTime: Date.now(),
     }),
 
   renameFile: (oldName, newName) =>
@@ -175,12 +165,11 @@ export const useEditor = create<EditorState>((set) => ({
 
   changeAsset: (name, url) =>
     set((s) => {
-      let assets = { ...(s.project.assets ?? {}) };
-      assets = { ...assets, [name]: url };
-      const project = { ...s.project };
-      project.assets = assets;
-      return { project };
+      const assets = { ...(s.project.assets ?? {}) };
+      assets[name] = url;
+      return { project: { ...s.project, assets } };
     }),
+
   toggleAsset: (name, url) =>
     set((s) => {
       const assets = { ...(s.project.assets ?? {}) };
@@ -197,44 +186,37 @@ export const useEditor = create<EditorState>((set) => ({
     }),
 
   markClean: () => set({ dirtyFiles: new Set() }),
-  updateLastSaveTime: () => set({ lastSaveTime: Date.now() }),
 }));
 
 type IdeState = {
   activePanel: PanelId;
-  assets: Record<string, Blob>;
   projects: Record<string, Project>;
-  userProjects: UserProject[];
+  userProjects: ApiProject[];
   loading: boolean;
   showHitboxes: boolean;
+  loadingProjectContent: boolean;
 
   setActivePanel: (panel: PanelId) => void;
   togglePanel: (panel: Exclude<PanelId, null>) => void;
   closePanels: () => void;
   loadUserProjects: () => Promise<void>;
-  createNewProject: (name: string) => Promise<UserProject>;
+  createNewProject: (name: string) => Promise<ApiProject>;
   deleteUserProject: (id: string) => Promise<void>;
   renameUserProject: (id: string, newName: string) => Promise<void>;
-  forkExample: (
-    exampleName: string,
-    exampleProject: Project,
-    newName?: string,
-  ) => Promise<UserProject>;
+  forkExample: (exampleName: string, exampleProject: Project, newName?: string) => Promise<ApiProject>;
   saveCurrentProject: () => Promise<void>;
-  exportProject: (id: string) => Promise<void>;
-  importProject: (zipData: ArrayBuffer, name?: string) => Promise<UserProject>;
   downloadProject: (id: string) => Promise<void>;
-  importProjectFromFile: (file: File) => Promise<UserProject>;
+  importProjectFromFile: (file: File) => Promise<ApiProject>;
   setShowHitboxes: (show: boolean) => void;
 };
 
 export const useIde = create<IdeState>((set, get) => ({
   activePanel: null,
-  assets: {},
   projects: Examples,
   userProjects: [],
   loading: false,
   showHitboxes: false,
+  loadingProjectContent: false,
 
   setActivePanel: (panel) => set({ activePanel: panel }),
   togglePanel: (panel) =>
@@ -245,16 +227,25 @@ export const useIde = create<IdeState>((set, get) => ({
   loadUserProjects: async () => {
     set({ loading: true });
     try {
-      const userProjects = await projectStorage.getUserProjects();
+      const userProjects = await getProjects();
       set({ userProjects, loading: false });
+      // Cache in IndexedDB for offline fallback
+      projectStorage.cacheProjects(userProjects as unknown as Record<string, unknown>[]).catch(() => {});
     } catch (error) {
-      console.error("Failed to load user projects:", error);
-      set({ loading: false });
+      console.error("Failed to load user projects, trying cache:", error);
+      // Fall back to IndexedDB cache
+      try {
+        const cached = await projectStorage.getUserProjects();
+        set({ userProjects: cached as unknown as ApiProject[], loading: false });
+      } catch {
+        set({ loading: false });
+      }
     }
   },
 
   createNewProject: async (name: string) => {
-    const newProject = await projectStorage.createProject(name, {
+    const newProject = await apiCreateProject({
+      name,
       files: { "main.py": '# New project\nprint("Hello World!")' },
       assets: {},
     });
@@ -266,84 +257,57 @@ export const useIde = create<IdeState>((set, get) => ({
   },
 
   deleteUserProject: async (id: string) => {
-    await projectStorage.deleteProject(id);
+    await apiDeleteProject(id);
     const { userProjects } = get();
     set({ userProjects: userProjects.filter((p) => p.id !== id) });
   },
 
   renameUserProject: async (id: string, newName: string) => {
-    const updatedProject = await projectStorage.updateProject(id, {
-      name: newName,
-    });
+    const updatedProject = await apiUpdateProject(id, { name: newName });
     const { userProjects } = get();
     set({
-      userProjects: userProjects.map((p) => (p.id === id ? updatedProject : p)),
+      userProjects: userProjects.map((p) =>
+        p.id === id ? { ...p, ...updatedProject } : p
+      ),
     });
   },
 
-  forkExample: async (
-    exampleName: string,
-    exampleProject: Project,
-    newName?: string,
-  ) => {
-    const forkedProject = await projectStorage.forkExample(
-      exampleName,
-      exampleProject,
-      newName,
-    );
+  forkExample: async (exampleName, exampleProject, newName) => {
+    const forkedProject = await apiCreateProject({
+      name: newName || `${exampleName}_edited`,
+      files: exampleProject.files,
+      assets: exampleProject.assets,
+      currentFile: exampleProject.currentFile,
+    });
+
     const { userProjects } = get();
     set({ userProjects: [forkedProject, ...userProjects] });
     return forkedProject;
-  },
-
-  forkCurrentExample: async (newName?: string) => {
-    const { currentProjectId, project } = useEditor.getState();
-
-    // Only fork if we're currently on an example (no currentProjectId)
-    if (currentProjectId !== null) {
-      throw new Error(i18n.t("errors.cannotFork"));
-    }
-
-    const exampleName = Object.keys(Examples).find(
-      (key) => Examples[key] === project,
-    );
-
-    if (!exampleName) {
-      throw new Error(i18n.t("errors.notExample"));
-    }
-
-    return await get().forkExample(exampleName, project, newName);
   },
 
   saveCurrentProject: async () => {
     const { currentProjectId, project } = useEditor.getState();
     if (!currentProjectId) return;
 
-    const { userProjects } = get();
-    const existingProject = userProjects.find((p) => p.id === currentProjectId);
-    if (!existingProject) return;
+    try {
+      await saveProjectContent(currentProjectId, {
+        files: project.files,
+        assets: project.assets,
+        currentFile: useEditor.getState().currentFile,
+      });
 
-    await projectStorage.updateProject(currentProjectId, {
-      files: project.files,
-      assets: project.assets,
-      currentFile: useEditor.getState().currentFile,
-    });
-
-    const updatedUserProjects = userProjects.map((p) =>
-      p.id === currentProjectId
-        ? {
-            ...p,
-            files: project.files,
-            assets: project.assets,
-            updatedAt: new Date().toISOString(),
-          }
-        : p,
-    );
-    set({ userProjects: updatedUserProjects });
-  },
-
-  exportProject: async (id: string) => {
-    await projectStorage.downloadProjectZip(id);
+      // Update the local cache
+      const { userProjects } = get();
+      set({
+        userProjects: userProjects.map((p) =>
+          p.id === currentProjectId
+            ? { ...p, files: project.files, assets: project.assets, updated_at: Date.now() }
+            : p
+        ),
+      });
+    } catch (error) {
+      console.error("Failed to save project:", error);
+    }
   },
 
   downloadProject: async (id: string) => {
@@ -351,12 +315,11 @@ export const useIde = create<IdeState>((set, get) => ({
   },
 
   importProjectFromFile: async (file: File) => {
-    const importedProject = await importProjectFromFile(file);
+    const importedProject = await importZipFile(file);
 
-    // Convert to our storage format
     const files: Record<string, string> = {};
-    importedProject.files.forEach((file) => {
-      files[file.name] = file.content;
+    importedProject.files.forEach((f) => {
+      files[f.name] = f.content;
     });
 
     const assets: Record<string, string> = {};
@@ -374,27 +337,15 @@ export const useIde = create<IdeState>((set, get) => ({
       ),
     );
 
-    const storedProject = await projectStorage.createProject(
-      importedProject.name,
-      {
-        files,
-        assets,
-        currentFile: importedProject.currentFile,
-      },
-    );
+    const created = await apiCreateProject({
+      name: importedProject.name,
+      files,
+      assets,
+      currentFile: importedProject.currentFile,
+    });
 
     const { userProjects } = get();
-    set({ userProjects: [storedProject, ...userProjects] });
-    return storedProject;
-  },
-
-  importProject: async (zipData: ArrayBuffer, name?: string) => {
-    const importedProject = await projectStorage.importProjectFromZip(
-      zipData,
-      name,
-    );
-    const { userProjects } = get();
-    set({ userProjects: [importedProject, ...userProjects] });
-    return importedProject;
+    set({ userProjects: [created, ...userProjects] });
+    return created;
   },
 }));

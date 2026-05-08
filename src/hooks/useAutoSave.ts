@@ -7,7 +7,6 @@ export function useAutoSave() {
   const currentProjectId = useEditor((s) => s.currentProjectId);
   const dirtyFiles = useEditor((s) => s.dirtyFiles);
   const markClean = useEditor((s) => s.markClean);
-  const updateLastSaveTime = useEditor((s) => s.updateLastSaveTime);
   const saveCurrentProject = useIde((s) => s.saveCurrentProject);
 
   useEffect(() => {
@@ -16,9 +15,8 @@ export function useAutoSave() {
     const interval = setInterval(() => {
       saveCurrentProject();
       markClean();
-      updateLastSaveTime();
     }, AUTO_SAVE_INTERVAL);
 
     return () => clearInterval(interval);
-  }, [currentProjectId, dirtyFiles.size, saveCurrentProject, markClean, updateLastSaveTime]);
+  }, [currentProjectId, dirtyFiles.size, saveCurrentProject, markClean]);
 }

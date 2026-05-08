@@ -2,11 +2,9 @@ import express from 'express';
 import cors from 'cors';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { runMigrations } from './db/index.js';
+import { initDb } from './db/index.js';
 import usersRouter from './routes/users.js';
 import projectsRouter from './routes/projects.js';
-import filesRouter from './routes/files.js';
-import sharesRouter from './routes/shares.js';
 
 const PORT = process.env.PORT || 3001;
 const DIST_DIR = process.env.DIST_DIR || join(dirname(fileURLToPath(import.meta.url)), '../dist');
@@ -21,12 +19,10 @@ app.use((req, res, next) => {
   next();
 });
 
-runMigrations();
+initDb();
 
 app.use('/api/users', usersRouter);
 app.use('/api/projects', projectsRouter);
-app.use('/api/projects', filesRouter);
-app.use('/api/projects', sharesRouter);
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: Date.now() });
@@ -59,11 +55,7 @@ app.listen(PORT, () => {
   console.log(`  GET  /api/projects/:id`);
   console.log(`  PUT  /api/projects/:id`);
   console.log(`  DELETE /api/projects/:id`);
-  console.log(`  GET  /api/projects/:id/files`);
-  console.log(`  POST /api/projects/:id/files`);
-  console.log(`  GET  /api/projects/:id/files/:path`);
-  console.log(`  PUT  /api/projects/:id/files/:path`);
-  console.log(`  DELETE /api/projects/:id/files/:path`);
+  console.log(`  PUT  /api/projects/:id/save`);
   console.log(`  POST /api/projects/:id/share`);
   console.log(`  GET  /api/projects/:id/share`);
   console.log(`  DELETE /api/projects/:id/share/:userId`);

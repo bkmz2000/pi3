@@ -517,14 +517,26 @@ type SettingsPanelProps = {
 
 function SettingsPanel({ showHitboxes, onShowHitboxesChange }: SettingsPanelProps) {
   const { t } = useTranslation();
+  const [autoSave, setAutoSave] = useState(false);
+  const [vimMode, setVimMode] = useState(false);
 
   return (
     <div className="space-y-3">
       <label className="flex items-center gap-2">
-        <input type="checkbox" className="accent-cyan-500" defaultChecked /> {t('sideMenu.autoSave')}
+        <input
+          type="checkbox"
+          className="accent-cyan-500"
+          checked={autoSave}
+          onChange={(e) => setAutoSave(e.target.checked)}
+        /> {t('sideMenu.autoSave')}
       </label>
       <label className="flex items-center gap-2">
-        <input type="checkbox" className="accent-cyan-500" /> {t('sideMenu.vimMode')}
+        <input
+          type="checkbox"
+          className="accent-cyan-500"
+          checked={vimMode}
+          onChange={(e) => setVimMode(e.target.checked)}
+        /> {t('sideMenu.vimMode')}
       </label>
       <label className="flex items-center gap-2">
         <input

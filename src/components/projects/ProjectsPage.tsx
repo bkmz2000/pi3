@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useProjects } from '../../state/useProjects';
+import { useProjects } from '../../hooks/useProjects';
 import { useUser } from '../../state/useUser';
 import { ProjectCard } from './ProjectCard';
 import { NewProjectDialog } from './NewProjectDialog';
@@ -8,7 +8,7 @@ import { useNavigate } from 'react-router-dom';
 
 export function ProjectsPage() {
   const { t } = useTranslation();
-  const { projects, loading, error, fetchProjects } = useProjects();
+  const { apiProjects, apiLoading, apiError, fetchProjects, addProject } = useProjects();
   const { authState } = useUser();
   const [showNewProject, setShowNewProject] = useState(false);
   const navigate = useNavigate();
@@ -21,6 +21,11 @@ export function ProjectsPage() {
 
   const handleSelectProject = (id: string) => {
     navigate(`/ide/${id}`);
+  };
+
+  const handleCreateProject = async (name: string) => {
+    await addProject(name);
+    setShowNewProject(false);
   };
 
   if (authState === 'loading') {
@@ -41,7 +46,7 @@ export function ProjectsPage() {
   }
 
   return (
-    <div className="mx-auto max-w-4xl p-8">
+    <div className="flex flex-col gap-4 p-8">
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-2xl font-bold text-cyan-900">{t('auth.myProjects')}</h1>
         <button
@@ -52,15 +57,15 @@ export function ProjectsPage() {
         </button>
       </div>
 
-      {error && (
-        <div className="mb-4 rounded bg-red-100 p-3 text-sm text-red-600">{error}</div>
+      {apiError && (
+        <div className="mb-4 rounded bg-red-100 p-3 text-sm text-red-600">{apiError}</div>
       )}
 
-      {loading && projects.length === 0 ? (
+      {apiLoading && apiProjects.length === 0 ? (
         <div className="flex justify-center py-12">
           <div className="h-6 w-6 animate-spin rounded-full border-4 border-cyan-700 border-t-cyan-400" />
         </div>
-      ) : projects.length === 0 ? (
+      ) : apiProjects.length === 0 ? (
         <div className="rounded-lg border-2 border-dashed border-cyan-300 p-12 text-center">
           <h2 className="text-xl font-medium text-cyan-700">{t('sideMenu.noProjects')}</h2>
           <button
@@ -71,8 +76,8 @@ export function ProjectsPage() {
           </button>
         </div>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {projects.map((project) => (
+        <div className="flex flex-col gap-4">
+          {apiProjects.map((project) => (
             <ProjectCard
               key={project.id}
               project={project}
@@ -83,7 +88,7 @@ export function ProjectsPage() {
         </div>
       )}
 
-      <NewProjectDialog open={showNewProject} onClose={() => setShowNewProject(false)} />
+      <NewProjectDialog open={showNewProject} onClose={() => setShowNewProject(false)} onCreate={handleCreateProject} />
     </div>
   );
 }

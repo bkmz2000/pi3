@@ -94,6 +94,9 @@ export interface Project {
   is_public: number;
   user_id: string;
   role: 'owner' | 'editor' | 'viewer';
+  files: Record<string, string>;
+  assets: Record<string, string>;
+  current_file: string;
   created_at: number;
   updated_at: number;
 }
@@ -111,8 +114,8 @@ export async function getProjects(): Promise<Project[]> {
   return api.get<Project[]>('/api/projects');
 }
 
-export async function createProject(name: string, description?: string): Promise<Project> {
-  return api.post<Project>('/api/projects', { name, description });
+export async function createProject(body: { name: string; description?: string; files?: Record<string, string>; assets?: Record<string, string>; currentFile?: string }): Promise<Project> {
+  return api.post<Project>('/api/projects', body);
 }
 
 export async function getProject(id: string): Promise<Project> {
@@ -121,6 +124,10 @@ export async function getProject(id: string): Promise<Project> {
 
 export async function updateProject(id: string, data: { name?: string; description?: string }): Promise<Project> {
   return api.put<Project>(`/api/projects/${id}`, data);
+}
+
+export async function saveProjectContent(id: string, data: { files?: Record<string, string>; assets?: Record<string, string>; currentFile?: string }): Promise<Project> {
+  return api.put<Project>(`/api/projects/${id}/save`, data);
 }
 
 export async function deleteProject(id: string): Promise<void> {

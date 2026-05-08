@@ -672,15 +672,15 @@ export default function SpriteEditor({
         );
       }
       case "text": {
-        const t = s as TextData;
+        const td = s as TextData;
         return (
           <KText
             {...common}
             fill={s.fill}
-            x={t.x * SCALE}
-            y={t.y * SCALE}
-            text={t.text}
-            fontSize={t.fontSize * SCALE}
+            x={td.x * SCALE}
+            y={td.y * SCALE}
+            text={td.text}
+            fontSize={td.fontSize * SCALE}
           />
         );
       }
@@ -734,8 +734,8 @@ export default function SpriteEditor({
           return `<polygon points="${pointsStr.join(" ")}" fill="${f}" stroke="${st}" stroke-width="${sw}" stroke-linecap="round"/>`;
         }
         if (s.kind === "text") {
-          const t = s as TextData;
-          return `<text x="${t.x}" y="${t.y + t.fontSize}" font-size="${t.fontSize}" fill="${f}">${t.text}</text>`;
+          const td = s as TextData;
+          return `<text x="${td.x}" y="${td.y + td.fontSize}" font-size="${td.fontSize}" fill="${f}">${td.text}</text>`;
         }
         return "";
       })

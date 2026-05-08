@@ -144,6 +144,4 @@ export function createSharesRouter(): Router {
   return router;
 }
 
-const router = Router({ mergeParams: true });
-router.use(authMiddleware);
-export default router;
+export default createSharesRouter;

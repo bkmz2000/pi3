@@ -120,6 +120,12 @@
     "cannotFork": "Cannot fork a user project",
     "notExample": "Current project is not an example"
   },
+  "fork": {
+    "saveAsNewProject": "Save as New Project",
+    "saveExampleAsProject": "This is an example project. Save it as your own to keep your changes.",
+    "save": "Save",
+    "saving": "Saving..."
+  },
   "projects": {
     "open": "Open",
     "share": "Share",
@@ -128,6 +134,8 @@
     "confirmDelete": "Delete \"{{name}}\"? This cannot be undone.",
     "roleOwner": "Owner",
     "roleEditor": "Editor",
-    "roleViewer": "Viewer"
+    "roleViewer": "Viewer",
+    "description": "Description (optional)",
+    "creating": "Creating..."
   }
 }

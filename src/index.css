@@ -1,19 +1,6 @@
 @import "tailwindcss";
 @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap");
 
-/* Base styles */
-body {
-    font-family: var(--font-sans);
-    font-size: var(--text-base);
-    font-weight: var(--font-normal);
-    line-height: var(--leading-normal);
-    color: var(--color-ide-text-primary);
-    background-color: var(--color-ide-surface);
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-    letter-spacing: var(--tracking-normal);
-}
-
 /* Base styles for kid-friendly IDE */
 body {
     font-family:
@@ -66,8 +53,8 @@ body {
     border-radius: 0.25rem;
 }
 
-/* Smooth transitions */
-* {
+/* Smooth transitions for interactive elements only */
+button, input, select, textarea, a, label {
     transition:
         background-color 0.15s ease,
         border-color 0.15s ease,

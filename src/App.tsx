@@ -1,5 +1,5 @@
-import { useCallback, useEffect } from "react";
-import { Routes, Route } from "react-router-dom";
+import { useCallback, useEffect, useState } from "react";
+import { Routes, Route, useParams } from "react-router-dom";
 import CodeMirror from "@uiw/react-codemirror";
 import { python } from "@codemirror/lang-python";
 import { indentUnit, bracketMatching, indentOnInput } from "@codemirror/language";
@@ -8,8 +8,8 @@ import { EditorView, lineNumbers, highlightActiveLine, drawSelection, highlightS
 import { autocompletion, acceptCompletion } from "@codemirror/autocomplete";
 import { keymap } from "@codemirror/view";
 import Rail from "./SideMenu";
-import { useEditor } from "./state/IdeState";
-import { useIde } from "./state/IdeState";
+import { useEditor, useIde } from "./state/IdeState";
+import { getProject } from "./state/api";
 import FileBar from "./FileBar";
 import { useRunner } from "./runner/RunnerProvider";
 import CanvasWindow from "./CanvasWindow";
@@ -18,6 +18,7 @@ import ConsolePanel from "./components/ConsolePanel";
 import { webideTheme, indentationGuideField } from "./editor/theme";
 import { ProjectsPage } from "./components/projects";
 import { useUser } from "./state/useUser";
+import ForkDialog from "./components/dialogs/ForkDialog";
 
 function SessionChecker() {
   const checkSession = useUser((s) => s.checkSession);
@@ -27,15 +28,60 @@ function SessionChecker() {
   return null;
 }
 
+function ProjectLoader() {
+  const { projectId } = useParams<{ projectId: string }>();
+  const changeCurrentProject = useEditor((s) => s.changeCurrentProject);
+  const setLoading = useIde((s) => s.setActivePanel);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    if (!projectId) {
+      setLoaded(true);
+      return;
+    }
+
+    let cancelled = false;
+    getProject(projectId)
+      .then((apiProject) => {
+        if (cancelled) return;
+        changeCurrentProject(
+          {
+            name: apiProject.name,
+            files: apiProject.files,
+            assets: apiProject.assets,
+            currentFile: apiProject.current_file,
+          },
+          projectId,
+        );
+        setLoaded(true);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        console.error("Failed to load project:", err);
+        setLoaded(true);
+      });
+
+    return () => { cancelled = true; };
+  }, [projectId, changeCurrentProject]);
+
+  return loaded;
+}
+
 function AppInner() {
   const changeFile = useEditor((s) => s.changeFile);
   const currentFile = useEditor((s) => s.currentFile);
   const project = useEditor((s) => s.project);
   const markClean = useEditor((s) => s.markClean);
   const dirtyFiles = useEditor((s) => s.dirtyFiles);
+  const currentProjectId = useEditor((s) => s.currentProjectId);
   const saveCurrentProject = useIde((s) => s.saveCurrentProject);
+  const forkExample = useIde((s) => s.forkExample);
   const runner = useRunner();
   const ready = runner.ready;
+
+  const [showForkDialog, setShowForkDialog] = useState(false);
+
+  const loaded = ProjectLoader();
 
   const onChange = useCallback(
     (val: string) => {
@@ -57,21 +103,39 @@ function AppInner() {
     }
   }, []);
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === "s") {
-        e.preventDefault();
-        if (dirtyFiles.size > 0) {
-          saveCurrentProject();
-          markClean();
-        }
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [dirtyFiles, saveCurrentProject, markClean]);
+  const handleSave = useCallback((e: KeyboardEvent) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === "s") {
+      e.preventDefault();
 
-  if (!ready) {
+      // If editing an example, show fork dialog
+      if (!currentProjectId && dirtyFiles.size > 0) {
+        setShowForkDialog(true);
+        return;
+      }
+
+      if (dirtyFiles.size > 0 && currentProjectId) {
+        saveCurrentProject();
+        markClean();
+      }
+    }
+  }, [currentProjectId, dirtyFiles, saveCurrentProject, markClean]);
+
+  useEffect(() => {
+    window.addEventListener("keydown", handleSave);
+    return () => window.removeEventListener("keydown", handleSave);
+  }, [handleSave]);
+
+  const handleForkSave = async (name: string) => {
+    const forked = await forkExample(name, project);
+    useEditor.getState().changeCurrentProject(
+      { ...project, name: forked.name },
+      forked.id,
+    );
+    markClean();
+    setShowForkDialog(false);
+  };
+
+  if (!loaded || !ready) {
     return <LoadingScreen />;
   }
 
@@ -114,6 +178,13 @@ function AppInner() {
       </div>
       <ConsolePanel />
       <CanvasWindow />
+
+      {showForkDialog && (
+        <ForkDialog
+          onClose={() => setShowForkDialog(false)}
+          onSave={handleForkSave}
+        />
+      )}
     </div>
   );
 }

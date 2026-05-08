@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Project } from '../../state/api';
-import { useProjects } from '../../state/useProjects';
+import { useProjects } from '../../hooks/useProjects';
 import { ShareDialog } from './ShareDialog';
 
 interface ProjectCardProps {
@@ -33,7 +33,7 @@ export function ProjectCard({ project, onSelect, showManagement }: ProjectCardPr
 
   return (
     <>
-      <div className="rounded-lg border border-cyan-200 bg-white p-4 shadow-sm">
+      <div className="rounded-lg border border-cyan-200 bg-white p-4 shadow-sm w-full min-w-0">
         <div className="mb-2 flex items-start justify-between">
           <div>
             <h3 className="font-medium text-cyan-900">{project.name}</h3>
@@ -46,7 +46,7 @@ export function ProjectCard({ project, onSelect, showManagement }: ProjectCardPr
           </span>
         </div>
 
-        <div className="mt-4 flex gap-2">
+        <div className="mt-4 flex items-center gap-2">
           <button
             onClick={() => onSelect(project.id)}
             className="rounded bg-cyan-500 px-3 py-1.5 text-sm text-white hover:bg-cyan-400"

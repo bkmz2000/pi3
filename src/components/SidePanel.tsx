@@ -31,7 +31,7 @@ export default function SidePanel({
 
   const handleClose = useCallback(() => {
     onClose();
-    setTimeout(() => prevFocusRef.current?.focus?.(), 0);
+    requestAnimationFrame(() => prevFocusRef.current?.focus?.());
   }, [onClose]);
 
   useEffect(() => {

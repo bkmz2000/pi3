@@ -54,8 +54,8 @@ beforeEach(() => {
     name: 'Test Project',
   };
 
-  db.prepare('INSERT INTO projects (id, user_id, name, is_public, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)')
-    .run(testProject.id, testProject.user_id, testProject.name, 0, now, now);
+  db.prepare('INSERT INTO projects (id, user_id, name, is_public, files, assets, current_file, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
+    .run(testProject.id, testProject.user_id, testProject.name, 0, '{"main.py":"print(1)"}', '{}', 'main.py', now, now);
 });
 
 afterAll(() => {
@@ -124,7 +124,21 @@ describe('Projects API', () => {
     expect(res.body.description).toBe('A test project');
   });
 
-  it('GET /api/projects/:id returns project details', async () => {
+  it('POST /api/projects creates project with initial content', async () => {
+    const res = await request(app)
+      .post('/api/projects')
+      .set(authHeader(testUser1.api_token))
+      .send({
+        name: 'Content Project',
+        files: { 'main.py': 'print("hello")', 'utils.py': 'def foo(): pass' },
+        currentFile: 'main.py',
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body.name).toBe('Content Project');
+  });
+
+  it('GET /api/projects/:id returns project with content', async () => {
     const res = await request(app)
       .get(`/api/projects/${testProject.id}`)
       .set(authHeader(testUser1.api_token));
@@ -132,6 +146,8 @@ describe('Projects API', () => {
     expect(res.status).toBe(200);
     expect(res.body.name).toBe('Test Project');
     expect(res.body.role).toBe('owner');
+    expect(res.body.files).toEqual({ 'main.py': 'print(1)' });
+    expect(res.body.current_file).toBe('main.py');
   });
 
   it('GET /api/projects/:id denies access to non-owner without share', async () => {
@@ -166,91 +182,75 @@ describe('Projects API', () => {
   });
 });
 
-describe('Files API', () => {
-  let testFile: { id: string; project_id: string; path: string };
-
-  beforeEach(() => {
-    const now = Date.now();
-    testFile = {
-      id: uuidv4(),
-      project_id: testProject.id,
-      path: '/main.py',
-    };
-    db.prepare('INSERT INTO files (id, project_id, path, content, is_directory, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
-      .run(testFile.id, testFile.project_id, testFile.path, 'print("hello")', 0, now, now);
-  });
-
-  it('GET /api/projects/:id/files lists files', async () => {
+describe('Save Content API', () => {
+  it('PUT /api/projects/:id/save saves files', async () => {
     const res = await request(app)
-      .get(`/api/projects/${testProject.id}/files`)
-      .set(authHeader(testUser1.api_token));
-
-    expect(res.status).toBe(200);
-    expect(res.body).toHaveLength(1);
-    expect(res.body[0].path).toBe('/main.py');
-  });
-
-  it('POST /api/projects/:id/files creates a file', async () => {
-    const res = await request(app)
-      .post(`/api/projects/${testProject.id}/files`)
+      .put(`/api/projects/${testProject.id}/save`)
       .set(authHeader(testUser1.api_token))
-      .send({ path: '/utils.py', content: 'def foo(): pass' });
-
-    expect(res.status).toBe(201);
-    expect(res.body.path).toBe('/utils.py');
-  });
-
-  it('GET /api/projects/:id/files/:path gets file content', async () => {
-    const res = await request(app)
-      .get(`/api/projects/${testProject.id}/files/main.py`)
-      .set(authHeader(testUser1.api_token));
+      .send({ files: { 'main.py': 'print("updated")', 'new.py': 'x=1' } });
 
     expect(res.status).toBe(200);
-    expect(res.body.content).toBe('print("hello")');
+    expect(res.body.files).toEqual({ 'main.py': 'print("updated")', 'new.py': 'x=1' });
   });
 
-  it('PUT /api/projects/:id/files/:path updates file', async () => {
-    const res = await request(app)
-      .put(`/api/projects/${testProject.id}/files/main.py`)
+  it('PUT /api/projects/:id/save saves currentFile', async () => {
+    await request(app)
+      .put(`/api/projects/${testProject.id}/save`)
       .set(authHeader(testUser1.api_token))
-      .send({ content: 'print("updated")' });
+      .send({ currentFile: 'new.py' });
 
-    expect(res.status).toBe(200);
-    expect(res.body.content).toBe('print("updated")');
-  });
-
-  it('DELETE /api/projects/:id/files/:path deletes file', async () => {
-    const res = await request(app)
-      .delete(`/api/projects/${testProject.id}/files/main.py`)
+    const getRes = await request(app)
+      .get(`/api/projects/${testProject.id}`)
       .set(authHeader(testUser1.api_token));
-
-    expect(res.status).toBe(204);
+    expect(getRes.body.current_file).toBe('new.py');
   });
 
-  it('editor can modify files', async () => {
-    const now = Date.now();
-    db.prepare('INSERT INTO project_shares (id, project_id, user_id, role, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)')
-      .run(uuidv4(), testProject.id, testUser2.id, 'editor', now, now);
+  it('PUT /api/projects/:id/save persists content across reads', async () => {
+    await request(app)
+      .put(`/api/projects/${testProject.id}/save`)
+      .set(authHeader(testUser1.api_token))
+      .send({ files: { 'main.py': 'print("persisted")' } });
 
-    const res = await request(app)
-      .put(`/api/projects/${testProject.id}/files/main.py`)
-      .set(authHeader(testUser2.api_token))
-      .send({ content: 'print("editor")' });
-
-    expect(res.status).toBe(200);
+    const getRes = await request(app)
+      .get(`/api/projects/${testProject.id}`)
+      .set(authHeader(testUser1.api_token));
+    expect(getRes.body.files['main.py']).toBe('print("persisted")');
   });
 
-  it('viewer cannot modify files', async () => {
+  it('PUT /api/projects/:id/save rejects viewer', async () => {
     const now = Date.now();
     db.prepare('INSERT INTO project_shares (id, project_id, user_id, role, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)')
       .run(uuidv4(), testProject.id, testUser2.id, 'viewer', now, now);
 
     const res = await request(app)
-      .put(`/api/projects/${testProject.id}/files/main.py`)
+      .put(`/api/projects/${testProject.id}/save`)
       .set(authHeader(testUser2.api_token))
-      .send({ content: 'print("viewer")' });
+      .send({ files: { 'x.py': 'x' } });
 
     expect(res.status).toBe(403);
+  });
+
+  it('PUT /api/projects/:id/save allows editor', async () => {
+    const now = Date.now();
+    db.prepare('INSERT INTO project_shares (id, project_id, user_id, role, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)')
+      .run(uuidv4(), testProject.id, testUser2.id, 'editor', now, now);
+
+    const res = await request(app)
+      .put(`/api/projects/${testProject.id}/save`)
+      .set(authHeader(testUser2.api_token))
+      .send({ files: { 'main.py': 'edited' } });
+
+    expect(res.status).toBe(200);
+    expect(res.body.files['main.py']).toBe('edited');
+  });
+
+  it('PUT /api/projects/:id/save returns 404 for nonexistent project', async () => {
+    const res = await request(app)
+      .put(`/api/projects/nonexistent/save`)
+      .set(authHeader(testUser1.api_token))
+      .send({ files: { 'main.py': 'x' } });
+
+    expect(res.status).toBe(404);
   });
 });
 

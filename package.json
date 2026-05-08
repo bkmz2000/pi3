@@ -33,7 +33,8 @@
     "test": "jest",
     "test:unit": "jest",
     "test:server": "node --experimental-vm-modules node_modules/jest/bin/jest.js --config server/tests/jest.server.config.js --rootDir .",
-    "test:watch": "jest --watch"
+    "test:watch": "jest --watch",
+    "test:docker": "bash scripts/test-docker.sh"
   },
   "dependencies": {
     "@codemirror/lang-python": "^6.2.1",

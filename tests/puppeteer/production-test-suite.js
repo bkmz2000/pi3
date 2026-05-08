@@ -13,7 +13,7 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-const DEV_SERVER_URL = 'http://localhost:5173';
+const DEV_SERVER_URL = process.env.PUPPETEER_URL || 'http://localhost:5173';
 
 const testResults = {
   passed: 0,
@@ -200,11 +200,10 @@ async function runProductionTests() {
   try {
     console.log('🔧 Setting up test environment...');
     browser = await puppeteer.launch({
-      headless: false,
+      headless: true,
       devtools: false,
       defaultViewport: { width: 1280, height: 800 },
       args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
-      slowMo: 10,
     });
     
     const page = await browser.newPage();

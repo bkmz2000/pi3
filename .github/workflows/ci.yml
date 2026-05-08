@@ -59,15 +59,15 @@ jobs:
 
       - name: Start container
         run: |
-          docker run -d -p 5173:5173 --name pi3-test pi3:test npm run dev
+          docker run -d -p 5173:3001 --name pi3-test pi3:test
 
       - name: Wait for server ready
         run: |
           for i in {1..30}; do
-            curl -s -o /dev/null -w "%{http_code}" http://localhost:5173 | grep -q "200" && break
+            curl -s -o /dev/null -w "%{http_code}" http://localhost:5173/api/health | grep -q "200" && break
             sleep 1
           done
-          curl -s -o /dev/null -w "%{http_code}" http://localhost:5173 | grep -q "200" || exit 1
+          curl -s -o /dev/null -w "%{http_code}" http://localhost:5173/api/health | grep -q "200" || exit 1
 
       - name: Run E2E tests
         run: PUPPETEER_URL=http://localhost:5173 npm run test:puppeteer

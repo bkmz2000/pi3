@@ -1,14 +1,37 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { IoCopyOutline, IoTrashOutline } from "react-icons/io5";
+import { Icon } from "./Icons";
 import { useRunner } from "../runner/RunnerProvider";
+import { useThemeStore } from "../state/useTheme";
+
+function BlinkDot({ color, delay = 0 }: { color: string; delay?: number }) {
+  return (
+    <span
+      style={{
+        width: 6,
+        height: 6,
+        borderRadius: 6,
+        background: color,
+        display: "inline-block",
+        animation: `pi3blink 1s ease-in-out ${delay}s infinite`,
+      }}
+    />
+  );
+}
+
+const MIN_HEIGHT = 80;
+const MAX_HEIGHT = 600;
+const DEFAULT_HEIGHT = 180;
 
 export default function ConsolePanel() {
-  const { t } = useTranslation();
-  const { output, inputPrompt, respondToInput, clear } = useRunner();
+  const theme = useThemeStore((s) => s.theme);
+  const { t, i18n } = useTranslation();
+  const { output, inputPrompt, respondToInput, clear, running } = useRunner();
   const [inputValue, setInputValue] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const [height, setHeight] = useState(DEFAULT_HEIGHT);
+  const dragging = useRef(false);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -29,65 +52,201 @@ export default function ConsolePanel() {
     navigator.clipboard.writeText(text);
   };
 
+  const onResizeStart = (e: React.PointerEvent) => {
+    e.preventDefault();
+    dragging.current = true;
+    const startY = e.clientY;
+    const startH = height;
+
+    const onMove = (ev: PointerEvent) => {
+      if (!dragging.current) return;
+      const delta = startY - ev.clientY;
+      const newH = Math.min(MAX_HEIGHT, Math.max(MIN_HEIGHT, startH + delta));
+      setHeight(newH);
+    };
+
+    const onUp = () => {
+      dragging.current = false;
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    };
+
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  };
+
   return (
-    <div className="bg-cyan-900 border-l border-cyan-700 w-5/12 min-w-0 flex flex-col">
-      <div className="flex items-center justify-end gap-1 p-2 border-b border-cyan-700">
-        <button
-          onClick={handleCopyConsole}
-          aria-label={t('app.copyConsole')}
-          className="p-1.5 rounded hover:bg-cyan-800 text-cyan-300 hover:text-white transition-colors"
-          title={t('app.copyConsole')}
+    <div
+      style={{
+        height,
+        flex: "none",
+        background: theme.consoleBg,
+        borderTop: `1px solid ${theme.consoleBorder}`,
+        display: "flex",
+        flexDirection: "column",
+        position: "relative",
+      }}
+    >
+      {/* Resize handle */}
+      <div
+        onPointerDown={onResizeStart}
+        style={{
+          position: "absolute",
+          top: -4,
+          left: 0,
+          right: 0,
+          height: 8,
+          cursor: "ns-resize",
+          zIndex: 10,
+        }}
+      >
+        <div
+          style={{
+            position: "absolute",
+            top: 2,
+            left: "50%",
+            transform: "translateX(-50%)",
+            width: 32,
+            height: 3,
+            borderRadius: 2,
+            background: theme.panelBorder,
+            opacity: 0.5,
+            transition: "opacity 0.15s, width 0.15s",
+          }}
+          className="resize-handle-bar"
+        />
+      </div>
+
+      <div
+        style={{
+          height: 32,
+          padding: "0 14px",
+          display: "flex",
+          alignItems: "center",
+          gap: 14,
+          borderBottom: `1px solid ${theme.consoleBorder}`,
+          flex: "none",
+        }}
+      >
+        <div
+          style={{
+            fontFamily: theme.fontUI,
+            fontWeight: theme.weightUI + 100,
+            color: theme.consoleTxt,
+            fontSize: 12.5,
+            letterSpacing: 0.4,
+            textTransform: "uppercase",
+          }}
         >
-          <IoCopyOutline size={16} />
+          Console
+        </div>
+        <div
+          style={{
+            padding: "2px 8px",
+            borderRadius: 999,
+            background: running ? theme.successPill : theme.chip,
+            color: running ? theme.successPillTxt : theme.consoleTxtMute,
+            fontFamily: theme.fontUI,
+            fontSize: 10.5,
+            fontWeight: theme.weightUI + 100,
+            textTransform: "uppercase",
+            letterSpacing: 0.6,
+          }}
+        >
+          {running ? "running" : "idle"}
+        </div>
+        <div style={{ flex: 1 }} />
+        <button
+          type="button"
+          onClick={handleCopyConsole}
+          style={{
+            all: "unset",
+            cursor: "pointer",
+            fontFamily: theme.fontUI,
+            fontSize: 12,
+            fontWeight: theme.weightUI,
+            color: theme.consoleTxtMute,
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 4,
+          }}
+        >
+          <Icon name="copy" size={13} color="currentColor" />
+          {t('app.copyConsole')}
         </button>
         <button
+          type="button"
           onClick={clear}
-          aria-label={t('app.clearConsole')}
-          className="p-1.5 rounded hover:bg-cyan-800 text-cyan-300 hover:text-white transition-colors"
-          title={t('app.clearConsole')}
+          style={{
+            all: "unset",
+            cursor: "pointer",
+            fontFamily: theme.fontUI,
+            fontSize: 12,
+            fontWeight: theme.weightUI,
+            color: theme.consoleTxtMute,
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 4,
+          }}
         >
-          <IoTrashOutline size={16} />
+          <Icon name="trash" size={13} color="currentColor" />
+          {t('app.clearConsole')}
         </button>
       </div>
-      <div className="flex-1 overflow-auto p-4 space-y-1.5">
-        {output.map((line, i) =>
-          line.kind === "stdout" ? (
-            <div
-              key={i}
-              className="text-green-400 whitespace-pre-wrap leading-relaxed font-mono text-sm px-1 py-0.5 rounded hover:bg-cyan-800/50 transition-colors"
-            >
-              {line.text}
-            </div>
-          ) : (
-            <div
-              key={i}
-              className="text-red-400 whitespace-pre-wrap leading-relaxed font-mono text-sm px-1 py-0.5 rounded hover:bg-red-900/20 transition-colors"
-            >
-              {line.text}
-            </div>
-          ),
-        )}
-
+      <div
+        style={{
+          flex: 1,
+          padding: "10px 14px",
+          fontFamily: theme.fontMono,
+          fontSize: 12.5,
+          color: theme.consoleTxt,
+          overflow: "auto",
+          lineHeight: 1.55,
+        }}
+      >
+        {output.map((line, i) => (
+          <div
+            key={i}
+            style={{
+              color: line.kind === "stderr" ? theme.consoleErr : theme.consoleTxt,
+              display: "flex",
+              gap: 10,
+            }}
+          >
+            <span style={{ whiteSpace: "pre-wrap" }}>{line.text}</span>
+          </div>
+        ))}
         {inputPrompt !== null && (
-          <div className="flex items-center border border-cyan-600 rounded-lg px-3 py-2.5 mt-3 bg-cyan-800">
-            <span className="text-green-400 whitespace-pre font-medium font-mono text-sm">
-              {inputPrompt}
-            </span>
+          <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+            <span style={{ color: theme.consoleInfo }}>{inputPrompt}</span>
             <input
               ref={inputRef}
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") submit();
+              onKeyDown={(e) => { if (e.key === "Enter") submit(); }}
+              style={{
+                all: "unset",
+                flex: 1,
+                minWidth: 0,
+                fontFamily: theme.fontMono,
+                fontSize: 12.5,
+                color: theme.consoleTxt,
               }}
-              className="flex-1 bg-transparent outline-none caret-green-400 text-white min-w-0 ml-3 font-mono text-sm placeholder:text-cyan-300/50"
               spellCheck={false}
               autoComplete="off"
-              placeholder={t('app.inputPlaceholder')}
             />
           </div>
         )}
-        <div ref={bottomRef} className="h-4" />
+        {running && (
+          <div style={{ display: "flex", gap: 10, color: theme.consoleTxtMute, marginTop: 4 }}>
+            <span style={{ display: "inline-flex", gap: 4 }}>
+              <BlinkDot color={theme.consoleInfo} />
+              <BlinkDot color={theme.consoleInfo} delay={0.2} />
+              <BlinkDot color={theme.consoleInfo} delay={0.4} />
+            </span>
+          </div>
+        )}
+        <div ref={bottomRef} />
       </div>
     </div>
   );

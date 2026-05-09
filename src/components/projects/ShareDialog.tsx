@@ -1,5 +1,7 @@
 import { useState } from 'react';
+import { useThemeStore } from '../../state/useTheme';
 import { shareProject } from '../../state/api';
+import { Icon } from '../Icons';
 
 interface ShareDialogProps {
   open: boolean;
@@ -9,6 +11,7 @@ interface ShareDialogProps {
 }
 
 export function ShareDialog({ open, onClose, projectId, projectName }: ShareDialogProps) {
+  const theme = useThemeStore((s) => s.theme);
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<'editor' | 'viewer'>('editor');
   const [loading, setLoading] = useState(false);
@@ -20,10 +23,8 @@ export function ShareDialog({ open, onClose, projectId, projectName }: ShareDial
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.trim()) return;
-
     setLoading(true);
     setError(null);
-
     try {
       await shareProject(projectId, email.trim(), role);
       setSuccess(true);
@@ -40,33 +41,99 @@ export function ShareDialog({ open, onClose, projectId, projectName }: ShareDial
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl dark:bg-gray-800">
-        <h2 className="mb-4 text-xl font-bold">Share Project</h2>
-        <p className="mb-4 text-sm text-gray-600 dark:text-gray-400">
-          Share <strong>{projectName}</strong> with someone
-        </p>
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed", inset: 0, zIndex: 50,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        background: "rgba(0,0,0,0.5)",
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: 400,
+          background: theme.surfacePanel,
+          border: `1px solid ${theme.panelBorder}`,
+          borderRadius: 8,
+          boxShadow: theme.shadowWindow,
+          fontFamily: theme.fontUI,
+          color: theme.panelTxt,
+        }}
+      >
+        <div style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          padding: "16px 20px",
+          borderBottom: `1px solid ${theme.panelBorder}`,
+        }}>
+          <span style={{ fontWeight: 700, fontSize: 15 }}>Share Project</span>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              all: "unset", cursor: "pointer",
+              width: 28, height: 28, borderRadius: 6,
+              display: "inline-flex", alignItems: "center", justifyContent: "center",
+              color: theme.panelTxtMute,
+            }}
+          >
+            <Icon name="close" size={16} color="currentColor" />
+          </button>
+        </div>
 
-        <form onSubmit={handleSubmit}>
-          <div className="mb-4">
-            <label className="mb-2 block text-sm font-medium">Email Address</label>
+        <form onSubmit={handleSubmit} style={{ padding: "16px 20px" }}>
+          <p style={{
+            marginBottom: 12, fontSize: 13, color: theme.panelTxtMute,
+          }}>
+            Share <strong style={{ color: theme.panelTxt }}>{projectName}</strong> with someone
+          </p>
+
+          <div style={{ marginBottom: 12 }}>
+            <label style={{
+              display: "block", marginBottom: 6,
+              fontSize: 12.5, fontWeight: 500, color: theme.panelTxt,
+            }}>
+              Email Address
+            </label>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="colleague@example.com"
-              className="w-full rounded border border-gray-300 px-3 py-2 dark:border-gray-600 dark:bg-gray-700"
               disabled={loading}
+              autoFocus
+              style={{
+                all: "unset", display: "block", width: "100%",
+                padding: "8px 12px", boxSizing: "border-box",
+                background: theme.editorBg,
+                border: `1px solid ${theme.panelBorder}`,
+                borderRadius: 5,
+                fontFamily: theme.fontUI, fontSize: 13,
+                color: theme.panelTxt,
+              }}
             />
           </div>
 
-          <div className="mb-4">
-            <label className="mb-2 block text-sm font-medium">Role</label>
+          <div style={{ marginBottom: 12 }}>
+            <label style={{
+              display: "block", marginBottom: 6,
+              fontSize: 12.5, fontWeight: 500, color: theme.panelTxt,
+            }}>
+              Role
+            </label>
             <select
               value={role}
               onChange={(e) => setRole(e.target.value as 'editor' | 'viewer')}
-              className="w-full rounded border border-gray-300 px-3 py-2 dark:border-gray-600 dark:bg-gray-700"
               disabled={loading}
+              style={{
+                all: "unset", display: "block", width: "100%",
+                padding: "8px 12px", boxSizing: "border-box",
+                background: theme.editorBg,
+                border: `1px solid ${theme.panelBorder}`,
+                borderRadius: 5,
+                fontFamily: theme.fontUI, fontSize: 13,
+                color: theme.panelTxt,
+              }}
             >
               <option value="viewer">Viewer (can view)</option>
               <option value="editor">Editor (can edit)</option>
@@ -74,30 +141,53 @@ export function ShareDialog({ open, onClose, projectId, projectName }: ShareDial
           </div>
 
           {error && (
-            <div className="mb-4 rounded bg-red-100 p-2 text-sm text-red-600 dark:bg-red-900/30 dark:text-red-400">
+            <div style={{
+              marginBottom: 12, padding: "8px 12px",
+              background: "rgba(239,68,68,0.10)",
+              border: "1px solid rgba(239,68,68,0.2)",
+              borderRadius: 5,
+              fontSize: 12.5, color: theme.stopBg,
+            }}>
               {error}
             </div>
           )}
 
           {success && (
-            <div className="mb-4 rounded bg-green-100 p-2 text-sm text-green-600 dark:bg-green-900/30 dark:text-green-400">
+            <div style={{
+              marginBottom: 12, padding: "8px 12px",
+              background: "rgba(52,168,83,0.10)",
+              border: "1px solid rgba(52,168,83,0.2)",
+              borderRadius: 5,
+              fontSize: 12.5, color: theme.successPillTxt,
+            }}>
               Project shared successfully!
             </div>
           )}
 
-          <div className="flex justify-end gap-2">
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
             <button
               type="button"
               onClick={onClose}
-              className="rounded px-4 py-2 text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
               disabled={loading}
+              style={{
+                all: "unset", cursor: "pointer",
+                padding: "7px 14px", borderRadius: 5,
+                fontFamily: theme.fontUI, fontSize: 12.5, fontWeight: 500,
+                color: theme.panelTxtMute,
+              }}
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={!email.trim() || loading}
-              className="rounded bg-blue-500 px-4 py-2 text-white hover:bg-blue-600 disabled:opacity-50"
+              style={{
+                all: "unset", cursor: loading ? "default" : "pointer",
+                padding: "7px 16px", borderRadius: 5,
+                background: theme.runBg, color: theme.runTxt,
+                fontFamily: theme.fontUI, fontSize: 12.5, fontWeight: 600,
+                opacity: (!email.trim() || loading) ? 0.5 : 1,
+              }}
             >
               {loading ? 'Sharing...' : 'Share'}
             </button>

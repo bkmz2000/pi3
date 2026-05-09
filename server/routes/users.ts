@@ -9,18 +9,20 @@ interface User {
   id: string;
   api_token: string;
   name: string;
+  role: string;
   created_at: number;
   updated_at: number;
 }
 
 router.post('/', (req: Request, res: Response): void => {
-  const { name } = req.body;
+  const { name, role } = req.body;
 
   if (!name || typeof name !== 'string' || name.trim().length === 0) {
     res.status(400).json({ error: 'Bad Request', message: 'Name is required' });
     return;
   }
 
+  const userRole = role === 'teacher' ? 'teacher' : 'student';
   const db = getDb();
   const now = Date.now();
 
@@ -28,19 +30,21 @@ router.post('/', (req: Request, res: Response): void => {
     id: uuidv4(),
     api_token: uuidv4().replace(/-/g, '') + uuidv4().replace(/-/g, ''),
     name: name.trim(),
+    role: userRole,
     created_at: now,
     updated_at: now,
   };
 
   try {
     db.prepare(`
-      INSERT INTO users (id, api_token, name, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?)
-    `).run(user.id, user.api_token, user.name, user.created_at, user.updated_at);
+      INSERT INTO users (id, api_token, name, role, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(user.id, user.api_token, user.name, user.role, user.created_at, user.updated_at);
 
     res.status(201).json({
       id: user.id,
       name: user.name,
+      role: user.role,
       api_token: user.api_token,
       created_at: user.created_at,
     });
@@ -56,7 +60,7 @@ router.post('/', (req: Request, res: Response): void => {
 
 router.get('/me', authMiddleware, (req: Request, res: Response): void => {
   const db = getDb();
-  const user = db.prepare('SELECT id, name, created_at FROM users WHERE id = ?').get(req.user!.id) as Omit<User, 'api_token' | 'updated_at'> | undefined;
+  const user = db.prepare('SELECT id, name, role, created_at FROM users WHERE id = ?').get(req.user!.id) as Pick<User, 'id' | 'name' | 'role' | 'created_at'> | undefined;
 
   if (!user) {
     res.status(404).json({ error: 'Not Found', message: 'User not found' });

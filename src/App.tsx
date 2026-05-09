@@ -15,10 +15,13 @@ import { useRunner } from "./runner/RunnerProvider";
 import CanvasWindow from "./CanvasWindow";
 import LoadingScreen from "./components/LoadingScreen";
 import ConsolePanel from "./components/ConsolePanel";
-import { webideTheme, indentationGuideField } from "./editor/theme";
+import { indentationGuideField, indentationGuides } from "./editor/theme";
 import { ProjectsPage } from "./components/projects";
+import TeacherDashboard from "./components/teacher/TeacherDashboard";
 import { useUser } from "./state/useUser";
 import ForkDialog from "./components/dialogs/ForkDialog";
+import { useThemeStore } from "./state/useTheme";
+import { githubLight, githubDark } from "@uiw/codemirror-theme-github";
 
 function SessionChecker() {
   const checkSession = useUser((s) => s.checkSession);
@@ -31,7 +34,6 @@ function SessionChecker() {
 function ProjectLoader() {
   const { projectId } = useParams<{ projectId: string }>();
   const changeCurrentProject = useEditor((s) => s.changeCurrentProject);
-  const setLoading = useIde((s) => s.setActivePanel);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
@@ -78,6 +80,12 @@ function AppInner() {
   const forkExample = useIde((s) => s.forkExample);
   const runner = useRunner();
   const ready = runner.ready;
+  const running = runner.running;
+  const showConsoleOnRun = useIde((s) => s.showConsoleOnRun);
+  const showConsole = !showConsoleOnRun || running;
+  const theme = useThemeStore((s) => s.theme);
+  const fontSize = useThemeStore((s) => s.fontSize);
+  const cmTheme = theme.name === "Midnight" ? githubDark : githubLight;
 
   const [showForkDialog, setShowForkDialog] = useState(false);
 
@@ -90,24 +98,10 @@ function AppInner() {
     [currentFile, changeFile],
   );
 
-  useEffect(() => {
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js').then(
-        (registration) => {
-          console.log('[App] Service Worker registered:', registration.scope);
-        },
-        (error) => {
-          console.log('[App] Service Worker registration failed:', error);
-        }
-      );
-    }
-  }, []);
-
   const handleSave = useCallback((e: KeyboardEvent) => {
     if ((e.ctrlKey || e.metaKey) && e.key === "s") {
       e.preventDefault();
 
-      // If editing an example, show fork dialog
       if (!currentProjectId && dirtyFiles.size > 0) {
         setShowForkDialog(true);
         return;
@@ -140,51 +134,84 @@ function AppInner() {
   }
 
   return (
-    <div className="flex w-screen h-screen overflow-hidden bg-cyan-950">
-      <Rail />
-      <div className="flex-1 min-w-0 min-h-0 flex flex-col">
-        <FileBar />
-        <div className="flex-1 overflow-hidden">
-          <CodeMirror
-            key={currentFile || "no-file"}
-            value={project.files[currentFile] ?? ""}
-            onChange={onChange}
-            extensions={[
-              python(),
-              EditorState.tabSize.of(4),
-              indentUnit.of("    "),
-              bracketMatching(),
-              indentOnInput(),
-              lineNumbers(),
-              highlightActiveLine(),
-              drawSelection(),
-              highlightSpecialChars(),
-              indentationGuideField,
-              webideTheme,
-              EditorView.lineWrapping,
-              autocompletion({ defaultKeymap: true }),
-              keymap.of([
-                {
-                  key: "Tab",
-                  run: acceptCompletion,
-                },
-              ]),
-            ]}
-            height="100%"
-            width="100%"
-            className="h-full text-left"
-          />
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: theme.surface,
+        display: "flex",
+        fontFamily: theme.fontUI,
+        color: theme.appTxt,
+      }}
+    >
+      <div
+        style={{
+          flex: 1,
+          display: "flex",
+          overflow: "hidden",
+          position: "relative",
+        }}
+      >
+        <Rail />
+
+        {/* Main editor column */}
+        <div
+          style={{
+            flex: 1,
+            minWidth: 0,
+            display: "flex",
+            flexDirection: "column",
+            background: theme.editorBg,
+            position: "relative",
+          }}
+        >
+          <FileBar />
+          <div style={{
+            flex: 1, minHeight: 0, background: theme.editorBg,
+            "--cm-bg": theme.editorBg,
+            "--indent-guide-1": theme.name === "Midnight" ? "rgba(95,212,220,0.06)" : "rgba(14,154,167,0.07)",
+            "--indent-guide-2": theme.name === "Midnight" ? "rgba(95,212,220,0.10)" : "rgba(14,154,167,0.11)",
+            "--indent-guide-3": theme.name === "Midnight" ? "rgba(95,212,220,0.14)" : "rgba(14,154,167,0.15)",
+            "--indent-guide-4": theme.name === "Midnight" ? "rgba(95,212,220,0.18)" : "rgba(14,154,167,0.19)",
+            "--indent-guide-5": theme.name === "Midnight" ? "rgba(95,212,220,0.22)" : "rgba(14,154,167,0.23)",
+            "--indent-guide-6": theme.name === "Midnight" ? "rgba(95,212,220,0.26)" : "rgba(14,154,167,0.27)",
+          } as React.CSSProperties}>
+            <CodeMirror
+              key={`${currentFile || "no-file"}-${theme.editorBg}`}
+              value={project.files[currentFile] ?? ""}
+              onChange={onChange}
+              extensions={[
+                python(),
+                EditorState.tabSize.of(4),
+                indentUnit.of("    "),
+                bracketMatching(),
+                indentOnInput(),
+                lineNumbers(),
+                highlightActiveLine(),
+                drawSelection(),
+                highlightSpecialChars(),
+                indentationGuideField,
+                cmTheme,
+                indentationGuides,
+                EditorView.theme({ "&": { fontSize: fontSize + "px" } }),
+                EditorView.lineWrapping,
+                autocompletion({ defaultKeymap: true }),
+                keymap.of([
+                  {
+                    key: "Tab",
+                    run: acceptCompletion,
+                  },
+                ]),
+              ]}
+              height="100%"
+              width="100%"
+              className="h-full text-left"
+            />
+          </div>
+          {showConsole && <ConsolePanel />}
+          <CanvasWindow />
         </div>
       </div>
-      <ConsolePanel />
-      <CanvasWindow />
-
-      {showForkDialog && (
-        <ForkDialog
-          onClose={() => setShowForkDialog(false)}
-          onSave={handleForkSave}
-        />
-      )}
     </div>
   );
 }
@@ -195,6 +222,7 @@ export default function App() {
       <SessionChecker />
       <Routes>
       <Route path="/projects" element={<ProjectsPage />} />
+      <Route path="/teacher" element={<TeacherDashboard />} />
       <Route path="/ide/:projectId" element={<AppInner />} />
 <Route path="/" element={<AppInner />} />
       </Routes>

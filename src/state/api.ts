@@ -84,6 +84,7 @@ export const api = new ApiClient();
 export interface User {
   id: string;
   name: string;
+  role: 'student' | 'teacher';
   created_at: number;
 }
 
@@ -105,9 +106,9 @@ export async function getMe(): Promise<User> {
   return api.get<User>('/api/users/me');
 }
 
-export async function createUser(name: string): Promise<{ user: User; api_token: string }> {
-  const result = await api.post<{ id: string; name: string; api_token: string; created_at: number }>('/api/users', { name });
-  return { user: { id: result.id, name: result.name, created_at: result.created_at }, api_token: result.api_token };
+export async function createUser(name: string, role: 'student' | 'teacher' = 'student'): Promise<{ user: User; api_token: string }> {
+  const result = await api.post<{ id: string; name: string; api_token: string; created_at: number; role?: 'student' | 'teacher' }>('/api/users', { name, role });
+  return { user: { id: result.id, name: result.name, role: result.role || 'student', created_at: result.created_at }, api_token: result.api_token };
 }
 
 export async function getProjects(): Promise<Project[]> {

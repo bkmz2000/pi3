@@ -1,10 +1,5 @@
-import { useEffect, useState, lazy, Suspense } from "react";
+import { useEffect, useState, lazy, Suspense, useCallback } from "react";
 import { useTranslation } from "react-i18next";
-import ProjectIcon from "./assets/project.svg";
-import PlayIcon from "./assets/play.svg";
-import StopIcon from "./assets/stop.svg";
-import AssetsIcon from "./assets/assets.svg";
-import SettingsIcon from "./assets/settings.svg";
 import { PACK_ASSET_LIST } from "./state/assets";
 import { useIde, useEditor } from "./state/IdeState";
 import { useRunner } from "./runner/RunnerProvider";
@@ -12,27 +7,113 @@ import { useRunButton } from "./hooks/useRunButton";
 import { useProjects } from "./hooks/useProjects";
 import { useAutoSave } from "./hooks/useAutoSave";
 import { usePanels } from "./hooks/usePanels";
+import { useThemeStore, type Theme, type ThemeId } from "./state/useTheme";
 import Backdrop from "./components/Backdrop";
-import SidePanel from "./components/SidePanel";
-import IconButton from "./components/IconButton";
-import ProjectButton from "./components/ProjectButton";
 import NewProjectDialog from "./components/dialogs/NewProjectDialog";
 import ImportDialog from "./components/dialogs/ImportDialog";
+import {
+  Icon,
+  type IconName,
+} from "./components/Icons";
 
 const SpriteEditor = lazy(() => import("./SpriteEditor"));
 
-export default function Rail() {
-  const { t } = useTranslation();
-  const saveCurrentProject = useIde((s) => s.saveCurrentProject);
-  const importProjectFromFile = useIde((s) => s.importProjectFromFile);
-  const showHitboxes = useIde((s) => s.showHitboxes);
-  const setShowHitboxes = useIde((s) => s.setShowHitboxes);
+// ── Logo ───────────────────────────────────
+function Pi3Logo({ color }: { color: string }) {
+  return (
+    <div
+      style={{
+        fontFamily: "'Nunito', system-ui, sans-serif",
+        fontWeight: 700,
+        fontSize: 26,
+        color,
+        lineHeight: 1,
+        letterSpacing: -0.5,
+        display: "inline-flex",
+        alignItems: "flex-start",
+      }}
+    >
+      pi<span style={{ fontSize: 15.6, marginLeft: 1, transform: "translateY(-2px)", display: "inline-block" }}>3</span>
+    </div>
+  );
+}
 
-  const toggleAsset = useEditor((s) => s.toggleAsset);
-  const project = useEditor((s) => s.project);
+// ── Rail Button ────────────────────────────
+function RailButton({
+  icon,
+  label,
+  active,
+  onClick,
+  theme,
+  badge,
+  accentBg,
+}: {
+  icon: IconName;
+  label: string;
+  active?: boolean;
+  onClick?: () => void;
+  theme: Theme;
+  badge?: boolean;
+  accentBg?: string;
+}) {
+  const [hover, setHover] = useState(false);
+  const bg = accentBg
+    ? accentBg
+    : active
+      ? theme.railActiveBg
+      : hover
+        ? theme.railHoverBg
+        : "transparent";
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      title={label}
+      aria-label={label}
+      style={{
+        all: "unset",
+        cursor: "pointer",
+        width: 44,
+        height: 44,
+        borderRadius: theme.radiusButton,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: bg,
+        color: active ? theme.railIconActive : theme.railIcon,
+        position: "relative",
+        transition: "background 0.15s, color 0.15s",
+      }}
+    >
+      <Icon name={icon} size={21} color="currentColor" />
+      {badge && (
+        <span
+          style={{
+            position: "absolute",
+            top: 6,
+            right: 6,
+            width: 7,
+            height: 7,
+            borderRadius: 7,
+            background: theme.tabDirty,
+          }}
+        />
+      )}
+    </button>
+  );
+}
+
+// ── Rail ───────────────────────────────────
+export default function Rail() {
+  const { t, i18n } = useTranslation();
+  const theme = useThemeStore((s) => s.theme);
   const currentProjectId = useEditor((s) => s.currentProjectId);
   const dirtyFiles = useEditor((s) => s.dirtyFiles);
   const changeEditorCurrentProject = useEditor((s) => s.changeCurrentProject);
+  const saveCurrentProject = useIde((s) => s.saveCurrentProject);
+  const importProjectFromFile = useIde((s) => s.importProjectFromFile);
   const markClean = useEditor((s) => s.markClean);
 
   const [editorOpen, setEditorOpen] = useState(false);
@@ -120,7 +201,9 @@ export default function Rail() {
   };
 
   const allAssets = [...PACK_ASSET_LIST];
-  const userAssetsMap = new Map(Object.entries(project.assets));
+  const projectAssets = useEditor((s) => s.project.assets);
+  const toggleAsset = useEditor((s) => s.toggleAsset);
+  const userAssetsMap = new Map(Object.entries(projectAssets));
 
   userAssetsMap.forEach((url, name) => {
     const existingIndex = allAssets.findIndex((asset) => asset.name === name);
@@ -132,112 +215,145 @@ export default function Rail() {
   });
 
   const sortedAssets = allAssets.sort((a, b) => {
-    const aSelected = !!project.assets[a.name];
-    const bSelected = !!project.assets[b.name];
+    const aSelected = !!projectAssets[a.name];
+    const bSelected = !!projectAssets[b.name];
     if (aSelected === bSelected) return 0;
     return aSelected ? -1 : 1;
   });
 
   const isRunning = running || isP5;
-  const runIcon = !ready ? SettingsIcon : isRunning ? StopIcon : PlayIcon;
-  const runLabel = !ready ? t('sideMenu.loading') : isRunning ? t('sideMenu.stop') : t('sideMenu.run');
+  const runIcon: IconName = !ready ? "settings" : isRunning ? "stop" : "play";
 
   return (
     <>
-      <nav className="flex flex-col bg-cyan-700 text-white p-2 gap-2 z-10">
-        <IconButton
+      {/* Rail */}
+      <div
+        style={{
+          width: 60,
+          flex: "none",
+          background: theme.railBg,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          padding: "14px 0 14px",
+          gap: 8,
+          borderTopLeftRadius: 0,
+          borderBottomLeftRadius: 0,
+        }}
+      >
+        <div style={{ marginBottom: 12 }}>
+          <Pi3Logo color={theme.railLogo} />
+        </div>
+
+        <RailButton
+          icon="folder"
           label={t('sideMenu.projects')}
-          icon={ProjectIcon}
-          expanded={isOpen("projects")}
-          controls="panel-projects"
-          onClick={() => togglePanel("projects")}
           active={isOpen("projects")}
+          onClick={() => togglePanel("projects")}
+          theme={theme}
         />
 
-        <IconButton
-          label={runLabel}
-          icon={runIcon}
-          active={false}
-          disabled={!ready}
-          spin={!ready}
-          onClick={handleRunToggle}
-        />
+        <div style={{ position: "relative", marginTop: 4, marginBottom: 4 }}>
+          <button
+            type="button"
+            onClick={handleRunToggle}
+            aria-label={isRunning ? t('sideMenu.stop') : t('sideMenu.run')}
+            title={isRunning ? t('sideMenu.stop') : t('sideMenu.run')}
+            disabled={!ready}
+            style={{
+              all: "unset",
+              cursor: ready ? "pointer" : "not-allowed",
+              width: 44, height: 44, borderRadius: theme.radiusButton,
+              background: isRunning ? theme.stopBg : theme.runBg,
+              color: theme.runTxt,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              opacity: ready ? 1 : 0.5,
+            }}
+          >
+            <Icon name={runIcon} size={20} color="currentColor" />
+          </button>
+        </div>
 
-        <IconButton
+        <RailButton
+          icon="sparkle"
           label={t('sideMenu.assets')}
-          icon={AssetsIcon}
-          expanded={isOpen("assets")}
-          controls="panel-assets"
-          onClick={() => togglePanel("assets")}
           active={isOpen("assets")}
+          onClick={() => togglePanel("assets")}
+          theme={theme}
         />
 
-        <div className="flex-1" />
+        <div style={{ flex: 1 }} />
 
-        <IconButton
+        <RailButton
+          icon="settings"
           label={t('sideMenu.settings')}
-          icon={SettingsIcon}
-          expanded={isOpen("settings")}
-          controls="panel-settings"
-          onClick={() => togglePanel("settings")}
           active={isOpen("settings")}
+          onClick={() => togglePanel("settings")}
+          theme={theme}
         />
-      </nav>
+      </div>
 
       <Backdrop open={activePanel !== null} onClick={closePanels} />
 
-      <SidePanel
-        id="panel-projects"
-        title={t('sideMenu.projects')}
-        open={isOpen("projects")}
-        side="left"
-        onClose={closePanels}
-      >
-        <ProjectsPanel
-          projects={projects}
-          userProjects={userProjects}
-          loading={loading}
-          currentProjectId={currentProjectId}
-          dirtyFiles={dirtyFiles}
-          onOpenExample={handleOpenExample}
-          onForkExample={handleForkExample}
-          onOpenUserProject={handleOpenUserProject}
-          onDeleteProject={handleDeleteProject}
-          onExportProject={handleExportProject}
-          onNewProject={() => setShowNewProjectDialog(true)}
-          onImport={() => setShowImportDialog(true)}
-        />
-      </SidePanel>
-
-      <SidePanel
-        id="panel-assets"
-        title={t('sideMenu.assets')}
-        open={isOpen("assets")}
-        side="left"
-        onClose={closePanels}
-      >
-        <AssetsPanel
-          assets={sortedAssets}
-          selectedAssets={project.assets}
-          onToggleAsset={toggleAsset}
-          onNewSprite={() => setEditorOpen(true)}
-          onEditAsset={(name, url) => {
-            setEditingAsset({ name, url });
-            setEditorOpen(true);
+      {/* Floating side panels */}
+      {activePanel && (
+        <div
+          style={{
+            position: "absolute",
+            top: 0, bottom: 0, left: 60,
+            width: 320,
+            background: theme.surfacePanel,
+            display: "flex",
+            flexDirection: "column",
+            borderRight: `1px solid ${theme.panelBorder}`,
+            boxShadow: "8px 0 28px rgba(0,0,0,0.28), 2px 0 6px rgba(0,0,0,0.10)",
+            zIndex: 10,
           }}
-          onRemoveAsset={toggleAsset}
-        />
-      </SidePanel>
-
-      <SidePanel
-        id="panel-settings"
-        title={t('sideMenu.settings')}
-        open={isOpen("settings")}
-        side="left"
-        onClose={closePanels}
-      >
-        <SettingsPanel showHitboxes={showHitboxes} onShowHitboxesChange={setShowHitboxes} />
-      </SidePanel>
+        >
+          {activePanel === "projects" && (
+            <ProjectsPanel
+              theme={theme}
+              lang={i18n.language}
+              projects={projects}
+              userProjects={userProjects}
+              loading={loading}
+              currentProjectId={currentProjectId}
+              dirtyFiles={dirtyFiles}
+              onOpenExample={handleOpenExample}
+              onForkExample={handleForkExample}
+              onOpenUserProject={handleOpenUserProject}
+              onDeleteProject={handleDeleteProject}
+              onExportProject={handleExportProject}
+              onNewProject={() => setShowNewProjectDialog(true)}
+              onImport={() => setShowImportDialog(true)}
+              onClose={closePanels}
+            />
+          )}
+          {activePanel === "assets" && (
+            <AssetsPanel
+              theme={theme}
+              lang={i18n.language}
+              assets={sortedAssets}
+              selectedAssets={projectAssets}
+              onToggleAsset={toggleAsset}
+              onNewSprite={() => setEditorOpen(true)}
+              onEditAsset={(name, url) => {
+                setEditingAsset({ name, url });
+                setEditorOpen(true);
+              }}
+              onRemoveAsset={toggleAsset}
+              onClose={closePanels}
+            />
+          )}
+          {activePanel === "settings" && (
+            <SettingsPanel
+              theme={theme}
+              lang={i18n.language}
+              onClose={closePanels}
+            />
+          )}
+        </div>
+      )}
 
       {showNewProjectDialog && (
         <NewProjectDialog
@@ -264,20 +380,20 @@ export default function Rail() {
           onSave={(name, dataUrl) => {
             const cleanName = name.replace(/\.svg$/i, '');
             const oldName = editingAsset?.name.replace(/\.svg$/i, '') || '';
-            
+
             if (editingAsset && oldName !== cleanName) {
-              const newAssets = { ...project.assets };
+              const newAssets = { ...projectAssets };
               delete newAssets[editingAsset.name];
               newAssets[cleanName + ".svg"] = dataUrl;
               changeEditorCurrentProject(
-                { ...project, assets: newAssets },
+                { ...useEditor.getState().project, assets: newAssets },
                 currentProjectId || undefined,
               );
             } else if (editingAsset) {
-              const newAssets = { ...project.assets };
+              const newAssets = { ...projectAssets };
               newAssets[editingAsset.name] = dataUrl;
               changeEditorCurrentProject(
-                { ...project, assets: newAssets },
+                { ...useEditor.getState().project, assets: newAssets },
                 currentProjectId || undefined,
               );
             } else {
@@ -294,7 +410,90 @@ export default function Rail() {
   );
 }
 
+// ── Panel Header ───────────────────────────
+function PanelHeader({
+  title,
+  theme,
+  onClose,
+}: {
+  title: string;
+  theme: Theme;
+  onClose: () => void;
+}) {
+  return (
+    <div
+      style={{
+        padding: "16px 20px 12px",
+        borderBottom: `1px solid ${theme.panelBorder}`,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        background: theme.panelHeader,
+      }}
+    >
+      <div
+        style={{
+          fontFamily: theme.fontUI,
+          fontWeight: theme.weightHeader,
+          fontSize: 17,
+          color: theme.panelTxt,
+        }}
+      >
+        {title}
+      </div>
+      <button
+        type="button"
+        onClick={onClose}
+        aria-label="Close"
+        style={{
+          all: "unset",
+          cursor: "pointer",
+          width: 30,
+          height: 30,
+          borderRadius: 10,
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          color: theme.panelTxtMute,
+        }}
+      >
+        <Icon name="close" size={18} color="currentColor" />
+      </button>
+    </div>
+  );
+}
+
+function SectionLabel({
+  children,
+  theme,
+  noPad,
+}: {
+  children: React.ReactNode;
+  theme: Theme;
+  noPad?: boolean;
+}) {
+  return (
+    <div
+      style={{
+        fontFamily: theme.fontUI,
+        fontWeight: theme.weightUI + 100,
+        fontSize: 11.5,
+        letterSpacing: 0.8,
+        textTransform: "uppercase",
+        color: theme.panelTxtMute,
+        marginBottom: 8,
+        paddingLeft: noPad ? 0 : 4,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+// ── Projects Panel ─────────────────────────
 type ProjectsPanelProps = {
+  theme: Theme;
+  lang: string;
   projects: Record<string, { files: Record<string, string>; assets: Record<string, string> }>;
   userProjects: { id: string; name: string; files: Record<string, string>; assets: Record<string, string> }[];
   loading: boolean;
@@ -307,9 +506,12 @@ type ProjectsPanelProps = {
   onExportProject: (id: string) => void;
   onNewProject: () => void;
   onImport: () => void;
+  onClose: () => void;
 };
 
 function ProjectsPanel({
+  theme,
+  lang,
   projects,
   userProjects,
   loading,
@@ -322,97 +524,424 @@ function ProjectsPanel({
   onExportProject,
   onNewProject,
   onImport,
+  onClose,
 }: ProjectsPanelProps) {
   const { t } = useTranslation();
+  const icons: IconName[] = ["cursor", "play", "square", "folder", "sparkle", "trash"];
 
   return (
-    <div className="space-y-4">
-      <div>
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-semibold text-cyan-300">{t('sideMenu.examples')}</h3>
-        </div>
-        <div className="space-y-1.5">
-          {Object.keys(projects).map((name) => (
-            <ProjectButton
+    <>
+      <PanelHeader title={t('sideMenu.projects')} theme={theme} onClose={onClose} />
+      <div style={{ padding: "16px 16px 4px", overflowY: "auto", flex: 1 }}>
+        <SectionLabel theme={theme}>{t('sideMenu.examples')}</SectionLabel>
+        <div style={{ marginBottom: 18 }}>
+          {Object.keys(projects).map((name, i) => (
+            <ExampleRow
               key={name}
               name={name}
-              isExample={true}
-              isCurrent={!currentProjectId && projects[name] === projects[name]}
+              icon={icons[i % icons.length]}
+              theme={theme}
+              current={!currentProjectId && true}
               onClick={() => onOpenExample(name)}
-              onDelete={() => onForkExample(name)}
+              onFork={() => onForkExample(name)}
             />
           ))}
         </div>
-      </div>
 
-      <div>
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-semibold text-cyan-300">
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            marginBottom: 8,
+            paddingRight: 4,
+          }}
+        >
+          <SectionLabel theme={theme} noPad>
             {t('sideMenu.yourProjects')}
-          </h3>
-          <div className="flex gap-2">
-            <button
-              onClick={onImport}
-              className="px-2 py-1 text-xs bg-cyan-700 hover:bg-cyan-600 rounded transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
-              title={t('sideMenu.importProjectTooltip')}
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-              </svg>
-            </button>
-            <button
-              onClick={onNewProject}
-              className="px-2 py-1 text-xs bg-cyan-700 hover:bg-cyan-600 rounded transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
-              title={t('sideMenu.newProjectTooltip')}
-            >
+          </SectionLabel>
+          <div style={{ display: "flex", gap: 6 }}>
+            <PanelButton theme={theme} icon="import" onClick={onImport}>
+              {t('sideMenu.importProject') || "Import"}
+            </PanelButton>
+            <PanelButton theme={theme} icon="plus" primary onClick={onNewProject}>
               {t('sideMenu.newProject')}
-            </button>
+            </PanelButton>
           </div>
         </div>
-        {loading ? (
-          <div className="text-center py-4 text-cyan-300">
-            {t('sideMenu.loadingProjects')}
-          </div>
-        ) : userProjects.length === 0 ? (
-          <div className="text-center py-4 text-cyan-300/70 text-sm">
-            {t('sideMenu.noProjects')}
-          </div>
-        ) : (
-          <div className="space-y-1.5">
-            {userProjects.map((userProject) => (
-              <ProjectButton
-                key={userProject.id}
-                name={userProject.name}
-                isCurrent={currentProjectId === userProject.id}
-                hasChanges={currentProjectId === userProject.id && dirtyFiles.size > 0}
-                onClick={() => onOpenUserProject(userProject)}
-                onDelete={() => onDeleteProject(userProject.id)}
-                onExport={() => onExportProject(userProject.id)}
+        <div>
+          {loading ? (
+            <div
+              style={{
+                textAlign: "center",
+                padding: "16px 0",
+                fontFamily: theme.fontUI,
+                fontSize: 13,
+                color: theme.panelTxtMute,
+              }}
+            >
+              {t('sideMenu.loadingProjects')}
+            </div>
+          ) : userProjects.length === 0 ? (
+            <div
+              style={{
+                textAlign: "center",
+                padding: "16px 0",
+                fontFamily: theme.fontUI,
+                fontSize: 13,
+                color: theme.panelTxtMute,
+              }}
+            >
+              {t('sideMenu.noProjects')}
+            </div>
+          ) : (
+            userProjects.map((p) => (
+              <ProjectRow
+                key={p.id}
+                name={p.name}
+                isCurrent={currentProjectId === p.id}
+                dirty={currentProjectId === p.id && dirtyFiles.size > 0}
+                theme={theme}
+                onClick={() => onOpenUserProject(p)}
+                onDelete={() => onDeleteProject(p.id)}
+                onExport={() => onExportProject(p.id)}
               />
-            ))}
-          </div>
-        )}
+            ))
+          )}
+        </div>
       </div>
-    </div>
+    </>
+  );
+}
+
+function ExampleRow({
+  name,
+  icon,
+  theme,
+  current,
+  onClick,
+  onFork,
+}: {
+  name: string;
+  icon: IconName;
+  theme: Theme;
+  current?: boolean;
+  onClick: () => void;
+  onFork: () => void;
+}) {
+  const [hover, setHover] = useState(false);
+  return (
+    <button
+      type="button"
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      onClick={onClick}
+      style={{
+        all: "unset",
+        cursor: "pointer",
+        display: "flex",
+        alignItems: "center",
+        gap: 12,
+        padding: "10px 12px",
+        borderRadius: theme.radiusButton,
+        background: current ? theme.chip : hover ? theme.chip : "transparent",
+        marginBottom: 2,
+        width: "100%",
+        boxSizing: "border-box",
+        transition: "background 0.15s",
+      }}
+    >
+      <div
+        style={{
+          width: 36,
+          height: 36,
+          borderRadius: 10,
+          background: current ? theme.accent + "22" : theme.chip,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          color: current ? theme.accent : theme.panelTxtMute,
+          flex: "none",
+        }}
+      >
+        <Icon name={icon} size={20} color="currentColor" />
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div
+          style={{
+            fontFamily: theme.fontUI,
+            fontWeight: theme.weightUI + 100,
+            color: theme.panelTxt,
+            fontSize: 14,
+            lineHeight: 1.2,
+          }}
+        >
+          {name}
+        </div>
+      </div>
+      {current && (
+        <span
+          style={{
+            padding: "3px 8px",
+            borderRadius: 999,
+            background: theme.successPill,
+            color: theme.successPillTxt,
+            fontFamily: theme.fontUI,
+            fontWeight: theme.weightUI + 100,
+            fontSize: 10.5,
+            textTransform: "uppercase",
+            letterSpacing: 0.6,
+          }}
+        >
+          open
+        </span>
+      )}
+    </button>
+  );
+}
+
+function ProjectRow({
+  name,
+  isCurrent,
+  dirty,
+  theme,
+  onClick,
+  onDelete,
+  onExport,
+}: {
+  name: string;
+  isCurrent?: boolean;
+  dirty?: boolean;
+  theme: Theme;
+  onClick: () => void;
+  onDelete: () => void;
+  onExport: () => void;
+}) {
+  const [hover, setHover] = useState(false);
+  return (
+    <button
+      type="button"
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      onClick={onClick}
+      style={{
+        all: "unset",
+        cursor: "pointer",
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        padding: "10px 12px",
+        borderRadius: theme.radiusButton,
+        background: isCurrent ? theme.chip : hover ? theme.chip : "transparent",
+        marginBottom: 2,
+        width: "100%",
+        boxSizing: "border-box",
+        transition: "background 0.15s",
+      }}
+    >
+      <div style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
+        <div
+          style={{
+            fontFamily: theme.fontUI,
+            fontWeight: theme.weightUI + 100,
+            color: theme.panelTxt,
+            fontSize: 14,
+            lineHeight: 1.2,
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+          }}
+        >
+          {name}
+          {dirty && (
+            <span
+              style={{
+                width: 7,
+                height: 7,
+                borderRadius: 7,
+                background: theme.tabDirty,
+              }}
+            />
+          )}
+        </div>
+      </div>
+      <span
+        style={{
+          opacity: hover ? 1 : 0,
+          transition: "opacity 0.15s",
+          display: "inline-flex",
+          gap: 4,
+          color: theme.panelTxtMute,
+        }}
+      >
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onExport(); }}
+          style={{
+            all: "unset",
+            cursor: "pointer",
+            width: 28,
+            height: 28,
+            borderRadius: 8,
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <Icon name="export" size={16} color="currentColor" />
+        </button>
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onDelete(); }}
+          style={{
+            all: "unset",
+            cursor: "pointer",
+            width: 28,
+            height: 28,
+            borderRadius: 8,
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <Icon name="trash" size={16} color="currentColor" />
+        </button>
+      </span>
+    </button>
+  );
+}
+
+function PanelButton({
+  children,
+  theme,
+  icon,
+  primary,
+  onClick,
+}: {
+  children: React.ReactNode;
+  theme: Theme;
+  icon?: IconName;
+  primary?: boolean;
+  onClick?: () => void;
+}) {
+  const [hover, setHover] = useState(false);
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={{
+        all: "unset",
+        cursor: "pointer",
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 6,
+        height: 28,
+        padding: "0 12px",
+        borderRadius: 999,
+        fontFamily: theme.fontUI,
+        fontWeight: theme.weightUI + 100,
+        fontSize: 12.5,
+        background: primary ? theme.runBg : theme.chip,
+        color: primary ? theme.runTxt : theme.panelTxt,
+        boxShadow: primary && hover ? "0 4px 12px rgba(0,0,0,0.15)" : "none",
+        transition: "box-shadow 0.15s",
+      }}
+    >
+      {icon && <Icon name={icon} size={14} color="currentColor" />}
+      {children}
+    </button>
+  );
+}
+
+// ── Assets Panel ───────────────────────────
+function SpriteTile({
+  url,
+  name,
+  theme,
+  selected,
+  onClick,
+}: {
+  url?: string;
+  name: string;
+  theme: Theme;
+  selected?: boolean;
+  onClick?: () => void;
+}) {
+  const [hover, setHover] = useState(false);
+  return (
+    <button
+      type="button"
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      onClick={onClick}
+      style={{
+        all: "unset",
+        cursor: "pointer",
+        aspectRatio: "1 / 1",
+        background: theme.chip,
+        borderRadius: theme.radiusCard,
+        border: `2px solid ${selected ? theme.accent : "transparent"}`,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        position: "relative",
+        transition: "border-color 0.15s, transform 0.15s",
+        transform: hover ? "translateY(-2px)" : "none",
+      }}
+    >
+      {url ? (
+        <img
+          src={url}
+          alt={name}
+          style={{ width: "80%", height: "80%", objectFit: "contain" }}
+        />
+      ) : (
+        <div
+          style={{
+            width: 36,
+            height: 36,
+            borderRadius: 8,
+            background: theme.accent + "33",
+            color: theme.accent,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontFamily: theme.fontMono,
+            fontSize: 10,
+            fontWeight: 700,
+          }}
+        >
+          ?
+        </div>
+      )}
+    </button>
   );
 }
 
 type AssetsPanelProps = {
+  theme: Theme;
+  lang: string;
   assets: { name: string; url: string }[];
   selectedAssets: Record<string, string>;
   onToggleAsset: (name: string, url: string) => void;
   onNewSprite: () => void;
   onEditAsset: (name: string, url: string) => void;
   onRemoveAsset: (name: string, url: string) => void;
+  onClose: () => void;
 };
 
 function AssetsPanel({
+  theme,
+  lang,
   assets,
   selectedAssets,
   onToggleAsset,
   onNewSprite,
   onEditAsset,
   onRemoveAsset,
+  onClose,
 }: AssetsPanelProps) {
   const { t } = useTranslation();
 
@@ -420,132 +949,285 @@ function AssetsPanel({
   const available = assets.filter(({ name }) => !selectedAssets[name]);
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h3 className="text-sm font-semibold text-white mb-2">
-          {t('sideMenu.selectedAssets')}
-        </h3>
-        <div className="grid grid-cols-3 gap-2">
-          {selected.map(({ name, url }) => (
-            <AssetTile
-              key={url}
-              name={name}
-              url={url}
-              selected
-              onDoubleClick={() => onEditAsset(name, url)}
-              onRemove={() => onRemoveAsset(name, url)}
-            />
-          ))}
-          {selected.length === 0 && (
-            <div className="col-span-3 text-center py-4 text-white text-sm">
+    <>
+      <PanelHeader title={t('sideMenu.assets')} theme={theme} onClose={onClose} />
+      <div style={{ padding: "16px", overflowY: "auto", flex: 1 }}>
+        <SectionLabel theme={theme}>{t('sideMenu.selectedAssets')}</SectionLabel>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr 1fr",
+            gap: 8,
+            marginBottom: 18,
+          }}
+        >
+          {selected.length === 0 ? (
+            <div
+              style={{
+                gridColumn: "1 / -1",
+                textAlign: "center",
+                padding: "16px 0",
+                fontSize: 13,
+                color: theme.panelTxtMute,
+              }}
+            >
               {t('sideMenu.noAssetsSelected')}
             </div>
+          ) : (
+            selected.map(({ name, url }) => (
+              <SpriteTile
+                key={url}
+                name={name}
+                url={url}
+                theme={theme}
+                selected
+                onClick={() => onEditAsset(name, url)}
+              />
+            ))
           )}
         </div>
-      </div>
 
-      <div>
-        <h3 className="text-sm font-semibold text-white mb-2">
-          {t('sideMenu.availableAssets')}
-        </h3>
-        <div className="grid grid-cols-3 gap-2">
+        <SectionLabel theme={theme}>{t('sideMenu.availableAssets')}</SectionLabel>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr 1fr",
+            gap: 8,
+          }}
+        >
           <button
+            type="button"
             onClick={onNewSprite}
-            className="flex flex-col items-center justify-center gap-1 p-1 rounded border border-white/20 hover:border-white/40 min-h-[60px]"
+            style={{
+              all: "unset",
+              cursor: "pointer",
+              aspectRatio: "1 / 1",
+              border: `1.5px dashed ${theme.panelBorder}`,
+              borderRadius: theme.radiusCard,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 4,
+              color: theme.panelTxtMute,
+              fontFamily: theme.fontUI,
+              fontSize: 11,
+              fontWeight: theme.weightUI,
+            }}
           >
-            <span className="text-2xl text-white/60 hover:text-white leading-none">+</span>
-            <span className="text-xs text-white/60 hover:text-white truncate w-full text-center">
-              {t('sideMenu.newSprite')}
-            </span>
+            <Icon name="plus" size={20} color="currentColor" />
+            {t('sideMenu.newSprite')}
           </button>
           {available.map(({ name, url }) => (
-            <AssetTile
+            <SpriteTile
               key={url}
               name={name}
               url={url}
+              theme={theme}
               onClick={() => onToggleAsset(name, url)}
             />
           ))}
         </div>
       </div>
-    </div>
+    </>
   );
 }
 
-type AssetTileProps = {
-  name: string;
-  url: string;
-  selected?: boolean;
-  onClick?: () => void;
-  onDoubleClick?: () => void;
-  onRemove?: () => void;
-};
-
-function AssetTile({ name, url, selected, onClick, onDoubleClick, onRemove }: AssetTileProps) {
-  const { t } = useTranslation();
-  const displayName = name.replace(/\.svg$/i, '');
-
+// ── Settings Panel ─────────────────────────
+function ToggleRow({
+  label,
+  hint,
+  on,
+  theme,
+  accent,
+  onChange,
+}: {
+  label: string;
+  hint?: string;
+  on: boolean;
+  theme: Theme;
+  accent?: string;
+  onChange?: (v: boolean) => void;
+}) {
+  const [v, setV] = useState(on);
+  const current = v;
   return (
-    <div className="relative group">
-      <button
-        onClick={onClick}
-        onDoubleClick={onDoubleClick}
-        className={`w-full aspect-square p-1 rounded border bg-cyan-900/50 hover:bg-cyan-800/60 transition-colors ${
-          selected ? "border-cyan-400" : "border-cyan-600"
-        }`}
-        title={displayName}
-      >
-        <img src={url} alt={displayName} className="w-full h-full object-contain" />
-      </button>
-      {onRemove && (
-        <button
-          onClick={onRemove}
-          className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-red-600 hover:bg-red-500 text-white opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center shadow"
-          title={t('sideMenu.remove')}
+    <button
+      type="button"
+      onClick={() => {
+        const next = !v;
+        setV(next);
+        onChange?.(next);
+      }}
+      style={{
+        all: "unset",
+        cursor: "pointer",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        padding: "12px 14px",
+        marginBottom: 6,
+        background: theme.chip,
+        borderRadius: theme.radiusCard,
+        width: "100%",
+        boxSizing: "border-box",
+      }}
+    >
+      <div style={{ textAlign: "left" }}>
+        <div
+          style={{
+            fontFamily: theme.fontUI,
+            fontWeight: theme.weightUI + 100,
+            color: theme.panelTxt,
+            fontSize: 14,
+          }}
         >
-          <span className="text-xs">×</span>
-        </button>
-      )}
-    </div>
+          {label}
+        </div>
+        {hint && (
+          <div
+            style={{
+              fontFamily: theme.fontUI,
+              fontSize: 12,
+              color: theme.panelTxtMute,
+              marginTop: 2,
+            }}
+          >
+            {hint}
+          </div>
+        )}
+      </div>
+      <span
+        style={{
+          width: 40,
+          height: 24,
+          borderRadius: 999,
+          background: current ? (accent || theme.runBg) : theme.panelBorder,
+          position: "relative",
+          transition: "background 0.18s",
+          flex: "none",
+        }}
+      >
+        <span
+          style={{
+            position: "absolute",
+            top: 3,
+            left: current ? 19 : 3,
+            width: 18,
+            height: 18,
+            borderRadius: 999,
+            background: "#fff",
+            boxShadow: "0 1px 3px rgba(0,0,0,0.25)",
+            transition: "left 0.18s",
+          }}
+        />
+      </span>
+    </button>
   );
 }
 
-type SettingsPanelProps = {
-  showHitboxes: boolean;
-  onShowHitboxesChange: (show: boolean) => void;
-};
-
-function SettingsPanel({ showHitboxes, onShowHitboxesChange }: SettingsPanelProps) {
+function SettingsPanel({
+  theme,
+  lang,
+  onClose,
+}: {
+  theme: Theme;
+  lang: string;
+  onClose: () => void;
+}) {
   const { t } = useTranslation();
-  const [autoSave, setAutoSave] = useState(false);
-  const [vimMode, setVimMode] = useState(false);
+  const showHitboxes = useIde((s) => s.showHitboxes);
+  const setShowHitboxes = useIde((s) => s.setShowHitboxes);
+  const showConsoleOnRun = useIde((s) => s.showConsoleOnRun);
+  const setShowConsoleOnRun = useIde((s) => s.setShowConsoleOnRun);
+  const themeId = useThemeStore((s) => s.themeId);
+  const setTheme = useThemeStore((s) => s.setTheme);
+  const fontSize = useThemeStore((s) => s.fontSize);
+  const setFontSize = useThemeStore((s) => s.setFontSize);
+
+  const themes: { id: ThemeId; label: string }[] = [
+    { id: "studio", label: "Studio" },
+    { id: "midnight", label: "Midnight" },
+    { id: "daylight", label: "Daylight" },
+  ];
 
   return (
-    <div className="space-y-3">
-      <label className="flex items-center gap-2">
-        <input
-          type="checkbox"
-          className="accent-cyan-500"
-          checked={autoSave}
-          onChange={(e) => setAutoSave(e.target.checked)}
-        /> {t('sideMenu.autoSave')}
-      </label>
-      <label className="flex items-center gap-2">
-        <input
-          type="checkbox"
-          className="accent-cyan-500"
-          checked={vimMode}
-          onChange={(e) => setVimMode(e.target.checked)}
-        /> {t('sideMenu.vimMode')}
-      </label>
-      <label className="flex items-center gap-2">
-        <input
-          type="checkbox"
-          className="accent-cyan-500"
-          checked={showHitboxes}
-          onChange={(e) => onShowHitboxesChange(e.target.checked)}
-        /> {t('sideMenu.showHitboxes')}
-      </label>
-    </div>
+    <>
+      <PanelHeader title={t('sideMenu.settings')} theme={theme} onClose={onClose} />
+      <div style={{ padding: "16px", overflowY: "auto", flex: 1 }}>
+        {/* Theme selector */}
+        <SectionLabel theme={theme}>Theme</SectionLabel>
+        <div style={{
+          display: "flex", gap: 6, marginBottom: 20,
+        }}>
+          {themes.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => setTheme(t.id)}
+              style={{
+                all: "unset", cursor: "pointer", flex: 1,
+                padding: "10px 0",
+                borderRadius: theme.radiusCard,
+                fontFamily: theme.fontUI,
+                fontWeight: themeId === t.id ? 600 : 400,
+                fontSize: 13,
+                textAlign: "center",
+                background: themeId === t.id ? theme.accent : theme.chip,
+                color: themeId === t.id ? "#fff" : theme.panelTxt,
+                transition: "background 0.15s",
+              }}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Font size */}
+        <SectionLabel theme={theme}>Font Size</SectionLabel>
+        <div style={{
+          display: "flex", alignItems: "center", gap: 12,
+          padding: "12px 14px", marginBottom: 20,
+          background: theme.chip, borderRadius: theme.radiusCard,
+        }}>
+          <span style={{ fontFamily: theme.fontMono, fontSize: 12, color: theme.panelTxtMute }}>10</span>
+          <input
+            type="range" min="10" max="24" step="1"
+            value={fontSize}
+            onChange={(e) => setFontSize(+e.target.value)}
+            style={{ flex: 1, accentColor: theme.accent }}
+          />
+          <span style={{ fontFamily: theme.fontMono, fontSize: 12, color: theme.panelTxtMute }}>24</span>
+          <span style={{
+            fontFamily: theme.fontMono, fontSize: 13, color: theme.panelTxt,
+            minWidth: 32, textAlign: "right",
+          }}>{fontSize}px</span>
+        </div>
+
+        {/* Auto-hide console */}
+        <SectionLabel theme={theme}>Console</SectionLabel>
+        <ToggleRow
+          label="Auto-hide when idle"
+          hint="Show console only while the project is running"
+          on={showConsoleOnRun}
+          theme={theme}
+          accent={theme.accent}
+          onChange={(v) => setShowConsoleOnRun(v)}
+        />
+
+        <div style={{ height: 4 }} />
+
+        {/* Hitboxes */}
+        <SectionLabel theme={theme}>Runtime</SectionLabel>
+        <ToggleRow
+          label={t('sideMenu.showHitboxes')}
+          hint={t('sideMenu.showHitboxesHint')}
+          on={showHitboxes}
+          theme={theme}
+          accent={theme.accent}
+          onChange={(v) => setShowHitboxes(v)}
+        />
+      </div>
+    </>
   );
 }

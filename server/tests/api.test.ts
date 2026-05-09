@@ -11,8 +11,8 @@ import projectsRouter from '../routes/projects.js';
 
 let app: express.Application;
 let db: Database.Database;
-let testUser1: { id: string; api_token: string; name: string };
-let testUser2: { id: string; api_token: string; name: string };
+let testUser1: { id: string; api_token: string; name: string; role: string };
+let testUser2: { id: string; api_token: string; name: string; role: string };
 let testProject: { id: string; user_id: string; name: string };
 
 function authHeader(token: string) {
@@ -34,19 +34,21 @@ beforeEach(() => {
     id: uuidv4(),
     api_token: uuidv4().replace(/-/g, '') + uuidv4().replace(/-/g, ''),
     name: 'Alice',
+    role: 'student',
   };
 
   testUser2 = {
     id: uuidv4(),
     api_token: uuidv4().replace(/-/g, '') + uuidv4().replace(/-/g, ''),
     name: 'Bob',
+    role: 'student',
   };
 
   const now = Date.now();
-  db.prepare('INSERT INTO users (id, api_token, name, created_at, updated_at) VALUES (?, ?, ?, ?, ?)')
-    .run(testUser1.id, testUser1.api_token, testUser1.name, now, now);
-  db.prepare('INSERT INTO users (id, api_token, name, created_at, updated_at) VALUES (?, ?, ?, ?, ?)')
-    .run(testUser2.id, testUser2.api_token, testUser2.name, now, now);
+  db.prepare('INSERT INTO users (id, api_token, name, role, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)')
+    .run(testUser1.id, testUser1.api_token, testUser1.name, testUser1.role, now, now);
+  db.prepare('INSERT INTO users (id, api_token, name, role, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)')
+    .run(testUser2.id, testUser2.api_token, testUser2.name, testUser2.role, now, now);
 
   testProject = {
     id: uuidv4(),

@@ -1,43 +1,14 @@
 import { EditorState, StateField } from "@codemirror/state";
 import { EditorView, Decoration, DecorationSet } from "@codemirror/view";
 
-const webideTheme = EditorView.theme({
-  "&": {
-    height: "100%",
-    fontSize: "14px",
-  },
-  ".cm-content": {
-    fontFamily: "monospace",
-    padding: "8px 0",
-  },
-  ".cm-gutters": {
-    backgroundColor: "#164e63",
-    color: "#67e8f9",
-    border: "none",
-    paddingRight: "8px",
-  },
-  ".cm-activeLineGutter": {
-    backgroundColor: "#0e4d5c",
-  },
-  ".cm-activeLine": {
-    backgroundColor: "#164e6311",
-  },
-  ".cm-lineNumbers .cm-gutterElement": {
-    minWidth: "2.5em",
-  },
-  ".cm-scroller": {
-    overflow: "auto",
-  },
-  ".cm-line": {
-    paddingLeft: "4px",
-  },
-  ".cm-indent-1": { backgroundColor: "#e0f2fe;" },
-  ".cm-indent-2": { backgroundColor: "#bae6fd;" },
-  ".cm-indent-3": { backgroundColor: "#7dd3fc;" },
-  ".cm-indent-4": { backgroundColor: "#38bdf8;" },
-  ".cm-indent-5": { backgroundColor: "#0ea5e9;" },
-  ".cm-indent-6": { backgroundColor: "#0284c7;" },
-  ".cm-indent-error": { backgroundColor: "#ef4444;" },
+const indentationGuides = EditorView.theme({
+  ".cm-indent-1": { backgroundColor: "var(--indent-guide-1)" },
+  ".cm-indent-2": { backgroundColor: "var(--indent-guide-2)" },
+  ".cm-indent-3": { backgroundColor: "var(--indent-guide-3)" },
+  ".cm-indent-4": { backgroundColor: "var(--indent-guide-4)" },
+  ".cm-indent-5": { backgroundColor: "var(--indent-guide-5)" },
+  ".cm-indent-6": { backgroundColor: "var(--indent-guide-6)" },
+  ".cm-indent-error": { backgroundColor: "#ef444466" },
 });
 
 const indentationGuideField = StateField.define<DecorationSet>({
@@ -47,12 +18,12 @@ const indentationGuideField = StateField.define<DecorationSet>({
   update(decos, tr) {
     const tabSize = tr.state.facet(EditorState.tabSize);
     const builder: { from: number; to: number; value: Decoration }[] = [];
-    
+
     for (let i = 1; i <= tr.state.doc.lines; i++) {
       const line = tr.state.doc.line(i);
       const text = line.text;
       let indentSpaces = 0;
-      
+
       for (let col = 0; col < text.length; col++) {
         const char = text[col];
         if (char === '\t') {
@@ -63,10 +34,10 @@ const indentationGuideField = StateField.define<DecorationSet>({
           break;
         }
       }
-      
+
       const totalSpaces = indentSpaces;
       const remainder = totalSpaces % 4;
-      
+
       if (text.trim().length > 0 && totalSpaces > 0) {
         for (let i = 0; i < totalSpaces; i++) {
           const isRemainder = i >= totalSpaces - remainder && remainder > 0;
@@ -76,11 +47,11 @@ const indentationGuideField = StateField.define<DecorationSet>({
         }
       }
     }
-    
+
     builder.sort((a, b) => a.from - b.from);
     return Decoration.set(builder);
   },
   provide: f => EditorView.decorations.from(f),
 });
 
-export { webideTheme, indentationGuideField };
+export { indentationGuideField, indentationGuides };

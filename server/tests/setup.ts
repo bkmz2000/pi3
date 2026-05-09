@@ -11,6 +11,7 @@ export function createTestDb(): Database.Database {
       id TEXT PRIMARY KEY,
       api_token TEXT UNIQUE NOT NULL,
       name TEXT NOT NULL,
+      role TEXT NOT NULL DEFAULT 'student' CHECK (role IN ('student', 'teacher')),
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
     );

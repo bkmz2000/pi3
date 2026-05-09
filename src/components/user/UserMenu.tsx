@@ -1,9 +1,12 @@
 import { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useUser } from '../../state/useUser';
+import { useThemeStore } from '../../state/useTheme';
+import { Icon } from '../Icons';
 
 export function UserMenu() {
   const { t } = useTranslation();
+  const theme = useThemeStore((s) => s.theme);
   const { user, logout } = useUser();
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -14,7 +17,6 @@ export function UserMenu() {
         setOpen(false);
       }
     };
-
     if (open) {
       document.addEventListener('mousedown', handleClickOutside);
     }
@@ -31,34 +33,77 @@ export function UserMenu() {
     .slice(0, 2);
 
   return (
-    <div className="relative" ref={menuRef}>
+    <div ref={menuRef} style={{ position: "relative" }}>
       <button
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-2 rounded-full bg-cyan-500 px-3 py-1.5 text-white hover:bg-cyan-400"
+        style={{
+          all: "unset", cursor: "pointer",
+          display: "inline-flex", alignItems: "center", gap: 8,
+          padding: "4px 10px 4px 4px",
+          borderRadius: 999,
+          background: theme.chip,
+          border: `1px solid ${theme.panelBorder}`,
+          color: theme.panelTxt,
+          fontFamily: theme.fontUI,
+          fontSize: 12.5,
+          fontWeight: 500,
+          transition: "background 0.15s",
+        }}
       >
-        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-cyan-600 text-xs font-bold">
+        <span style={{
+          width: 26, height: 26, borderRadius: 999,
+          background: theme.accent, color: "#fff",
+          display: "inline-flex", alignItems: "center", justifyContent: "center",
+          fontFamily: theme.fontUI, fontWeight: 700, fontSize: 12,
+        }}>
           {initials}
         </span>
-        <span className="text-sm font-medium">{user.name}</span>
+        <span>{user.name}</span>
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full z-50 mt-1 w-48 rounded-lg bg-cyan-800 py-1 shadow-lg text-white">
-          <div className="border-b border-cyan-700 px-4 py-2">
-            <p className="text-sm font-medium">{user.name}</p>
+        <div style={{
+          position: "absolute", right: 0, top: "calc(100% + 6px)",
+          zIndex: 50,
+          minWidth: 180,
+          background: theme.surfacePanel,
+          border: `1px solid ${theme.panelBorder}`,
+          borderRadius: 6,
+          boxShadow: "0 10px 32px -10px rgba(0,0,0,0.30)",
+          padding: "4px 0",
+          fontFamily: theme.fontUI,
+          color: theme.panelTxt,
+        }}>
+          <div style={{
+            padding: "10px 14px",
+            borderBottom: `1px solid ${theme.panelBorder}`,
+            fontSize: 13,
+            fontWeight: 600,
+          }}>
+            {user.name}
           </div>
           <a
             href="/projects"
-            className="block px-4 py-2 text-sm hover:bg-cyan-700"
+            style={{
+              display: "block",
+              padding: "8px 14px",
+              fontSize: 12.5,
+              color: theme.panelTxt,
+              textDecoration: "none",
+              cursor: "pointer",
+            }}
           >
             {t('auth.myProjects')}
           </a>
           <button
-            onClick={() => {
-              logout();
-              setOpen(false);
+            onClick={() => { logout(); setOpen(false); }}
+            style={{
+              all: "unset", cursor: "pointer", display: "block", width: "100%",
+              padding: "8px 14px",
+              fontSize: 12.5,
+              color: theme.stopBg,
+              textAlign: "left",
             }}
-            className="w-full px-4 py-2 text-left text-sm text-red-300 hover:bg-cyan-700 hover:text-red-200"
           >
             {t('auth.signOut')}
           </button>

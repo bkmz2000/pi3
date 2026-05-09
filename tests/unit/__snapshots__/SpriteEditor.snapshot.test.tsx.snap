@@ -5,401 +5,454 @@ exports[`SpriteEditor - Snapshot Tests renders correctly when closed 1`] = `<div
 exports[`SpriteEditor - Snapshot Tests renders correctly when open 1`] = `
 <div>
   <div
-    aria-label="spriteEditor.title"
-    aria-modal="true"
-    class="fixed inset-0 z-50 flex items-center justify-center bg-black/70"
-    data-testid="sprite-editor-modal"
-    role="dialog"
+    style="position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.5);"
   >
     <div
-      class="bg-cyan-800 border border-cyan-600 rounded-xl shadow-2xl p-4 w-[480px]"
-      data-testid="sprite-editor-content"
+      data-testid="sprite-editor-modal"
+      style="background: rgb(17, 68, 75); border: 1px solid rgba(148, 210, 216, 0.14); border-radius: 8px; box-shadow: 0 30px 70px -20px rgba(0,0,0,0.6), 0 4px 18px rgba(0,0,0,0.3); width: 720px; max-width: 90vw; max-height: 90vh; display: flex; flex-direction: column; font-family: "Inter", system-ui, sans-serif; color: rgb(232, 242, 244);"
     >
       <div
-        class="flex items-center justify-between gap-4 mb-3"
-      >
-        <button
-          class="px-3 py-1.5 rounded text-xs bg-cyan-600 hover:bg-cyan-500 text-white font-medium"
-          data-testid="save-svg-button"
-        >
-          spriteEditor.save
-        </button>
-        <input
-          class="bg-transparent text-white font-mono text-sm border-b border-white/20 outline-none w-32"
-          data-testid="sprite-name-input"
-          placeholder="sideMenu.spriteNamePlaceholder"
-          value="sprite"
-        />
-        <button
-          aria-label="spriteEditor.close"
-          class="text-white/40 hover:text-white"
-          data-testid="close-button"
-        >
-          <svg
-            fill="currentColor"
-            height="20"
-            stroke="currentColor"
-            stroke-width="0"
-            viewBox="0 0 24 24"
-            width="20"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <path
-              d="M0 0h24v24H0z"
-              fill="none"
-            />
-            <path
-              d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
-            />
-          </svg>
-        </button>
-      </div>
-      <div
-        class="flex gap-3"
+        style="display: flex; align-items: center; gap: 12px; padding: 14px 18px; border-bottom: 1px solid rgba(148, 210, 216, 0.14);"
       >
         <div
-          class="flex flex-col gap-1"
+          style="flex: 1 1 0%; font-family: "Inter", system-ui, sans-serif; font-weight: 700; font-size: 15px; color: rgb(232, 242, 244);"
+        >
+          Sprite Editor
+        </div>
+        <div
+          style="display: flex; gap: 6px;"
         >
           <button
-            class="w-8 h-8 rounded text-base flex items-center justify-center transition-colors
-                  bg-white/10 hover:bg-white/20 text-white/70"
+            data-testid="close-button"
+            style="all: unset; cursor: pointer; width: 30px; height: 30px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; color: rgb(155, 179, 184);"
+            type="button"
+          >
+            <svg
+              fill="none"
+              height="16"
+              stroke="currentColor"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1.8"
+              viewBox="0 0 24 24"
+              width="16"
+            >
+              <path
+                d="M6 6l12 12M18 6L6 18"
+              />
+            </svg>
+          </button>
+        </div>
+      </div>
+      <div
+        style="display: flex; gap: 0; flex: 1 1 0%; min-height: 0;"
+      >
+        <div
+          style="width: 44px; flex: 0 0 auto; padding: 8px 4px; background: rgba(255, 255, 255, 0.06); border-right: 1px solid rgba(148, 210, 216, 0.14); display: flex; flex-direction: column; gap: 1px; align-items: center;"
+        >
+          <button
             data-testid="tool-select"
-            title="spriteEditor.select"
+            style="all: unset; cursor: pointer; width: 34px; height: 34px; border-radius: 5px; display: inline-flex; align-items: center; justify-content: center; background: transparent; color: rgb(232, 242, 244); transition: background 0.1s;"
+            title="Select"
+            type="button"
           >
             <svg
-              fill="currentColor"
-              height="18"
+              fill="none"
+              height="17"
               stroke="currentColor"
-              stroke-width="0"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1.8"
               viewBox="0 0 24 24"
-              width="18"
-              xmlns="http://www.w3.org/2000/svg"
+              width="17"
             >
               <path
-                d="M0 0h24v24H0z"
-                fill="none"
-              />
-              <path
-                d="M5 15h2V8.41L18.59 20 20 18.59 8.41 7H15V5H5v10z"
+                d="M5 4l14 6-6 2-2 6-6-14Z"
               />
             </svg>
           </button>
           <button
-            class="w-8 h-8 rounded text-base flex items-center justify-center transition-colors
-                  bg-cyan-600 text-white"
             data-testid="tool-rect"
-            title="spriteEditor.rectangle"
+            style="all: unset; cursor: pointer; width: 34px; height: 34px; border-radius: 5px; display: inline-flex; align-items: center; justify-content: center; background: rgb(247, 182, 122); color: rgb(255, 255, 255); transition: background 0.1s;"
+            title="Rectangle"
+            type="button"
           >
             <svg
-              fill="currentColor"
-              height="18"
+              fill="none"
+              height="17"
               stroke="currentColor"
-              stroke-width="0"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1.8"
               viewBox="0 0 24 24"
-              width="18"
-              xmlns="http://www.w3.org/2000/svg"
+              width="17"
             >
-              <path
-                d="M0 0h24v24H0z"
-                fill="none"
-              />
-              <path
-                d="M18 4H6c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 14H6V6h12v12z"
+              <rect
+                height="16"
+                width="16"
+                x="4"
+                y="4"
               />
             </svg>
           </button>
           <button
-            class="w-8 h-8 rounded text-base flex items-center justify-center transition-colors
-                  bg-white/10 hover:bg-white/20 text-white/70"
             data-testid="tool-ellipse"
-            title="spriteEditor.ellipse"
+            style="all: unset; cursor: pointer; width: 34px; height: 34px; border-radius: 5px; display: inline-flex; align-items: center; justify-content: center; background: transparent; color: rgb(232, 242, 244); transition: background 0.1s;"
+            title="Ellipse"
+            type="button"
           >
             <svg
-              fill="currentColor"
-              height="18"
+              fill="none"
+              height="17"
               stroke="currentColor"
-              stroke-width="0"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1.8"
               viewBox="0 0 24 24"
-              width="18"
-              xmlns="http://www.w3.org/2000/svg"
+              width="17"
             >
-              <path
-                d="M0 0h24v24H0z"
-                fill="none"
-              />
-              <path
-                d="M12 2C6.47 2 2 6.47 2 12s4.47 10 10 10 10-4.47 10-10S17.53 2 12 2z"
+              <circle
+                cx="12"
+                cy="12"
+                r="8"
               />
             </svg>
           </button>
           <button
-            class="w-8 h-8 rounded text-base flex items-center justify-center transition-colors
-                  bg-white/10 hover:bg-white/20 text-white/70"
             data-testid="tool-line"
-            title="spriteEditor.line"
+            style="all: unset; cursor: pointer; width: 34px; height: 34px; border-radius: 5px; display: inline-flex; align-items: center; justify-content: center; background: transparent; color: rgb(232, 242, 244); transition: background 0.1s;"
+            title="Line"
+            type="button"
           >
             <svg
-              fill="currentColor"
-              height="18"
+              fill="none"
+              height="17"
               stroke="currentColor"
-              stroke-width="0"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1.8"
               viewBox="0 0 24 24"
-              width="18"
-              xmlns="http://www.w3.org/2000/svg"
+              width="17"
             >
               <path
-                d="M0 0h24v24H0z"
-                fill="none"
-              />
-              <path
-                d="m22 7.43-1.41-1.41-4.03 4.53L9.5 4 2 11.51l1.5 1.5 6.14-6.15 5.59 5.18-1.73 1.95-4-4L2 17.5 3.5 19l6-6.01 4 4 3.19-3.59 3.9 3.61L22 15.6l-3.98-3.7z"
+                d="M5 19L19 5"
               />
             </svg>
           </button>
           <button
-            class="w-8 h-8 rounded text-base flex items-center justify-center transition-colors
-                  bg-white/10 hover:bg-white/20 text-white/70"
             data-testid="tool-freehand"
-            title="spriteEditor.pen"
+            style="all: unset; cursor: pointer; width: 34px; height: 34px; border-radius: 5px; display: inline-flex; align-items: center; justify-content: center; background: transparent; color: rgb(232, 242, 244); transition: background 0.1s;"
+            title="Pen"
+            type="button"
           >
             <svg
-              fill="currentColor"
-              height="18"
+              fill="none"
+              height="17"
               stroke="currentColor"
-              stroke-width="0"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1.8"
               viewBox="0 0 24 24"
-              width="18"
-              xmlns="http://www.w3.org/2000/svg"
+              width="17"
             >
               <path
-                d="M0 0h24v24H0z"
-                fill="none"
-              />
-              <path
-                d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a.996.996 0 0 0 0-1.41l-2.34-2.34a.996.996 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"
+                d="M3 21l3.5-1L20 6.5 17.5 4 4 17.5 3 21Z"
               />
             </svg>
           </button>
           <button
-            class="w-8 h-8 rounded text-base flex items-center justify-center transition-colors
-                  bg-white/10 hover:bg-white/20 text-white/70"
             data-testid="tool-polygon"
-            title="spriteEditor.polygon"
+            style="all: unset; cursor: pointer; width: 34px; height: 34px; border-radius: 5px; display: inline-flex; align-items: center; justify-content: center; background: transparent; color: rgb(232, 242, 244); transition: background 0.1s;"
+            title="Polygon"
+            type="button"
           >
             <svg
-              fill="currentColor"
-              height="18"
+              fill="none"
+              height="17"
               stroke="currentColor"
-              stroke-width="0"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1.8"
               viewBox="0 0 24 24"
-              width="18"
-              xmlns="http://www.w3.org/2000/svg"
+              width="17"
             >
               <path
-                d="M0 0h24v24H0z"
-                fill="none"
-              />
-              <path
-                d="M15 16v1.26l-6-3v-3.17L11.7 8H16V2h-6v4.9L7.3 10H3v6h5l7 3.5V22h6v-6z"
+                d="M12 3l9 6-3.5 11h-11L3 9l9-6Z"
               />
             </svg>
           </button>
           <button
-            class="w-8 h-8 rounded text-base flex items-center justify-center transition-colors
-                  bg-white/10 hover:bg-white/20 text-white/70"
             data-testid="tool-text"
-            title="spriteEditor.text"
+            style="all: unset; cursor: pointer; width: 34px; height: 34px; border-radius: 5px; display: inline-flex; align-items: center; justify-content: center; background: transparent; color: rgb(232, 242, 244); transition: background 0.1s;"
+            title="Text"
+            type="button"
           >
             <svg
-              fill="currentColor"
-              height="18"
+              fill="none"
+              height="17"
               stroke="currentColor"
-              stroke-width="0"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1.8"
               viewBox="0 0 24 24"
-              width="18"
-              xmlns="http://www.w3.org/2000/svg"
+              width="17"
             >
               <path
-                d="M0 0h24v24H0z"
-                fill="none"
-              />
-              <path
-                d="M2.5 4v3h5v12h3V7h5V4h-13zm19 5h-9v3h3v7h3v-7h3V9z"
+                d="M5 6V4h14v2M12 4v16M9 20h6"
               />
             </svg>
           </button>
           <div
-            class="w-full h-px bg-white/20 my-1"
+            style="height: 1px; background: rgba(148, 210, 216, 0.14); margin: 6px 0px; width: 28px;"
           />
           <button
-            class="w-8 h-8 rounded bg-white/10 hover:bg-white/20 text-white/70 disabled:opacity-30 flex items-center justify-center"
             data-testid="undo-button"
             disabled=""
-            title="spriteEditor.undo"
+            style="all: unset; cursor: default; width: 34px; height: 34px; border-radius: 5px; display: inline-flex; align-items: center; justify-content: center; background: transparent; color: rgb(232, 242, 244); opacity: 0.3;"
+            title="Undo"
+            type="button"
           >
             <svg
-              fill="currentColor"
+              fill="none"
               height="16"
               stroke="currentColor"
-              stroke-width="0"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1.8"
               viewBox="0 0 24 24"
               width="16"
-              xmlns="http://www.w3.org/2000/svg"
             >
               <path
-                d="M0 0h24v24H0z"
-                fill="none"
-              />
-              <path
-                d="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z"
+                d="M9 14L4 9l5-5M4 9h11a5 5 0 0 1 0 10h-3"
               />
             </svg>
           </button>
           <button
-            class="w-8 h-8 rounded bg-white/10 hover:bg-white/20 text-white/70 disabled:opacity-30 flex items-center justify-center"
             data-testid="redo-button"
             disabled=""
-            title="spriteEditor.redo"
+            style="all: unset; cursor: default; width: 34px; height: 34px; border-radius: 5px; display: inline-flex; align-items: center; justify-content: center; background: transparent; color: rgb(232, 242, 244); opacity: 0.3;"
+            title="Redo"
+            type="button"
           >
             <svg
-              fill="currentColor"
+              fill="none"
               height="16"
               stroke="currentColor"
-              stroke-width="0"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1.8"
               viewBox="0 0 24 24"
               width="16"
-              xmlns="http://www.w3.org/2000/svg"
             >
               <path
-                d="M0 0h24v24H0z"
-                fill="none"
-              />
-              <path
-                d="M18.4 10.6C16.55 8.99 14.15 8 11.5 8c-4.65 0-8.58 3.03-9.96 7.22L3.9 16a8.002 8.002 0 0 1 7.6-5.5c1.95 0 3.73.72 5.12 1.88L13 16h9V7l-3.6 3.6z"
+                d="M15 14l5-5-5-5M20 9H9a5 5 0 0 0 0 10h3"
               />
             </svg>
           </button>
+          <div
+            style="height: 1px; background: rgba(148, 210, 216, 0.14); margin: 6px 0px; width: 28px;"
+          />
           <button
-            class="w-8 h-8 rounded bg-red-900/50 hover:bg-red-700/60 text-white/70 disabled:opacity-30 flex items-center justify-center"
             data-testid="delete-button"
             disabled=""
-            title="spriteEditor.deleteSelected"
+            style="all: unset; cursor: default; width: 34px; height: 34px; border-radius: 5px; display: inline-flex; align-items: center; justify-content: center; background: transparent; color: rgb(255, 139, 139); opacity: 0.3;"
+            title="Delete selected"
+            type="button"
           >
             <svg
-              fill="currentColor"
+              fill="none"
               height="16"
               stroke="currentColor"
-              stroke-width="0"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1.8"
               viewBox="0 0 24 24"
               width="16"
-              xmlns="http://www.w3.org/2000/svg"
             >
               <path
-                d="M0 0h24v24H0z"
-                fill="none"
-              />
-              <path
-                d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"
+                d="M4 7h16M9 7V5.5A2.5 2.5 0 0 1 11.5 3h1A2.5 2.5 0 0 1 15 5.5V7M6.5 7l.9 12.1A2.5 2.5 0 0 0 9.9 21.5h4.2a2.5 2.5 0 0 0 2.5-2.4L17.5 7"
               />
             </svg>
           </button>
         </div>
         <div
-          class="flex-1 flex justify-center"
+          data-testid="sprite-editor-content"
+          style="flex: 1 1 0%; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px; gap: 10px;"
         >
-          <div
-            class="rounded overflow-hidden border border-white/20"
-            style="width: 320px; height: 320px; background: rgb(255, 255, 255);"
-          >
+          <div>
             <div
-              data-testid="sprite-canvas"
-              height="320"
-              style="cursor: crosshair;"
-              tabindex="0"
-              width="320"
+              style="width: 320px; height: 320px; background: rgb(255, 255, 255); border-radius: 3px; box-shadow: 0 0 0 1px rgba(148,210,216,0.14), 0 24px 50px -22px rgba(0,0,0,0.30); overflow: hidden; cursor: crosshair;"
             >
-              <div>
-                <div />
-                <div
-                  points="152,160,168,160"
-                  stroke="#22d3ee"
-                  stroke-width="1"
-                />
-                <div
-                  points="160,152,160,168"
-                  stroke="#22d3ee"
-                  stroke-width="1"
-                />
-                <div
-                  fill="transparent"
-                  radius="3"
-                  stroke="#22d3ee"
-                  stroke-width="1"
-                  x="160"
-                  y="160"
-                />
+              <div
+                data-testid="sprite-canvas"
+                height="320"
+                tabindex="0"
+                width="320"
+              >
+                <div>
+                  <div />
+                  <div
+                    points="152,160,168,160"
+                    stroke="#22d3ee"
+                    stroke-width="1"
+                  />
+                  <div
+                    points="160,152,160,168"
+                    stroke="#22d3ee"
+                    stroke-width="1"
+                  />
+                  <div
+                    fill="transparent"
+                    radius="3"
+                    stroke="#22d3ee"
+                    stroke-width="1"
+                    x="160"
+                    y="160"
+                  />
+                </div>
               </div>
             </div>
+          </div>
+          <div
+            style="display: flex; align-items: center; gap: 16px; font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 11px; color: rgb(155, 179, 184);"
+          >
+            <span>
+              tool: 
+              <span
+                style="color: rgb(232, 242, 244); font-weight: 500;"
+              >
+                rect
+              </span>
+            </span>
+            <span>
+              x: 
+              <span
+                style="color: rgb(232, 242, 244);"
+              >
+                0
+              </span>
+            </span>
+            <span>
+              y: 
+              <span
+                style="color: rgb(232, 242, 244);"
+              >
+                0
+              </span>
+            </span>
+            <span>
+              scale: 
+              <span
+                style="color: rgb(232, 242, 244);"
+              >
+                5
+                ×
+              </span>
+            </span>
           </div>
         </div>
       </div>
       <div
-        class="flex items-center gap-3 mt-3"
+        style="display: flex; align-items: center; gap: 12px; padding: 10px 18px; background: rgba(255, 255, 255, 0.06); border-top: 1px solid rgba(148, 210, 216, 0.14);"
       >
         <div
-          class="relative"
+          style="position: relative;"
         >
           <button
-            class="flex items-center gap-2 px-3 py-1.5 rounded bg-white/10 hover:bg-white/20 text-white/80 text-xs"
             data-testid="fill-color-button"
+            style="all: unset; cursor: pointer; height: 30px; padding: 0px 12px; display: inline-flex; align-items: center; gap: 8px; background: transparent; border: 1px solid rgba(148, 210, 216, 0.14); border-radius: 5px; font-size: 12px; font-weight: 500; color: rgb(232, 242, 244); text-transform: uppercase; letter-spacing: 0.4px;"
+            type="button"
           >
-            <span
-              class="text-[10px]"
-            >
-              spriteEditor.fill
+            <span>
+              Fill
             </span>
             <span
-              class="w-5 h-5 rounded border border-white/30"
-              style="background-color: rgb(74, 222, 128);"
+              style="width: 18px; height: 18px; border-radius: 2px; background: rgb(74, 222, 128); box-shadow: inset 0 0 0 1px rgba(0,0,0,0.2);"
             />
           </button>
         </div>
         <div
-          class="relative"
+          style="position: relative;"
         >
           <button
-            class="flex items-center gap-2 px-3 py-1.5 rounded bg-white/10 hover:bg-white/20 text-white/80 text-xs"
             data-testid="stroke-color-button"
+            style="all: unset; cursor: pointer; height: 30px; padding: 0px 12px; display: inline-flex; align-items: center; gap: 8px; background: transparent; border: 1px solid rgba(148, 210, 216, 0.14); border-radius: 5px; font-size: 12px; font-weight: 500; color: rgb(232, 242, 244); text-transform: uppercase; letter-spacing: 0.4px;"
+            type="button"
           >
-            <span
-              class="text-[10px]"
-            >
-              spriteEditor.stroke
+            <span>
+              Stroke
             </span>
             <span
-              class="w-5 h-5 rounded border border-white/30"
-              style="background-color: rgb(30, 41, 59);"
+              style="width: 18px; height: 18px; border-radius: 2px; background: rgb(30, 41, 59); box-shadow: inset 0 0 0 1px rgba(0,0,0,0.2);"
             />
           </button>
         </div>
         <div
-          class="flex items-center gap-1"
+          style="width: 1px; height: 24px; background: rgba(148, 210, 216, 0.14);"
+        />
+        <span
+          style="font-size: 11.5px; color: rgb(155, 179, 184); text-transform: uppercase; letter-spacing: 0.6px;"
+        >
+          Width
+        </span>
+        <input
+          data-testid="stroke-width-input"
+          max="8"
+          min="0"
+          step="1"
+          style="width: 100px; accent-color: #f7b67a;"
+          type="range"
+          value="1"
+        />
+        <span
+          style="font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 12px; color: rgb(232, 242, 244); min-width: 24px; text-align: right;"
+        >
+          1
+          px
+        </span>
+        <div
+          style="flex: 1 1 0%;"
+        />
+        <div
+          style="display: inline-flex; align-items: center; gap: 6px; padding: 0px 10px; height: 30px; background: rgb(17, 68, 75); border-radius: 5px; border: 1px solid rgba(148, 210, 216, 0.14);"
         >
           <span
-            class="text-[10px] text-white/60 mr-1"
+            style="font-size: 11px; color: rgb(155, 179, 184);"
           >
-            spriteEditor.stroke
+            name
           </span>
           <input
-            class="w-16 accent-cyan-500"
-            data-testid="stroke-width-input"
-            max="4"
-            min="0"
-            step="1"
-            type="range"
-            value="1"
+            data-testid="sprite-name-input"
+            style="all: unset; width: 80px; font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 12.5px; color: rgb(232, 242, 244);"
+            value="sprite"
           />
+          <span
+            style="font-size: 11px; color: rgb(155, 179, 184);"
+          >
+            .svg
+          </span>
         </div>
+        <button
+          data-testid="save-svg-button"
+          style="all: unset; cursor: pointer; padding: 7px 16px; background: rgb(126, 211, 164); color: rgb(6, 42, 38); border-radius: 5px; font-family: "Inter", system-ui, sans-serif; font-weight: 600; font-size: 12.5px; display: inline-flex; align-items: center; gap: 6px;"
+          type="button"
+        >
+          <svg
+            fill="none"
+            height="14"
+            stroke="currentColor"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="1.8"
+            viewBox="0 0 24 24"
+            width="14"
+          >
+            <path
+              d="M5 13l4 4L19 7"
+            />
+          </svg>
+          Save
+        </button>
       </div>
     </div>
   </div>
@@ -409,401 +462,452 @@ exports[`SpriteEditor - Snapshot Tests renders correctly when open 1`] = `
 exports[`SpriteEditor - Snapshot Tests renders with custom size 128 1`] = `
 <DocumentFragment>
   <div
-    aria-label="spriteEditor.title"
-    aria-modal="true"
-    class="fixed inset-0 z-50 flex items-center justify-center bg-black/70"
-    data-testid="sprite-editor-modal"
-    role="dialog"
+    style="position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.5);"
   >
     <div
-      class="bg-cyan-800 border border-cyan-600 rounded-xl shadow-2xl p-4 w-[480px]"
-      data-testid="sprite-editor-content"
+      data-testid="sprite-editor-modal"
+      style="background: rgb(17, 68, 75); border: 1px solid rgba(148, 210, 216, 0.14); border-radius: 8px; box-shadow: 0 30px 70px -20px rgba(0,0,0,0.6), 0 4px 18px rgba(0,0,0,0.3); width: 720px; max-width: 90vw; max-height: 90vh; display: flex; flex-direction: column; font-family: "Inter", system-ui, sans-serif; color: rgb(232, 242, 244);"
     >
       <div
-        class="flex items-center justify-between gap-4 mb-3"
-      >
-        <button
-          class="px-3 py-1.5 rounded text-xs bg-cyan-600 hover:bg-cyan-500 text-white font-medium"
-          data-testid="save-svg-button"
-        >
-          spriteEditor.save
-        </button>
-        <input
-          class="bg-transparent text-white font-mono text-sm border-b border-white/20 outline-none w-32"
-          data-testid="sprite-name-input"
-          placeholder="sideMenu.spriteNamePlaceholder"
-          value="sprite"
-        />
-        <button
-          aria-label="spriteEditor.close"
-          class="text-white/40 hover:text-white"
-          data-testid="close-button"
-        >
-          <svg
-            fill="currentColor"
-            height="20"
-            stroke="currentColor"
-            stroke-width="0"
-            viewBox="0 0 24 24"
-            width="20"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <path
-              d="M0 0h24v24H0z"
-              fill="none"
-            />
-            <path
-              d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
-            />
-          </svg>
-        </button>
-      </div>
-      <div
-        class="flex gap-3"
+        style="display: flex; align-items: center; gap: 12px; padding: 14px 18px; border-bottom: 1px solid rgba(148, 210, 216, 0.14);"
       >
         <div
-          class="flex flex-col gap-1"
+          style="flex: 1 1 0%; font-family: "Inter", system-ui, sans-serif; font-weight: 700; font-size: 15px; color: rgb(232, 242, 244);"
+        >
+          Sprite Editor
+        </div>
+        <div
+          style="display: flex; gap: 6px;"
         >
           <button
-            class="w-8 h-8 rounded text-base flex items-center justify-center transition-colors
-                  bg-white/10 hover:bg-white/20 text-white/70"
+            data-testid="close-button"
+            style="all: unset; cursor: pointer; width: 30px; height: 30px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; color: rgb(155, 179, 184);"
+            type="button"
+          >
+            <svg
+              fill="none"
+              height="16"
+              stroke="currentColor"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1.8"
+              viewBox="0 0 24 24"
+              width="16"
+            >
+              <path
+                d="M6 6l12 12M18 6L6 18"
+              />
+            </svg>
+          </button>
+        </div>
+      </div>
+      <div
+        style="display: flex; gap: 0; flex: 1 1 0%; min-height: 0;"
+      >
+        <div
+          style="width: 44px; flex: 0 0 auto; padding: 8px 4px; background: rgba(255, 255, 255, 0.06); border-right: 1px solid rgba(148, 210, 216, 0.14); display: flex; flex-direction: column; gap: 1px; align-items: center;"
+        >
+          <button
             data-testid="tool-select"
-            title="spriteEditor.select"
+            style="all: unset; cursor: pointer; width: 34px; height: 34px; border-radius: 5px; display: inline-flex; align-items: center; justify-content: center; background: transparent; color: rgb(232, 242, 244); transition: background 0.1s;"
+            title="Select"
+            type="button"
           >
             <svg
-              fill="currentColor"
-              height="18"
+              fill="none"
+              height="17"
               stroke="currentColor"
-              stroke-width="0"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1.8"
               viewBox="0 0 24 24"
-              width="18"
-              xmlns="http://www.w3.org/2000/svg"
+              width="17"
             >
               <path
-                d="M0 0h24v24H0z"
-                fill="none"
-              />
-              <path
-                d="M5 15h2V8.41L18.59 20 20 18.59 8.41 7H15V5H5v10z"
+                d="M5 4l14 6-6 2-2 6-6-14Z"
               />
             </svg>
           </button>
           <button
-            class="w-8 h-8 rounded text-base flex items-center justify-center transition-colors
-                  bg-cyan-600 text-white"
             data-testid="tool-rect"
-            title="spriteEditor.rectangle"
+            style="all: unset; cursor: pointer; width: 34px; height: 34px; border-radius: 5px; display: inline-flex; align-items: center; justify-content: center; background: rgb(247, 182, 122); color: rgb(255, 255, 255); transition: background 0.1s;"
+            title="Rectangle"
+            type="button"
           >
             <svg
-              fill="currentColor"
-              height="18"
+              fill="none"
+              height="17"
               stroke="currentColor"
-              stroke-width="0"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1.8"
               viewBox="0 0 24 24"
-              width="18"
-              xmlns="http://www.w3.org/2000/svg"
+              width="17"
             >
-              <path
-                d="M0 0h24v24H0z"
-                fill="none"
-              />
-              <path
-                d="M18 4H6c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 14H6V6h12v12z"
+              <rect
+                height="16"
+                width="16"
+                x="4"
+                y="4"
               />
             </svg>
           </button>
           <button
-            class="w-8 h-8 rounded text-base flex items-center justify-center transition-colors
-                  bg-white/10 hover:bg-white/20 text-white/70"
             data-testid="tool-ellipse"
-            title="spriteEditor.ellipse"
+            style="all: unset; cursor: pointer; width: 34px; height: 34px; border-radius: 5px; display: inline-flex; align-items: center; justify-content: center; background: transparent; color: rgb(232, 242, 244); transition: background 0.1s;"
+            title="Ellipse"
+            type="button"
           >
             <svg
-              fill="currentColor"
-              height="18"
+              fill="none"
+              height="17"
               stroke="currentColor"
-              stroke-width="0"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1.8"
               viewBox="0 0 24 24"
-              width="18"
-              xmlns="http://www.w3.org/2000/svg"
+              width="17"
             >
-              <path
-                d="M0 0h24v24H0z"
-                fill="none"
-              />
-              <path
-                d="M12 2C6.47 2 2 6.47 2 12s4.47 10 10 10 10-4.47 10-10S17.53 2 12 2z"
+              <circle
+                cx="12"
+                cy="12"
+                r="8"
               />
             </svg>
           </button>
           <button
-            class="w-8 h-8 rounded text-base flex items-center justify-center transition-colors
-                  bg-white/10 hover:bg-white/20 text-white/70"
             data-testid="tool-line"
-            title="spriteEditor.line"
+            style="all: unset; cursor: pointer; width: 34px; height: 34px; border-radius: 5px; display: inline-flex; align-items: center; justify-content: center; background: transparent; color: rgb(232, 242, 244); transition: background 0.1s;"
+            title="Line"
+            type="button"
           >
             <svg
-              fill="currentColor"
-              height="18"
+              fill="none"
+              height="17"
               stroke="currentColor"
-              stroke-width="0"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1.8"
               viewBox="0 0 24 24"
-              width="18"
-              xmlns="http://www.w3.org/2000/svg"
+              width="17"
             >
               <path
-                d="M0 0h24v24H0z"
-                fill="none"
-              />
-              <path
-                d="m22 7.43-1.41-1.41-4.03 4.53L9.5 4 2 11.51l1.5 1.5 6.14-6.15 5.59 5.18-1.73 1.95-4-4L2 17.5 3.5 19l6-6.01 4 4 3.19-3.59 3.9 3.61L22 15.6l-3.98-3.7z"
+                d="M5 19L19 5"
               />
             </svg>
           </button>
           <button
-            class="w-8 h-8 rounded text-base flex items-center justify-center transition-colors
-                  bg-white/10 hover:bg-white/20 text-white/70"
             data-testid="tool-freehand"
-            title="spriteEditor.pen"
+            style="all: unset; cursor: pointer; width: 34px; height: 34px; border-radius: 5px; display: inline-flex; align-items: center; justify-content: center; background: transparent; color: rgb(232, 242, 244); transition: background 0.1s;"
+            title="Pen"
+            type="button"
           >
             <svg
-              fill="currentColor"
-              height="18"
+              fill="none"
+              height="17"
               stroke="currentColor"
-              stroke-width="0"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1.8"
               viewBox="0 0 24 24"
-              width="18"
-              xmlns="http://www.w3.org/2000/svg"
+              width="17"
             >
               <path
-                d="M0 0h24v24H0z"
-                fill="none"
-              />
-              <path
-                d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a.996.996 0 0 0 0-1.41l-2.34-2.34a.996.996 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"
+                d="M3 21l3.5-1L20 6.5 17.5 4 4 17.5 3 21Z"
               />
             </svg>
           </button>
           <button
-            class="w-8 h-8 rounded text-base flex items-center justify-center transition-colors
-                  bg-white/10 hover:bg-white/20 text-white/70"
             data-testid="tool-polygon"
-            title="spriteEditor.polygon"
+            style="all: unset; cursor: pointer; width: 34px; height: 34px; border-radius: 5px; display: inline-flex; align-items: center; justify-content: center; background: transparent; color: rgb(232, 242, 244); transition: background 0.1s;"
+            title="Polygon"
+            type="button"
           >
             <svg
-              fill="currentColor"
-              height="18"
+              fill="none"
+              height="17"
               stroke="currentColor"
-              stroke-width="0"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1.8"
               viewBox="0 0 24 24"
-              width="18"
-              xmlns="http://www.w3.org/2000/svg"
+              width="17"
             >
               <path
-                d="M0 0h24v24H0z"
-                fill="none"
-              />
-              <path
-                d="M15 16v1.26l-6-3v-3.17L11.7 8H16V2h-6v4.9L7.3 10H3v6h5l7 3.5V22h6v-6z"
+                d="M12 3l9 6-3.5 11h-11L3 9l9-6Z"
               />
             </svg>
           </button>
           <button
-            class="w-8 h-8 rounded text-base flex items-center justify-center transition-colors
-                  bg-white/10 hover:bg-white/20 text-white/70"
             data-testid="tool-text"
-            title="spriteEditor.text"
+            style="all: unset; cursor: pointer; width: 34px; height: 34px; border-radius: 5px; display: inline-flex; align-items: center; justify-content: center; background: transparent; color: rgb(232, 242, 244); transition: background 0.1s;"
+            title="Text"
+            type="button"
           >
             <svg
-              fill="currentColor"
-              height="18"
+              fill="none"
+              height="17"
               stroke="currentColor"
-              stroke-width="0"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1.8"
               viewBox="0 0 24 24"
-              width="18"
-              xmlns="http://www.w3.org/2000/svg"
+              width="17"
             >
               <path
-                d="M0 0h24v24H0z"
-                fill="none"
-              />
-              <path
-                d="M2.5 4v3h5v12h3V7h5V4h-13zm19 5h-9v3h3v7h3v-7h3V9z"
+                d="M5 6V4h14v2M12 4v16M9 20h6"
               />
             </svg>
           </button>
           <div
-            class="w-full h-px bg-white/20 my-1"
+            style="height: 1px; background: rgba(148, 210, 216, 0.14); margin: 6px 0px; width: 28px;"
           />
           <button
-            class="w-8 h-8 rounded bg-white/10 hover:bg-white/20 text-white/70 disabled:opacity-30 flex items-center justify-center"
             data-testid="undo-button"
             disabled=""
-            title="spriteEditor.undo"
+            style="all: unset; cursor: default; width: 34px; height: 34px; border-radius: 5px; display: inline-flex; align-items: center; justify-content: center; background: transparent; color: rgb(232, 242, 244); opacity: 0.3;"
+            title="Undo"
+            type="button"
           >
             <svg
-              fill="currentColor"
+              fill="none"
               height="16"
               stroke="currentColor"
-              stroke-width="0"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1.8"
               viewBox="0 0 24 24"
               width="16"
-              xmlns="http://www.w3.org/2000/svg"
             >
               <path
-                d="M0 0h24v24H0z"
-                fill="none"
-              />
-              <path
-                d="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z"
+                d="M9 14L4 9l5-5M4 9h11a5 5 0 0 1 0 10h-3"
               />
             </svg>
           </button>
           <button
-            class="w-8 h-8 rounded bg-white/10 hover:bg-white/20 text-white/70 disabled:opacity-30 flex items-center justify-center"
             data-testid="redo-button"
             disabled=""
-            title="spriteEditor.redo"
+            style="all: unset; cursor: default; width: 34px; height: 34px; border-radius: 5px; display: inline-flex; align-items: center; justify-content: center; background: transparent; color: rgb(232, 242, 244); opacity: 0.3;"
+            title="Redo"
+            type="button"
           >
             <svg
-              fill="currentColor"
+              fill="none"
               height="16"
               stroke="currentColor"
-              stroke-width="0"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1.8"
               viewBox="0 0 24 24"
               width="16"
-              xmlns="http://www.w3.org/2000/svg"
             >
               <path
-                d="M0 0h24v24H0z"
-                fill="none"
-              />
-              <path
-                d="M18.4 10.6C16.55 8.99 14.15 8 11.5 8c-4.65 0-8.58 3.03-9.96 7.22L3.9 16a8.002 8.002 0 0 1 7.6-5.5c1.95 0 3.73.72 5.12 1.88L13 16h9V7l-3.6 3.6z"
+                d="M15 14l5-5-5-5M20 9H9a5 5 0 0 0 0 10h3"
               />
             </svg>
           </button>
+          <div
+            style="height: 1px; background: rgba(148, 210, 216, 0.14); margin: 6px 0px; width: 28px;"
+          />
           <button
-            class="w-8 h-8 rounded bg-red-900/50 hover:bg-red-700/60 text-white/70 disabled:opacity-30 flex items-center justify-center"
             data-testid="delete-button"
             disabled=""
-            title="spriteEditor.deleteSelected"
+            style="all: unset; cursor: default; width: 34px; height: 34px; border-radius: 5px; display: inline-flex; align-items: center; justify-content: center; background: transparent; color: rgb(255, 139, 139); opacity: 0.3;"
+            title="Delete selected"
+            type="button"
           >
             <svg
-              fill="currentColor"
+              fill="none"
               height="16"
               stroke="currentColor"
-              stroke-width="0"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1.8"
               viewBox="0 0 24 24"
               width="16"
-              xmlns="http://www.w3.org/2000/svg"
             >
               <path
-                d="M0 0h24v24H0z"
-                fill="none"
-              />
-              <path
-                d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"
+                d="M4 7h16M9 7V5.5A2.5 2.5 0 0 1 11.5 3h1A2.5 2.5 0 0 1 15 5.5V7M6.5 7l.9 12.1A2.5 2.5 0 0 0 9.9 21.5h4.2a2.5 2.5 0 0 0 2.5-2.4L17.5 7"
               />
             </svg>
           </button>
         </div>
         <div
-          class="flex-1 flex justify-center"
+          data-testid="sprite-editor-content"
+          style="flex: 1 1 0%; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px; gap: 10px;"
         >
-          <div
-            class="rounded overflow-hidden border border-white/20"
-            style="width: 384px; height: 384px; background: rgb(255, 255, 255);"
-          >
+          <div>
             <div
-              data-testid="sprite-canvas"
-              height="384"
-              style="cursor: crosshair;"
-              tabindex="0"
-              width="384"
+              style="width: 384px; height: 384px; background: rgb(255, 255, 255); border-radius: 3px; box-shadow: 0 0 0 1px rgba(148,210,216,0.14), 0 24px 50px -22px rgba(0,0,0,0.30); overflow: hidden; cursor: crosshair;"
             >
-              <div>
-                <div />
-                <div
-                  points="184,192,200,192"
-                  stroke="#22d3ee"
-                  stroke-width="1"
-                />
-                <div
-                  points="192,184,192,200"
-                  stroke="#22d3ee"
-                  stroke-width="1"
-                />
-                <div
-                  fill="transparent"
-                  radius="3"
-                  stroke="#22d3ee"
-                  stroke-width="1"
-                  x="192"
-                  y="192"
-                />
+              <div
+                data-testid="sprite-canvas"
+                height="384"
+                tabindex="0"
+                width="384"
+              >
+                <div>
+                  <div />
+                  <div
+                    points="184,192,200,192"
+                    stroke="#22d3ee"
+                    stroke-width="1"
+                  />
+                  <div
+                    points="192,184,192,200"
+                    stroke="#22d3ee"
+                    stroke-width="1"
+                  />
+                  <div
+                    fill="transparent"
+                    radius="3"
+                    stroke="#22d3ee"
+                    stroke-width="1"
+                    x="192"
+                    y="192"
+                  />
+                </div>
               </div>
             </div>
+          </div>
+          <div
+            style="display: flex; align-items: center; gap: 16px; font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 11px; color: rgb(155, 179, 184);"
+          >
+            <span>
+              tool: 
+              <span
+                style="color: rgb(232, 242, 244); font-weight: 500;"
+              >
+                rect
+              </span>
+            </span>
+            <span>
+              x: 
+              <span
+                style="color: rgb(232, 242, 244);"
+              >
+                0
+              </span>
+            </span>
+            <span>
+              y: 
+              <span
+                style="color: rgb(232, 242, 244);"
+              >
+                0
+              </span>
+            </span>
+            <span>
+              scale: 
+              <span
+                style="color: rgb(232, 242, 244);"
+              >
+                3×
+              </span>
+            </span>
           </div>
         </div>
       </div>
       <div
-        class="flex items-center gap-3 mt-3"
+        style="display: flex; align-items: center; gap: 12px; padding: 10px 18px; background: rgba(255, 255, 255, 0.06); border-top: 1px solid rgba(148, 210, 216, 0.14);"
       >
         <div
-          class="relative"
+          style="position: relative;"
         >
           <button
-            class="flex items-center gap-2 px-3 py-1.5 rounded bg-white/10 hover:bg-white/20 text-white/80 text-xs"
             data-testid="fill-color-button"
+            style="all: unset; cursor: pointer; height: 30px; padding: 0px 12px; display: inline-flex; align-items: center; gap: 8px; background: transparent; border: 1px solid rgba(148, 210, 216, 0.14); border-radius: 5px; font-size: 12px; font-weight: 500; color: rgb(232, 242, 244); text-transform: uppercase; letter-spacing: 0.4px;"
+            type="button"
           >
-            <span
-              class="text-[10px]"
-            >
-              spriteEditor.fill
+            <span>
+              Fill
             </span>
             <span
-              class="w-5 h-5 rounded border border-white/30"
-              style="background-color: rgb(74, 222, 128);"
+              style="width: 18px; height: 18px; border-radius: 2px; background: rgb(74, 222, 128); box-shadow: inset 0 0 0 1px rgba(0,0,0,0.2);"
             />
           </button>
         </div>
         <div
-          class="relative"
+          style="position: relative;"
         >
           <button
-            class="flex items-center gap-2 px-3 py-1.5 rounded bg-white/10 hover:bg-white/20 text-white/80 text-xs"
             data-testid="stroke-color-button"
+            style="all: unset; cursor: pointer; height: 30px; padding: 0px 12px; display: inline-flex; align-items: center; gap: 8px; background: transparent; border: 1px solid rgba(148, 210, 216, 0.14); border-radius: 5px; font-size: 12px; font-weight: 500; color: rgb(232, 242, 244); text-transform: uppercase; letter-spacing: 0.4px;"
+            type="button"
           >
-            <span
-              class="text-[10px]"
-            >
-              spriteEditor.stroke
+            <span>
+              Stroke
             </span>
             <span
-              class="w-5 h-5 rounded border border-white/30"
-              style="background-color: rgb(30, 41, 59);"
+              style="width: 18px; height: 18px; border-radius: 2px; background: rgb(30, 41, 59); box-shadow: inset 0 0 0 1px rgba(0,0,0,0.2);"
             />
           </button>
         </div>
         <div
-          class="flex items-center gap-1"
+          style="width: 1px; height: 24px; background: rgba(148, 210, 216, 0.14);"
+        />
+        <span
+          style="font-size: 11.5px; color: rgb(155, 179, 184); text-transform: uppercase; letter-spacing: 0.6px;"
+        >
+          Width
+        </span>
+        <input
+          data-testid="stroke-width-input"
+          max="8"
+          min="0"
+          step="1"
+          style="width: 100px; accent-color: #f7b67a;"
+          type="range"
+          value="1"
+        />
+        <span
+          style="font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 12px; color: rgb(232, 242, 244); min-width: 24px; text-align: right;"
+        >
+          1px
+        </span>
+        <div
+          style="flex: 1 1 0%;"
+        />
+        <div
+          style="display: inline-flex; align-items: center; gap: 6px; padding: 0px 10px; height: 30px; background: rgb(17, 68, 75); border-radius: 5px; border: 1px solid rgba(148, 210, 216, 0.14);"
         >
           <span
-            class="text-[10px] text-white/60 mr-1"
+            style="font-size: 11px; color: rgb(155, 179, 184);"
           >
-            spriteEditor.stroke
+            name
           </span>
           <input
-            class="w-16 accent-cyan-500"
-            data-testid="stroke-width-input"
-            max="4"
-            min="0"
-            step="1"
-            type="range"
-            value="1"
+            data-testid="sprite-name-input"
+            style="all: unset; width: 80px; font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 12.5px; color: rgb(232, 242, 244);"
+            value="sprite"
           />
+          <span
+            style="font-size: 11px; color: rgb(155, 179, 184);"
+          >
+            .svg
+          </span>
         </div>
+        <button
+          data-testid="save-svg-button"
+          style="all: unset; cursor: pointer; padding: 7px 16px; background: rgb(126, 211, 164); color: rgb(6, 42, 38); border-radius: 5px; font-family: "Inter", system-ui, sans-serif; font-weight: 600; font-size: 12.5px; display: inline-flex; align-items: center; gap: 6px;"
+          type="button"
+        >
+          <svg
+            fill="none"
+            height="14"
+            stroke="currentColor"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="1.8"
+            viewBox="0 0 24 24"
+            width="14"
+          >
+            <path
+              d="M5 13l4 4L19 7"
+            />
+          </svg>
+          Save
+        </button>
       </div>
     </div>
   </div>
@@ -813,401 +917,452 @@ exports[`SpriteEditor - Snapshot Tests renders with custom size 128 1`] = `
 exports[`SpriteEditor - Snapshot Tests renders with default props 1`] = `
 <DocumentFragment>
   <div
-    aria-label="spriteEditor.title"
-    aria-modal="true"
-    class="fixed inset-0 z-50 flex items-center justify-center bg-black/70"
-    data-testid="sprite-editor-modal"
-    role="dialog"
+    style="position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.5);"
   >
     <div
-      class="bg-cyan-800 border border-cyan-600 rounded-xl shadow-2xl p-4 w-[480px]"
-      data-testid="sprite-editor-content"
+      data-testid="sprite-editor-modal"
+      style="background: rgb(17, 68, 75); border: 1px solid rgba(148, 210, 216, 0.14); border-radius: 8px; box-shadow: 0 30px 70px -20px rgba(0,0,0,0.6), 0 4px 18px rgba(0,0,0,0.3); width: 720px; max-width: 90vw; max-height: 90vh; display: flex; flex-direction: column; font-family: "Inter", system-ui, sans-serif; color: rgb(232, 242, 244);"
     >
       <div
-        class="flex items-center justify-between gap-4 mb-3"
-      >
-        <button
-          class="px-3 py-1.5 rounded text-xs bg-cyan-600 hover:bg-cyan-500 text-white font-medium"
-          data-testid="save-svg-button"
-        >
-          spriteEditor.save
-        </button>
-        <input
-          class="bg-transparent text-white font-mono text-sm border-b border-white/20 outline-none w-32"
-          data-testid="sprite-name-input"
-          placeholder="sideMenu.spriteNamePlaceholder"
-          value="sprite"
-        />
-        <button
-          aria-label="spriteEditor.close"
-          class="text-white/40 hover:text-white"
-          data-testid="close-button"
-        >
-          <svg
-            fill="currentColor"
-            height="20"
-            stroke="currentColor"
-            stroke-width="0"
-            viewBox="0 0 24 24"
-            width="20"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <path
-              d="M0 0h24v24H0z"
-              fill="none"
-            />
-            <path
-              d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
-            />
-          </svg>
-        </button>
-      </div>
-      <div
-        class="flex gap-3"
+        style="display: flex; align-items: center; gap: 12px; padding: 14px 18px; border-bottom: 1px solid rgba(148, 210, 216, 0.14);"
       >
         <div
-          class="flex flex-col gap-1"
+          style="flex: 1 1 0%; font-family: "Inter", system-ui, sans-serif; font-weight: 700; font-size: 15px; color: rgb(232, 242, 244);"
+        >
+          Sprite Editor
+        </div>
+        <div
+          style="display: flex; gap: 6px;"
         >
           <button
-            class="w-8 h-8 rounded text-base flex items-center justify-center transition-colors
-                  bg-white/10 hover:bg-white/20 text-white/70"
+            data-testid="close-button"
+            style="all: unset; cursor: pointer; width: 30px; height: 30px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; color: rgb(155, 179, 184);"
+            type="button"
+          >
+            <svg
+              fill="none"
+              height="16"
+              stroke="currentColor"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1.8"
+              viewBox="0 0 24 24"
+              width="16"
+            >
+              <path
+                d="M6 6l12 12M18 6L6 18"
+              />
+            </svg>
+          </button>
+        </div>
+      </div>
+      <div
+        style="display: flex; gap: 0; flex: 1 1 0%; min-height: 0;"
+      >
+        <div
+          style="width: 44px; flex: 0 0 auto; padding: 8px 4px; background: rgba(255, 255, 255, 0.06); border-right: 1px solid rgba(148, 210, 216, 0.14); display: flex; flex-direction: column; gap: 1px; align-items: center;"
+        >
+          <button
             data-testid="tool-select"
-            title="spriteEditor.select"
+            style="all: unset; cursor: pointer; width: 34px; height: 34px; border-radius: 5px; display: inline-flex; align-items: center; justify-content: center; background: transparent; color: rgb(232, 242, 244); transition: background 0.1s;"
+            title="Select"
+            type="button"
           >
             <svg
-              fill="currentColor"
-              height="18"
+              fill="none"
+              height="17"
               stroke="currentColor"
-              stroke-width="0"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1.8"
               viewBox="0 0 24 24"
-              width="18"
-              xmlns="http://www.w3.org/2000/svg"
+              width="17"
             >
               <path
-                d="M0 0h24v24H0z"
-                fill="none"
-              />
-              <path
-                d="M5 15h2V8.41L18.59 20 20 18.59 8.41 7H15V5H5v10z"
+                d="M5 4l14 6-6 2-2 6-6-14Z"
               />
             </svg>
           </button>
           <button
-            class="w-8 h-8 rounded text-base flex items-center justify-center transition-colors
-                  bg-cyan-600 text-white"
             data-testid="tool-rect"
-            title="spriteEditor.rectangle"
+            style="all: unset; cursor: pointer; width: 34px; height: 34px; border-radius: 5px; display: inline-flex; align-items: center; justify-content: center; background: rgb(247, 182, 122); color: rgb(255, 255, 255); transition: background 0.1s;"
+            title="Rectangle"
+            type="button"
           >
             <svg
-              fill="currentColor"
-              height="18"
+              fill="none"
+              height="17"
               stroke="currentColor"
-              stroke-width="0"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1.8"
               viewBox="0 0 24 24"
-              width="18"
-              xmlns="http://www.w3.org/2000/svg"
+              width="17"
             >
-              <path
-                d="M0 0h24v24H0z"
-                fill="none"
-              />
-              <path
-                d="M18 4H6c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 14H6V6h12v12z"
+              <rect
+                height="16"
+                width="16"
+                x="4"
+                y="4"
               />
             </svg>
           </button>
           <button
-            class="w-8 h-8 rounded text-base flex items-center justify-center transition-colors
-                  bg-white/10 hover:bg-white/20 text-white/70"
             data-testid="tool-ellipse"
-            title="spriteEditor.ellipse"
+            style="all: unset; cursor: pointer; width: 34px; height: 34px; border-radius: 5px; display: inline-flex; align-items: center; justify-content: center; background: transparent; color: rgb(232, 242, 244); transition: background 0.1s;"
+            title="Ellipse"
+            type="button"
           >
             <svg
-              fill="currentColor"
-              height="18"
+              fill="none"
+              height="17"
               stroke="currentColor"
-              stroke-width="0"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1.8"
               viewBox="0 0 24 24"
-              width="18"
-              xmlns="http://www.w3.org/2000/svg"
+              width="17"
             >
-              <path
-                d="M0 0h24v24H0z"
-                fill="none"
-              />
-              <path
-                d="M12 2C6.47 2 2 6.47 2 12s4.47 10 10 10 10-4.47 10-10S17.53 2 12 2z"
+              <circle
+                cx="12"
+                cy="12"
+                r="8"
               />
             </svg>
           </button>
           <button
-            class="w-8 h-8 rounded text-base flex items-center justify-center transition-colors
-                  bg-white/10 hover:bg-white/20 text-white/70"
             data-testid="tool-line"
-            title="spriteEditor.line"
+            style="all: unset; cursor: pointer; width: 34px; height: 34px; border-radius: 5px; display: inline-flex; align-items: center; justify-content: center; background: transparent; color: rgb(232, 242, 244); transition: background 0.1s;"
+            title="Line"
+            type="button"
           >
             <svg
-              fill="currentColor"
-              height="18"
+              fill="none"
+              height="17"
               stroke="currentColor"
-              stroke-width="0"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1.8"
               viewBox="0 0 24 24"
-              width="18"
-              xmlns="http://www.w3.org/2000/svg"
+              width="17"
             >
               <path
-                d="M0 0h24v24H0z"
-                fill="none"
-              />
-              <path
-                d="m22 7.43-1.41-1.41-4.03 4.53L9.5 4 2 11.51l1.5 1.5 6.14-6.15 5.59 5.18-1.73 1.95-4-4L2 17.5 3.5 19l6-6.01 4 4 3.19-3.59 3.9 3.61L22 15.6l-3.98-3.7z"
+                d="M5 19L19 5"
               />
             </svg>
           </button>
           <button
-            class="w-8 h-8 rounded text-base flex items-center justify-center transition-colors
-                  bg-white/10 hover:bg-white/20 text-white/70"
             data-testid="tool-freehand"
-            title="spriteEditor.pen"
+            style="all: unset; cursor: pointer; width: 34px; height: 34px; border-radius: 5px; display: inline-flex; align-items: center; justify-content: center; background: transparent; color: rgb(232, 242, 244); transition: background 0.1s;"
+            title="Pen"
+            type="button"
           >
             <svg
-              fill="currentColor"
-              height="18"
+              fill="none"
+              height="17"
               stroke="currentColor"
-              stroke-width="0"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1.8"
               viewBox="0 0 24 24"
-              width="18"
-              xmlns="http://www.w3.org/2000/svg"
+              width="17"
             >
               <path
-                d="M0 0h24v24H0z"
-                fill="none"
-              />
-              <path
-                d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a.996.996 0 0 0 0-1.41l-2.34-2.34a.996.996 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"
+                d="M3 21l3.5-1L20 6.5 17.5 4 4 17.5 3 21Z"
               />
             </svg>
           </button>
           <button
-            class="w-8 h-8 rounded text-base flex items-center justify-center transition-colors
-                  bg-white/10 hover:bg-white/20 text-white/70"
             data-testid="tool-polygon"
-            title="spriteEditor.polygon"
+            style="all: unset; cursor: pointer; width: 34px; height: 34px; border-radius: 5px; display: inline-flex; align-items: center; justify-content: center; background: transparent; color: rgb(232, 242, 244); transition: background 0.1s;"
+            title="Polygon"
+            type="button"
           >
             <svg
-              fill="currentColor"
-              height="18"
+              fill="none"
+              height="17"
               stroke="currentColor"
-              stroke-width="0"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1.8"
               viewBox="0 0 24 24"
-              width="18"
-              xmlns="http://www.w3.org/2000/svg"
+              width="17"
             >
               <path
-                d="M0 0h24v24H0z"
-                fill="none"
-              />
-              <path
-                d="M15 16v1.26l-6-3v-3.17L11.7 8H16V2h-6v4.9L7.3 10H3v6h5l7 3.5V22h6v-6z"
+                d="M12 3l9 6-3.5 11h-11L3 9l9-6Z"
               />
             </svg>
           </button>
           <button
-            class="w-8 h-8 rounded text-base flex items-center justify-center transition-colors
-                  bg-white/10 hover:bg-white/20 text-white/70"
             data-testid="tool-text"
-            title="spriteEditor.text"
+            style="all: unset; cursor: pointer; width: 34px; height: 34px; border-radius: 5px; display: inline-flex; align-items: center; justify-content: center; background: transparent; color: rgb(232, 242, 244); transition: background 0.1s;"
+            title="Text"
+            type="button"
           >
             <svg
-              fill="currentColor"
-              height="18"
+              fill="none"
+              height="17"
               stroke="currentColor"
-              stroke-width="0"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1.8"
               viewBox="0 0 24 24"
-              width="18"
-              xmlns="http://www.w3.org/2000/svg"
+              width="17"
             >
               <path
-                d="M0 0h24v24H0z"
-                fill="none"
-              />
-              <path
-                d="M2.5 4v3h5v12h3V7h5V4h-13zm19 5h-9v3h3v7h3v-7h3V9z"
+                d="M5 6V4h14v2M12 4v16M9 20h6"
               />
             </svg>
           </button>
           <div
-            class="w-full h-px bg-white/20 my-1"
+            style="height: 1px; background: rgba(148, 210, 216, 0.14); margin: 6px 0px; width: 28px;"
           />
           <button
-            class="w-8 h-8 rounded bg-white/10 hover:bg-white/20 text-white/70 disabled:opacity-30 flex items-center justify-center"
             data-testid="undo-button"
             disabled=""
-            title="spriteEditor.undo"
+            style="all: unset; cursor: default; width: 34px; height: 34px; border-radius: 5px; display: inline-flex; align-items: center; justify-content: center; background: transparent; color: rgb(232, 242, 244); opacity: 0.3;"
+            title="Undo"
+            type="button"
           >
             <svg
-              fill="currentColor"
+              fill="none"
               height="16"
               stroke="currentColor"
-              stroke-width="0"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1.8"
               viewBox="0 0 24 24"
               width="16"
-              xmlns="http://www.w3.org/2000/svg"
             >
               <path
-                d="M0 0h24v24H0z"
-                fill="none"
-              />
-              <path
-                d="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z"
+                d="M9 14L4 9l5-5M4 9h11a5 5 0 0 1 0 10h-3"
               />
             </svg>
           </button>
           <button
-            class="w-8 h-8 rounded bg-white/10 hover:bg-white/20 text-white/70 disabled:opacity-30 flex items-center justify-center"
             data-testid="redo-button"
             disabled=""
-            title="spriteEditor.redo"
+            style="all: unset; cursor: default; width: 34px; height: 34px; border-radius: 5px; display: inline-flex; align-items: center; justify-content: center; background: transparent; color: rgb(232, 242, 244); opacity: 0.3;"
+            title="Redo"
+            type="button"
           >
             <svg
-              fill="currentColor"
+              fill="none"
               height="16"
               stroke="currentColor"
-              stroke-width="0"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1.8"
               viewBox="0 0 24 24"
               width="16"
-              xmlns="http://www.w3.org/2000/svg"
             >
               <path
-                d="M0 0h24v24H0z"
-                fill="none"
-              />
-              <path
-                d="M18.4 10.6C16.55 8.99 14.15 8 11.5 8c-4.65 0-8.58 3.03-9.96 7.22L3.9 16a8.002 8.002 0 0 1 7.6-5.5c1.95 0 3.73.72 5.12 1.88L13 16h9V7l-3.6 3.6z"
+                d="M15 14l5-5-5-5M20 9H9a5 5 0 0 0 0 10h3"
               />
             </svg>
           </button>
+          <div
+            style="height: 1px; background: rgba(148, 210, 216, 0.14); margin: 6px 0px; width: 28px;"
+          />
           <button
-            class="w-8 h-8 rounded bg-red-900/50 hover:bg-red-700/60 text-white/70 disabled:opacity-30 flex items-center justify-center"
             data-testid="delete-button"
             disabled=""
-            title="spriteEditor.deleteSelected"
+            style="all: unset; cursor: default; width: 34px; height: 34px; border-radius: 5px; display: inline-flex; align-items: center; justify-content: center; background: transparent; color: rgb(255, 139, 139); opacity: 0.3;"
+            title="Delete selected"
+            type="button"
           >
             <svg
-              fill="currentColor"
+              fill="none"
               height="16"
               stroke="currentColor"
-              stroke-width="0"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1.8"
               viewBox="0 0 24 24"
               width="16"
-              xmlns="http://www.w3.org/2000/svg"
             >
               <path
-                d="M0 0h24v24H0z"
-                fill="none"
-              />
-              <path
-                d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"
+                d="M4 7h16M9 7V5.5A2.5 2.5 0 0 1 11.5 3h1A2.5 2.5 0 0 1 15 5.5V7M6.5 7l.9 12.1A2.5 2.5 0 0 0 9.9 21.5h4.2a2.5 2.5 0 0 0 2.5-2.4L17.5 7"
               />
             </svg>
           </button>
         </div>
         <div
-          class="flex-1 flex justify-center"
+          data-testid="sprite-editor-content"
+          style="flex: 1 1 0%; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px; gap: 10px;"
         >
-          <div
-            class="rounded overflow-hidden border border-white/20"
-            style="width: 320px; height: 320px; background: rgb(255, 255, 255);"
-          >
+          <div>
             <div
-              data-testid="sprite-canvas"
-              height="320"
-              style="cursor: crosshair;"
-              tabindex="0"
-              width="320"
+              style="width: 320px; height: 320px; background: rgb(255, 255, 255); border-radius: 3px; box-shadow: 0 0 0 1px rgba(148,210,216,0.14), 0 24px 50px -22px rgba(0,0,0,0.30); overflow: hidden; cursor: crosshair;"
             >
-              <div>
-                <div />
-                <div
-                  points="152,160,168,160"
-                  stroke="#22d3ee"
-                  stroke-width="1"
-                />
-                <div
-                  points="160,152,160,168"
-                  stroke="#22d3ee"
-                  stroke-width="1"
-                />
-                <div
-                  fill="transparent"
-                  radius="3"
-                  stroke="#22d3ee"
-                  stroke-width="1"
-                  x="160"
-                  y="160"
-                />
+              <div
+                data-testid="sprite-canvas"
+                height="320"
+                tabindex="0"
+                width="320"
+              >
+                <div>
+                  <div />
+                  <div
+                    points="152,160,168,160"
+                    stroke="#22d3ee"
+                    stroke-width="1"
+                  />
+                  <div
+                    points="160,152,160,168"
+                    stroke="#22d3ee"
+                    stroke-width="1"
+                  />
+                  <div
+                    fill="transparent"
+                    radius="3"
+                    stroke="#22d3ee"
+                    stroke-width="1"
+                    x="160"
+                    y="160"
+                  />
+                </div>
               </div>
             </div>
+          </div>
+          <div
+            style="display: flex; align-items: center; gap: 16px; font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 11px; color: rgb(155, 179, 184);"
+          >
+            <span>
+              tool: 
+              <span
+                style="color: rgb(232, 242, 244); font-weight: 500;"
+              >
+                rect
+              </span>
+            </span>
+            <span>
+              x: 
+              <span
+                style="color: rgb(232, 242, 244);"
+              >
+                0
+              </span>
+            </span>
+            <span>
+              y: 
+              <span
+                style="color: rgb(232, 242, 244);"
+              >
+                0
+              </span>
+            </span>
+            <span>
+              scale: 
+              <span
+                style="color: rgb(232, 242, 244);"
+              >
+                5×
+              </span>
+            </span>
           </div>
         </div>
       </div>
       <div
-        class="flex items-center gap-3 mt-3"
+        style="display: flex; align-items: center; gap: 12px; padding: 10px 18px; background: rgba(255, 255, 255, 0.06); border-top: 1px solid rgba(148, 210, 216, 0.14);"
       >
         <div
-          class="relative"
+          style="position: relative;"
         >
           <button
-            class="flex items-center gap-2 px-3 py-1.5 rounded bg-white/10 hover:bg-white/20 text-white/80 text-xs"
             data-testid="fill-color-button"
+            style="all: unset; cursor: pointer; height: 30px; padding: 0px 12px; display: inline-flex; align-items: center; gap: 8px; background: transparent; border: 1px solid rgba(148, 210, 216, 0.14); border-radius: 5px; font-size: 12px; font-weight: 500; color: rgb(232, 242, 244); text-transform: uppercase; letter-spacing: 0.4px;"
+            type="button"
           >
-            <span
-              class="text-[10px]"
-            >
-              spriteEditor.fill
+            <span>
+              Fill
             </span>
             <span
-              class="w-5 h-5 rounded border border-white/30"
-              style="background-color: rgb(74, 222, 128);"
+              style="width: 18px; height: 18px; border-radius: 2px; background: rgb(74, 222, 128); box-shadow: inset 0 0 0 1px rgba(0,0,0,0.2);"
             />
           </button>
         </div>
         <div
-          class="relative"
+          style="position: relative;"
         >
           <button
-            class="flex items-center gap-2 px-3 py-1.5 rounded bg-white/10 hover:bg-white/20 text-white/80 text-xs"
             data-testid="stroke-color-button"
+            style="all: unset; cursor: pointer; height: 30px; padding: 0px 12px; display: inline-flex; align-items: center; gap: 8px; background: transparent; border: 1px solid rgba(148, 210, 216, 0.14); border-radius: 5px; font-size: 12px; font-weight: 500; color: rgb(232, 242, 244); text-transform: uppercase; letter-spacing: 0.4px;"
+            type="button"
           >
-            <span
-              class="text-[10px]"
-            >
-              spriteEditor.stroke
+            <span>
+              Stroke
             </span>
             <span
-              class="w-5 h-5 rounded border border-white/30"
-              style="background-color: rgb(30, 41, 59);"
+              style="width: 18px; height: 18px; border-radius: 2px; background: rgb(30, 41, 59); box-shadow: inset 0 0 0 1px rgba(0,0,0,0.2);"
             />
           </button>
         </div>
         <div
-          class="flex items-center gap-1"
+          style="width: 1px; height: 24px; background: rgba(148, 210, 216, 0.14);"
+        />
+        <span
+          style="font-size: 11.5px; color: rgb(155, 179, 184); text-transform: uppercase; letter-spacing: 0.6px;"
+        >
+          Width
+        </span>
+        <input
+          data-testid="stroke-width-input"
+          max="8"
+          min="0"
+          step="1"
+          style="width: 100px; accent-color: #f7b67a;"
+          type="range"
+          value="1"
+        />
+        <span
+          style="font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 12px; color: rgb(232, 242, 244); min-width: 24px; text-align: right;"
+        >
+          1px
+        </span>
+        <div
+          style="flex: 1 1 0%;"
+        />
+        <div
+          style="display: inline-flex; align-items: center; gap: 6px; padding: 0px 10px; height: 30px; background: rgb(17, 68, 75); border-radius: 5px; border: 1px solid rgba(148, 210, 216, 0.14);"
         >
           <span
-            class="text-[10px] text-white/60 mr-1"
+            style="font-size: 11px; color: rgb(155, 179, 184);"
           >
-            spriteEditor.stroke
+            name
           </span>
           <input
-            class="w-16 accent-cyan-500"
-            data-testid="stroke-width-input"
-            max="4"
-            min="0"
-            step="1"
-            type="range"
-            value="1"
+            data-testid="sprite-name-input"
+            style="all: unset; width: 80px; font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 12.5px; color: rgb(232, 242, 244);"
+            value="sprite"
           />
+          <span
+            style="font-size: 11px; color: rgb(155, 179, 184);"
+          >
+            .svg
+          </span>
         </div>
+        <button
+          data-testid="save-svg-button"
+          style="all: unset; cursor: pointer; padding: 7px 16px; background: rgb(126, 211, 164); color: rgb(6, 42, 38); border-radius: 5px; font-family: "Inter", system-ui, sans-serif; font-weight: 600; font-size: 12.5px; display: inline-flex; align-items: center; gap: 6px;"
+          type="button"
+        >
+          <svg
+            fill="none"
+            height="14"
+            stroke="currentColor"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="1.8"
+            viewBox="0 0 24 24"
+            width="14"
+          >
+            <path
+              d="M5 13l4 4L19 7"
+            />
+          </svg>
+          Save
+        </button>
       </div>
     </div>
   </div>
@@ -1217,401 +1372,452 @@ exports[`SpriteEditor - Snapshot Tests renders with default props 1`] = `
 exports[`SpriteEditor - Snapshot Tests renders with initial name 1`] = `
 <DocumentFragment>
   <div
-    aria-label="spriteEditor.title"
-    aria-modal="true"
-    class="fixed inset-0 z-50 flex items-center justify-center bg-black/70"
-    data-testid="sprite-editor-modal"
-    role="dialog"
+    style="position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.5);"
   >
     <div
-      class="bg-cyan-800 border border-cyan-600 rounded-xl shadow-2xl p-4 w-[480px]"
-      data-testid="sprite-editor-content"
+      data-testid="sprite-editor-modal"
+      style="background: rgb(17, 68, 75); border: 1px solid rgba(148, 210, 216, 0.14); border-radius: 8px; box-shadow: 0 30px 70px -20px rgba(0,0,0,0.6), 0 4px 18px rgba(0,0,0,0.3); width: 720px; max-width: 90vw; max-height: 90vh; display: flex; flex-direction: column; font-family: "Inter", system-ui, sans-serif; color: rgb(232, 242, 244);"
     >
       <div
-        class="flex items-center justify-between gap-4 mb-3"
-      >
-        <button
-          class="px-3 py-1.5 rounded text-xs bg-cyan-600 hover:bg-cyan-500 text-white font-medium"
-          data-testid="save-svg-button"
-        >
-          spriteEditor.save
-        </button>
-        <input
-          class="bg-transparent text-white font-mono text-sm border-b border-white/20 outline-none w-32"
-          data-testid="sprite-name-input"
-          placeholder="sideMenu.spriteNamePlaceholder"
-          value="mySprite"
-        />
-        <button
-          aria-label="spriteEditor.close"
-          class="text-white/40 hover:text-white"
-          data-testid="close-button"
-        >
-          <svg
-            fill="currentColor"
-            height="20"
-            stroke="currentColor"
-            stroke-width="0"
-            viewBox="0 0 24 24"
-            width="20"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <path
-              d="M0 0h24v24H0z"
-              fill="none"
-            />
-            <path
-              d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
-            />
-          </svg>
-        </button>
-      </div>
-      <div
-        class="flex gap-3"
+        style="display: flex; align-items: center; gap: 12px; padding: 14px 18px; border-bottom: 1px solid rgba(148, 210, 216, 0.14);"
       >
         <div
-          class="flex flex-col gap-1"
+          style="flex: 1 1 0%; font-family: "Inter", system-ui, sans-serif; font-weight: 700; font-size: 15px; color: rgb(232, 242, 244);"
+        >
+          Sprite Editor
+        </div>
+        <div
+          style="display: flex; gap: 6px;"
         >
           <button
-            class="w-8 h-8 rounded text-base flex items-center justify-center transition-colors
-                  bg-white/10 hover:bg-white/20 text-white/70"
+            data-testid="close-button"
+            style="all: unset; cursor: pointer; width: 30px; height: 30px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; color: rgb(155, 179, 184);"
+            type="button"
+          >
+            <svg
+              fill="none"
+              height="16"
+              stroke="currentColor"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1.8"
+              viewBox="0 0 24 24"
+              width="16"
+            >
+              <path
+                d="M6 6l12 12M18 6L6 18"
+              />
+            </svg>
+          </button>
+        </div>
+      </div>
+      <div
+        style="display: flex; gap: 0; flex: 1 1 0%; min-height: 0;"
+      >
+        <div
+          style="width: 44px; flex: 0 0 auto; padding: 8px 4px; background: rgba(255, 255, 255, 0.06); border-right: 1px solid rgba(148, 210, 216, 0.14); display: flex; flex-direction: column; gap: 1px; align-items: center;"
+        >
+          <button
             data-testid="tool-select"
-            title="spriteEditor.select"
+            style="all: unset; cursor: pointer; width: 34px; height: 34px; border-radius: 5px; display: inline-flex; align-items: center; justify-content: center; background: transparent; color: rgb(232, 242, 244); transition: background 0.1s;"
+            title="Select"
+            type="button"
           >
             <svg
-              fill="currentColor"
-              height="18"
+              fill="none"
+              height="17"
               stroke="currentColor"
-              stroke-width="0"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1.8"
               viewBox="0 0 24 24"
-              width="18"
-              xmlns="http://www.w3.org/2000/svg"
+              width="17"
             >
               <path
-                d="M0 0h24v24H0z"
-                fill="none"
-              />
-              <path
-                d="M5 15h2V8.41L18.59 20 20 18.59 8.41 7H15V5H5v10z"
+                d="M5 4l14 6-6 2-2 6-6-14Z"
               />
             </svg>
           </button>
           <button
-            class="w-8 h-8 rounded text-base flex items-center justify-center transition-colors
-                  bg-cyan-600 text-white"
             data-testid="tool-rect"
-            title="spriteEditor.rectangle"
+            style="all: unset; cursor: pointer; width: 34px; height: 34px; border-radius: 5px; display: inline-flex; align-items: center; justify-content: center; background: rgb(247, 182, 122); color: rgb(255, 255, 255); transition: background 0.1s;"
+            title="Rectangle"
+            type="button"
           >
             <svg
-              fill="currentColor"
-              height="18"
+              fill="none"
+              height="17"
               stroke="currentColor"
-              stroke-width="0"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1.8"
               viewBox="0 0 24 24"
-              width="18"
-              xmlns="http://www.w3.org/2000/svg"
+              width="17"
             >
-              <path
-                d="M0 0h24v24H0z"
-                fill="none"
-              />
-              <path
-                d="M18 4H6c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 14H6V6h12v12z"
+              <rect
+                height="16"
+                width="16"
+                x="4"
+                y="4"
               />
             </svg>
           </button>
           <button
-            class="w-8 h-8 rounded text-base flex items-center justify-center transition-colors
-                  bg-white/10 hover:bg-white/20 text-white/70"
             data-testid="tool-ellipse"
-            title="spriteEditor.ellipse"
+            style="all: unset; cursor: pointer; width: 34px; height: 34px; border-radius: 5px; display: inline-flex; align-items: center; justify-content: center; background: transparent; color: rgb(232, 242, 244); transition: background 0.1s;"
+            title="Ellipse"
+            type="button"
           >
             <svg
-              fill="currentColor"
-              height="18"
+              fill="none"
+              height="17"
               stroke="currentColor"
-              stroke-width="0"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1.8"
               viewBox="0 0 24 24"
-              width="18"
-              xmlns="http://www.w3.org/2000/svg"
+              width="17"
             >
-              <path
-                d="M0 0h24v24H0z"
-                fill="none"
-              />
-              <path
-                d="M12 2C6.47 2 2 6.47 2 12s4.47 10 10 10 10-4.47 10-10S17.53 2 12 2z"
+              <circle
+                cx="12"
+                cy="12"
+                r="8"
               />
             </svg>
           </button>
           <button
-            class="w-8 h-8 rounded text-base flex items-center justify-center transition-colors
-                  bg-white/10 hover:bg-white/20 text-white/70"
             data-testid="tool-line"
-            title="spriteEditor.line"
+            style="all: unset; cursor: pointer; width: 34px; height: 34px; border-radius: 5px; display: inline-flex; align-items: center; justify-content: center; background: transparent; color: rgb(232, 242, 244); transition: background 0.1s;"
+            title="Line"
+            type="button"
           >
             <svg
-              fill="currentColor"
-              height="18"
+              fill="none"
+              height="17"
               stroke="currentColor"
-              stroke-width="0"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1.8"
               viewBox="0 0 24 24"
-              width="18"
-              xmlns="http://www.w3.org/2000/svg"
+              width="17"
             >
               <path
-                d="M0 0h24v24H0z"
-                fill="none"
-              />
-              <path
-                d="m22 7.43-1.41-1.41-4.03 4.53L9.5 4 2 11.51l1.5 1.5 6.14-6.15 5.59 5.18-1.73 1.95-4-4L2 17.5 3.5 19l6-6.01 4 4 3.19-3.59 3.9 3.61L22 15.6l-3.98-3.7z"
+                d="M5 19L19 5"
               />
             </svg>
           </button>
           <button
-            class="w-8 h-8 rounded text-base flex items-center justify-center transition-colors
-                  bg-white/10 hover:bg-white/20 text-white/70"
             data-testid="tool-freehand"
-            title="spriteEditor.pen"
+            style="all: unset; cursor: pointer; width: 34px; height: 34px; border-radius: 5px; display: inline-flex; align-items: center; justify-content: center; background: transparent; color: rgb(232, 242, 244); transition: background 0.1s;"
+            title="Pen"
+            type="button"
           >
             <svg
-              fill="currentColor"
-              height="18"
+              fill="none"
+              height="17"
               stroke="currentColor"
-              stroke-width="0"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1.8"
               viewBox="0 0 24 24"
-              width="18"
-              xmlns="http://www.w3.org/2000/svg"
+              width="17"
             >
               <path
-                d="M0 0h24v24H0z"
-                fill="none"
-              />
-              <path
-                d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a.996.996 0 0 0 0-1.41l-2.34-2.34a.996.996 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"
+                d="M3 21l3.5-1L20 6.5 17.5 4 4 17.5 3 21Z"
               />
             </svg>
           </button>
           <button
-            class="w-8 h-8 rounded text-base flex items-center justify-center transition-colors
-                  bg-white/10 hover:bg-white/20 text-white/70"
             data-testid="tool-polygon"
-            title="spriteEditor.polygon"
+            style="all: unset; cursor: pointer; width: 34px; height: 34px; border-radius: 5px; display: inline-flex; align-items: center; justify-content: center; background: transparent; color: rgb(232, 242, 244); transition: background 0.1s;"
+            title="Polygon"
+            type="button"
           >
             <svg
-              fill="currentColor"
-              height="18"
+              fill="none"
+              height="17"
               stroke="currentColor"
-              stroke-width="0"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1.8"
               viewBox="0 0 24 24"
-              width="18"
-              xmlns="http://www.w3.org/2000/svg"
+              width="17"
             >
               <path
-                d="M0 0h24v24H0z"
-                fill="none"
-              />
-              <path
-                d="M15 16v1.26l-6-3v-3.17L11.7 8H16V2h-6v4.9L7.3 10H3v6h5l7 3.5V22h6v-6z"
+                d="M12 3l9 6-3.5 11h-11L3 9l9-6Z"
               />
             </svg>
           </button>
           <button
-            class="w-8 h-8 rounded text-base flex items-center justify-center transition-colors
-                  bg-white/10 hover:bg-white/20 text-white/70"
             data-testid="tool-text"
-            title="spriteEditor.text"
+            style="all: unset; cursor: pointer; width: 34px; height: 34px; border-radius: 5px; display: inline-flex; align-items: center; justify-content: center; background: transparent; color: rgb(232, 242, 244); transition: background 0.1s;"
+            title="Text"
+            type="button"
           >
             <svg
-              fill="currentColor"
-              height="18"
+              fill="none"
+              height="17"
               stroke="currentColor"
-              stroke-width="0"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1.8"
               viewBox="0 0 24 24"
-              width="18"
-              xmlns="http://www.w3.org/2000/svg"
+              width="17"
             >
               <path
-                d="M0 0h24v24H0z"
-                fill="none"
-              />
-              <path
-                d="M2.5 4v3h5v12h3V7h5V4h-13zm19 5h-9v3h3v7h3v-7h3V9z"
+                d="M5 6V4h14v2M12 4v16M9 20h6"
               />
             </svg>
           </button>
           <div
-            class="w-full h-px bg-white/20 my-1"
+            style="height: 1px; background: rgba(148, 210, 216, 0.14); margin: 6px 0px; width: 28px;"
           />
           <button
-            class="w-8 h-8 rounded bg-white/10 hover:bg-white/20 text-white/70 disabled:opacity-30 flex items-center justify-center"
             data-testid="undo-button"
             disabled=""
-            title="spriteEditor.undo"
+            style="all: unset; cursor: default; width: 34px; height: 34px; border-radius: 5px; display: inline-flex; align-items: center; justify-content: center; background: transparent; color: rgb(232, 242, 244); opacity: 0.3;"
+            title="Undo"
+            type="button"
           >
             <svg
-              fill="currentColor"
+              fill="none"
               height="16"
               stroke="currentColor"
-              stroke-width="0"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1.8"
               viewBox="0 0 24 24"
               width="16"
-              xmlns="http://www.w3.org/2000/svg"
             >
               <path
-                d="M0 0h24v24H0z"
-                fill="none"
-              />
-              <path
-                d="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z"
+                d="M9 14L4 9l5-5M4 9h11a5 5 0 0 1 0 10h-3"
               />
             </svg>
           </button>
           <button
-            class="w-8 h-8 rounded bg-white/10 hover:bg-white/20 text-white/70 disabled:opacity-30 flex items-center justify-center"
             data-testid="redo-button"
             disabled=""
-            title="spriteEditor.redo"
+            style="all: unset; cursor: default; width: 34px; height: 34px; border-radius: 5px; display: inline-flex; align-items: center; justify-content: center; background: transparent; color: rgb(232, 242, 244); opacity: 0.3;"
+            title="Redo"
+            type="button"
           >
             <svg
-              fill="currentColor"
+              fill="none"
               height="16"
               stroke="currentColor"
-              stroke-width="0"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1.8"
               viewBox="0 0 24 24"
               width="16"
-              xmlns="http://www.w3.org/2000/svg"
             >
               <path
-                d="M0 0h24v24H0z"
-                fill="none"
-              />
-              <path
-                d="M18.4 10.6C16.55 8.99 14.15 8 11.5 8c-4.65 0-8.58 3.03-9.96 7.22L3.9 16a8.002 8.002 0 0 1 7.6-5.5c1.95 0 3.73.72 5.12 1.88L13 16h9V7l-3.6 3.6z"
+                d="M15 14l5-5-5-5M20 9H9a5 5 0 0 0 0 10h3"
               />
             </svg>
           </button>
+          <div
+            style="height: 1px; background: rgba(148, 210, 216, 0.14); margin: 6px 0px; width: 28px;"
+          />
           <button
-            class="w-8 h-8 rounded bg-red-900/50 hover:bg-red-700/60 text-white/70 disabled:opacity-30 flex items-center justify-center"
             data-testid="delete-button"
             disabled=""
-            title="spriteEditor.deleteSelected"
+            style="all: unset; cursor: default; width: 34px; height: 34px; border-radius: 5px; display: inline-flex; align-items: center; justify-content: center; background: transparent; color: rgb(255, 139, 139); opacity: 0.3;"
+            title="Delete selected"
+            type="button"
           >
             <svg
-              fill="currentColor"
+              fill="none"
               height="16"
               stroke="currentColor"
-              stroke-width="0"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1.8"
               viewBox="0 0 24 24"
               width="16"
-              xmlns="http://www.w3.org/2000/svg"
             >
               <path
-                d="M0 0h24v24H0z"
-                fill="none"
-              />
-              <path
-                d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"
+                d="M4 7h16M9 7V5.5A2.5 2.5 0 0 1 11.5 3h1A2.5 2.5 0 0 1 15 5.5V7M6.5 7l.9 12.1A2.5 2.5 0 0 0 9.9 21.5h4.2a2.5 2.5 0 0 0 2.5-2.4L17.5 7"
               />
             </svg>
           </button>
         </div>
         <div
-          class="flex-1 flex justify-center"
+          data-testid="sprite-editor-content"
+          style="flex: 1 1 0%; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px; gap: 10px;"
         >
-          <div
-            class="rounded overflow-hidden border border-white/20"
-            style="width: 320px; height: 320px; background: rgb(255, 255, 255);"
-          >
+          <div>
             <div
-              data-testid="sprite-canvas"
-              height="320"
-              style="cursor: crosshair;"
-              tabindex="0"
-              width="320"
+              style="width: 320px; height: 320px; background: rgb(255, 255, 255); border-radius: 3px; box-shadow: 0 0 0 1px rgba(148,210,216,0.14), 0 24px 50px -22px rgba(0,0,0,0.30); overflow: hidden; cursor: crosshair;"
             >
-              <div>
-                <div />
-                <div
-                  points="152,160,168,160"
-                  stroke="#22d3ee"
-                  stroke-width="1"
-                />
-                <div
-                  points="160,152,160,168"
-                  stroke="#22d3ee"
-                  stroke-width="1"
-                />
-                <div
-                  fill="transparent"
-                  radius="3"
-                  stroke="#22d3ee"
-                  stroke-width="1"
-                  x="160"
-                  y="160"
-                />
+              <div
+                data-testid="sprite-canvas"
+                height="320"
+                tabindex="0"
+                width="320"
+              >
+                <div>
+                  <div />
+                  <div
+                    points="152,160,168,160"
+                    stroke="#22d3ee"
+                    stroke-width="1"
+                  />
+                  <div
+                    points="160,152,160,168"
+                    stroke="#22d3ee"
+                    stroke-width="1"
+                  />
+                  <div
+                    fill="transparent"
+                    radius="3"
+                    stroke="#22d3ee"
+                    stroke-width="1"
+                    x="160"
+                    y="160"
+                  />
+                </div>
               </div>
             </div>
+          </div>
+          <div
+            style="display: flex; align-items: center; gap: 16px; font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 11px; color: rgb(155, 179, 184);"
+          >
+            <span>
+              tool: 
+              <span
+                style="color: rgb(232, 242, 244); font-weight: 500;"
+              >
+                rect
+              </span>
+            </span>
+            <span>
+              x: 
+              <span
+                style="color: rgb(232, 242, 244);"
+              >
+                0
+              </span>
+            </span>
+            <span>
+              y: 
+              <span
+                style="color: rgb(232, 242, 244);"
+              >
+                0
+              </span>
+            </span>
+            <span>
+              scale: 
+              <span
+                style="color: rgb(232, 242, 244);"
+              >
+                5×
+              </span>
+            </span>
           </div>
         </div>
       </div>
       <div
-        class="flex items-center gap-3 mt-3"
+        style="display: flex; align-items: center; gap: 12px; padding: 10px 18px; background: rgba(255, 255, 255, 0.06); border-top: 1px solid rgba(148, 210, 216, 0.14);"
       >
         <div
-          class="relative"
+          style="position: relative;"
         >
           <button
-            class="flex items-center gap-2 px-3 py-1.5 rounded bg-white/10 hover:bg-white/20 text-white/80 text-xs"
             data-testid="fill-color-button"
+            style="all: unset; cursor: pointer; height: 30px; padding: 0px 12px; display: inline-flex; align-items: center; gap: 8px; background: transparent; border: 1px solid rgba(148, 210, 216, 0.14); border-radius: 5px; font-size: 12px; font-weight: 500; color: rgb(232, 242, 244); text-transform: uppercase; letter-spacing: 0.4px;"
+            type="button"
           >
-            <span
-              class="text-[10px]"
-            >
-              spriteEditor.fill
+            <span>
+              Fill
             </span>
             <span
-              class="w-5 h-5 rounded border border-white/30"
-              style="background-color: rgb(74, 222, 128);"
+              style="width: 18px; height: 18px; border-radius: 2px; background: rgb(74, 222, 128); box-shadow: inset 0 0 0 1px rgba(0,0,0,0.2);"
             />
           </button>
         </div>
         <div
-          class="relative"
+          style="position: relative;"
         >
           <button
-            class="flex items-center gap-2 px-3 py-1.5 rounded bg-white/10 hover:bg-white/20 text-white/80 text-xs"
             data-testid="stroke-color-button"
+            style="all: unset; cursor: pointer; height: 30px; padding: 0px 12px; display: inline-flex; align-items: center; gap: 8px; background: transparent; border: 1px solid rgba(148, 210, 216, 0.14); border-radius: 5px; font-size: 12px; font-weight: 500; color: rgb(232, 242, 244); text-transform: uppercase; letter-spacing: 0.4px;"
+            type="button"
           >
-            <span
-              class="text-[10px]"
-            >
-              spriteEditor.stroke
+            <span>
+              Stroke
             </span>
             <span
-              class="w-5 h-5 rounded border border-white/30"
-              style="background-color: rgb(30, 41, 59);"
+              style="width: 18px; height: 18px; border-radius: 2px; background: rgb(30, 41, 59); box-shadow: inset 0 0 0 1px rgba(0,0,0,0.2);"
             />
           </button>
         </div>
         <div
-          class="flex items-center gap-1"
+          style="width: 1px; height: 24px; background: rgba(148, 210, 216, 0.14);"
+        />
+        <span
+          style="font-size: 11.5px; color: rgb(155, 179, 184); text-transform: uppercase; letter-spacing: 0.6px;"
+        >
+          Width
+        </span>
+        <input
+          data-testid="stroke-width-input"
+          max="8"
+          min="0"
+          step="1"
+          style="width: 100px; accent-color: #f7b67a;"
+          type="range"
+          value="1"
+        />
+        <span
+          style="font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 12px; color: rgb(232, 242, 244); min-width: 24px; text-align: right;"
+        >
+          1px
+        </span>
+        <div
+          style="flex: 1 1 0%;"
+        />
+        <div
+          style="display: inline-flex; align-items: center; gap: 6px; padding: 0px 10px; height: 30px; background: rgb(17, 68, 75); border-radius: 5px; border: 1px solid rgba(148, 210, 216, 0.14);"
         >
           <span
-            class="text-[10px] text-white/60 mr-1"
+            style="font-size: 11px; color: rgb(155, 179, 184);"
           >
-            spriteEditor.stroke
+            name
           </span>
           <input
-            class="w-16 accent-cyan-500"
-            data-testid="stroke-width-input"
-            max="4"
-            min="0"
-            step="1"
-            type="range"
-            value="1"
+            data-testid="sprite-name-input"
+            style="all: unset; width: 80px; font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 12.5px; color: rgb(232, 242, 244);"
+            value="mySprite"
           />
+          <span
+            style="font-size: 11px; color: rgb(155, 179, 184);"
+          >
+            .svg
+          </span>
         </div>
+        <button
+          data-testid="save-svg-button"
+          style="all: unset; cursor: pointer; padding: 7px 16px; background: rgb(126, 211, 164); color: rgb(6, 42, 38); border-radius: 5px; font-family: "Inter", system-ui, sans-serif; font-weight: 600; font-size: 12.5px; display: inline-flex; align-items: center; gap: 6px;"
+          type="button"
+        >
+          <svg
+            fill="none"
+            height="14"
+            stroke="currentColor"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="1.8"
+            viewBox="0 0 24 24"
+            width="14"
+          >
+            <path
+              d="M5 13l4 4L19 7"
+            />
+          </svg>
+          Save
+        </button>
       </div>
     </div>
   </div>

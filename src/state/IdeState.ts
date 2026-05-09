@@ -194,6 +194,7 @@ type IdeState = {
   userProjects: ApiProject[];
   loading: boolean;
   showHitboxes: boolean;
+  showConsoleOnRun: boolean;
   loadingProjectContent: boolean;
 
   setActivePanel: (panel: PanelId) => void;
@@ -208,6 +209,7 @@ type IdeState = {
   downloadProject: (id: string) => Promise<void>;
   importProjectFromFile: (file: File) => Promise<ApiProject>;
   setShowHitboxes: (show: boolean) => void;
+  setShowConsoleOnRun: (show: boolean) => void;
 };
 
 export const useIde = create<IdeState>((set, get) => ({
@@ -216,6 +218,7 @@ export const useIde = create<IdeState>((set, get) => ({
   userProjects: [],
   loading: false,
   showHitboxes: false,
+  showConsoleOnRun: false,
   loadingProjectContent: false,
 
   setActivePanel: (panel) => set({ activePanel: panel }),
@@ -223,6 +226,7 @@ export const useIde = create<IdeState>((set, get) => ({
     set((s) => ({ activePanel: panel === s.activePanel ? null : panel })),
   closePanels: () => set({ activePanel: null }),
   setShowHitboxes: (show: boolean) => set({ showHitboxes: show }),
+  setShowConsoleOnRun: (show: boolean) => set({ showConsoleOnRun: show }),
 
   loadUserProjects: async () => {
     set({ loading: true });

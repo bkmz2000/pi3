@@ -25,7 +25,7 @@ describe('SpriteEditor - Polygon Tool', () => {
     render(<SpriteEditor {...defaultProps} />);
     const polygonTool = screen.getByTestId('tool-polygon');
     fireEvent.click(polygonTool);
-    expect(polygonTool).toHaveClass('bg-cyan-600');
+    expect(polygonTool).toHaveStyle('background: rgb(247, 182, 122)');
   });
 
   test('canvas is rendered', () => {
@@ -49,20 +49,20 @@ describe('SpriteEditor - Polygon Tool', () => {
     render(<SpriteEditor {...defaultProps} />);
     const polygonTool = screen.getByTestId('tool-polygon');
     fireEvent.click(polygonTool);
-    expect(polygonTool).toHaveClass('bg-cyan-600', 'text-white');
+    expect(polygonTool).toHaveStyle('background: rgb(247, 182, 122)');
   });
 
   test('clicking another tool deselects polygon tool', () => {
     render(<SpriteEditor {...defaultProps} />);
     const polygonTool = screen.getByTestId('tool-polygon');
     const rectTool = screen.getByTestId('tool-rect');
-    
+
     fireEvent.click(polygonTool);
-    expect(polygonTool).toHaveClass('bg-cyan-600');
-    
+    expect(polygonTool).toHaveStyle('background: rgb(247, 182, 122)');
+
     fireEvent.click(rectTool);
-    expect(polygonTool).not.toHaveClass('bg-cyan-600');
-    expect(rectTool).toHaveClass('bg-cyan-600');
+    expect(polygonTool).not.toHaveStyle('background: rgb(247, 182, 122)');
+    expect(rectTool).toHaveStyle('background: rgb(247, 182, 122)');
   });
 
   test('fill color button exists and opens popover', () => {

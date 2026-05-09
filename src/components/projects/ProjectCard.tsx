@@ -2,7 +2,9 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Project } from '../../state/api';
 import { useProjects } from '../../hooks/useProjects';
+import { useThemeStore } from '../../state/useTheme';
 import { ShareDialog } from './ShareDialog';
+import { Icon } from '../Icons';
 
 interface ProjectCardProps {
   project: Project;
@@ -12,17 +14,17 @@ interface ProjectCardProps {
 
 export function ProjectCard({ project, onSelect, showManagement }: ProjectCardProps) {
   const { t } = useTranslation();
+  const theme = useThemeStore((s) => s.theme);
   const { removeProject } = useProjects();
   const [showShare, setShowShare] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
   const isOwner = project.role === 'owner';
   const roleLabel = project.role === 'owner' ? t('projects.roleOwner') : project.role === 'editor' ? t('projects.roleEditor') : t('projects.roleViewer');
-  const roleColor = project.role === 'owner' ? 'bg-purple-100 text-purple-700' : project.role === 'editor' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700';
+  const roleAccent = project.role === 'owner' ? theme.accent : project.role === 'editor' ? theme.runBg : theme.panelTxtMute;
 
   const handleDelete = async () => {
     if (!confirm(t('projects.confirmDelete', { name: project.name }))) return;
-
     setDeleting(true);
     try {
       await removeProject(project.id);
@@ -33,23 +35,48 @@ export function ProjectCard({ project, onSelect, showManagement }: ProjectCardPr
 
   return (
     <>
-      <div className="rounded-lg border border-cyan-200 bg-white p-4 shadow-sm w-full min-w-0">
-        <div className="mb-2 flex items-start justify-between">
-          <div>
-            <h3 className="font-medium text-cyan-900">{project.name}</h3>
+      <div style={{
+        background: theme.surfacePanel,
+        border: `1px solid ${theme.panelBorder}`,
+        borderRadius: 6,
+        padding: 16,
+      }}>
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 8 }}>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={{
+              fontWeight: 600, fontSize: 14, color: theme.panelTxt,
+              overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+            }}>
+              {project.name}
+            </div>
             {project.description && (
-              <p className="mt-1 text-sm text-gray-500">{project.description}</p>
+              <div style={{
+                marginTop: 4, fontSize: 12.5, color: theme.panelTxtMute,
+                overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+              }}>
+                {project.description}
+              </div>
             )}
           </div>
-          <span className={`rounded px-2 py-0.5 text-xs font-medium ${roleColor}`}>
+          <span style={{
+            padding: "2px 8px", borderRadius: 999,
+            fontSize: 11, fontWeight: 600, flex: "none", marginLeft: 8,
+            background: `${roleAccent}18`,
+            color: roleAccent,
+          }}>
             {roleLabel}
           </span>
         </div>
 
-        <div className="mt-4 flex items-center gap-2">
+        <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 12 }}>
           <button
             onClick={() => onSelect(project.id)}
-            className="rounded bg-cyan-500 px-3 py-1.5 text-sm text-white hover:bg-cyan-400"
+            style={{
+              all: "unset", cursor: "pointer",
+              padding: "6px 12px", borderRadius: 5,
+              background: theme.runBg, color: theme.runTxt,
+              fontFamily: theme.fontUI, fontSize: 12, fontWeight: 600,
+            }}
           >
             {t('projects.open')}
           </button>
@@ -58,15 +85,31 @@ export function ProjectCard({ project, onSelect, showManagement }: ProjectCardPr
             <>
               <button
                 onClick={() => setShowShare(true)}
-                className="rounded border border-cyan-300 px-3 py-1.5 text-sm text-cyan-700 hover:bg-cyan-50"
+                style={{
+                  all: "unset", cursor: "pointer",
+                  padding: "6px 12px", borderRadius: 5,
+                  border: `1px solid ${theme.panelBorder}`,
+                  color: theme.panelTxt,
+                  fontFamily: theme.fontUI, fontSize: 12, fontWeight: 500,
+                  display: "inline-flex", alignItems: "center", gap: 4,
+                }}
               >
+                <Icon name="export" size={12} color="currentColor" />
                 {t('projects.share')}
               </button>
               <button
                 onClick={handleDelete}
                 disabled={deleting}
-                className="rounded border border-red-300 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50"
+                style={{
+                  all: "unset", cursor: deleting ? "default" : "pointer",
+                  padding: "6px 12px", borderRadius: 5,
+                  border: `1px solid ${theme.stopBg}44`,
+                  color: theme.stopBg,
+                  fontFamily: theme.fontUI, fontSize: 12, fontWeight: 500,
+                  opacity: deleting ? 0.5 : 1,
+                }}
               >
+                <Icon name="trash" size={12} color="currentColor" />
                 {deleting ? t('projects.deleting') : t('projects.delete')}
               </button>
             </>

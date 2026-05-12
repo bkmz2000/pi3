@@ -31,15 +31,19 @@ export function closeDb(): void {
 export function initDb(): void {
   const database = getDb();
   const schemaPath = join(process.cwd(), 'server/db/migrations/001_initial.sql');
-  const sql = readFileSync(schemaPath, 'utf8');
-  database.exec(sql);
+  database.exec(readFileSync(schemaPath, 'utf8'));
+  const schema2Path = join(process.cwd(), 'server/db/migrations/002_teacher_dashboard.sql');
+  database.exec(readFileSync(schema2Path, 'utf8'));
 
   // Migrate existing databases that lack newer columns
   const migrations = [
     `ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'student' CHECK (role IN ('student', 'teacher'))`,
+    `ALTER TABLE users ADD COLUMN password_hash TEXT`,
     `ALTER TABLE projects ADD COLUMN files TEXT NOT NULL DEFAULT '{}'`,
     `ALTER TABLE projects ADD COLUMN assets TEXT NOT NULL DEFAULT '{}'`,
     `ALTER TABLE projects ADD COLUMN current_file TEXT NOT NULL DEFAULT 'main.py'`,
+    `ALTER TABLE users ADD COLUMN oauth_provider_id TEXT`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS idx_users_oauth_provider_id ON users(oauth_provider_id) WHERE oauth_provider_id IS NOT NULL`,
   ];
   for (const stmt of migrations) {
     try { database.exec(stmt); } catch { /* column already exists */ }
@@ -49,6 +53,10 @@ export function initDb(): void {
 export function resetDatabase(): void {
   const database = getDb();
   database.exec(`
+    DROP TABLE IF EXISTS help_requests;
+    DROP TABLE IF EXISTS comments;
+    DROP TABLE IF EXISTS group_members;
+    DROP TABLE IF EXISTS groups;
     DROP TABLE IF EXISTS project_shares;
     DROP TABLE IF EXISTS projects;
     DROP TABLE IF EXISTS users;

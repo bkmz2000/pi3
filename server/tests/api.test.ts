@@ -66,23 +66,50 @@ afterAll(() => {
 });
 
 describe('Users API', () => {
-  it('POST /api/users creates a new user', async () => {
+  it('POST /api/users/outsider creates a new user', async () => {
     const res = await request(app)
-      .post('/api/users')
-      .send({ name: 'Charlie' });
+      .post('/api/users/outsider')
+      .send({ name: 'Charlie', password: 'secret123' });
 
     expect(res.status).toBe(201);
     expect(res.body).toHaveProperty('id');
     expect(res.body.name).toBe('Charlie');
-    expect(res.body).toHaveProperty('api_token');
+    expect(res.body).not.toHaveProperty('api_token');
   });
 
-  it('POST /api/users rejects empty name', async () => {
+  it('POST /api/users/outsider rejects empty name', async () => {
     const res = await request(app)
-      .post('/api/users')
-      .send({ name: '' });
+      .post('/api/users/outsider')
+      .send({ name: '', password: 'secret123' });
 
     expect(res.status).toBe(400);
+  });
+
+  it('POST /api/users/outsider rejects missing password', async () => {
+    const res = await request(app)
+      .post('/api/users/outsider')
+      .send({ name: 'Dave' });
+
+    expect(res.status).toBe(400);
+  });
+
+  it('POST /api/users/outsider/login succeeds with correct credentials', async () => {
+    await request(app).post('/api/users/outsider').send({ name: 'Eve', password: 'pass1234' });
+    const res = await request(app)
+      .post('/api/users/outsider/login')
+      .send({ name: 'Eve', password: 'pass1234' });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty('id');
+  });
+
+  it('POST /api/users/outsider/login rejects wrong password', async () => {
+    await request(app).post('/api/users/outsider').send({ name: 'Frank', password: 'correct' });
+    const res = await request(app)
+      .post('/api/users/outsider/login')
+      .send({ name: 'Frank', password: 'wrong' });
+
+    expect(res.status).toBe(401);
   });
 
   it('GET /api/users/me returns current user', async () => {
@@ -261,7 +288,7 @@ describe('Sharing API', () => {
     const res = await request(app)
       .post(`/api/projects/${testProject.id}/share`)
       .set(authHeader(testUser1.api_token))
-      .send({ email: testUser2.name, role: 'editor' });
+      .send({ username: testUser2.name, role: 'editor' });
 
     expect(res.status).toBe(201);
     expect(res.body.role).toBe('editor');
@@ -302,7 +329,7 @@ describe('Sharing API', () => {
     const res = await request(app)
       .post(`/api/projects/${testProject.id}/share`)
       .set(authHeader(testUser2.api_token))
-      .send({ email: testUser2.name, role: 'viewer' });
+      .send({ username: testUser2.name, role: 'viewer' });
 
     expect(res.status).toBe(403);
   });

@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
+import bcrypt from 'bcryptjs';
 import { getDb } from '../db/index.js';
 import { authMiddleware } from '../middleware/auth.js';
 
@@ -10,57 +11,108 @@ interface User {
   api_token: string;
   name: string;
   role: string;
+  password_hash: string | null;
   created_at: number;
   updated_at: number;
 }
 
-router.post('/', (req: Request, res: Response): void => {
-  const { name, role } = req.body;
+// POST /api/users/outsider — create outsider account + start session
+router.post('/outsider', async (req: Request, res: Response): Promise<void> => {
+  const { name, password, role } = req.body;
 
   if (!name || typeof name !== 'string' || name.trim().length === 0) {
     res.status(400).json({ error: 'Bad Request', message: 'Name is required' });
     return;
   }
+  if (!password || typeof password !== 'string' || password.length < 4) {
+    res.status(400).json({ error: 'Bad Request', message: 'Password must be at least 4 characters' });
+    return;
+  }
 
   const userRole = role === 'teacher' ? 'teacher' : 'student';
   const db = getDb();
-  const now = Date.now();
 
+  const existing = db.prepare('SELECT id FROM users WHERE name = ?').get(name.trim());
+  if (existing) {
+    res.status(409).json({ error: 'Conflict', message: 'Username already taken' });
+    return;
+  }
+
+  const password_hash = await bcrypt.hash(password, 10);
+  const now = Date.now();
   const user: User = {
     id: uuidv4(),
     api_token: uuidv4().replace(/-/g, '') + uuidv4().replace(/-/g, ''),
     name: name.trim(),
     role: userRole,
+    password_hash,
     created_at: now,
     updated_at: now,
   };
 
   try {
     db.prepare(`
-      INSERT INTO users (id, api_token, name, role, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `).run(user.id, user.api_token, user.name, user.role, user.created_at, user.updated_at);
+      INSERT INTO users (id, api_token, name, role, password_hash, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(user.id, user.api_token, user.name, user.role, user.password_hash, user.created_at, user.updated_at);
+
+    if (req.session) req.session.userId = user.id;
 
     res.status(201).json({
       id: user.id,
       name: user.name,
       role: user.role,
-      api_token: user.api_token,
       created_at: user.created_at,
     });
   } catch (error: unknown) {
-    if (error && typeof error === 'object' && 'code' in error && error.code === 'SQLITE_CONSTRAINT') {
-      res.status(409).json({ error: 'Conflict', message: 'User already exists' });
-    } else {
-      console.error('Error creating user:', error);
-      res.status(500).json({ error: 'Internal Server Error', message: 'Failed to create user' });
-    }
+    console.error('Error creating user:', error);
+    res.status(500).json({ error: 'Internal Server Error', message: 'Failed to create user' });
   }
 });
 
+// POST /api/users/outsider/login — sign in with username/password + start session
+router.post('/outsider/login', async (req: Request, res: Response): Promise<void> => {
+  const { name, password } = req.body;
+
+  if (!name || typeof name !== 'string') {
+    res.status(400).json({ error: 'Bad Request', message: 'Name is required' });
+    return;
+  }
+  if (!password || typeof password !== 'string') {
+    res.status(400).json({ error: 'Bad Request', message: 'Password is required' });
+    return;
+  }
+
+  const db = getDb();
+  const user = db.prepare('SELECT * FROM users WHERE name = ?').get(name.trim()) as User | undefined;
+
+  if (!user || !user.password_hash) {
+    res.status(401).json({ error: 'Unauthorized', message: 'Invalid username or password' });
+    return;
+  }
+
+  const valid = await bcrypt.compare(password, user.password_hash);
+  if (!valid) {
+    res.status(401).json({ error: 'Unauthorized', message: 'Invalid username or password' });
+    return;
+  }
+
+  if (req.session) req.session.userId = user.id;
+
+  res.json({
+    id: user.id,
+    name: user.name,
+    role: user.role,
+    created_at: user.created_at,
+  });
+});
+
+// GET /api/users/me
 router.get('/me', authMiddleware, (req: Request, res: Response): void => {
   const db = getDb();
-  const user = db.prepare('SELECT id, name, role, created_at FROM users WHERE id = ?').get(req.user!.id) as Pick<User, 'id' | 'name' | 'role' | 'created_at'> | undefined;
+  const user = db
+    .prepare('SELECT id, name, role, created_at FROM users WHERE id = ?')
+    .get(req.user!.id) as Pick<User, 'id' | 'name' | 'role' | 'created_at'> | undefined;
 
   if (!user) {
     res.status(404).json({ error: 'Not Found', message: 'User not found' });

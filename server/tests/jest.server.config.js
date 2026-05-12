@@ -12,12 +12,7 @@ export default {
       'ts-jest',
       {
         useESM: true,
-        tsconfig: {
-          esModuleInterop: true,
-          strict: true,
-          module: 'ESNext',
-          moduleResolution: 'bundler',
-        },
+        tsconfig: 'tsconfig.server.json',
       },
     ],
   },

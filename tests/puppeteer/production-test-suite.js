@@ -129,10 +129,20 @@ async function clickRun(page) {
 
 async function isPanelVisible(page, panelText) {
   return page.evaluate((text) => {
-    const panels = document.querySelectorAll('aside[role="dialog"]');
-    for (const panel of panels) {
-      if (panel.textContent.includes(text)) {
-        return panel.classList.contains('translate-x-0');
+    // The panel is a div with style containing "position: absolute" and "width: 320px"
+    // It contains the panel title text and a Close button
+    const divs = document.querySelectorAll('div');
+    for (const div of divs) {
+      const style = div.getAttribute('style') || '';
+      if (style.includes('320px') && style.includes('position: absolute') && style.includes('left: 60px')) {
+        if (div.textContent?.includes(text)) {
+          // Panel is visible if it doesn't have display:none or visibility:hidden
+          const computedDisplay = window.getComputedStyle(div).display;
+          const computedVisibility = window.getComputedStyle(div).visibility;
+          // Also check if the header with title is visible
+          const headerDivs = div.querySelectorAll(':scope > div');
+          return computedDisplay !== 'none' && computedVisibility !== 'hidden';
+        }
       }
     }
     return false;
@@ -141,13 +151,18 @@ async function isPanelVisible(page, panelText) {
 
 async function closePanelByText(page, closeText) {
   const closeBtn = await page.evaluate((text) => {
-    const panels = document.querySelectorAll('aside[role="dialog"]');
-    for (const panel of panels) {
-      if (panel.textContent.includes(text)) {
-        const buttons = panel.querySelectorAll('button');
-        for (const btn of buttons) {
-          if (btn.textContent.trim() === 'Close') {
-            return btn;
+    // Find the panel div (same logic as isPanelVisible)
+    const divs = document.querySelectorAll('div');
+    for (const div of divs) {
+      const style = div.getAttribute('style') || '';
+      if (style.includes('320px') && style.includes('position: absolute') && style.includes('left: 60px')) {
+        if (div.textContent?.includes(text)) {
+          // Find close button inside the panel
+          const buttons = div.querySelectorAll('button');
+          for (const btn of buttons) {
+            if (btn.textContent?.trim() === 'Close') {
+              return btn;
+            }
           }
         }
       }

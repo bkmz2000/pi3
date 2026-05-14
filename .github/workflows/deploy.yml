@@ -80,16 +80,11 @@ jobs:
             # Login to GHCR
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u bkmz2000 --password-stdin
 
-            # Remove old container if exists
-            docker stop pi3 2>/dev/null || true
-            docker rm pi3 2>/dev/null || true
-
-            # Update docker-compose to use GHCR image and ensure db directory
-            sed -i 's|image: pi3:latest|image: ghcr.io/${{ github.repository_owner }}/pi3:latest|' docker-compose.yml 2>/dev/null || true
-
             # Create db directory if using docker run (not compose volumes)
             mkdir -p /app/pi3/db
 
+            # Pull latest image and restart
+            docker compose pull
             docker compose up -d
 
       - name: Deployment Summary

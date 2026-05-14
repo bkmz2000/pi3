@@ -74,18 +74,28 @@ async function initPyodide(
   
   console.log("Worker: Files written, running Python initialization...");
 
-  // Set up IDE callbacks on js object so Python's "from js import X" works
-  p.globals.set("js", {
-    _ide_post_output: (kind: "stdout" | "stderr", text: string) => {
+  // Set up IDE callbacks as individual globals AND on js object for Python compatibility
+  p.globals.set(
+    "_ide_post_output",
+    (kind: "stdout" | "stderr", text: string) => {
       post({ type: kind, text });
     },
-    _ide_post_input_request: (prompt: string) => {
-      post({ type: "input_request", prompt });
-    },
-    _ide_canvas_resize: (width: number, height: number) => {
-      post({ type: "canvas_resize", width, height });
-    },
+  );
+  p.globals.set("_ide_post_input_request", (prompt: string) => {
+    post({ type: "input_request", prompt });
   });
+  p.globals.set("_ide_canvas_resize", (width: number, height: number) => {
+    post({ type: "canvas_resize", width, height });
+  });
+
+  // Expose on actual js module for Python's "from js import X"
+  // We need to use runPython to properly set up the js module
+  await p.runPythonAsync(`
+import js
+js._ide_post_output = _ide_post_output
+js._ide_post_input_request = _ide_post_input_request
+js._ide_canvas_resize = _ide_canvas_resize
+  `);
 
   try {
     await p.runPythonAsync(`

@@ -4,10 +4,11 @@ import HelloWorld from "../assets/examples/hello_world/hello_world.py?raw";
 import Input from "../assets/examples/input/input.py?raw";
 import P5 from "../assets/examples/p5/p5.py?raw";
 import Snake from "../assets/examples/snake/snake.py?raw";
-import SnakeCfg from "../assets/examples/snake/snake_cfg.py?raw";
-import AppleCfg from "../assets/examples/snake/apple_cfg.py?raw";
 import Sokoban from "../assets/examples/sokoban/sokoban.py?raw";
 import Asteroids from "../assets/examples/asteroids/files/main.py?raw";
+import Catch from "../assets/examples/catch/catch.py?raw";
+import Robot from "../assets/examples/robot/robot.py?raw";
+import Swatches from "../assets/examples/swatches/swatches.py?raw";
 import ShipSvg from "../assets/examples/asteroids/assets/ship.svg?url";
 import BulletSvg from "../assets/examples/asteroids/assets/bullet.svg?url";
 import BigAsteroidSvg from "../assets/examples/asteroids/assets/big_asteroid.svg?url";
@@ -15,9 +16,9 @@ import SmallAsteroidSvg from "../assets/examples/asteroids/assets/small_asteroid
 import { PACK_ASSET_LIST } from "./assets";
 import { projectStorage } from "../utils/storage";
 import { importProjectFromFile as importZipFile } from "../utils/zip";
-import { getProjects, createProject as apiCreateProject, updateProject as apiUpdateProject, deleteProject as apiDeleteProject, saveProjectContent, getProject as apiGetProject, Project as ApiProject } from "./api";
+import { getProjects, createProject as apiCreateProject, updateProject as apiUpdateProject, deleteProject as apiDeleteProject, saveProjectContent, Project as ApiProject } from "./api";
 
-export type PanelId = "projects" | "assets" | "settings" | null;
+export type PanelId = "projects" | "assets" | "settings" | "docs" | null;
 
 export type Project = {
   name?: string;
@@ -40,11 +41,7 @@ const Examples: Record<string, Project> = {
   input: { files: { "input.py": Input }, assets: {} },
   p5: { files: { "p5.py": P5 }, assets: {} },
   snake: {
-    files: {
-      "snake.py": Snake,
-      "snake_cfg.py": SnakeCfg,
-      "apple_cfg.py": AppleCfg,
-    },
+    files: { "snake.py": Snake },
     assets: {},
   },
   sokoban: {
@@ -66,6 +63,18 @@ const Examples: Record<string, Project> = {
       "big_asteroid.svg": BigAsteroidSvg,
       "small_asteroid.svg": SmallAsteroidSvg,
     },
+  },
+  catch: {
+    files: { "catch.py": Catch },
+    assets: {},
+  },
+  robot: {
+    files: { "robot.py": Robot },
+    assets: {},
+  },
+  swatches: {
+    files: { "swatches.py": Swatches },
+    assets: {},
   },
 };
 
@@ -195,6 +204,7 @@ type IdeState = {
   loading: boolean;
   showHitboxes: boolean;
   showConsoleOnRun: boolean;
+  enableLinting: boolean;
   loadingProjectContent: boolean;
 
   setActivePanel: (panel: PanelId) => void;
@@ -210,6 +220,7 @@ type IdeState = {
   importProjectFromFile: (file: File) => Promise<ApiProject>;
   setShowHitboxes: (show: boolean) => void;
   setShowConsoleOnRun: (show: boolean) => void;
+  setEnableLinting: (enable: boolean) => void;
 };
 
 export const useIde = create<IdeState>((set, get) => ({
@@ -217,16 +228,27 @@ export const useIde = create<IdeState>((set, get) => ({
   projects: Examples,
   userProjects: [],
   loading: false,
-  showHitboxes: false,
-  showConsoleOnRun: false,
+  showHitboxes: localStorage.getItem("pi3_showHitboxes") === "true",
+  showConsoleOnRun: localStorage.getItem("pi3_showConsoleOnRun") === "true",
+  enableLinting: localStorage.getItem("pi3_enableLinting") !== "false",
   loadingProjectContent: false,
 
   setActivePanel: (panel) => set({ activePanel: panel }),
   togglePanel: (panel) =>
     set((s) => ({ activePanel: panel === s.activePanel ? null : panel })),
   closePanels: () => set({ activePanel: null }),
-  setShowHitboxes: (show: boolean) => set({ showHitboxes: show }),
-  setShowConsoleOnRun: (show: boolean) => set({ showConsoleOnRun: show }),
+  setShowHitboxes: (show: boolean) => {
+    localStorage.setItem("pi3_showHitboxes", String(show));
+    set({ showHitboxes: show });
+  },
+  setShowConsoleOnRun: (show: boolean) => {
+    localStorage.setItem("pi3_showConsoleOnRun", String(show));
+    set({ showConsoleOnRun: show });
+  },
+  setEnableLinting: (enable: boolean) => {
+    localStorage.setItem("pi3_enableLinting", String(enable));
+    set({ enableLinting: enable });
+  },
 
   loadUserProjects: async () => {
     set({ loading: true });

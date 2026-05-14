@@ -48,14 +48,13 @@ async function initPyodide(
   actors: string,
   graphicsInit: string,
   graphicsActors: string,
-  graphicsActorsConfig: string,
   linter: string,
 ) {
   console.log("Worker: Writing modules to filesystem...");
   p.FS.writeFile("/_shim_p5.py", shim);
   p.FS.writeFile("/transform.py", transform);
   p.FS.writeFile("/actors.py", actors);
-  
+
   // Write new graphics package
   try {
     p.FS.mkdir("/graphics");
@@ -69,7 +68,6 @@ async function initPyodide(
   }
   p.FS.writeFile("/graphics/__init__.py", graphicsInit);
   p.FS.writeFile("/graphics/actors/__init__.py", graphicsActors);
-  p.FS.writeFile("/graphics/actors/config.py", graphicsActorsConfig);
   
   // Write linter module
   p.FS.writeFile("/linter.py", linter);
@@ -84,6 +82,9 @@ async function initPyodide(
   );
   p.globals.set("_ide_post_input_request", (prompt: string) => {
     post({ type: "input_request", prompt });
+  });
+  p.globals.set("_ide_canvas_resize", (width: number, height: number) => {
+    post({ type: "canvas_resize", width, height });
   });
 
   try {
@@ -136,6 +137,7 @@ async function runGraphicsScript(
   assets: Record<string, ImageBitmap>,
   entry: string,
   showHitboxes: boolean = false,
+  themePalette?: Record<string, [number, number, number]>,
 ) {
   prepareFiles(p, files);
   
@@ -151,7 +153,16 @@ async function runGraphicsScript(
   const assetsEntries = Object.entries(assets);
   p.globals.set("_asset_bitmaps", assetsEntries);
   p.globals.set("_using_graphics", true);
-  
+
+  // Inject theme-aware color palette into Colors before running user code
+  if (themePalette && Object.keys(themePalette).length > 0) {
+    const paletteEntries = Object.entries(themePalette);
+    p.globals.set("_theme_palette", paletteEntries);
+    await p.runPythonAsync(
+      `import graphics; graphics.Colors._update_theme(dict(_theme_palette.to_py()))`
+    );
+  }
+
   await p.runPythonAsync(`
 def setup(f):
     return f
@@ -179,8 +190,11 @@ graphics._stop_requested = False
 graphics._loop_generation = graphics._loop_generation + 1
 graphics._every_handlers = {}
 graphics._key_handlers = {}
-graphics._mouse_handlers = []
-graphics._collision_handlers = []
+graphics._mouse_down = False
+graphics._mouse_clicked = False
+graphics._mouse_released = False
+graphics._keys_pressed = set()
+graphics._keys_released = set()
 graphics._frame_count = 0
   `);
 
@@ -202,13 +216,14 @@ async function runScript(
   assets: Record<string, ImageBitmap>,
   entry: string,
   showHitboxes: boolean = false,
+  themePalette?: Record<string, [number, number, number]>,
 ) {
   const code = files[entry] ?? "";
-  
+
   p.globals.set("_using_graphics", false);
 
   if (usesNewGraphics(code)) {
-    await runGraphicsScript(p, files, assets, entry, showHitboxes);
+    await runGraphicsScript(p, files, assets, entry, showHitboxes, themePalette);
     return;
   }
 
@@ -260,7 +275,7 @@ self.onmessage = async (e: MessageEvent<WorkerCommand>) => {
       console.log("Worker: Initializing Pyodide...");
       const p = await ensurePyodide();
       console.log("Worker: Pyodide loaded, initializing modules...");
-      await initPyodide(p, msg.shim, msg.transform, msg.actors, msg.graphicsInit, msg.graphicsActors, msg.graphicsActorsConfig, msg.linter);
+      await initPyodide(p, msg.shim, msg.transform, msg.actors, msg.graphicsInit, msg.graphicsActors, msg.linter);
       console.log("Worker: Initialization complete, posting ready");
       post({ type: "ready" });
     } catch (err: unknown) {
@@ -274,7 +289,7 @@ self.onmessage = async (e: MessageEvent<WorkerCommand>) => {
   } else if (msg.cmd === "run") {
     try {
       const p = await ensurePyodide();
-      await runScript(p, msg.files, msg.assets, msg.entry, msg.showHitboxes);
+      await runScript(p, msg.files, msg.assets, msg.entry, msg.showHitboxes, msg.themePalette);
     } catch (err: unknown) {
       post({ type: "error", error: String(err) });
       post({ type: "result" });
@@ -329,96 +344,19 @@ self.onmessage = async (e: MessageEvent<WorkerCommand>) => {
       const pyodideGlobals = pyodide.globals;
       pyodideGlobals.set("_lint_code", msg.code);
       pyodideGlobals.set("_lint_filename", msg.filename || "main.py");
-      
-      // Use our custom linter for style checks, mypy for type checking
-      const result = await pyodide.runPythonAsync(`
-import sys
-sys.path.insert(0, "/")
 
-async def ensure_mypy():
-    try:
-        import mypy.api
-        return mypy.api
-    except ImportError:
-        import micropip
-        await micropip.install("mypy")
-        import mypy.api
-        return mypy.api
+      const result = await pyodide.runPythonAsync(
+        `import linter; linter.lint(_lint_code, _lint_filename)`
+      );
 
-# Write code to temp file for mypy
-with open("/_lint_code.py", "w") as f:
-    f.write(_lint_code)
-
-mypy = await ensure_mypy()
-
-# Run mypy with text output (easier to parse than JSON)
-# --follow-imports=skip to avoid errors on graphics module
-# --ignore-missing-imports to suppress Import errors
-exit_code, stdout, stderr = mypy.api.run([
-    "/_lint_code.py",
-    "--no-error-summary",
-    "--show-error-codes",
-    "--follow-imports=skip",
-    "--ignore-missing-imports",
-])
-
-diagnostics = []
-
-# mypy outputs format: "file:line:col: error: msg [code]"
-import re
-pattern = r'([^:]+):(\\d+):(\\d+): (\\w+): (.+?)(?: \\[(\\w+)\\])?$'
-
-for line in stdout.split('\\n'):
-    if not line.strip():
-        continue
-    match = re.match(pattern, line.strip())
-    if match:
-        filename, line_num, col, severity, message, code = match.groups()
-        
-        # Map mypy codes to our codes
-        our_code = "E999"  # default
-        if code:
-            if code == "attr-defined" or code == "no-redef":
-                our_code = "F821"  # undefined name
-            elif code == "arg-type" or code == "call-overload":
-                our_code = "E225"  # type mismatch
-            elif code == "misc":
-                our_code = "E999"
-        
-        # Extract meaningful message for translation
-        if "Unsupported" in message:
-            our_code = "E225"
-        
-        diagnostics.append({
-            "code": our_code,
-            "messageKey": f"linter.{our_code}",
-            "messageArgs": {"raw": message},
-            "row": int(line_num) - 1,
-            "column": int(col),
-            "endRow": int(line_num) - 1,
-            "endColumn": int(col) + len(message.split()[0]) if message.split() else int(col) + 1,
-            "severity": "error",
-        })
-
-diagnostics
-`);
-      
       const diagnostics: LintDiagnostic[] = result.toJs({ dict_converter: Object.fromEntries });
-      
+
       pyodideGlobals.delete("_lint_code");
       pyodideGlobals.delete("_lint_filename");
-      
+
       post({ type: "lint", diagnostics });
     } catch (err) {
-      console.error("Worker: Lint error:", err);
-      try {
-        const errorInfo = await pyodide.runPythonAsync(
-          `import traceback; traceback.format_exc()`
-        );
-        console.error("Worker: Python traceback:", String(errorInfo));
-      } catch {
-        // ignore
-      }
+      console.warn("Worker: Lint skipped —", err);
       post({ type: "lint", diagnostics: [] });
     }
   }

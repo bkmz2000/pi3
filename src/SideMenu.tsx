@@ -1,4 +1,4 @@
-import { useEffect, useState, lazy, Suspense, useCallback } from "react";
+import { useEffect, useState, lazy, Suspense } from "react";
 import { useTranslation } from "react-i18next";
 import { PACK_ASSET_LIST } from "./state/assets";
 import { useIde, useEditor } from "./state/IdeState";
@@ -8,6 +8,8 @@ import { useProjects } from "./hooks/useProjects";
 import { useAutoSave } from "./hooks/useAutoSave";
 import { usePanels } from "./hooks/usePanels";
 import { useThemeStore, type Theme, type ThemeId } from "./state/useTheme";
+import { useUser } from "./state/useUser";
+import { getProject } from "./state/api";
 import Backdrop from "./components/Backdrop";
 import NewProjectDialog from "./components/dialogs/NewProjectDialog";
 import ImportDialog from "./components/dialogs/ImportDialog";
@@ -17,6 +19,7 @@ import {
 } from "./components/Icons";
 
 const SpriteEditor = lazy(() => import("./SpriteEditor"));
+const DocsPanel = lazy(() => import("./components/DocsPanel"));
 
 // ── Logo ───────────────────────────────────
 function Pi3Logo({ color }: { color: string }) {
@@ -124,6 +127,7 @@ export default function Rail() {
     url: string;
   } | null>(null);
 
+  const { user } = useUser();
   const { ready } = useRunner();
   const { running, isP5, handleRunToggle } = useRunButton();
   const {
@@ -160,12 +164,14 @@ export default function Rail() {
       markClean();
     }
 
+    // Fetch full project data — the list endpoint doesn't include files/assets
+    const full = await getProject(userProject.id);
     changeEditorCurrentProject(
       {
-        files: userProject.files,
-        assets: userProject.assets,
+        files: full.files,
+        assets: full.assets,
       },
-      userProject.id,
+      full.id,
     );
   };
 
@@ -284,6 +290,30 @@ export default function Rail() {
 
         <div style={{ flex: 1 }} />
 
+        {user?.role === 'teacher' && (
+          <a
+            href="/teacher"
+            title={t('teacher.navLabel')}
+            aria-label={t('teacher.navLabel')}
+            style={{
+              display: "flex", alignItems: "center", justifyContent: "center",
+              width: 44, height: 44, borderRadius: theme.radiusButton,
+              color: theme.railIcon,
+              textDecoration: "none",
+            }}
+          >
+            <Icon name="users" size={21} color="currentColor" />
+          </a>
+        )}
+
+        <RailButton
+          icon="book"
+          label={t('sideMenu.docs')}
+          active={isOpen("docs")}
+          onClick={() => togglePanel("docs")}
+          theme={theme}
+        />
+
         <RailButton
           icon="settings"
           label={t('sideMenu.settings')}
@@ -313,7 +343,6 @@ export default function Rail() {
           {activePanel === "projects" && (
             <ProjectsPanel
               theme={theme}
-              lang={i18n.language}
               projects={projects}
               userProjects={userProjects}
               loading={loading}
@@ -332,25 +361,31 @@ export default function Rail() {
           {activePanel === "assets" && (
             <AssetsPanel
               theme={theme}
-              lang={i18n.language}
               assets={sortedAssets}
               selectedAssets={projectAssets}
               onToggleAsset={toggleAsset}
-              onNewSprite={() => setEditorOpen(true)}
+              onNewSprite={() => { setEditingAsset(null); setEditorOpen(true); }}
               onEditAsset={(name, url) => {
                 setEditingAsset({ name, url });
                 setEditorOpen(true);
               }}
-              onRemoveAsset={toggleAsset}
               onClose={closePanels}
             />
           )}
           {activePanel === "settings" && (
             <SettingsPanel
               theme={theme}
-              lang={i18n.language}
               onClose={closePanels}
             />
+          )}
+          {activePanel === "docs" && (
+            <Suspense fallback={null}>
+              <DocsPanel
+                theme={theme}
+                lang={i18n.language}
+                onClose={closePanels}
+              />
+            </Suspense>
           )}
         </div>
       )}
@@ -493,7 +528,6 @@ function SectionLabel({
 // ── Projects Panel ─────────────────────────
 type ProjectsPanelProps = {
   theme: Theme;
-  lang: string;
   projects: Record<string, { files: Record<string, string>; assets: Record<string, string> }>;
   userProjects: { id: string; name: string; files: Record<string, string>; assets: Record<string, string> }[];
   loading: boolean;
@@ -511,14 +545,12 @@ type ProjectsPanelProps = {
 
 function ProjectsPanel({
   theme,
-  lang,
   projects,
   userProjects,
   loading,
   currentProjectId,
   dirtyFiles,
   onOpenExample,
-  onForkExample,
   onOpenUserProject,
   onDeleteProject,
   onExportProject,
@@ -543,7 +575,6 @@ function ProjectsPanel({
               theme={theme}
               current={!currentProjectId && true}
               onClick={() => onOpenExample(name)}
-              onFork={() => onForkExample(name)}
             />
           ))}
         </div>
@@ -620,14 +651,12 @@ function ExampleRow({
   theme,
   current,
   onClick,
-  onFork,
 }: {
   name: string;
   icon: IconName;
   theme: Theme;
   current?: boolean;
   onClick: () => void;
-  onFork: () => void;
 }) {
   const [hover, setHover] = useState(false);
   return (
@@ -774,11 +803,12 @@ function ProjectRow({
           color: theme.panelTxtMute,
         }}
       >
-        <button
-          type="button"
+        <span
+          role="button"
+          tabIndex={0}
           onClick={(e) => { e.stopPropagation(); onExport(); }}
+          onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); onExport(); } }}
           style={{
-            all: "unset",
             cursor: "pointer",
             width: 28,
             height: 28,
@@ -786,15 +816,17 @@ function ProjectRow({
             display: "inline-flex",
             alignItems: "center",
             justifyContent: "center",
+            color: "inherit",
           }}
         >
           <Icon name="export" size={16} color="currentColor" />
-        </button>
-        <button
-          type="button"
+        </span>
+        <span
+          role="button"
+          tabIndex={0}
           onClick={(e) => { e.stopPropagation(); onDelete(); }}
+          onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); onDelete(); } }}
           style={{
-            all: "unset",
             cursor: "pointer",
             width: 28,
             height: 28,
@@ -802,10 +834,11 @@ function ProjectRow({
             display: "inline-flex",
             alignItems: "center",
             justifyContent: "center",
+            color: "inherit",
           }}
         >
           <Icon name="trash" size={16} color="currentColor" />
-        </button>
+        </span>
       </span>
     </button>
   );
@@ -922,25 +955,21 @@ function SpriteTile({
 
 type AssetsPanelProps = {
   theme: Theme;
-  lang: string;
   assets: { name: string; url: string }[];
   selectedAssets: Record<string, string>;
   onToggleAsset: (name: string, url: string) => void;
   onNewSprite: () => void;
   onEditAsset: (name: string, url: string) => void;
-  onRemoveAsset: (name: string, url: string) => void;
   onClose: () => void;
 };
 
 function AssetsPanel({
   theme,
-  lang,
   assets,
   selectedAssets,
   onToggleAsset,
   onNewSprite,
   onEditAsset,
-  onRemoveAsset,
   onClose,
 }: AssetsPanelProps) {
   const { t } = useTranslation();
@@ -1128,11 +1157,9 @@ function ToggleRow({
 
 function SettingsPanel({
   theme,
-  lang,
   onClose,
 }: {
   theme: Theme;
-  lang: string;
   onClose: () => void;
 }) {
   const { t } = useTranslation();
@@ -1140,6 +1167,8 @@ function SettingsPanel({
   const setShowHitboxes = useIde((s) => s.setShowHitboxes);
   const showConsoleOnRun = useIde((s) => s.showConsoleOnRun);
   const setShowConsoleOnRun = useIde((s) => s.setShowConsoleOnRun);
+  const enableLinting = useIde((s) => s.enableLinting);
+  const setEnableLinting = useIde((s) => s.setEnableLinting);
   const themeId = useThemeStore((s) => s.themeId);
   const setTheme = useThemeStore((s) => s.setTheme);
   const fontSize = useThemeStore((s) => s.fontSize);
@@ -1213,6 +1242,19 @@ function SettingsPanel({
           theme={theme}
           accent={theme.accent}
           onChange={(v) => setShowConsoleOnRun(v)}
+        />
+
+        <div style={{ height: 4 }} />
+
+        {/* Linting */}
+        <SectionLabel theme={theme}>Linting</SectionLabel>
+        <ToggleRow
+          label={t('sideMenu.enableLinting') ?? "Check for errors"}
+          hint={t('sideMenu.enableLintingHint') ?? "Show errors before running"}
+          on={enableLinting}
+          theme={theme}
+          accent={theme.accent}
+          onChange={(v) => setEnableLinting(v)}
         />
 
         <div style={{ height: 4 }} />

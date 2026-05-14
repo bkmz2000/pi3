@@ -1,20 +1,24 @@
 import graphics as g
-from graphics.actors import Actor
+from graphics.actors import Circle
 
 
-class Ball(Actor):
-    radius = 15
-
-    @setup
+class Ball(Circle):
     def init(self):
-        self.set_coords(100, 100)
+        self.vy = 4
 
-    def draw(self):
-        x, y = self.get_coords()
-        g.circle(x, y, self.radius * 2)
+    def bounce(self):
+        if self.y > g.height() - self.radius or self.y < self.radius:
+            self.vy = -self.vy
 
 
-ball = Ball()
+ball = Ball(x=200, y=100, radius=20, color=g.Colors.cyan)
+
+
+def tick():
+    g.background("black")
+    ball.bounce()
+    ball.draw()
+
 
 g.size(400, 400)
-g.run()
+g.run(tick, fps=60)

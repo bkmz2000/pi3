@@ -16,6 +16,7 @@ export function useRunButton(options: UseRunButtonOptions = {}) {
   const markClean = useEditor((s) => s.markClean);
 
   const saveCurrentProject = useIde((s) => s.saveCurrentProject);
+  const enableLinting = useIde((s) => s.enableLinting);
 
   const { running, isP5, run, interrupt, lint, clear, _appendOutput } = useRunner();
 
@@ -43,22 +44,24 @@ export function useRunButton(options: UseRunButtonOptions = {}) {
       }
       
       clear();  // Clear previous output
-      _appendOutput("stdout", t('console.checking'));
-      const diagnostics: LintDiagnostic[] = await lint(code, filename);
+      if (enableLinting) {
+        _appendOutput("stdout", t('console.checking'));
+        const diagnostics: LintDiagnostic[] = await lint(code, filename);
 
-      if (diagnostics.length > 0) {
-        _appendOutput("stderr", t('console.syntaxError', { count: diagnostics.length }));
-        // Diagnostics are already displayed by RunnerProvider's message handler
-        return;
+        if (diagnostics.length > 0) {
+          _appendOutput("stderr", t('console.syntaxError', { count: diagnostics.length }));
+          // Diagnostics are already displayed by RunnerProvider's message handler
+          return;
+        }
+
+        _appendOutput("stdout", t('console.noErrors'));
       }
-
-      _appendOutput("stdout", t('console.noErrors'));
       options.onBeforeRun?.();
       run(project.files, project.assets, currentFile);
     } finally {
       isStartingRef.current = false;
     }
-  }, [running, isP5, project, currentFile, dirtyFiles, lint, clear, _appendOutput, run, interrupt, saveCurrentProject, markClean, options, t]);
+  }, [running, isP5, project, currentFile, dirtyFiles, lint, clear, _appendOutput, run, interrupt, saveCurrentProject, markClean, options, t, enableLinting]);
 
   return {
     running,

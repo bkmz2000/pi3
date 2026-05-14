@@ -2,13 +2,13 @@ import { useCallback, useEffect } from "react";
 import { create } from "zustand";
 import { WorkerCommand, WorkerEvent, WorkerEventType, LintDiagnostic } from "./WorkerInterface";
 import { useIde } from "../state/IdeState";
+import { useThemeStore } from "../state/useTheme";
 import i18n from "../i18n";
 import Shim from "../assets/examples/shim.py?raw";
 import Transform from "../assets/examples/transform.py?raw";
 import Actors from "../assets/examples/actors.py?raw";
 import GraphicsInit from "../assets/python/graphics/__init__.py?raw";
 import GraphicsActors from "../assets/python/graphics/actors/__init__.py?raw";
-import GraphicsActorsConfig from "../assets/python/graphics/actors/config.py?raw";
 import Linter from "../assets/python/linter.py?raw";
 
 type OutputLine = {
@@ -23,6 +23,9 @@ type RunnerState = {
   inputPrompt: string | null;
   isP5: boolean;
   canvasActive: boolean;
+  canvasWidth: number;
+  canvasHeight: number;
+  canvasScale: number;
   lintErrors: LintDiagnostic[];
 
   _onMessage: (msg: WorkerEvent) => void;
@@ -41,6 +44,9 @@ export const useRunnerStore = create<RunnerState>((set) => ({
   inputPrompt: null,
   isP5: false,
   canvasActive: false,
+  canvasWidth: 0,
+  canvasHeight: 0,
+  canvasScale: 1,
   lintErrors: [],
 
   _appendOutput: (kind, text) =>
@@ -89,6 +95,11 @@ export const useRunnerStore = create<RunnerState>((set) => ({
         });
         break;
       }
+      case "canvas_resize": {
+        // Use native pixel dimensions — no scaling, no aliasing
+        set({ canvasWidth: msg.width, canvasHeight: msg.height, canvasScale: 1 });
+        break;
+      }
       case "lint": {
         set({ lintErrors: msg.diagnostics });
         for (const d of msg.diagnostics) {
@@ -106,7 +117,7 @@ export const useRunnerStore = create<RunnerState>((set) => ({
 
   setRunning: (running) => set({ running }),
   clear: () =>
-    set({ output: [], inputPrompt: null, isP5: false, running: false, canvasActive: false, lintErrors: [] }),
+    set({ output: [], inputPrompt: null, isP5: false, running: false, canvasActive: false, lintErrors: [], canvasWidth: 0, canvasHeight: 0, canvasScale: 1 }),
   stop: () =>
     set({ inputPrompt: null, isP5: false, running: false, canvasActive: false }),
 
@@ -200,7 +211,6 @@ function getWorker(): Worker {
     actors: Actors,
     graphicsInit: GraphicsInit,
     graphicsActors: GraphicsActors,
-    graphicsActorsConfig: GraphicsActorsConfig,
     linter: Linter,
   } satisfies WorkerCommand);
   return worker;
@@ -212,14 +222,16 @@ function wireEvents(canvas: HTMLCanvasElement): () => void {
     w.postMessage({ cmd: "event", kind, data } satisfies WorkerCommand);
 
   const onMouseMove = (e: MouseEvent) => {
+    const s = useRunnerStore.getState().canvasScale || 1;
     const r = canvas.getBoundingClientRect();
-    send("mousemove", { x: e.clientX - r.left, y: e.clientY - r.top });
+    send("mousemove", { x: (e.clientX - r.left) * s, y: (e.clientY - r.top) * s });
   };
   const onMouseDown = (e: MouseEvent) => {
+    const s = useRunnerStore.getState().canvasScale || 1;
     const r = canvas.getBoundingClientRect();
     send("mousedown", {
-      x: e.clientX - r.left,
-      y: e.clientY - r.top,
+      x: (e.clientX - r.left) * s,
+      y: (e.clientY - r.top) * s,
       button: e.button,
     });
   };
@@ -245,7 +257,7 @@ function wireEvents(canvas: HTMLCanvasElement): () => void {
 }
 
 export function useRunner() {
-  const { ready, running, output, clear, inputPrompt, respondToInput, isP5, canvasActive, lintErrors, _appendOutput } =
+  const { ready, running, output, clear, inputPrompt, respondToInput, isP5, canvasActive, canvasWidth, canvasHeight, canvasScale, lintErrors, _appendOutput } =
     useRunnerStore();
 
   useEffect(() => {
@@ -306,6 +318,7 @@ export function useRunner() {
       outputQueue = [];
       const { bitmaps, transferables } = await loadAssets(nameToUrl);
       const showHitboxes = useIde.getState().showHitboxes;
+      const themePalette = useThemeStore.getState().theme.colorPalette;
       getWorker().postMessage(
         {
           cmd: "run",
@@ -313,6 +326,7 @@ export function useRunner() {
           entry,
           assets: bitmaps,
           showHitboxes,
+          themePalette,
         } satisfies WorkerCommand,
         transferables,
       );
@@ -388,6 +402,9 @@ export function useRunner() {
     running,
     isP5,
     canvasActive,
+    canvasWidth,
+    canvasHeight,
+    canvasScale,
     output,
     run,
     interrupt,

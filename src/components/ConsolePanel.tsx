@@ -25,13 +25,13 @@ const DEFAULT_HEIGHT = 180;
 
 export default function ConsolePanel() {
   const theme = useThemeStore((s) => s.theme);
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const { output, inputPrompt, respondToInput, clear, running } = useRunner();
   const [inputValue, setInputValue] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const [height, setHeight] = useState(DEFAULT_HEIGHT);
-  const dragging = useRef(false);
+  const heightRef = useRef(DEFAULT_HEIGHT);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -54,25 +54,30 @@ export default function ConsolePanel() {
 
   const onResizeStart = (e: React.PointerEvent) => {
     e.preventDefault();
-    dragging.current = true;
+    const handle = e.currentTarget as HTMLElement;
+    handle.setPointerCapture(e.pointerId);
+
     const startY = e.clientY;
-    const startH = height;
+    const startH = heightRef.current;
+    document.body.style.userSelect = "none";
 
     const onMove = (ev: PointerEvent) => {
-      if (!dragging.current) return;
       const delta = startY - ev.clientY;
       const newH = Math.min(MAX_HEIGHT, Math.max(MIN_HEIGHT, startH + delta));
+      heightRef.current = newH;
       setHeight(newH);
     };
 
     const onUp = () => {
-      dragging.current = false;
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup", onUp);
+      document.body.style.userSelect = "";
+      handle.removeEventListener("pointermove", onMove);
+      handle.removeEventListener("pointerup", onUp);
+      handle.removeEventListener("pointercancel", onUp);
     };
 
-    window.addEventListener("pointermove", onMove);
-    window.addEventListener("pointerup", onUp);
+    handle.addEventListener("pointermove", onMove);
+    handle.addEventListener("pointerup", onUp);
+    handle.addEventListener("pointercancel", onUp);
   };
 
   return (
@@ -97,6 +102,7 @@ export default function ConsolePanel() {
           right: 0,
           height: 8,
           cursor: "ns-resize",
+          touchAction: "none",
           zIndex: 10,
         }}
       >

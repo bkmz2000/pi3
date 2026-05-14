@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useUser } from '../../state/useUser';
 import { useThemeStore } from '../../state/useTheme';
-import { Icon } from '../Icons';
+
 
 export function UserMenu() {
   const { t } = useTranslation();

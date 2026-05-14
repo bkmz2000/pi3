@@ -2,6 +2,8 @@ import { useState, useRef, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { useEditor } from "./state/IdeState";
 import { useThemeStore } from "./state/useTheme";
+import { useUser } from "./state/useUser";
+import { useTeacherShare } from "./state/useTeacherShare";
 import { Icon } from "./components/Icons";
 import { AuthSection } from "./components/user";
 
@@ -225,6 +227,123 @@ function NewFileTab({ theme }: { theme: ReturnType<typeof useThemeStore.getState
   );
 }
 
+function ProjectShareActions() {
+  const { t } = useTranslation();
+  const theme = useThemeStore((s) => s.theme);
+  const { user } = useUser();
+  const currentProjectId = useEditor((s) => s.currentProjectId);
+  const { data, share, unshare, toggleHelp } = useTeacherShare();
+  const [showShareInput, setShowShareInput] = useState(false);
+  const [teacherEmail, setTeacherEmail] = useState('');
+  const [sharing, setSharing] = useState(false);
+  const [shareError, setShareError] = useState<string | null>(null);
+
+  if (!currentProjectId || !user || user.role !== 'student' || !data) return null;
+
+  const handleShare = async () => {
+    if (!teacherEmail.trim()) return;
+    setSharing(true); setShareError(null);
+    try {
+      await share(teacherEmail.trim());
+      setTeacherEmail('');
+      setShowShareInput(false);
+    } catch (e) {
+      setShareError(e instanceof Error ? e.message : 'Failed');
+    }
+    setSharing(false);
+  };
+
+  const isPending = data.help_request?.status === 'pending';
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginRight: 8 }}>
+      {data.shared ? (
+        <>
+          {/* I need help toggle */}
+          <button
+            type="button"
+            onClick={toggleHelp}
+            title={isPending ? t('teacher.cancelHelp') : t('teacher.iNeedHelp')}
+            style={{
+              all: 'unset', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', gap: 5,
+              padding: '4px 10px', borderRadius: 5,
+              fontSize: 12, fontWeight: 600,
+              background: isPending ? theme.tabDirty : theme.railActiveBg,
+              color: isPending ? '#fff' : theme.panelTxt,
+            }}
+          >
+            {isPending ? `✋ ${t('teacher.helpRequested')}` : `✋ ${t('teacher.iNeedHelp')}`}
+          </button>
+          {/* Shared badge + unshare */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span style={{ fontSize: 11, color: theme.panelTxtMute }}>{t('teacher.sharedWithTeacher')}</span>
+            {data.teachers.map(teacher => (
+              <button
+                key={teacher.id}
+                type="button"
+                onClick={() => unshare(teacher.id)}
+                title={`${t('teacher.unshare')} ${teacher.name}`}
+                style={{ all: 'unset', cursor: 'pointer', fontSize: 11, color: theme.panelTxtMute }}
+              >
+                ✕
+              </button>
+            ))}
+          </div>
+        </>
+      ) : (
+        showShareInput ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <input
+              autoFocus
+              value={teacherEmail}
+              onChange={e => setTeacherEmail(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') handleShare(); if (e.key === 'Escape') setShowShareInput(false); }}
+              placeholder={t('teacher.teacherEmailPlaceholder')}
+              style={{
+                all: 'unset', width: 140, fontSize: 12,
+                padding: '3px 8px', borderRadius: 4,
+                border: `1px solid ${shareError ? '#e05' : theme.panelBorder}`,
+                background: theme.surface, color: theme.panelTxt,
+                fontFamily: theme.fontUI,
+              }}
+            />
+            <button
+              type="button"
+              onClick={handleShare}
+              disabled={sharing}
+              style={{ all: 'unset', cursor: 'pointer', fontSize: 12, color: theme.panelTxtMute }}
+            >
+              {sharing ? '…' : t('teacher.share')}
+            </button>
+            <button
+              type="button"
+              onClick={() => { setShowShareInput(false); setShareError(null); }}
+              style={{ all: 'unset', cursor: 'pointer', fontSize: 12, color: theme.panelTxtMute }}
+            >
+              ✕
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setShowShareInput(true)}
+            style={{
+              all: 'unset', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', gap: 5,
+              padding: '4px 10px', borderRadius: 5,
+              fontSize: 12, fontWeight: 500,
+              background: theme.railActiveBg, color: theme.panelTxt,
+            }}
+          >
+            {t('teacher.shareWithTeacher')}
+          </button>
+        )
+      )}
+    </div>
+  );
+}
+
 export default function FileBar() {
   const theme = useThemeStore((s) => s.theme);
   const project = useEditor((s) => s.project);
@@ -277,6 +396,7 @@ export default function FileBar() {
         ))}
         <NewFileTab theme={theme} />
       </div>
+      <ProjectShareActions />
       <AuthSection />
     </div>
   );

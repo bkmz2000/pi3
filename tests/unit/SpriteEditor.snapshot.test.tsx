@@ -60,9 +60,9 @@ describe('SpriteEditor - Snapshot Tests', () => {
     expect(screen.getByTestId('save-svg-button')).toBeInTheDocument();
   });
 
-  test('renders color buttons', () => {
+  test('renders stroke width stepper', () => {
     render(<SpriteEditor {...defaultProps} />);
-    expect(screen.getByTestId('stroke-width-input')).toBeInTheDocument();
+    expect(screen.getByTestId('stroke-width-stepper')).toBeInTheDocument();
   });
 
   test('renders sprite name input', () => {

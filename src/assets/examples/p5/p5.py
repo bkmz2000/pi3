@@ -1,36 +1,17 @@
 from graphics import *
-from graphics.actors import Actor
+from graphics.actors import Rect
 
 
-def draw(self):
-    x, y = self.get_coords()
-    fill(self.color)
-    stroke("white")
-    rect(x - 50, y - 50, 100, 100)
+box = Rect(x=350, y=205, width=100, height=100, color="red")
 
 
-@setup
-def start():
-    size(700, 410)
-    box.set_coords(350, 205)
-
-
-@on_mouse_move
-def on_mouse_move(x, y):
-    box.set_coords(x, y)
-
-
-@on_mouse_click
-def on_mouse_click(x, y):
-    box.color = random_color()
-
-
-@every(1)
-def loop():
+def tick():
+    box.move_to(Mouse.x, Mouse.y)
+    if Mouse.pressed:
+        box.color = random_color()
     background("black")
     box.draw()
 
 
-box = Actor(draw=draw, color="red")
-
-run()
+size(700, 410)
+run(tick)

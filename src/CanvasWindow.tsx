@@ -7,8 +7,9 @@ import { Icon } from "./components/Icons";
 export default function CanvasWindow() {
   const { t } = useTranslation();
   const theme = useThemeStore((s) => s.theme);
-  const { attachCanvas, canvasActive, running } = useRunner();
+  const { attachCanvas, canvasActive, running, canvasWidth, canvasHeight } = useRunner();
   const ref = useRef<HTMLCanvasElement | null>(null);
+  const windowRef = useRef<HTMLDivElement | null>(null);
   const [pos, setPos] = useState({ x: 0, y: 0 });
   const dragState = useRef<{
     startX: number;
@@ -34,10 +35,16 @@ export default function CanvasWindow() {
 
   const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!dragState.current) return;
-    setPos({
-      x: dragState.current.baseX + e.clientX - dragState.current.startX,
-      y: dragState.current.baseY + e.clientY - dragState.current.startY,
-    });
+    const newX = dragState.current.baseX + e.clientX - dragState.current.startX;
+    let newY = dragState.current.baseY + e.clientY - dragState.current.startY;
+
+    if (windowRef.current) {
+      const rect = windowRef.current.getBoundingClientRect();
+      const projectedTop = rect.top + (newY - pos.y);
+      if (projectedTop < 0) newY -= projectedTop;
+    }
+
+    setPos({ x: newX, y: newY });
   };
 
   const onPointerUp = () => {
@@ -46,12 +53,13 @@ export default function CanvasWindow() {
 
   return (
     <div
+      ref={windowRef}
       style={{
         position: "absolute",
         right: 24,
         bottom: 156,
-        width: 360,
-        height: 360 + 30,
+        width: canvasWidth > 0 ? canvasWidth : 300,
+        height: canvasHeight > 0 ? canvasHeight + 30 : 300 + 30,
         background: theme.canvasFrame,
         borderRadius: theme.radiusCard,
         boxShadow:
@@ -107,16 +115,21 @@ export default function CanvasWindow() {
       </div>
       <div
         style={{
-          flex: 1,
+          width: canvasWidth > 0 ? canvasWidth : 300,
+          height: canvasHeight > 0 ? canvasHeight : 300,
           position: "relative",
           background: theme.canvasBg,
           imageRendering: "pixelated",
+          overflow: "hidden",
         }}
       >
         <canvas
           ref={ref}
           className="block"
-          style={{ width: "100%", height: "100%" }}
+          style={{
+            width: canvasWidth > 0 ? canvasWidth : 300,
+            height: canvasHeight > 0 ? canvasHeight : 300,
+          }}
         />
       </div>
     </div>

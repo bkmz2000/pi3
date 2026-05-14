@@ -411,9 +411,9 @@ npm run test:puppeteer  # Run E2E tests (dev server must be running)
 npm run test:puppeteer
 ```
 
-Tests: Core UI, Python execution, p5 sketch, Asset panel, Project panel, Error handling, Console output, Sprite editor, Hello World, Snake, Bounce, Sokoban
+Tests: Core UI, Python execution, p5 sketch, Asset panel, Project panel, Error handling, Console output, Sprite editor, Hello World, Snake, Asteroids, Sokoban
 
-### Unit Tests (39 tests)
+### Unit Tests (38 tests)
 ```bash
 npm test
 ```

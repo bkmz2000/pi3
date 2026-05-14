@@ -119,17 +119,23 @@ def _check_blank_lines(code: str, tree: ast.Module) -> list[dict]:
     # Variable assignments and function calls don't need blank lines before them
     top_level_defs = []
 
-    # Collect function/class definitions
+    # Collect TOP-LEVEL function/class definitions only
+    # Use walk but filter out nested definitions (methods inside classes)
+    seen_starts = set()
     for node in ast.walk(tree):
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
             if hasattr(node, "lineno"):
-                # If function has decorators, use the first decorator's line as start
                 start_lineno = node.lineno
                 if node.decorator_list:
                     first_deco = node.decorator_list[0]
                     if hasattr(first_deco, "lineno"):
                         start_lineno = first_deco.lineno
-                # Get the end line of this definition
+                # Skip if this start was already added as a nested node
+                # (methods inside classes will have parent class's start close to them)
+                if start_lineno in seen_starts:
+                    continue
+                seen_starts.add(start_lineno)
+                
                 end_lineno = (
                     node.end_lineno
                     if hasattr(node, "end_lineno") and node.end_lineno

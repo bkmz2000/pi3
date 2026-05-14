@@ -1,72 +1,75 @@
 from graphics import *
+from graphics.actors import Actor, Group
 import random
+
 
 def create_asteroid(size="big", pos=None):
     if size == "big":
-        a = Actor(image=assets.sprites.big_asteroid, size=size, radius=30)
+        a = Actor(image=assets.sprites.big_asteroid)
+        a.collider.set_circle(30)
     if size == "small":
-        a = Actor(image=assets.sprites.small_asteroid, size=size, radius=10)
+        a = Actor(image=assets.sprites.small_asteroid)
+        a.collider.set_circle(10)
 
     if pos is None:
-        pos = a.random_coords()
+        pos = Actor.random_coords()
 
-    x, y = pos
-    a.set_coords(x, y)
+    a.move_to(*pos)
+    a.angle = random.randint(0, 360)
+    a.size = size
+    asteroids.add(a)
 
-    a.set_angle(random.randint(0, 360))
-    asteroids.append(a)
 
-@on_mouse_click
-def shoot(x, y):
-    b = Actor(image=assets.sprites.bullet, radius=10)
-    b.set_coords(ship.x, ship.y)
-    b.set_angle(ship.angle)
-    b.move_forward(10)
-    bullets.append(b)
+ship = Actor(image=assets.sprites.ship)
+ship.collider.set_circle(15)
 
-@every(1)
-def loop():
-    background("black")
-    ship.point_to(mouse_x(), mouse_y())
-    ship.move_forward(5)
-    ship.draw()
-
-    for b in bullets[:]:
-        b.move_forward(10)
-        b.draw()
-
-    for a in asteroids:
-        if a.size == "big":
-            a.move_forward(2)
-        if a.size == "small":
-            a.move_forward(3)
-
-        x, y = a.get_coords()
-        x = (x+800)%800
-        y = (y+800)%800
-        a.set_coords(x, y)
-        a.draw()
-
-        if a.collides_with(ship):
-                print("You lost!")
-                stop()
-
-    for a in asteroids[:]:
-        for b in bullets[:]:
-            if a.collides_with(b):
-                if a.size == "big":
-                    for i in range(3):
-                        create_asteroid("small", a.get_coords())
-                asteroids.remove(a)
-                bullets.remove(b)
-
-size(800, 800)
-
-ship = Actor(image=assets.sprites.ship, radius=15)
-bullets = []
-asteroids = []
+bullets = Group()
+asteroids = Group()
 
 for i in range(10):
     create_asteroid("big")
 
-run()
+
+def tick():
+    background("black")
+
+    ship.point_towards(Mouse.x, Mouse.y)
+    ship.move(5)
+    ship.wrap()
+    ship.draw()
+
+    if Mouse.pressed:
+        b = Actor(image=assets.sprites.bullet)
+        b.collider.set_circle(10)
+        b.move_to(ship.x, ship.y)
+        b.angle = ship.angle
+        b.move(10)
+        bullets.add(b)
+
+    for b in bullets:
+        b.move(10)
+        b.draw()
+        for a in asteroids:
+            if b.collides_with(a):
+                if a not in asteroids:
+                    continue
+                bullets.remove(b)
+
+                if a.size == "big":
+                    for i in range(3):
+                        create_asteroid("small", (a.x, a.y))
+                asteroids.remove(a)
+                b.die()
+
+    for a in asteroids:
+        a.move(2)
+        a.wrap()
+        a.draw()
+
+        if a.collides_with(ship):
+            print("You lost!")
+            stop()
+
+
+size(800, 800)
+run(tick)

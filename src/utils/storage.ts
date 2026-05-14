@@ -1,7 +1,4 @@
-import { Project } from "../state/IdeState";
 import {
-  projectToZip,
-  zipToProject,
   downloadProjectZip,
   StoredProject as ZipStoredProject,
 } from "./zip";

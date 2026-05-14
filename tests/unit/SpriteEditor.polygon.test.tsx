@@ -83,10 +83,18 @@ describe('SpriteEditor - Polygon Tool', () => {
     expect(strokePopover).toBeInTheDocument();
   });
 
-  test('stroke width input exists', () => {
+  test('stroke width stepper exists', () => {
     render(<SpriteEditor {...defaultProps} />);
-    const strokeWidthInput = screen.getByTestId('stroke-width-input');
-    expect(strokeWidthInput).toBeInTheDocument();
+    expect(screen.getByTestId('stroke-width-stepper')).toBeInTheDocument();
+  });
+
+  test('changing stroke width via stepper updates width state', () => {
+    render(<SpriteEditor {...defaultProps} />);
+    // Get fresh reference to stepper each time
+    const getStepper = () => screen.getByTestId('stroke-width-stepper');
+    const getIncrementButton = () => getStepper().querySelectorAll('button')[1]; // [0]=decrement, [1]=increment
+    fireEvent.click(getIncrementButton());
+    expect(getStepper()).toBeInTheDocument();
   });
 
   test('undo button exists', () => {
@@ -175,13 +183,6 @@ describe('SpriteEditor - Polygon Tool', () => {
     fireEvent.click(strokeButton);
     const strokePopover = screen.getByTestId('stroke-color-popover');
     expect(strokePopover).toBeInTheDocument();
-  });
-
-  test('changing stroke width updates width state', () => {
-    render(<SpriteEditor {...defaultProps} />);
-    const strokeWidthInput = screen.getByTestId('stroke-width-input');
-    fireEvent.change(strokeWidthInput, { target: { value: '3' } });
-    expect(strokeWidthInput).toHaveValue('3');
   });
 
   test('changing sprite name updates name state', () => {

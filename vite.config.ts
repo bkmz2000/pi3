@@ -18,6 +18,14 @@ export default defineConfig({
       threshold: 10240,
     }),
   ],
+  server: {
+    proxy: {
+      '/api': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+      },
+    },
+  },
   optimizeDeps: {
     include: ["jszip"]
   },

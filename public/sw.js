@@ -8,7 +8,6 @@ const PYODIDE_ASSETS = [
 
 const APP_SHELL = [
   '/',
-  '/index.html',
   '/manifest.json',
   '/favicon.svg',
   '/icon-192.svg',
@@ -20,13 +19,7 @@ const ALL_ASSETS = [...PYODIDE_ASSETS];
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then(async (cache) => {
-      console.log('[SW] Caching app shell and libraries');
-      try {
-        await cache.addAll(APP_SHELL);
-        console.log('[SW] App shell cached');
-      } catch (e) {
-        console.log('[SW] App shell caching failed:', e);
-      }
+      console.log('[SW] Caching libraries');
       await cache.addAll(ALL_ASSETS);
       console.log('[SW] Libraries cached');
     })
@@ -78,22 +71,16 @@ self.addEventListener('fetch', (event) => {
   
   if (isAppShell || event.request.headers.get('accept')?.includes('text/html')) {
     event.respondWith(
-      caches.match(event.request).then((cachedResponse) => {
-        if (cachedResponse) {
-          return cachedResponse;
+      fetch(event.request).then((response) => {
+        if (response.ok) {
+          const responseClone = response.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(event.request, responseClone);
+          });
         }
-        
-        return fetch(event.request).then((response) => {
-          if (response.ok) {
-            const responseClone = response.clone();
-            caches.open(CACHE_NAME).then((cache) => {
-              cache.put(event.request, responseClone);
-            });
-          }
-          return response;
-        }).catch(() => {
-          return caches.match('/index.html');
-        });
+        return response;
+      }).catch(() => {
+        return caches.match(event.request).then(cached => cached || caches.match('/index.html'));
       })
     );
   }

@@ -115,7 +115,7 @@ async function clickRun(page) {
     await stopButton.click();
     await sleep(500);
   }
-  
+ 
   // Wait for Run button to be available
   await page.waitForFunction(() => {
     const btn = document.querySelector('button[aria-label="Run"]');
@@ -127,20 +127,55 @@ async function clickRun(page) {
   await runButton.click();
 }
 
+async function stopSketch(page) {
+  // Just stop any running sketch without starting a new one
+  const stopButton = await page.$('button[aria-label="Stop"]');
+  if (stopButton) {
+    await stopButton.click();
+    await sleep(1000);
+  }
+  
+  // Wait for canvas to go away (sketch stopped)
+  try {
+    await page.waitForFunction(() => {
+      const stop = document.querySelector('button[aria-label="Stop"]');
+      return stop === null;
+    }, { timeout: 5000 });
+  } catch (e) {
+    // May already be stopped
+  }
+  
+  // Wait for Run button to be available
+  await page.waitForFunction(() => {
+    const btn = document.querySelector('button[aria-label="Run"]');
+    return btn !== null;
+  }, { timeout: 10000 });
+  
+  // Additional wait for canvas to fully disappear
+  await page.waitForFunction(() => {
+    const canvas = document.querySelector('canvas');
+    if (!canvas) return true;
+    // Check if canvas is hidden
+    const style = window.getComputedStyle(canvas);
+    return style.display === 'none' || style.opacity === '0';
+  }, { timeout: 5000 }).catch(() => {});
+  
+  // Also wait for any overlay/panel to close
+  await sleep(500);
+}
+
 async function isPanelVisible(page, panelText) {
   return page.evaluate((text) => {
-    // The panel is a div with style containing "position: absolute" and "width: 320px"
-    // It contains the panel title text and a Close button
+    // The panel is a div with inline style: position: absolute; left: 60; width: 320
     const divs = document.querySelectorAll('div');
     for (const div of divs) {
       const style = div.getAttribute('style') || '';
-      if (style.includes('320px') && style.includes('position: absolute') && style.includes('left: 60px')) {
+      // Check for inline width: 320 (without px, React serializes it that way)
+      // and position: absolute, left: 60
+      if (style.includes('width: 320') && style.includes('position: absolute') && (style.includes('left: 60') || style.includes('left: 60px'))) {
         if (div.textContent?.includes(text)) {
-          // Panel is visible if it doesn't have display:none or visibility:hidden
           const computedDisplay = window.getComputedStyle(div).display;
           const computedVisibility = window.getComputedStyle(div).visibility;
-          // Also check if the header with title is visible
-          const headerDivs = div.querySelectorAll(':scope > div');
           return computedDisplay !== 'none' && computedVisibility !== 'hidden';
         }
       }
@@ -151,11 +186,11 @@ async function isPanelVisible(page, panelText) {
 
 async function closePanelByText(page, closeText) {
   const closeBtn = await page.evaluate((text) => {
-    // Find the panel div (same logic as isPanelVisible)
+    // Find the panel div with inline style: position: absolute; left: 60; width: 320
     const divs = document.querySelectorAll('div');
     for (const div of divs) {
       const style = div.getAttribute('style') || '';
-      if (style.includes('320px') && style.includes('position: absolute') && style.includes('left: 60px')) {
+      if (style.includes('width: 320') && style.includes('position: absolute') && (style.includes('left: 60') || style.includes('left: 60px'))) {
         if (div.textContent?.includes(text)) {
           // Find close button inside the panel
           const buttons = div.querySelectorAll('button');
@@ -177,12 +212,79 @@ async function closePanelByText(page, closeText) {
 }
 
 async function openProjectsPanel(page) {
-  await page.click('button[aria-label="Projects"]');
-  await sleep(1000);
+  // Use evaluate to click directly, more reliable than CSS selector click
+  await page.evaluate(() => {
+    const btn = document.querySelector('button[aria-label="Projects"]');
+    if (btn) btn.click();
+  });
+  await sleep(500); // Brief wait for panel to start rendering
+
+  // Wait for panel to appear with retries
+  let panelVisible = false;
+  for (let i = 0; i < 5; i++) {
+    panelVisible = await page.evaluate(() => {
+      // Check for div-based panels with inline style: position: absolute; left: 60; width: 320
+      const divs = document.querySelectorAll('div');
+      for (const div of divs) {
+        const style = div.getAttribute('style') || '';
+        // React serializes as width: 320 (no px), left: 60 (no px)
+        if (style.includes('width: 320') && style.includes('position: absolute') && (style.includes('left: 60') || style.includes('left: 60px'))) {
+          return true;
+        }
+      }
+      return false;
+    });
+    console.log('openProjectsPanel: attempt', i+1, 'panel visible =', panelVisible);
+    if (panelVisible) break;
+    await sleep(500);
+  }
 }
 
 async function closeProjectsPanel(page) {
-  await closePanelByText(page, 'Projects');
+  // Find and click the close button in the Projects panel (Close button uses aria-label, not text)
+  const panelClosed = await page.evaluate(() => {
+    // First find the panel div with inline style: position: absolute; left: 60; width: 320
+    const divs = document.querySelectorAll('div');
+    let panelDiv = null;
+    for (const div of divs) {
+      const style = div.getAttribute('style') || '';
+      if (style.includes('width: 320') && style.includes('position: absolute') && (style.includes('left: 60') || style.includes('left: 60px'))) {
+        panelDiv = div;
+        break;
+      }
+    }
+    if (!panelDiv) return false;
+
+    // Find the close button by aria-label inside the panel
+    const closeBtn = panelDiv.querySelector('button[aria-label="Close"]');
+    if (closeBtn) {
+      closeBtn.click();
+      return true;
+    }
+    return false;
+  });
+
+  if (panelClosed) {
+    await sleep(500);
+  }
+
+  // Verify panel is closed
+  const panelStillOpen = await page.evaluate(() => {
+    const divs = document.querySelectorAll('div');
+    for (const div of divs) {
+      const style = div.getAttribute('style') || '';
+      if (style.includes('width: 320') && style.includes('position: absolute') && (style.includes('left: 60') || style.includes('left: 60px'))) {
+        return true;
+      }
+    }
+    return false;
+  });
+
+  // If panel still open, try backdrop click as fallback
+  if (panelStillOpen) {
+    await page.mouse.click(500, 400);
+    await sleep(500);
+  }
 }
 
 async function clickExample(page, exampleName) {
@@ -190,22 +292,24 @@ async function clickExample(page, exampleName) {
   // We search for the example name and click it directly
   const clicked = await page.evaluate(async (name) => {
     const buttons = document.querySelectorAll('button');
+    const debug = [];
     for (const btn of buttons) {
-      if (btn.textContent.trim().startsWith(name)) {
+      const text = btn.textContent?.trim() || '';
+      debug.push({ text: text.substring(0, 50), startsWith: text.startsWith(name) });
+      if (text.startsWith(name)) {
         btn.click();
-        return true;
+        return { found: true, debug };
       }
     }
-    return false;
+    return { found: false, debug };
   }, exampleName);
   
-  if (clicked) {
-    await sleep(500);
-    return true;
+  if (!clicked.found) {
+    console.log('clickExample debug for "' + exampleName + '":', JSON.stringify(clicked.debug.slice(0, 20), null, 2));
   }
-  return false;
+  return clicked.found;
 }
-
+  
 async function runProductionTests() {
   console.log('🚀 Web IDE Production Test Suite');
   console.log('📋 Validating all major functions\n');
@@ -412,6 +516,30 @@ async function runProductionTests() {
     // Test 10: Snake Example (new graphics API)
     console.log('\n10. Snake Example');
     try {
+      // Stop any running sketch first
+      await stopSketch(page);
+      await sleep(1000); // Extra wait for UI to stabilize
+      
+      // Debug: check canvas state
+      const canvasState = await page.evaluate(() => {
+        const canvas = document.querySelector('canvas');
+        const stopBtn = document.querySelector('button[aria-label="Stop"]');
+        const runBtn = document.querySelector('button[aria-label="Run"]');
+        const projectsBtn = document.querySelector('button[aria-label="Projects"]');
+        const sidebar = document.querySelector('aside') || document.querySelector('nav');
+        return {
+          hasCanvas: !!canvas,
+          canvasCount: document.querySelectorAll('canvas').length,
+          hasStop: !!stopBtn,
+          hasRun: !!runBtn,
+          hasProjectsBtn: !!projectsBtn,
+          projectsBtnRect: projectsBtn ? projectsBtn.getBoundingClientRect() : null,
+          canvasRect: canvas ? canvas.getBoundingClientRect() : null,
+          sidebarRect: sidebar ? sidebar.getBoundingClientRect() : null,
+        };
+      });
+      console.log('After stopSketch, before panel open:', JSON.stringify(canvasState, null, 2));
+      
       await openProjectsPanel(page);
       const found = await clickExample(page, 'snake');
       if (!found) throw new Error('Snake example not found');
@@ -476,6 +604,8 @@ async function runProductionTests() {
     // Test 12: Sokoban Example (with sprites)
     console.log('\n12. Sokoban Example');
     try {
+      // Stop any running sketch first
+      await stopSketch(page);
       await openProjectsPanel(page);
       const found = await clickExample(page, 'sokoban');
       if (!found) throw new Error('Sokoban example not found');

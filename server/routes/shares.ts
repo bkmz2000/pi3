@@ -24,7 +24,7 @@ export function createSharesRouter(): Router {
 
   router.post('/', (req: Request, res: Response): void => {
     const projectId = req.params.id as string;
-    const { email, role = 'viewer' } = req.body;
+    const { username, role = 'viewer' } = req.body;
     const db = getDb();
 
     if (!checkOwnership(projectId, req.user!.id)) {
@@ -32,8 +32,8 @@ export function createSharesRouter(): Router {
       return;
     }
 
-    if (!email || typeof email !== 'string') {
-      res.status(400).json({ error: 'Bad Request', message: 'Email is required' });
+    if (!username || typeof username !== 'string') {
+      res.status(400).json({ error: 'Bad Request', message: 'Username is required' });
       return;
     }
 
@@ -42,7 +42,7 @@ export function createSharesRouter(): Router {
       return;
     }
 
-    const targetUser = db.prepare('SELECT id FROM users WHERE name = ?').get(email.trim()) as { id: string } | undefined;
+    const targetUser = db.prepare('SELECT id FROM users WHERE name = ?').get(username.trim()) as { id: string } | undefined;
 
     if (!targetUser) {
       res.status(404).json({ error: 'Not Found', message: 'User not found' });

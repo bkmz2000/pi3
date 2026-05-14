@@ -14,13 +14,14 @@ export type InputEventData = {
 };
 
 export type WorkerCommand =
-  | { cmd: "init"; shim: string; transform: string; actors: string; graphicsInit: string; graphicsActors: string; graphicsActorsConfig: string; linter: string }
+  | { cmd: "init"; shim: string; transform: string; actors: string; graphicsInit: string; graphicsActors: string; linter: string }
   | {
       cmd: "run";
       files: Record<string, string>;
       assets: Record<string, ImageBitmap>;
       entry: string;
       showHitboxes?: boolean;
+      themePalette?: Record<string, [number, number, number]>;
     }
   | { cmd: "interrupt" }
   | { cmd: "set_interrupt_buffer"; buffer: SharedArrayBuffer }
@@ -49,4 +50,5 @@ export type WorkerEvent =
   | { type: "error"; error: string }
   | { type: "input_request"; prompt: string }
   | { type: "lint"; diagnostics: LintDiagnostic[] }
-  | { type: "interrupt_ack" };
+  | { type: "interrupt_ack" }
+  | { type: "canvas_resize"; width: number; height: number };

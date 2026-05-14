@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { getDb } from '../db/index.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { createSharesRouter } from './shares.js';
+import { createProjectCommentsRouter } from './comments.js';
 
 interface Project {
   id: string;
@@ -97,10 +98,107 @@ export function createProjectsRouter(): Router {
         INSERT INTO projects (id, user_id, name, description, is_public, files, assets, current_file, created_at, updated_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(project.id, project.user_id, project.name, project.description, project.is_public, project.files, project.assets, project.current_file, project.created_at, project.updated_at);
-      res.status(201).json(project);
+      res.status(201).json({
+        ...project,
+        files: JSON.parse(project.files || '{}'),
+        assets: JSON.parse(project.assets || '{}'),
+      });
     } catch (error) {
       console.error('Error creating project:', error);
       res.status(500).json({ error: 'Internal Server Error', message: 'Failed to create project' });
+    }
+  });
+
+  // Teacher: list all projects shared with me, grouped by student group
+  router.get('/shared-with-me', (req: Request, res: Response): void => {
+    if (req.user!.role !== 'teacher') {
+      res.status(403).json({ error: 'Forbidden', message: 'Teachers only' });
+      return;
+    }
+    const db = getDb();
+    const projects = db.prepare(`
+      SELECT
+        p.id, p.name, p.description, p.updated_at,
+        u.id as student_id, u.name as student_name,
+        hr.id as help_request_id, hr.status as help_request_status, hr.created_at as help_request_created_at,
+        (
+          SELECT g.name FROM group_members gm
+          JOIN groups g ON g.id = gm.group_id
+          WHERE gm.student_id = p.user_id AND g.teacher_id = ?
+          LIMIT 1
+        ) as group_name
+      FROM project_shares ps
+      JOIN projects p ON p.id = ps.project_id
+      JOIN users u ON u.id = p.user_id
+      LEFT JOIN help_requests hr ON hr.project_id = p.id AND hr.status = 'pending'
+      WHERE ps.user_id = ?
+      ORDER BY (hr.id IS NULL), hr.created_at ASC, p.updated_at DESC
+    `).all(req.user!.id, req.user!.id);
+    res.json(projects);
+  });
+
+  // Owner: get teacher share status for a project
+  router.get('/:id/teacher-share', (req: Request, res: Response): void => {
+    const { id } = req.params;
+    const db = getDb();
+    const project = db.prepare('SELECT user_id FROM projects WHERE id = ?').get(id) as { user_id: string } | undefined;
+    if (!project) {
+      res.status(404).json({ error: 'Not Found', message: 'Project not found' });
+      return;
+    }
+    if (project.user_id !== req.user!.id) {
+      res.status(403).json({ error: 'Forbidden', message: 'Only owner can view share status' });
+      return;
+    }
+    const teachers = db.prepare(`
+      SELECT u.id, u.name FROM project_shares ps
+      JOIN users u ON u.id = ps.user_id
+      WHERE ps.project_id = ? AND u.role = 'teacher'
+    `).all(id) as { id: string; name: string }[];
+    const helpRequest = db.prepare(`
+      SELECT id, status FROM help_requests
+      WHERE project_id = ? AND student_id = ? AND status = 'pending'
+      ORDER BY created_at DESC LIMIT 1
+    `).get(id, req.user!.id) as { id: string; status: string } | undefined;
+    res.json({ shared: teachers.length > 0, teachers, help_request: helpRequest || null });
+  });
+
+  // Owner: toggle help request on a project
+  router.post('/:id/help-request', (req: Request, res: Response): void => {
+    const { id } = req.params;
+    const db = getDb();
+    const project = db.prepare('SELECT user_id FROM projects WHERE id = ?').get(id) as { user_id: string } | undefined;
+    if (!project) {
+      res.status(404).json({ error: 'Not Found', message: 'Project not found' });
+      return;
+    }
+    if (project.user_id !== req.user!.id) {
+      res.status(403).json({ error: 'Forbidden', message: 'Only project owner can request help' });
+      return;
+    }
+    const hasTeacher = db.prepare(`
+      SELECT ps.id FROM project_shares ps
+      JOIN users u ON u.id = ps.user_id
+      WHERE ps.project_id = ? AND u.role = 'teacher' LIMIT 1
+    `).get(id);
+    if (!hasTeacher) {
+      res.status(400).json({ error: 'Bad Request', message: 'Project must be shared with a teacher first' });
+      return;
+    }
+    const existing = db.prepare(`
+      SELECT id FROM help_requests
+      WHERE project_id = ? AND student_id = ? AND status = 'pending'
+      ORDER BY created_at DESC LIMIT 1
+    `).get(id, req.user!.id) as { id: string } | undefined;
+    const now = Date.now();
+    if (existing) {
+      db.prepare('UPDATE help_requests SET status = ?, updated_at = ? WHERE id = ?').run('cancelled', now, existing.id);
+      res.json({ help_request: { id: existing.id, status: 'cancelled' } });
+    } else {
+      const newId = uuidv4();
+      db.prepare('INSERT INTO help_requests (id, project_id, student_id, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)')
+        .run(newId, id, req.user!.id, 'pending', now, now);
+      res.status(201).json({ help_request: { id: newId, status: 'pending' } });
     }
   });
 
@@ -267,8 +365,8 @@ export function createProjectsRouter(): Router {
     }
   });
 
-  // Mount share sub-routes
   router.use('/:id/share', createSharesRouter());
+  router.use('/:id/comments', createProjectCommentsRouter());
 
   return router;
 }

@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Routes, Route, useParams } from "react-router-dom";
-import CodeMirror from "@uiw/react-codemirror";
+import CodeMirror, { type ReactCodeMirrorRef } from "@uiw/react-codemirror";
 import { python } from "@codemirror/lang-python";
 import { indentUnit, bracketMatching, indentOnInput } from "@codemirror/language";
 import { EditorState } from "@codemirror/state";
@@ -9,15 +9,17 @@ import { autocompletion, acceptCompletion } from "@codemirror/autocomplete";
 import { keymap } from "@codemirror/view";
 import Rail from "./SideMenu";
 import { useEditor, useIde } from "./state/IdeState";
-import { getProject } from "./state/api";
+import { getProject, getComments, type ApiComment } from "./state/api";
 import FileBar from "./FileBar";
 import { useRunner } from "./runner/RunnerProvider";
 import CanvasWindow from "./CanvasWindow";
 import LoadingScreen from "./components/LoadingScreen";
 import ConsolePanel from "./components/ConsolePanel";
 import { indentationGuideField, indentationGuides } from "./editor/theme";
+import { commentExtension, setCommentsEffect } from "./editor/comments";
 import { ProjectsPage } from "./components/projects";
 import TeacherDashboard from "./components/teacher/TeacherDashboard";
+import TeacherProjectView from "./components/teacher/TeacherProjectView";
 import { useUser } from "./state/useUser";
 import ForkDialog from "./components/dialogs/ForkDialog";
 import { useThemeStore } from "./state/useTheme";
@@ -88,8 +90,27 @@ function AppInner() {
   const cmTheme = theme.name === "Midnight" ? githubDark : githubLight;
 
   const [showForkDialog, setShowForkDialog] = useState(false);
+  const [fileComments, setFileComments] = useState<ApiComment[]>([]);
+  const [selectedLine, setSelectedLine] = useState<number | null>(null);
+  const [anchorY, setAnchorY] = useState<number | null>(null);
+  const editorRef = useRef<ReactCodeMirrorRef>(null);
 
   const loaded = ProjectLoader();
+
+  // Fetch when file/project changes
+  useEffect(() => {
+    if (!currentProjectId || !currentFile) { setFileComments([]); return; }
+    getComments(currentProjectId, currentFile)
+      .then(rows => setFileComments(rows))
+      .catch(() => {});
+  }, [currentProjectId, currentFile]);
+
+  // Push into editor on every render — handles editor mounting after the fetch
+  useEffect(() => {
+    if (editorRef.current?.view) {
+      editorRef.current.view.dispatch({ effects: setCommentsEffect.of(fileComments) });
+    }
+  });
 
   const onChange = useCallback(
     (val: string) => {
@@ -164,6 +185,13 @@ function AppInner() {
             background: theme.editorBg,
             position: "relative",
           }}
+          onClick={e => {
+            const target = e.target as HTMLElement;
+            if (!target.closest('.cm-comment-gutter') && !target.closest('[data-comment-popover]')) {
+              setSelectedLine(null);
+              setAnchorY(null);
+            }
+          }}
         >
           <FileBar />
           <div style={{
@@ -177,6 +205,7 @@ function AppInner() {
             "--indent-guide-6": theme.name === "Midnight" ? "rgba(95,212,220,0.26)" : "rgba(14,154,167,0.27)",
           } as React.CSSProperties}>
             <CodeMirror
+              ref={editorRef}
               key={`${currentFile || "no-file"}-${theme.editorBg}`}
               value={project.files[currentFile] ?? ""}
               onChange={onChange}
@@ -202,16 +231,58 @@ function AppInner() {
                     run: acceptCompletion,
                   },
                 ]),
+                commentExtension({ canAdd: false, onLineSelect: (line, y) => { setSelectedLine(line); setAnchorY(y); } }),
               ]}
               height="100%"
               width="100%"
               className="h-full text-left"
             />
           </div>
+          {selectedLine !== null && anchorY !== null && (() => {
+            const lineComments = fileComments.filter(c => c.line_number === selectedLine);
+            if (lineComments.length === 0) return null;
+            return (
+              <div data-comment-popover style={{
+                position: 'fixed',
+                left: 320,
+                top: Math.max(8, Math.min(anchorY - 60, window.innerHeight - 300)),
+                width: 280,
+                background: theme.surfacePanel,
+                border: `1px solid ${theme.panelBorder}`,
+                borderRadius: 8,
+                boxShadow: '0 8px 24px rgba(0,0,0,0.28)',
+                zIndex: 50,
+                padding: 12,
+                display: 'flex', flexDirection: 'column', gap: 8,
+                fontFamily: theme.fontUI,
+              }}>
+                {lineComments.map(c => (
+                  <div key={c.id} style={{
+                    background: theme.surface, borderRadius: 6, padding: '8px 10px',
+                    border: `1px solid ${theme.panelBorder}`,
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', marginBottom: 4 }}>
+                      <span style={{ flex: 1, fontSize: 11.5, fontWeight: 600, color: theme.panelTxt }}>{c.author_name}</span>
+                      <span style={{ fontSize: 10.5, color: theme.panelTxtMute }}>
+                        {new Date(c.created_at).toLocaleDateString()}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: 12.5, color: theme.panelTxt, whiteSpace: 'pre-wrap' }}>{c.text}</div>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
           {showConsole && <ConsolePanel />}
           <CanvasWindow />
         </div>
       </div>
+      {showForkDialog && (
+        <ForkDialog
+          onClose={() => setShowForkDialog(false)}
+          onSave={handleForkSave}
+        />
+      )}
     </div>
   );
 }
@@ -221,10 +292,11 @@ export default function App() {
     <>
       <SessionChecker />
       <Routes>
-      <Route path="/projects" element={<ProjectsPage />} />
-      <Route path="/teacher" element={<TeacherDashboard />} />
-      <Route path="/ide/:projectId" element={<AppInner />} />
-<Route path="/" element={<AppInner />} />
+        <Route path="/projects" element={<ProjectsPage />} />
+        <Route path="/teacher" element={<TeacherDashboard />} />
+        <Route path="/teacher/projects/:projectId" element={<TeacherProjectView />} />
+        <Route path="/ide/:projectId" element={<AppInner />} />
+        <Route path="/" element={<AppInner />} />
       </Routes>
     </>
   );

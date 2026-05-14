@@ -62,6 +62,7 @@ app.get('*', (req, res) => {
 });
 
 app.use((err: Error, req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  void _next; // Express error handler requires 4 params
   console.error('Unhandled error:', err);
   res.status(500).json({ error: 'Internal Server Error', message: 'An unexpected error occurred' });
 });

@@ -24,6 +24,8 @@ const INVALID_DOM_PROPS = new Set([
   'transformsEnabled',
   'transformsEnabled',
   'channel',
+  'enabledAnchors',
+  'listening',
 ]);
 
 const filterInvalidProps = (props) => {
@@ -44,7 +46,7 @@ const createMockRef = () => ({
 });
 
 const mockStage = React.forwardRef((props, ref) => {
-  const { 'data-testid': dataTestid, onMouseDown, onMouseMove, onMouseUp, onDblClick, onKeyDown, tabIndex, children, ...rest } = props;
+  const { 'data-testid': dataTestid, onMouseDown, onMouseMove, onMouseUp, onKeyDown, tabIndex, children, ...rest } = props;
   
   return React.createElement('div', {
     ref,
@@ -52,7 +54,6 @@ const mockStage = React.forwardRef((props, ref) => {
     onMouseDown,
     onMouseMove,
     onMouseUp,
-    onDblClick,
     onKeyDown,
     tabIndex: 0,
     ...filterInvalidProps(rest),

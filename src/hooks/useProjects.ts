@@ -107,7 +107,11 @@ export function useProjects() {
     await deleteUserProject(projectId);
     const firstUserProject = userProjects[0];
     if (firstUserProject) {
-      changeEditorCurrentProject(firstUserProject, firstUserProject.id);
+      const full = await getProject(firstUserProject.id);
+      changeEditorCurrentProject(
+        { files: full.files, assets: full.assets, currentFile: full.current_file },
+        full.id,
+      );
     } else {
       const firstExample = Object.keys(projects)[0];
       if (firstExample) {

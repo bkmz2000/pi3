@@ -19,5 +19,10 @@ export default defineConfig([
       ecmaVersion: 2020,
       globals: globals.browser,
     },
+    rules: {
+      // v7 rules that flag intentional patterns used throughout this codebase
+      'react-hooks/set-state-in-effect': 'off',
+      'react-hooks/refs': 'off',
+    },
   },
 ])

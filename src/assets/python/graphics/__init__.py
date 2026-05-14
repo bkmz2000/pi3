@@ -1,8 +1,9 @@
 """
-graphics module - g
+graphics module
 
 Provides a simple graphics API for creating games and visualizations.
 Import as: import graphics as g
+from graphics.actors import Actor, Rect, Circle, Group
 """
 
 import math
@@ -29,24 +30,23 @@ _stroke_width = 1
 _current_fill = True
 _current_stroke = True
 
-_setup_func = None
-_loop_generation = 0
-
-_key_handlers = {}
-_mouse_handlers = []
-_every_handlers = {}
-_collision_handlers = []
-
 _mouse_x = 0
 _mouse_y = 0
+_mouse_down = False
+_mouse_clicked = False
+_mouse_released = False
+
 _keys_down = set()
+_keys_pressed = set()
+_keys_released = set()
 
 _frame_count = 0
 _target_fps = 60
 _pending_timer_id = None
+_loop_generation = 0
 _show_hitboxes = False
 
-# === COLOR NAMES ===
+# === COLORS ===
 
 COLOR_NAMES = {
     "red": (255, 0, 0),
@@ -73,6 +73,31 @@ COLOR_NAMES = {
     "fuchsia": (255, 0, 255),
 }
 
+
+class _Colors:
+    """Named color palette. Use fill(Colors.red) for theme-aware colors."""
+    red    = (220,  60,  60)
+    green  = ( 50, 200,  80)
+    blue   = ( 60, 120, 255)
+    yellow = (255, 220,  40)
+    orange = (255, 140,  40)
+    purple = (180,  80, 220)
+    pink   = (255, 130, 180)
+    cyan   = ( 40, 210, 220)
+    white  = (255, 255, 255)
+    black  = (  0,   0,   0)
+    gray   = (150, 150, 150)
+    brown  = (160,  90,  40)
+
+    def _update_theme(self, palette: dict):
+        for name, rgb in palette.items():
+            if hasattr(self, name):
+                setattr(self, name, tuple(rgb))
+
+
+Colors = _Colors()
+
+
 _KEY_CODES = {
     "arrow_left": 37,
     "arrow_up": 38,
@@ -86,45 +111,176 @@ _KEY_CODES = {
     "shift": 16,
     "ctrl": 17,
     "alt": 18,
-    "a": 65,
-    "b": 66,
-    "c": 67,
-    "d": 68,
-    "e": 69,
-    "f": 70,
-    "g": 71,
-    "h": 72,
-    "i": 73,
-    "j": 74,
-    "k": 75,
-    "l": 76,
-    "m": 77,
-    "n": 78,
-    "o": 79,
-    "p": 80,
-    "q": 81,
-    "r": 82,
-    "s": 83,
-    "t": 84,
-    "u": 85,
-    "v": 86,
-    "w": 87,
-    "x": 88,
-    "y": 89,
+    "a": 65, "b": 66, "c": 67, "d": 68, "e": 69,
+    "f": 70, "g": 71, "h": 72, "i": 73, "j": 74,
+    "k": 75, "l": 76, "m": 77, "n": 78, "o": 79,
+    "p": 80, "q": 81, "r": 82, "s": 83, "t": 84,
+    "u": 85, "v": 86, "w": 87, "x": 88, "y": 89,
     "z": 90,
-    "0": 48,
-    "1": 49,
-    "2": 50,
-    "3": 51,
-    "4": 52,
-    "5": 53,
-    "6": 54,
-    "7": 55,
-    "8": 56,
-    "9": 57,
+    "0": 48, "1": 49, "2": 50, "3": 51, "4": 52,
+    "5": 53, "6": 54, "7": 55, "8": 56, "9": 57,
+    # Prefixed aliases for number keys (since Keyboard.0 is invalid Python)
+    "key_0": 48, "key_1": 49, "key_2": 50, "key_3": 51, "key_4": 52,
+    "key_5": 53, "key_6": 54, "key_7": 55, "key_8": 56, "key_9": 57,
 }
 
+_CODE_TO_NAME = {v: k for k, v in _KEY_CODES.items()}
+
 assets = None
+
+from graphics.actors import Actor, Rect, Circle, Group, Collider  # noqa: E402
+
+
+# === ANCHOR POINT ===
+
+
+class AnchorPoint:
+    """A resolved position with alignment hints for text() and say()."""
+
+    def __init__(self, x, y, h_align="left", v_align="top"):
+        self._x = x        # callable or number
+        self._y = y
+        self.h_align = h_align   # "left" | "center" | "right"
+        self.v_align = v_align   # "top" | "middle" | "bottom"
+
+    @property
+    def x(self):
+        return self._x() if callable(self._x) else self._x
+
+    @property
+    def y(self):
+        return self._y() if callable(self._y) else self._y
+
+
+# === MOUSE SINGLETON ===
+
+
+class _Mouse:
+    @property
+    def x(self):
+        return _mouse_x
+
+    @property
+    def y(self):
+        return _mouse_y
+
+    @property
+    def pressed(self):
+        return _mouse_clicked
+
+    @property
+    def down(self):
+        return _mouse_down
+
+    @property
+    def released(self):
+        return _mouse_released
+
+
+Mouse = _Mouse()
+
+
+# === KEYBOARD SINGLETON ===
+
+
+class _Key:
+    def __init__(self, code):
+        self._code = code
+
+    @property
+    def pressed(self):
+        return self._code in _keys_pressed
+
+    @property
+    def down(self):
+        return self._code in _keys_down
+
+    @property
+    def released(self):
+        return self._code in _keys_released
+
+
+class _Keyboard:
+    def __getattr__(self, name):
+        code = _KEY_CODES.get(name.lower(), 0)
+        if code == 0:
+            raise AttributeError(f"Unknown key: {name!r}. Try Keyboard.arrow_left, Keyboard.space, Keyboard.a, Keyboard.key_1, etc.")
+        return _Key(code)
+
+    def __getitem__(self, name: str) -> _Key:
+        code = _KEY_CODES.get(str(name).lower(), 0)
+        if code == 0:
+            raise KeyError(f"Unknown key: {name!r}")
+        return _Key(code)
+
+
+Keyboard = _Keyboard()
+
+
+# === WINDOW SINGLETON ===
+
+
+class _Window:
+    """Canvas window singleton. Access size, anchors, and run the game loop."""
+
+    @property
+    def width(self):
+        return _width
+
+    @property
+    def height(self):
+        return _height
+
+    def size(self, w, h):
+        _size(w, h)
+
+    def run(self, main=None, fps=60):
+        _run(main, fps)
+
+    def stop(self):
+        _stop()
+
+    # --- anchor points ---
+
+    @property
+    def top_left(self):
+        return AnchorPoint(0, 0, "left", "top")
+
+    @property
+    def top_right(self):
+        return AnchorPoint(lambda: _width, 0, "right", "top")
+
+    @property
+    def bottom_left(self):
+        return AnchorPoint(0, lambda: _height, "left", "bottom")
+
+    @property
+    def bottom_right(self):
+        return AnchorPoint(lambda: _width, lambda: _height, "right", "bottom")
+
+    @property
+    def center(self):
+        return AnchorPoint(lambda: _width / 2, lambda: _height / 2, "center", "middle")
+
+    @property
+    def top(self):
+        return AnchorPoint(lambda: _width / 2, 0, "center", "top")
+
+    @property
+    def bottom(self):
+        return AnchorPoint(lambda: _width / 2, lambda: _height, "center", "bottom")
+
+    @property
+    def left(self):
+        return AnchorPoint(0, lambda: _height / 2, "left", "middle")
+
+    @property
+    def right(self):
+        return AnchorPoint(lambda: _width, lambda: _height / 2, "right", "middle")
+
+
+Window = _Window()
+
 
 # === LOW-LEVEL HELPERS ===
 
@@ -133,6 +289,33 @@ def _color_str(r, g=None, b=None):
     if g is None:
         return f"rgb({int(r)},{int(r)},{int(r)})"
     return f"rgb({int(r)},{int(g)},{int(b)})"
+
+
+def _resolve_color(r, g=None, b=None):
+    """Returns an (r, g, b) tuple from various input forms."""
+    if isinstance(r, tuple):
+        return (int(r[0]), int(r[1]), int(r[2]))
+    if isinstance(r, str):
+        return COLOR_NAMES.get(r.lower(), (255, 255, 255))
+    if g is None:
+        return (int(r), int(r), int(r))
+    return (int(r), int(g), int(b))
+
+
+def _anchor_pad_x(anchor, padding):
+    if anchor.h_align == "left":
+        return anchor.x + padding
+    if anchor.h_align == "right":
+        return anchor.x - padding
+    return anchor.x
+
+
+def _anchor_pad_y(anchor, padding):
+    if anchor.v_align == "top":
+        return anchor.y + padding
+    if anchor.v_align == "bottom":
+        return anchor.y - padding
+    return anchor.y
 
 
 def _init(canvas):
@@ -192,17 +375,20 @@ def _execute_draw_commands():
             if v:
                 _ctx.textBaseline = v
         elif cmd == "fill":
-            _ctx.fillStyle = _color_str(*args)
+            r, g, b = args
+            _ctx.fillStyle = _color_str(r, g, b)
         elif cmd == "no_fill":
             _ctx.fillStyle = "rgba(0,0,0,0)"
         elif cmd == "stroke":
-            _ctx.strokeStyle = _color_str(*args)
+            r, g, b = args
+            _ctx.strokeStyle = _color_str(r, g, b)
         elif cmd == "no_stroke":
             _ctx.strokeStyle = "rgba(0,0,0,0)"
         elif cmd == "stroke_width":
             _ctx.lineWidth = args[0]
         elif cmd == "background":
-            _ctx.fillStyle = _color_str(*args)
+            r, g, b = args
+            _ctx.fillStyle = _color_str(r, g, b)
             _ctx.fillRect(0, 0, _width, _height)
         elif cmd == "push":
             _ctx.save()
@@ -223,7 +409,6 @@ def _execute_draw_commands():
             else:
                 raw = img_result
             from pyodide.ffi import to_js
-
             js_img = to_js(raw)
             if w is not None:
                 _ctx.drawImage(js_img, x, y, w, h if h is not None else w)
@@ -233,16 +418,100 @@ def _execute_draw_commands():
             pass
         elif cmd == "rect_mode":
             pass
+        elif cmd == "say":
+            _draw_say(*args)
+
+
+def _draw_say(s, anchor, padding):
+    """Render a speech bubble at anchor point with a tail."""
+    ax = float(anchor.x)
+    ay = float(anchor.y)
+    h_align = anchor.h_align
+    v_align = anchor.v_align
+
+    # Measure text width; estimate from char count if measureText unavailable
+    try:
+        metrics = _ctx.measureText(s)
+        text_w = float(metrics.width)
+    except Exception:
+        text_w = len(s) * 9.0  # rough fallback
+
+    # Estimate font size from canvas font string (e.g. "16px sans-serif")
+    font_size = 16.0
+    try:
+        font_part = _ctx.font.strip().split("px")[0].strip().split()[-1]
+        font_size = float(font_part)
+    except Exception:
+        pass
+
+    text_h = font_size
+    bubble_w = text_w + 2 * padding
+    bubble_h = text_h + 2 * padding
+    tail = min(10, padding + 2)
+    corner_r = 6
+
+    # Compute bubble top-left corner and tail triangle points
+    bx_map = {"left": ax, "right": ax - bubble_w, "center": ax - bubble_w / 2}
+    bx = bx_map.get(h_align, ax - bubble_w / 2)
+
+    if v_align == "bottom":      # anchor is at the top of the actor → bubble above
+        by = ay - bubble_h - tail
+        mid_bx = bx + bubble_w / 2
+        tail_pts = [(mid_bx, ay), (mid_bx - tail / 2, by + bubble_h), (mid_bx + tail / 2, by + bubble_h)]
+    elif v_align == "top":       # anchor at bottom of actor → bubble below
+        by = ay + tail
+        mid_bx = bx + bubble_w / 2
+        tail_pts = [(mid_bx, ay), (mid_bx - tail / 2, by), (mid_bx + tail / 2, by)]
+    else:                        # middle → bubble to the side
+        by = ay - bubble_h / 2
+        if h_align == "left":
+            bx = ax + tail
+            tail_pts = [(ax, ay), (bx, ay - tail / 2), (bx, ay + tail / 2)]
+        else:
+            bx = ax - bubble_w - tail
+            tail_pts = [(ax, ay), (ax - tail, ay - tail / 2), (ax - tail, ay + tail / 2)]
+
+    _ctx.save()
+    _ctx.fillStyle = "rgba(0,0,0,0.78)"
+    _ctx.strokeStyle = "rgba(0,0,0,0)"
+
+    # Tail triangle
+    _ctx.beginPath()
+    _ctx.moveTo(tail_pts[0][0], tail_pts[0][1])
+    _ctx.lineTo(tail_pts[1][0], tail_pts[1][1])
+    _ctx.lineTo(tail_pts[2][0], tail_pts[2][1])
+    _ctx.closePath()
+    _ctx.fill()
+
+    # Rounded bubble
+    _ctx.beginPath()
+    try:
+        _ctx.roundRect(bx, by, bubble_w, bubble_h, corner_r)
+    except Exception:
+        _ctx.rect(bx, by, bubble_w, bubble_h)
+    _ctx.fill()
+
+    # Text
+    _ctx.fillStyle = "white"
+    _ctx.textAlign = "left"
+    _ctx.textBaseline = "middle"
+    _ctx.fillText(s, bx + padding, by + bubble_h / 2)
+
+    _ctx.restore()
 
 
 # === SIZE ===
 
 
-def size(w: Union[int, float], h: Union[int, float]) -> None:
+def _size(w, h):
     global _pending_size, _width, _height
     _pending_size = (int(w), int(h))
     _width = int(w)
     _height = int(h)
+
+
+def size(w: Union[int, float], h: Union[int, float]) -> None:
+    _size(w, h)
 
 
 def width() -> int:
@@ -256,48 +525,45 @@ def height() -> int:
 # === DRAWING ===
 
 
-def circle(x: Union[int, float], y: Union[int, float], r: Union[int, float]) -> None:
+def circle(x, y, r) -> None:
     _draw_commands.append(("circle", (float(x), float(y), float(r)), {}))
 
 
-def rect(
-    x: Union[int, float],
-    y: Union[int, float],
-    w: Union[int, float],
-    h: Union[int, float],
-) -> None:
+def rect(x, y, w, h) -> None:
     _draw_commands.append(("rect", (float(x), float(y), float(w), float(h)), {}))
 
 
-def ellipse(
-    x: Union[int, float],
-    y: Union[int, float],
-    w: Union[int, float],
-    h: Optional[Union[int, float]] = None,
-) -> None:
+def ellipse(x, y, w, h=None) -> None:
     if h is None:
         h = w
     _draw_commands.append(("ellipse", (float(x), float(y), float(w), float(h)), {}))
 
 
-def line(
-    x1: Union[int, float],
-    y1: Union[int, float],
-    x2: Union[int, float],
-    y2: Union[int, float],
-) -> None:
+def line(x1, y1, x2, y2) -> None:
     _draw_commands.append(("line", (float(x1), float(y1), float(x2), float(y2)), {}))
 
 
-def point(x: Union[int, float], y: Union[int, float]) -> None:
+def point(x, y) -> None:
     _draw_commands.append(("point", (float(x), float(y)), {}))
 
 
-def text(s: Any, x: Union[int, float], y: Union[int, float]) -> None:
-    _draw_commands.append(("text", (str(s), float(x), float(y)), {}))
+def text(s: Any, x_or_anchor, y=None, *, padding: int = 6) -> None:
+    if isinstance(x_or_anchor, AnchorPoint):
+        a = x_or_anchor
+        _draw_commands.append(("text_align", (a.h_align, a.v_align), {}))
+        px = _anchor_pad_x(a, padding)
+        py = _anchor_pad_y(a, padding)
+        _draw_commands.append(("text", (str(s), px, py), {}))
+    else:
+        _draw_commands.append(("text", (str(s), float(x_or_anchor), float(y)), {}))
 
 
-def text_size(n: Union[int, float]) -> None:
+def say(s: Any, anchor, *, padding: int = 8) -> None:
+    """Draw a speech bubble with a tail pointing at anchor."""
+    _draw_commands.append(("say", (str(s), anchor, int(padding)), {}))
+
+
+def text_size(n) -> None:
     _draw_commands.append(("text_size", (int(n),), {}))
 
 
@@ -310,25 +576,16 @@ def text_align(horizontal: str, vertical: Optional[str] = None) -> None:
 # === COLOR ===
 
 
-def fill(
-    r: Optional[Union[int, float, str]] = None,
-    g: Optional[Union[int, float]] = None,
-    b: Optional[Union[int, float]] = None,
-) -> None:
+def fill(r=None, g=None, b=None) -> None:
     global _fill_color, _current_fill
     if r is None:
         _current_fill = False
         _draw_commands.append(("no_fill", (), {}))
         return
-    if isinstance(r, str):
-        color = COLOR_NAMES.get(r.lower(), (255, 255, 255))
-        _fill_color = color
-    elif g is None:
-        _fill_color = (int(r), int(r), int(r))
-    else:
-        _fill_color = (int(r), int(g), int(b))
+    color = _resolve_color(r, g, b)
+    _fill_color = color
     _current_fill = True
-    _draw_commands.append(("fill", _fill_color, {}))
+    _draw_commands.append(("fill", color, {}))
 
 
 def no_fill() -> None:
@@ -337,25 +594,16 @@ def no_fill() -> None:
     _draw_commands.append(("no_fill", (), {}))
 
 
-def stroke(
-    r: Optional[Union[int, float, str]] = None,
-    g: Optional[Union[int, float]] = None,
-    b: Optional[Union[int, float]] = None,
-) -> None:
+def stroke(r=None, g=None, b=None) -> None:
     global _stroke_color, _current_stroke
     if r is None:
         _current_stroke = False
         _draw_commands.append(("no_stroke", (), {}))
         return
-    if isinstance(r, str):
-        color = COLOR_NAMES.get(r.lower(), (255, 255, 255))
-        _stroke_color = color
-    elif g is None:
-        _stroke_color = (int(r), int(r), int(r))
-    else:
-        _stroke_color = (int(r), int(g), int(b))
+    color = _resolve_color(r, g, b)
+    _stroke_color = color
     _current_stroke = True
-    _draw_commands.append(("stroke", _stroke_color, {}))
+    _draw_commands.append(("stroke", color, {}))
 
 
 def no_stroke() -> None:
@@ -364,24 +612,15 @@ def no_stroke() -> None:
     _draw_commands.append(("no_stroke", (), {}))
 
 
-def stroke_width(w: Union[int, float]) -> None:
+def stroke_width(w) -> None:
     global _stroke_width
     _stroke_width = int(w)
     _draw_commands.append(("stroke_width", (int(w),), {}))
 
 
-def background(
-    r: Union[int, float, str],
-    g: Optional[Union[int, float]] = None,
-    b: Optional[Union[int, float]] = None,
-) -> None:
-    if isinstance(r, str):
-        color = COLOR_NAMES.get(r.lower(), (0, 0, 0))
-        _draw_commands.append(("background", color, {}))
-    elif g is None:
-        _draw_commands.append(("background", (int(r), int(r), int(r)), {}))
-    else:
-        _draw_commands.append(("background", (int(r), int(g), int(b)), {}))
+def background(r, g=None, b=None) -> None:
+    color = _resolve_color(r, g, b)
+    _draw_commands.append(("background", color, {}))
 
 
 # === TRANSFORM ===
@@ -395,15 +634,15 @@ def pop() -> None:
     _draw_commands.append(("pop", (), {}))
 
 
-def translate(x: Union[int, float], y: Union[int, float]) -> None:
+def translate(x, y) -> None:
     _draw_commands.append(("translate", (float(x), float(y)), {}))
 
 
-def rotate(angle: Union[int, float]) -> None:
+def rotate(angle) -> None:
     _draw_commands.append(("rotate", (float(angle),), {}))
 
 
-def scale(x: Union[int, float], y: Optional[Union[int, float]] = None) -> None:
+def scale(x, y=None) -> None:
     if y is None:
         y = x
     _draw_commands.append(("scale", (float(x), float(y)), {}))
@@ -412,13 +651,7 @@ def scale(x: Union[int, float], y: Optional[Union[int, float]] = None) -> None:
 # === IMAGE ===
 
 
-def image(
-    img_result: Any,
-    x: Union[int, float],
-    y: Union[int, float],
-    w: Optional[Union[int, float]] = None,
-    h: Optional[Union[int, float]] = None,
-) -> None:
+def image(img_result: Any, x, y, w=None, h=None) -> None:
     _draw_commands.append(("image", (img_result, float(x), float(y), w, h), {}))
 
 
@@ -430,30 +663,11 @@ def rect_mode(mode: str) -> None:
     _draw_commands.append(("rect_mode", (mode,), {}))
 
 
-# === INPUT ===
+# === RANDOM HELPERS ===
 
 
-def key_pressed(key: str) -> bool:
-    code = _KEY_CODES.get(key.lower(), 0)
-    return code in _keys_down
-
-
-def mouse_x() -> float:
-    return _mouse_x
-
-
-def mouse_y() -> float:
-    return _mouse_y
-
-
-def frame_rate(fps: Union[int, float]) -> None:
-    global _target_fps
-    _target_fps = int(fps)
-
-
-def random(low: Union[int, float], high: Optional[Union[int, float]] = None) -> float:
+def random(low, high=None) -> float:
     import random as _random
-
     if high is None:
         return _random.uniform(0, low)
     return _random.uniform(low, high)
@@ -461,111 +675,94 @@ def random(low: Union[int, float], high: Optional[Union[int, float]] = None) -> 
 
 def random_color() -> str:
     import random as _random
-
-    colors = list(COLOR_NAMES.keys())
-    return _random.choice(colors)
-
-
-# === EVENTS ===
-
-
-def every(frames: int) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
-    def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
-        if frames not in _every_handlers:
-            _every_handlers[frames] = []
-        _every_handlers[frames].append([0, func])
-        return func
-
-    return decorator
+    names = [n for n in dir(Colors) if not n.startswith("_")]
+    if names:
+        name = _random.choice(names)
+        val = getattr(Colors, name)
+        if isinstance(val, tuple):
+            return name
+    return _random.choice(list(COLOR_NAMES.keys()))
 
 
-def on_key_press(*keys: str) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
-    def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
-        for key in keys:
-            if key not in _key_handlers:
-                _key_handlers[key] = []
-            _key_handlers[key].append(func)
-        return func
-
-    return decorator
+def frame_rate(fps) -> None:
+    global _target_fps
+    _target_fps = int(fps)
 
 
-def on_mouse_move(func: Callable[[float, float], Any]) -> Callable[[float, float], Any]:
-    _mouse_handlers.append(("move", func))
-    return func
+# === RUN ===
 
 
-def on_mouse_click(
-    func: Callable[[float, float], Any],
-) -> Callable[[float, float], Any]:
-    _mouse_handlers.append(("click", func))
-    return func
-
-
-def setup(func: Callable[[], Any]) -> Callable[[], Any]:
-    global _setup_func
-    _setup_func = func
-    return func
-
-
-# === COLLISION ===
-
-
-def on_collide(
-    other_actor_class: type,
-) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
-    def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
-        _collision_handlers.append((other_actor_class, func))
-        return func
-
-    return decorator
-
-
-def on_collide_any(
-    *actor_classes: type,
-) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
-    def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
-        for cls in actor_classes:
-            _collision_handlers.append((cls, func))
-        return func
-
-    return decorator
-
-
-def _check_collisions():
-    from graphics.actors import Actor
-
-    all_actors = Actor.all_actors()
-    for actor_cls, handler in _collision_handlers:
-        for actor in all_actors:
-            if not actor.is_alive() or not actor._collidable:
-                continue
-            if not isinstance(actor, actor_cls):
-                continue
-            for other in all_actors:
-                if not other.is_alive() or not other._collidable:
-                    continue
-                if actor is other:
-                    continue
-                if actor.collides_with(other):
-                    try:
-                        handler(actor, other)
-                    except Exception:
-                        traceback.print_exc()
-
-
-# === LOOP ===
-
-
-def _run_loop():
-    global _pending_timer_id
-    global _running, _stop_requested, _loop_generation, _frame_count
-    from js import Date, clearTimeout, setTimeout
+def _tick(main, my_generation):
+    global _pending_timer_id, _frame_count, _mouse_clicked, _mouse_released
+    global _running, _stop_requested, _loop_generation
+    from js import clearTimeout, setTimeout
     from pyodide.ffi import create_proxy
     from graphics.actors import Actor
 
+    if _loop_generation != my_generation:
+        return
+    if not _running:
+        return
+    if _stop_requested:
+        _running = False
+        return
+
+    try:
+        _execute_draw_commands()
+        _draw_commands.clear()
+
+        for actor in Actor.all_actors():
+            if actor.is_alive():
+                actor._apply_velocity()
+
+        if main is not None:
+            main()
+
+        _mouse_clicked = False
+        _mouse_released = False
+        _keys_pressed.clear()
+        _keys_released.clear()
+
+        _execute_draw_commands()
+        _draw_commands.clear()
+        _frame_count += 1
+
+    except Exception:
+        traceback.print_exc()
+        _running = False
+        return
+
+    elapsed = 1000 / _target_fps
+    _pending_timer_id = setTimeout(tick_proxy, int(elapsed))
+
+
+tick_proxy = None
+
+
+def _run(main=None, fps=60) -> None:
+    from js import setTimeout
+    from pyodide.ffi import create_proxy
+
+    global _running, _stop_requested, _loop_generation, _frame_count, _target_fps
+    global _pending_timer_id, tick_proxy, _ctx, _canvas, _width, _height
+
+    if _canvas is None:
+        raise RuntimeError("No canvas attached. Call attach_canvas first.")
+
+    _ctx = _canvas.getContext("2d")
+    _target_fps = int(fps)
+
     if _pending_timer_id is not None:
+        from js import clearTimeout
         clearTimeout(_pending_timer_id)
+
+    if _pending_size:
+        _width, _height = _pending_size
+        _canvas.width = _width
+        _canvas.height = _height
+
+    from js import _ide_canvas_resize  # type: ignore
+    _ide_canvas_resize(_width, _height)
 
     _running = True
     _stop_requested = False
@@ -573,92 +770,35 @@ def _run_loop():
     my_generation = _loop_generation
     _frame_count = 0
 
-    def tick():
-        global _pending_timer_id
-        global _running, _stop_requested, _loop_generation, _frame_count
-        if _loop_generation != my_generation:
-            return
-        if not _running:
-            return
-        if _stop_requested:
-            _running = False
-            return
-
-        try:
-            _execute_draw_commands()
-            _draw_commands.clear()
-            _check_collisions()
-
-            for frames, handlers in _every_handlers.items():
-                for item in handlers:
-                    counter = item[0]
-                    func = item[1]
-                    counter += 1
-                    if counter >= frames:
-                        try:
-                            func()
-                        except Exception:
-                            traceback.print_exc()
-                            _running = False
-                            return
-                        counter = 0
-                    item[0] = counter
-
-            _execute_draw_commands()
-            _draw_commands.clear()
-            _frame_count += 1
-        except Exception:
-            traceback.print_exc()
-            _running = False
-            return
-
-        elapsed = 1000 / _target_fps
-        _pending_timer_id = setTimeout(tick_proxy, int(elapsed))
-
-    tick_proxy = create_proxy(tick)
-    tick()
+    tick_proxy = create_proxy(lambda: _tick(main, my_generation))
+    _pending_timer_id = setTimeout(tick_proxy, 0)
 
 
-def run() -> None:
-    global _running, _ctx, _canvas, _width, _height, _setup_func
-
-    if _canvas is None:
-        raise RuntimeError("No canvas attached. Call attach_canvas first.")
-
-    _ctx = _canvas.getContext("2d")
-
-    if _setup_func:
-        try:
-            _setup_func()
-        except Exception:
-            traceback.print_exc()
-
-    if _pending_size:
-        _width, _height = _pending_size
-        _canvas.width = _width
-        _canvas.height = _height
-
-    _run_loop()
+def run(main=None, fps=60) -> None:
+    _run(main, fps)
 
 
 # === STOP ===
 
 
-def stop() -> None:
+def _stop() -> None:
     global _stop_requested, _pending_timer_id
     from js import clearTimeout
-
     if _pending_timer_id is not None:
         clearTimeout(_pending_timer_id)
         _pending_timer_id = None
     _stop_requested = True
 
 
+def stop() -> None:
+    _stop()
+
+
 # === EVENT INJECTION ===
 
 
 def _inject_event(kind, data):
-    global _mouse_x, _mouse_y, _keys_down
+    global _mouse_x, _mouse_y, _mouse_down, _mouse_clicked, _mouse_released, _keys_down
 
     if not isinstance(data, dict):
         data = data.to_py() if hasattr(data, "to_py") else {}
@@ -666,46 +806,31 @@ def _inject_event(kind, data):
     if kind == "mousemove":
         _mouse_x = float(data.get("x", 0))
         _mouse_y = float(data.get("y", 0))
-        for typ, handler in _mouse_handlers:
-            if typ == "move":
-                try:
-                    handler(_mouse_x, _mouse_y)
-                except Exception:
-                    traceback.print_exc()
-
     elif kind == "mousedown":
-        for typ, handler in _mouse_handlers:
-            if typ == "click":
-                try:
-                    handler(_mouse_x, _mouse_y)
-                except Exception:
-                    traceback.print_exc()
-
+        _mouse_down = True
+        _mouse_clicked = True
+    elif kind == "mouseup":
+        _mouse_down = False
+        _mouse_released = True
     elif kind == "keydown":
-        key = data.get("key", "")
         key_code = int(data.get("keyCode", 0))
-        _keys_down.add(key_code)
-        for k, handlers in _key_handlers.items():
-            if k.lower() == key.lower() or str(key_code) == k:
-                for handler in handlers:
-                    try:
-                        handler()
-                    except Exception:
-                        traceback.print_exc()
-
+        if key_code not in _keys_down:
+            _keys_down.add(key_code)
+            _keys_pressed.add(key_code)
     elif kind == "keyup":
         key_code = int(data.get("keyCode", 0))
         _keys_down.discard(key_code)
+        _keys_released.add(key_code)
 
 
 # === CLEAR ===
 
 
 def _clear():
-    global _draw_commands, _pending_size, _setup_func
-    global _key_handlers, _mouse_handlers, _every_handlers, _collision_handlers
+    global _draw_commands, _pending_size
     global _frame_count, _stop_requested, _running, _loop_generation
-    global _mouse_x, _mouse_y, _keys_down
+    global _mouse_x, _mouse_y, _mouse_down, _mouse_clicked, _mouse_released
+    global _keys_down, _keys_pressed, _keys_released
     global _fill_color, _stroke_color, _stroke_width
     global _current_fill, _current_stroke, _pending_timer_id
     from js import clearTimeout
@@ -717,18 +842,18 @@ def _clear():
 
     _draw_commands = []
     _pending_size = None
-    _setup_func = None
-    _key_handlers = {}
-    _mouse_handlers = []
-    _every_handlers = {}
-    _collision_handlers = []
     _frame_count = 0
     _stop_requested = False
     _running = False
     _loop_generation = 0
     _mouse_x = 0
     _mouse_y = 0
+    _mouse_down = False
+    _mouse_clicked = False
+    _mouse_released = False
     _keys_down = set()
+    _keys_pressed = set()
+    _keys_released = set()
     _fill_color = (255, 255, 255)
     _stroke_color = (0, 0, 0)
     _stroke_width = 1
@@ -740,48 +865,19 @@ def _clear():
 
 __all__ = [
     "_version",
-    "size",
-    "width",
-    "height",
-    "circle",
-    "rect",
-    "ellipse",
-    "line",
-    "point",
-    "text",
-    "text_size",
-    "text_align",
-    "fill",
-    "no_fill",
-    "stroke",
-    "no_stroke",
-    "stroke_width",
+    "size", "width", "height",
+    "circle", "rect", "ellipse", "line", "point",
+    "text", "text_size", "text_align",
+    "say",
+    "fill", "no_fill", "stroke", "no_stroke", "stroke_width",
     "background",
-    "push",
-    "pop",
-    "translate",
-    "rotate",
-    "scale",
-    "image",
-    "image_mode",
-    "rect_mode",
-    "key_pressed",
-    "mouse_x",
-    "mouse_y",
+    "push", "pop", "translate", "rotate", "scale",
+    "image", "image_mode", "rect_mode",
     "frame_rate",
-    "random",
-    "random_color",
-    "every",
-    "on_key_press",
-    "on_mouse_move",
-    "on_mouse_click",
-    "setup",
-    "run",
-    "on_collide",
-    "on_collide_any",
+    "random", "random_color",
+    "Colors", "AnchorPoint",
+    "Mouse", "Keyboard", "Window",
+    "Actor", "Rect", "Circle", "Group", "Collider",
+    "run", "stop",
     "assets",
-    "_init",
-    "_inject_event",
-    "_clear",
-    "stop",
 ]

@@ -209,6 +209,29 @@ export function IconEye({ size = 22, ...rest }: IconProps) {
   );
 }
 
+export function IconNodes({ size = 22, ...rest }: IconProps) {
+  const c = rest.color || "currentColor";
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <path d="M4 18 C9 18 9 6 14 6 L20 6" stroke={c} strokeWidth={1.8} strokeLinecap="round" />
+      <circle cx="4" cy="18" r="2" fill={c} />
+      <circle cx="14" cy="6" r="2" fill={c} />
+      <circle cx="20" cy="6" r="2" fill={c} />
+    </svg>
+  );
+}
+
+export function IconUsers({ size = 22, ...rest }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...s(rest)}>
+      <circle cx="9" cy="7" r="3" />
+      <path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6" />
+      <circle cx="17" cy="8" r="2.5" />
+      <path d="M21 20c-.3-2-2-3.5-4-3.5" />
+    </svg>
+  );
+}
+
 export type IconName =
   | "folder"
   | "play"
@@ -233,7 +256,10 @@ export type IconName =
   | "redo"
   | "grid"
   | "copy"
-  | "eye";
+  | "eye"
+  | "nodes"
+  | "book"
+  | "users";
 
 export function Icon({ name, ...props }: IconProps & { name: IconName }) {
   switch (name) {
@@ -261,5 +287,39 @@ export function Icon({ name, ...props }: IconProps & { name: IconName }) {
     case "grid": return <IconGrid {...props} />;
     case "copy": return <IconCopy {...props} />;
     case "eye": return <IconEye {...props} />;
+    case "nodes": return <IconNodes {...props} />;
+    case "book": return <IconBook {...props} />;
+    case "users": return <IconUsers {...props} />;
   }
+}
+
+function IconBook({ size = 22, color, strokeWidth }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color || "currentColor"} strokeWidth={strokeWidth ?? 1.7} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+      <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+      <line x1="8" y1="7" x2="16" y2="7" />
+      <line x1="8" y1="11" x2="13" y2="11" />
+    </svg>
+  );
+}
+
+export function IconImage({ size = 22, ...rest }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...s(rest)}>
+      <rect x="3" y="5" width="18" height="14" rx="2" />
+      <circle cx="8.5" cy="9.5" r="1.5" />
+      <path d="M3 16l4.5-5 4 4.5 2.5-2.5 5 5" />
+    </svg>
+  );
+}
+
+export function IconLayers({ size = 22, ...rest }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...s(rest)}>
+      <path d="M12 2L2 7l10 5 10-5-10-5Z" />
+      <path d="M2 12l10 5 10-5" />
+      <path d="M2 17l10 5 10-5" />
+    </svg>
+  );
 }

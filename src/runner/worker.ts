@@ -74,17 +74,17 @@ async function initPyodide(
   
   console.log("Worker: Files written, running Python initialization...");
 
-  p.globals.set(
-    "_ide_post_output",
-    (kind: "stdout" | "stderr", text: string) => {
+  // Set up IDE callbacks on js object so Python's "from js import X" works
+  p.globals.set("js", {
+    _ide_post_output: (kind: "stdout" | "stderr", text: string) => {
       post({ type: kind, text });
     },
-  );
-  p.globals.set("_ide_post_input_request", (prompt: string) => {
-    post({ type: "input_request", prompt });
-  });
-  p.globals.set("_ide_canvas_resize", (width: number, height: number) => {
-    post({ type: "canvas_resize", width, height });
+    _ide_post_input_request: (prompt: string) => {
+      post({ type: "input_request", prompt });
+    },
+    _ide_canvas_resize: (width: number, height: number) => {
+      post({ type: "canvas_resize", width, height });
+    },
   });
 
   try {

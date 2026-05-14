@@ -230,7 +230,7 @@ export const useIde = create<IdeState>((set, get) => ({
   loading: false,
   showHitboxes: localStorage.getItem("pi3_showHitboxes") === "true",
   showConsoleOnRun: localStorage.getItem("pi3_showConsoleOnRun") === "true",
-  enableLinting: localStorage.getItem("pi3_enableLinting") !== "false",
+  enableLinting: localStorage.getItem("pi3_enableLinting") === "true",
   loadingProjectContent: false,
 
   setActivePanel: (panel) => set({ activePanel: panel }),

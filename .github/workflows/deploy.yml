@@ -80,11 +80,19 @@ jobs:
             # Login to GHCR
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u bkmz2000 --password-stdin
 
+            # Stop and remove old container
+            docker compose down 2>/dev/null || true
+
+            # Remove old local image to ensure fresh pull
+            docker rmi ghcr.io/bkmz2000/pi3:latest 2>/dev/null || true
+
+            # Pull latest image
+            docker compose pull
+
             # Create db directory if using docker run (not compose volumes)
             mkdir -p /app/pi3/db
 
-            # Pull latest image and restart
-            docker compose pull
+            # Start container
             docker compose up -d
 
       - name: Deployment Summary

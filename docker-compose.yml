@@ -10,7 +10,7 @@ services:
       - PORT=3001
       - DB_PATH=/app/db/pi3.db
       - SESSION_SECRET=${SESSION_SECRET}
-      - LOGINUS_DOMAIN=${LOGINUS_DOMAIN:-https://loginus.ru}
+      - LOGINUS_DOMAIN=${LOGINUS_DOMAIN:-https://lk.systematika.org}
       - LOGINUS_CLIENT_ID=${LOGINUS_CLIENT_ID}
       - LOGINUS_CLIENT_SECRET=${LOGINUS_CLIENT_SECRET}
       - LOGINUS_REDIRECT_URI=${LOGINUS_REDIRECT_URI:-https://pi3.sys5.ru/api/auth/callback}

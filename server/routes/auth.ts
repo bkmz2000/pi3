@@ -47,6 +47,7 @@ router.get('/login', (req: Request, res: Response): void => {
     nonce,
   });
 
+  console.log('[auth/login] session id:', req.sessionID, 'state:', state, 'secure:', req.secure, 'protocol:', req.protocol);
   res.redirect(`${DOMAIN}/api/v2/oauth/authorize?${params}`);
 });
 
@@ -65,6 +66,7 @@ router.get('/callback', async (req: Request, res: Response): Promise<void> => {
     return;
   }
 
+  console.log('[auth/callback] session id:', req.sessionID, 'session state:', req.session.oauthState, 'url state:', state);
   if (!state || state !== req.session.oauthState) {
     res.redirect('/?auth_error=state');
     return;

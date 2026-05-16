@@ -13,7 +13,7 @@ services:
       - LOGINUS_DOMAIN=${LOGINUS_DOMAIN:-https://lk.systematika.org}
       - LOGINUS_CLIENT_ID=${LOGINUS_CLIENT_ID}
       - LOGINUS_CLIENT_SECRET=${LOGINUS_CLIENT_SECRET}
-      - LOGINUS_REDIRECT_URI=${LOGINUS_REDIRECT_URI:-https://pi3.sys5.ru/api/auth/callback}
+      - APP_BASE_URL=${APP_BASE_URL:-https://pi3.sys5.ru}
       - LOGINUS_TEACHER_ROLE=${LOGINUS_TEACHER_ROLE:-teacher}
     env_file:
       - .env

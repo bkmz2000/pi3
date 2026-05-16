@@ -2,13 +2,20 @@ import { Router, Request, Response } from 'express';
 import { randomBytes } from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import { getDb } from '../db/index.js';
+import { optionalAuth } from '../middleware/auth.js';
 
 const router = Router();
+
+function isSafeReturnUrl(url: string): boolean {
+  return url.startsWith('/') && !url.startsWith('//');
+}
 
 const DOMAIN = process.env.LOGINUS_DOMAIN || 'https://loginus.ru';
 const CLIENT_ID = process.env.LOGINUS_CLIENT_ID || '';
 const CLIENT_SECRET = process.env.LOGINUS_CLIENT_SECRET || '';
-const REDIRECT_URI = process.env.LOGINUS_REDIRECT_URI || '';
+const DEFAULT_BASE_URL = process.env.NODE_ENV === 'production' ? 'https://pi3.sys5.ru' : 'http://localhost:3001';
+const APP_BASE_URL = process.env.APP_BASE_URL || DEFAULT_BASE_URL;
+const REDIRECT_URI = `${APP_BASE_URL}/api/auth/callback`;
 const TEACHER_ROLE = process.env.LOGINUS_TEACHER_ROLE || 'teacher';
 
 interface LoginusUserinfo {
@@ -25,8 +32,10 @@ router.get('/login', (req: Request, res: Response): void => {
   const state = randomBytes(16).toString('hex');
   req.session.oauthState = state;
 
-  const returnUrl = typeof req.query.return_url === 'string' ? req.query.return_url : undefined;
-  if (returnUrl) req.session.returnUrl = returnUrl;
+  const rawReturnUrl = typeof req.query.return_url === 'string' ? req.query.return_url : undefined;
+  if (rawReturnUrl && isSafeReturnUrl(rawReturnUrl)) {
+    req.session.returnUrl = rawReturnUrl;
+  }
 
   const params = new URLSearchParams({
     client_id: CLIENT_ID,
@@ -45,17 +54,17 @@ router.get('/callback', async (req: Request, res: Response): Promise<void> => {
 
   if (error) {
     console.error('OAuth error from Loginus:', error);
-    res.redirect('/?auth_error=1');
+    res.redirect('/?auth_error=provider');
     return;
   }
 
   if (!code || typeof code !== 'string') {
-    res.redirect('/?auth_error=1');
+    res.redirect('/?auth_error=state');
     return;
   }
 
   if (!state || state !== req.session.oauthState) {
-    res.status(400).json({ error: 'Invalid state parameter' });
+    res.redirect('/?auth_error=state');
     return;
   }
   delete req.session.oauthState;
@@ -77,7 +86,7 @@ router.get('/callback', async (req: Request, res: Response): Promise<void> => {
     });
     if (!tokenRes.ok) {
       console.error('Token exchange failed:', await tokenRes.text());
-      res.redirect('/?auth_error=1');
+      res.redirect('/?auth_error=token');
       return;
     }
     const tokens = await tokenRes.json() as { access_token: string; id_token?: string };
@@ -85,7 +94,7 @@ router.get('/callback', async (req: Request, res: Response): Promise<void> => {
     id_token = tokens.id_token;
   } catch (err) {
     console.error('Token exchange error:', err);
-    res.redirect('/?auth_error=1');
+    res.redirect('/?auth_error=token');
     return;
   }
 
@@ -97,13 +106,13 @@ router.get('/callback', async (req: Request, res: Response): Promise<void> => {
     });
     if (!userinfoRes.ok) {
       console.error('Userinfo fetch failed:', await userinfoRes.text());
-      res.redirect('/?auth_error=1');
+      res.redirect('/?auth_error=userinfo');
       return;
     }
     userinfo = await userinfoRes.json() as LoginusUserinfo;
   } catch (err) {
     console.error('Userinfo fetch error:', err);
-    res.redirect('/?auth_error=1');
+    res.redirect('/?auth_error=userinfo');
     return;
   }
 
@@ -144,8 +153,14 @@ router.get('/callback', async (req: Request, res: Response): Promise<void> => {
 });
 
 // POST /api/auth/logout
-router.post('/logout', (req: Request, res: Response): void => {
+router.post('/logout', optionalAuth, (req: Request, res: Response): void => {
   const idToken = req.session.idToken;
+  const db = getDb();
+  if (req.user?.id) {
+    const newToken = uuidv4().replace(/-/g, '') + uuidv4().replace(/-/g, '');
+    db.prepare('UPDATE users SET api_token = ?, updated_at = ? WHERE id = ?')
+      .run(newToken, Date.now(), req.user.id);
+  }
 
   req.session.destroy(() => {
     res.clearCookie('connect.sid');

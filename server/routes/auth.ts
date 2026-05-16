@@ -30,6 +30,7 @@ interface LoginusUserinfo {
 // GET /api/auth/login
 router.get('/login', (req: Request, res: Response): void => {
   const state = randomBytes(16).toString('hex');
+  const nonce = randomBytes(16).toString('hex');
   req.session.oauthState = state;
 
   const rawReturnUrl = typeof req.query.return_url === 'string' ? req.query.return_url : undefined;
@@ -43,6 +44,7 @@ router.get('/login', (req: Request, res: Response): void => {
     response_type: 'code',
     scope: 'openid email profile',
     state,
+    nonce,
   });
 
   res.redirect(`${DOMAIN}/api/v2/oauth/authorize?${params}`);

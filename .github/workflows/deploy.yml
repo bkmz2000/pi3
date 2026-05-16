@@ -88,9 +88,7 @@ jobs:
           use_insecure_cipher: true
           script: |
             mkdir -p /app/pi3
-            cat > /app/pi3/.env << 'ENVEOF'
-            ${{ secrets.PROD_ENV }}
-            ENVEOF
+            printf '%s' '${{ secrets.PROD_ENV }}' > /app/pi3/.env
 
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1

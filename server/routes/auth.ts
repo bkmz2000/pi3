@@ -45,6 +45,7 @@ router.get('/login', (req: Request, res: Response): void => {
     scope: 'openid email profile',
     state,
     nonce,
+    prompt: 'login',
   });
 
   console.log('[auth/login] session id:', req.sessionID, 'state:', state, 'secure:', req.secure, 'protocol:', req.protocol);

@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import cookieParser from 'cookie-parser';
 import session from 'express-session';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
@@ -15,7 +16,10 @@ const DIST_DIR = process.env.DIST_DIR || join(dirname(fileURLToPath(import.meta.
 
 const app = express();
 
+app.set('trust proxy', 1);
+
 app.use(cors({ origin: true, credentials: true }));
+app.use(cookieParser());
 app.use(express.json({ limit: '10mb' }));
 app.use(session({
   secret: process.env.SESSION_SECRET || 'dev-secret-change-in-production',

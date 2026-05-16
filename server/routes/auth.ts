@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { randomBytes } from 'crypto';
+import { randomBytes, createHmac, timingSafeEqual } from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import { getDb } from '../db/index.js';
 import { optionalAuth } from '../middleware/auth.js';
@@ -17,6 +17,8 @@ const DEFAULT_BASE_URL = process.env.NODE_ENV === 'production' ? 'https://pi3.sy
 const APP_BASE_URL = process.env.APP_BASE_URL || DEFAULT_BASE_URL;
 const REDIRECT_URI = `${APP_BASE_URL}/api/auth/callback`;
 const TEACHER_ROLE = process.env.LOGINUS_TEACHER_ROLE || 'teacher';
+const STATE_SECRET = process.env.SESSION_SECRET || 'dev-secret-change-in-production';
+const IS_PROD = process.env.NODE_ENV === 'production';
 
 interface LoginusUserinfo {
   id: string;
@@ -27,15 +29,49 @@ interface LoginusUserinfo {
   globalRoles?: { name: string }[];
 }
 
+function signState(state: string): string {
+  const sig = createHmac('sha256', STATE_SECRET).update(state).digest('hex');
+  return `${state}.${sig}`;
+}
+
+function verifyState(cookie: string, urlState: string): boolean {
+  const dot = cookie.lastIndexOf('.');
+  if (dot === -1) return false;
+  const state = cookie.slice(0, dot);
+  const sig = cookie.slice(dot + 1);
+  const expected = createHmac('sha256', STATE_SECRET).update(state).digest('hex');
+  const sigBuf = Buffer.from(sig, 'hex');
+  const expBuf = Buffer.from(expected, 'hex');
+  if (sigBuf.length !== expBuf.length) return false;
+  return timingSafeEqual(sigBuf, expBuf) && state === urlState;
+}
+
 // GET /api/auth/login
 router.get('/login', (req: Request, res: Response): void => {
   const state = randomBytes(16).toString('hex');
   const nonce = randomBytes(16).toString('hex');
-  req.session.oauthState = state;
 
   const rawReturnUrl = typeof req.query.return_url === 'string' ? req.query.return_url : undefined;
-  if (rawReturnUrl && isSafeReturnUrl(rawReturnUrl)) {
-    req.session.returnUrl = rawReturnUrl;
+  const returnUrl = rawReturnUrl && isSafeReturnUrl(rawReturnUrl) ? rawReturnUrl : '/';
+
+  // Store state in a dedicated cookie instead of the session so it survives
+  // the cross-site redirect regardless of session cookie SameSite/Secure issues.
+  res.cookie('oauth_state', signState(state), {
+    httpOnly: true,
+    secure: IS_PROD,
+    sameSite: 'none',
+    maxAge: 10 * 60 * 1000, // 10 min
+    path: '/api/auth/callback',
+  });
+
+  if (returnUrl !== '/') {
+    res.cookie('oauth_return', returnUrl, {
+      httpOnly: true,
+      secure: IS_PROD,
+      sameSite: 'none',
+      maxAge: 10 * 60 * 1000,
+      path: '/api/auth/callback',
+    });
   }
 
   const params = new URLSearchParams({
@@ -48,7 +84,6 @@ router.get('/login', (req: Request, res: Response): void => {
     prompt: 'login',
   });
 
-  console.log('[auth/login] session id:', req.sessionID, 'state:', state, 'secure:', req.secure, 'protocol:', req.protocol);
   res.redirect(`${DOMAIN}/api/v2/oauth/authorize?${params}`);
 });
 
@@ -57,22 +92,27 @@ router.get('/callback', async (req: Request, res: Response): Promise<void> => {
   const { code, state, error } = req.query;
 
   if (error) {
-    console.error('OAuth error from Loginus:', error);
+    console.error('OAuth error from provider:', error);
     res.redirect('/?auth_error=provider');
     return;
   }
 
-  if (!code || typeof code !== 'string') {
+  if (!code || typeof code !== 'string' || !state || typeof state !== 'string') {
+    res.redirect('/?auth_error=missing_params');
+    return;
+  }
+
+  const stateCookie = req.cookies?.oauth_state;
+  res.clearCookie('oauth_state', { path: '/api/auth/callback' });
+
+  if (!stateCookie || !verifyState(stateCookie, state)) {
+    console.error('[auth/callback] state mismatch — cookie:', stateCookie, 'url state:', state);
     res.redirect('/?auth_error=state');
     return;
   }
 
-  console.log('[auth/callback] session id:', req.sessionID, 'session state:', req.session.oauthState, 'url state:', state);
-  if (!state || state !== req.session.oauthState) {
-    res.redirect('/?auth_error=state');
-    return;
-  }
-  delete req.session.oauthState;
+  const returnUrl = req.cookies?.oauth_return || '/';
+  res.clearCookie('oauth_return', { path: '/api/auth/callback' });
 
   // Exchange code for tokens
   let access_token: string;
@@ -152,8 +192,6 @@ router.get('/callback', async (req: Request, res: Response): Promise<void> => {
   if (id_token) req.session.idToken = id_token;
   req.session.userId = userId;
 
-  const returnUrl = req.session.returnUrl || '/';
-  delete req.session.returnUrl;
   res.redirect(returnUrl);
 });
 

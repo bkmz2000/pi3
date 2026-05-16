@@ -135,6 +135,7 @@ router.get('/callback', async (req: Request, res: Response): Promise<void> => {
       return;
     }
     const tokens = await tokenRes.json() as { access_token: string; id_token?: string };
+    console.log('[auth/callback] token response keys:', Object.keys(tokens));
     access_token = tokens.access_token;
     id_token = tokens.id_token;
   } catch (err) {

@@ -155,7 +155,8 @@ router.get('/callback', async (req: Request, res: Response): Promise<void> => {
       res.redirect('/?auth_error=userinfo');
       return;
     }
-    userinfo = await userinfoRes.json() as LoginusUserinfo;
+    const userinfoBody = await userinfoRes.json() as LoginusUserinfo & { data?: LoginusUserinfo };
+    userinfo = userinfoBody.data ?? userinfoBody;
   } catch (err) {
     console.error('Userinfo fetch error:', err);
     res.redirect('/?auth_error=userinfo');
@@ -167,7 +168,8 @@ router.get('/callback', async (req: Request, res: Response): Promise<void> => {
   const name = userinfo.preferred_username
     || [userinfo.firstName, userinfo.lastName].filter(Boolean).join(' ')
     || userinfo.email
-    || userinfo.id;
+    || userinfo.id
+    || 'Unknown';
 
   const db = getDb();
   const existing = db

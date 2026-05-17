@@ -146,8 +146,9 @@
   },
   "console": {
     "checking": "Checking for errors...",
-    "syntaxError": "Syntax error found ({{count}} issue(s))",
-    "noErrors": "No errors found. Starting the script...",
+    "foundErrors": "Found {{count}} error(s) — fix them before running",
+    "foundWarnings": "{{count}} warning(s). Starting anyway...",
+    "noErrors": "No errors found. Starting...",
     "errorFormat": "  {{message}} ({{line}})"
   },
   "linter": {

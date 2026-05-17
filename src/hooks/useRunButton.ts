@@ -47,14 +47,19 @@ export function useRunButton(options: UseRunButtonOptions = {}) {
       if (enableLinting) {
         _appendOutput("stdout", t('console.checking'));
         const diagnostics: LintDiagnostic[] = await lint(code, filename);
+        const errors = diagnostics.filter((d) => d.severity === "error");
 
-        if (diagnostics.length > 0) {
-          _appendOutput("stderr", t('console.syntaxError', { count: diagnostics.length }));
-          // Diagnostics are already displayed by RunnerProvider's message handler
+        if (errors.length > 0) {
+          _appendOutput("stderr", t('console.foundErrors', { count: errors.length }));
           return;
         }
 
-        _appendOutput("stdout", t('console.noErrors'));
+        const warnings = diagnostics.filter((d) => d.severity === "warning");
+        if (warnings.length > 0) {
+          _appendOutput("stdout", t('console.foundWarnings', { count: warnings.length }));
+        } else {
+          _appendOutput("stdout", t('console.noErrors'));
+        }
       }
       options.onBeforeRun?.();
       run(project.files, project.assets, currentFile);

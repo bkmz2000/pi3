@@ -56,3 +56,6 @@ Thumbs.db
 # Local environment secrets
 .env
 .env.local
+
+# Dev screenshots
+screenshots/

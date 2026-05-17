@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from '@jest/globals';
 import express from 'express';
 import cors from 'cors';
+import session from 'express-session';
 import request from 'supertest';
 import Database from 'better-sqlite3';
 import { createTestDb, closeTestDb } from './setup.js';
@@ -23,6 +24,7 @@ beforeAll(() => {
   app = express();
   app.use(cors());
   app.use(express.json());
+  app.use(session({ secret: 'test-secret', resave: false, saveUninitialized: false }));
   app.use('/api/users', usersRouter);
   app.use('/api/projects', projectsRouter);
 });

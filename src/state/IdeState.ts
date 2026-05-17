@@ -206,6 +206,7 @@ type IdeState = {
   showConsoleOnRun: boolean;
   enableLinting: boolean;
   enableAutocomplete: boolean;
+  consoleOnRight: boolean;
   loadingProjectContent: boolean;
 
   setActivePanel: (panel: PanelId) => void;
@@ -223,6 +224,7 @@ type IdeState = {
   setShowConsoleOnRun: (show: boolean) => void;
   setEnableLinting: (enable: boolean) => void;
   setEnableAutocomplete: (enable: boolean) => void;
+  setConsoleOnRight: (v: boolean) => void;
 };
 
 export const useIde = create<IdeState>((set, get) => ({
@@ -234,6 +236,7 @@ export const useIde = create<IdeState>((set, get) => ({
   showConsoleOnRun: localStorage.getItem("pi3_showConsoleOnRun") === "true",
   enableLinting: localStorage.getItem("pi3_enableLinting") === "true",
   enableAutocomplete: localStorage.getItem("pi3_enableAutocomplete") !== "false",
+  consoleOnRight: localStorage.getItem("pi3_consoleOnRight") === "true",
   loadingProjectContent: false,
 
   setActivePanel: (panel) => set({ activePanel: panel }),
@@ -255,6 +258,10 @@ export const useIde = create<IdeState>((set, get) => ({
   setEnableAutocomplete: (enable: boolean) => {
     localStorage.setItem("pi3_enableAutocomplete", String(enable));
     set({ enableAutocomplete: enable });
+  },
+  setConsoleOnRight: (v: boolean) => {
+    localStorage.setItem("pi3_consoleOnRight", String(v));
+    set({ consoleOnRight: v });
   },
 
   loadUserProjects: async () => {

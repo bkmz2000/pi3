@@ -104,17 +104,17 @@ function buildSignatureDOM(entry: DocEntry, activeArg: number, theme: Theme, lan
     `border:1px solid ${theme.panelBorder}`,
     `border-radius:${theme.radiusCard + 2}px`,
     `box-shadow:0 4px 16px rgba(0,0,0,0.18)`,
-    `padding:7px 12px`,
+    `padding:8px 14px`,
     `font-family:${theme.fontUI}`,
-    `font-size:12px`,
+    `font-size:14px`,
     `line-height:1.6`,
-    `max-width:440px`,
+    `max-width:480px`,
     `color:${theme.panelTxt}`,
   ].join(";");
 
   // Signature line
   const sigLine = document.createElement("div");
-  sigLine.style.cssText = `font-family:${theme.fontMono};font-size:12px;margin-bottom:${params[activeArg] ? "4px" : "0"}`;
+  sigLine.style.cssText = `font-family:${theme.fontMono};font-size:14px;margin-bottom:${params[activeArg] ? "5px" : "0"}`;
 
   const nameSpan = document.createElement("span");
   nameSpan.style.fontWeight = "700";
@@ -148,7 +148,7 @@ function buildSignatureDOM(entry: DocEntry, activeArg: number, theme: Theme, lan
   const activeParam = params[activeArg];
   if (activeParam) {
     const detail = document.createElement("div");
-    detail.style.cssText = `font-size:11px;color:${theme.panelTxtMute};`;
+    detail.style.cssText = `font-size:13px;color:${theme.panelTxtMute};`;
     const typePart = document.createElement("span");
     typePart.style.cssText = `font-family:${theme.fontMono};color:${theme.accent};margin-right:4px;`;
     typePart.textContent = activeParam.type;

@@ -19,19 +19,20 @@ function BlinkDot({ color, delay = 0 }: { color: string; delay?: number }) {
   );
 }
 
-const MIN_HEIGHT = 80;
-const MAX_HEIGHT = 600;
+const MIN_SIZE = 80;
+const MAX_SIZE = 700;
 const DEFAULT_HEIGHT = 180;
+const DEFAULT_WIDTH = 300;
 
-export default function ConsolePanel() {
+export default function ConsolePanel({ onRight = false }: { onRight?: boolean }) {
   const theme = useThemeStore((s) => s.theme);
   const { t } = useTranslation();
   const { output, inputPrompt, respondToInput, clear, running } = useRunner();
   const [inputValue, setInputValue] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const [height, setHeight] = useState(DEFAULT_HEIGHT);
-  const heightRef = useRef(DEFAULT_HEIGHT);
+  const [size, setSize] = useState(onRight ? DEFAULT_WIDTH : DEFAULT_HEIGHT);
+  const sizeRef = useRef(size);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -56,16 +57,17 @@ export default function ConsolePanel() {
     e.preventDefault();
     const handle = e.currentTarget as HTMLElement;
     handle.setPointerCapture(e.pointerId);
-
-    const startY = e.clientY;
-    const startH = heightRef.current;
+    const startPos = onRight ? e.clientX : e.clientY;
+    const startSize = sizeRef.current;
     document.body.style.userSelect = "none";
 
     const onMove = (ev: PointerEvent) => {
-      const delta = startY - ev.clientY;
-      const newH = Math.min(MAX_HEIGHT, Math.max(MIN_HEIGHT, startH + delta));
-      heightRef.current = newH;
-      setHeight(newH);
+      const delta = onRight
+        ? startPos - ev.clientX   // dragging left = wider
+        : startPos - ev.clientY;  // dragging up = taller
+      const newSize = Math.min(MAX_SIZE, Math.max(MIN_SIZE, startSize + delta));
+      sizeRef.current = newSize;
+      setSize(newSize);
     };
 
     const onUp = () => {
@@ -83,10 +85,11 @@ export default function ConsolePanel() {
   return (
     <div
       style={{
-        height,
+        ...(onRight
+          ? { width: size, height: "100%", borderLeft: `1px solid ${theme.consoleBorder}` }
+          : { height: size, borderTop: `1px solid ${theme.consoleBorder}` }),
         flex: "none",
         background: theme.consoleBg,
-        borderTop: `1px solid ${theme.consoleBorder}`,
         display: "flex",
         flexDirection: "column",
         position: "relative",
@@ -97,11 +100,9 @@ export default function ConsolePanel() {
         onPointerDown={onResizeStart}
         style={{
           position: "absolute",
-          top: -4,
-          left: 0,
-          right: 0,
-          height: 8,
-          cursor: "ns-resize",
+          ...(onRight
+            ? { top: 0, bottom: 0, left: -4, width: 8, cursor: "ew-resize" }
+            : { top: -4, left: 0, right: 0, height: 8, cursor: "ns-resize" }),
           touchAction: "none",
           zIndex: 10,
         }}
@@ -109,20 +110,19 @@ export default function ConsolePanel() {
         <div
           style={{
             position: "absolute",
-            top: 2,
-            left: "50%",
-            transform: "translateX(-50%)",
-            width: 32,
-            height: 3,
+            ...(onRight
+              ? { left: 2, top: "50%", transform: "translateY(-50%)", width: 3, height: 32 }
+              : { top: 2, left: "50%", transform: "translateX(-50%)", width: 32, height: 3 }),
             borderRadius: 2,
             background: theme.panelBorder,
             opacity: 0.5,
-            transition: "opacity 0.15s, width 0.15s",
+            transition: "opacity 0.15s",
           }}
           className="resize-handle-bar"
         />
       </div>
 
+      {/* Header */}
       <div
         style={{
           height: 32,
@@ -199,6 +199,8 @@ export default function ConsolePanel() {
           {t('app.clearConsole')}
         </button>
       </div>
+
+      {/* Output */}
       <div
         style={{
           flex: 1,

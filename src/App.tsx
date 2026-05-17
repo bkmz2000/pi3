@@ -90,6 +90,7 @@ function AppInner() {
   const lang = i18n.language;
   const showConsoleOnRun = useIde((s) => s.showConsoleOnRun);
   const enableAutocomplete = useIde((s) => s.enableAutocomplete);
+  const consoleOnRight = useIde((s) => s.consoleOnRight);
   const showConsole = !showConsoleOnRun || running;
   const theme = useThemeStore((s) => s.theme);
   const fontSize = useThemeStore((s) => s.fontSize);
@@ -346,9 +347,10 @@ function AppInner() {
               </div>
             );
           })()}
-          {showConsole && <ConsolePanel />}
+          {showConsole && !consoleOnRight && <ConsolePanel />}
           <CanvasWindow />
         </div>
+        {showConsole && consoleOnRight && <ConsolePanel onRight />}
       </div>
       {showForkDialog && (
         <ForkDialog

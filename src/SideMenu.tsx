@@ -1171,6 +1171,8 @@ function SettingsPanel({
   const setEnableLinting = useIde((s) => s.setEnableLinting);
   const enableAutocomplete = useIde((s) => s.enableAutocomplete);
   const setEnableAutocomplete = useIde((s) => s.setEnableAutocomplete);
+  const consoleOnRight = useIde((s) => s.consoleOnRight);
+  const setConsoleOnRight = useIde((s) => s.setConsoleOnRight);
   const themeId = useThemeStore((s) => s.themeId);
   const setTheme = useThemeStore((s) => s.setTheme);
   const fontSize = useThemeStore((s) => s.fontSize);
@@ -1265,7 +1267,7 @@ function SettingsPanel({
           }}>{fontSize}px</span>
         </div>
 
-        {/* Auto-hide console */}
+        {/* Console */}
         <SectionLabel theme={theme}>{t('sideMenu.console')}</SectionLabel>
         <ToggleRow
           label={t('sideMenu.autoHideConsole')}
@@ -1274,6 +1276,14 @@ function SettingsPanel({
           theme={theme}
           accent={theme.accent}
           onChange={(v) => setShowConsoleOnRun(v)}
+        />
+        <ToggleRow
+          label={t('sideMenu.consoleOnRight')}
+          hint={t('sideMenu.consoleOnRightHint')}
+          on={consoleOnRight}
+          theme={theme}
+          accent={theme.accent}
+          onChange={(v) => setConsoleOnRight(v)}
         />
 
         <div style={{ height: 4 }} />

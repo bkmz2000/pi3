@@ -86,6 +86,8 @@
     "console": "Console",
     "autoHideConsole": "Auto-hide when idle",
     "autoHideConsoleHint": "Show console only while the project is running",
+    "consoleOnRight": "Move console to the right",
+    "consoleOnRightHint": "Show the console as a side panel instead of below the editor",
     "linting": "Linting",
     "enableLinting": "Check for errors",
     "enableLintingHint": "Show errors and warnings before running",

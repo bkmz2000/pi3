@@ -56,7 +56,13 @@ router.post('/outsider', async (req: Request, res: Response): Promise<void> => {
       VALUES (?, ?, ?, ?, ?, ?, ?)
     `).run(user.id, user.api_token, user.name, user.role, user.password_hash, user.created_at, user.updated_at);
 
-    if (req.session) req.session.userId = user.id;
+    await new Promise<void>((resolve, reject) => {
+      req.session.regenerate((err) => {
+        if (err) { reject(err); return; }
+        req.session.userId = user.id;
+        resolve();
+      });
+    });
 
     res.status(201).json({
       id: user.id,
@@ -97,14 +103,24 @@ router.post('/outsider/login', async (req: Request, res: Response): Promise<void
     return;
   }
 
-  if (req.session) req.session.userId = user.id;
-
-  res.json({
-    id: user.id,
-    name: user.name,
-    role: user.role,
-    created_at: user.created_at,
-  });
+  try {
+    await new Promise<void>((resolve, reject) => {
+      req.session.regenerate((err) => {
+        if (err) { reject(err); return; }
+        req.session.userId = user.id;
+        resolve();
+      });
+    });
+    res.json({
+      id: user.id,
+      name: user.name,
+      role: user.role,
+      created_at: user.created_at,
+    });
+  } catch (error: unknown) {
+    console.error('Session error during login:', error);
+    res.status(500).json({ error: 'Internal Server Error', message: 'Session error' });
+  }
 });
 
 // GET /api/users/me

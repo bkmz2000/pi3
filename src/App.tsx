@@ -93,7 +93,23 @@ function AppInner() {
   const [fileComments, setFileComments] = useState<ApiComment[]>([]);
   const [selectedLine, setSelectedLine] = useState<number | null>(null);
   const [anchorY, setAnchorY] = useState<number | null>(null);
+  const [authError, setAuthError] = useState<string | null>(null);
   const editorRef = useRef<ReactCodeMirrorRef>(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const errorCode = params.get('auth_error');
+    if (errorCode) {
+      const errorMessages: Record<string, string> = {
+        provider: 'Your account provider returned an error. Please try signing in again.',
+        state: 'Your login session expired. Please try again.',
+        token: 'Could not complete sign-in. Please try again.',
+        userinfo: 'Could not reach the login service. Please try again.',
+      };
+      setAuthError(errorMessages[errorCode] ?? 'Sign-in failed. Please try again.');
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
 
   const loaded = ProjectLoader();
 
@@ -175,7 +191,7 @@ function AppInner() {
       >
         <Rail />
 
-        {/* Main editor column */}
+          {/* Main editor column */}
         <div
           style={{
             flex: 1,
@@ -193,6 +209,32 @@ function AppInner() {
             }
           }}
         >
+          {authError !== null && (
+            <div style={{
+              background: '#dc2626',
+              color: 'white',
+              padding: '10px 16px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 12,
+              fontSize: 14,
+              fontFamily: theme.fontUI,
+            }}>
+              <span style={{ flex: 1 }}>{authError}</span>
+              <button
+                onClick={() => setAuthError(null)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'white',
+                  cursor: 'pointer',
+                  fontSize: 18,
+                  padding: '0 4px',
+                  lineHeight: 1,
+                }}
+              >×</button>
+            </div>
+          )}
           <FileBar />
           <div style={{
             flex: 1, minHeight: 0, background: theme.editorBg,

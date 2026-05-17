@@ -68,8 +68,15 @@ export const useUser = create<UserStore>((set) => {
       try {
         const user = await getMe();
         set({ authState: 'logged_in', user });
-      } catch {
-        set({ authState: 'logged_out', user: null });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        if (message === 'Unauthorized') {
+          set({ authState: 'logged_out', user: null, error: null });
+        } else if (message.toLowerCase().includes('fetch') || message === 'Failed to fetch' || message === 'NetworkError') {
+          set({ authState: 'logged_out', user: null, error: 'Could not reach server' });
+        } else {
+          set({ authState: 'logged_out', user: null, error: 'Server error during sign-in check' });
+        }
       }
     },
   };

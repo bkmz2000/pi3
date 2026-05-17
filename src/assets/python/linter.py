@@ -114,72 +114,34 @@ def _check_line_length(code: str, tree: ast.Module) -> list[dict]:
 
 def _check_blank_lines(code: str, tree: ast.Module) -> list[dict]:
     diagnostics = []
-    lines = code.splitlines()  # 0-indexed array
+    lines = code.splitlines()
 
-    # Only check for blank lines between function/class definitions
-    # Variable assignments and function calls don't need blank lines before them
+    # Only check direct children of the module — not methods inside classes.
     top_level_defs = []
-
-    # Collect TOP-LEVEL function/class definitions only
-    # Use walk but filter out nested definitions (methods inside classes)
-    seen_starts = set()
-    for node in ast.walk(tree):
+    for node in tree.body:
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-            if hasattr(node, "lineno"):
-                start_lineno = node.lineno
-                if node.decorator_list:
-                    first_deco = node.decorator_list[0]
-                    if hasattr(first_deco, "lineno"):
-                        start_lineno = first_deco.lineno
-                # Skip if this start was already added as a nested node
-                # (methods inside classes will have parent class's start close to them)
-                if start_lineno in seen_starts:
-                    continue
-                seen_starts.add(start_lineno)
-                
-                end_lineno = (
-                    node.end_lineno
-                    if hasattr(node, "end_lineno") and node.end_lineno
-                    else node.lineno
-                )
-                top_level_defs.append((start_lineno, end_lineno))
-
-    top_level_defs.sort(key=lambda x: x[0])
+            start_lineno = node.lineno
+            if node.decorator_list:
+                start_lineno = node.decorator_list[0].lineno
+            end_lineno = getattr(node, "end_lineno", node.lineno)
+            top_level_defs.append((start_lineno, end_lineno))
 
     for i in range(len(top_level_defs) - 1):
-        current_start, current_end = top_level_defs[i]
-        next_start, next_end = top_level_defs[i + 1]
+        current_end = top_level_defs[i][1]
+        next_start = top_level_defs[i + 1][0]
 
-        # Count blank lines between definitions (lines after current ends, before next starts)
-        # Only count truly empty lines (lines[l] == ""), not whitespace-only lines
-        blank_count = 0
-        for l in range(current_end, next_start):
-            if l < len(lines) and lines[l] == "":
-                blank_count += 1
+        blank_count = sum(
+            1 for l in range(current_end, next_start - 1)
+            if l < len(lines) and not lines[l].strip()
+        )
 
-        if blank_count > 2:
-            # Too many blank lines - report at the FIRST blank line (1-indexed)
-            for l in range(current_end, next_start):
-                if l < len(lines) and lines[l] == "":
+        if blank_count > 4:
+            for l in range(current_end, next_start - 1):
+                if l < len(lines) and not lines[l].strip():
                     diagnostics.append(
-                        _make_diagnostic(
-                            "E303",
-                            "linter.E303",
-                            {"count": blank_count},
-                            l + 1,  # Convert to 1-indexed for output
-                        )
+                        _make_diagnostic("E303", "linter.E303", {"count": blank_count}, l + 1)
                     )
                     break
-        elif blank_count < 2 and next_start - current_end > 1:
-            # Too few blank lines - report at the first definition's line
-            diagnostics.append(
-                _make_diagnostic(
-                    "E301",
-                    "linter.E301",
-                    {},
-                    current_start,
-                )
-            )
 
     return diagnostics
 
@@ -207,25 +169,6 @@ class ScopeTracker(ast.NodeVisitor):
         self.defined_in_scope.append(set())
 
     def pop_scope(self):
-        if len(self.scopes) > 1:
-            scope = self.scopes[-1]
-            defined = self.defined_in_scope[-1]
-            imports = self.imports[-1]
-
-            for name in imports:
-                if name not in self.used_names:
-                    if name == "Literal":
-                        continue
-                    lineno = self._get_import_lineno(name)
-                    self.diagnostics.append(
-                        _make_diagnostic(
-                            "F401",
-                            "linter.F401",
-                            {"name": name},
-                            lineno if lineno else 1,
-                        )
-                    )
-
         self.scopes.pop()
         self.imports.pop()
         self.defined_in_scope.pop()

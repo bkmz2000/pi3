@@ -38,6 +38,7 @@ def _make_diagnostic(
     lineno: int,
     col_offset: int = 0,
     end_col: int = None,
+    severity: str = "error",
 ) -> dict:
     line = _get_line(code, lineno)
     if end_col is None:
@@ -50,7 +51,7 @@ def _make_diagnostic(
         "column": col_offset,
         "endRow": lineno - 1,
         "endColumn": end_col,
-        "severity": "error",
+        "severity": severity,
     }
 
 
@@ -814,6 +815,184 @@ def _check_call_types(code: str, tree: ast.Module) -> list[dict]:
     return diagnostics
 
 
+_SHORT_NAME_EXEMPTION = 2
+_BLOCKLIST = {"data", "value", "temp", "result", "thing", "stuff"}
+_GRAPHICS_CONSTRUCTORS = {"Actor", "Rect", "Circle", "Group", "Window"}
+
+
+def _vowel_ratio(name: str) -> float:
+    vowels = sum(1 for c in name.lower() if c in "aeiou")
+    return vowels / len(name) if name else 1.0
+
+
+def _check_unused_variables(code: str, tree: ast.Module) -> list[dict]:
+    diagnostics = []
+
+    class UsageTracker(ast.NodeVisitor):
+        def __init__(self):
+            self.assigned: dict[str, ast.AST] = {}
+            self.used: set[str] = set()
+
+        def visit_Assign(self, node):
+            for target in node.targets:
+                if isinstance(target, ast.Name):
+                    name = target.id
+                    if not name.startswith("_") and len(name) > _SHORT_NAME_EXEMPTION:
+                        self.assigned[name] = target
+            self.generic_visit(node)
+
+        def visit_AugAssign(self, node):
+            if isinstance(node.target, ast.Name):
+                self.used.add(node.target.id)
+            self.generic_visit(node)
+
+        def visit_Name(self, node):
+            if isinstance(node.ctx, ast.Load):
+                self.used.add(node.id)
+
+        def visit_FunctionDef(self, node):
+            self.used.add(node.name)
+            self.generic_visit(node)
+
+        def visit_ClassDef(self, node):
+            self.used.add(node.name)
+            self.generic_visit(node)
+
+    tracker = UsageTracker()
+    tracker.visit(tree)
+
+    for name, node in tracker.assigned.items():
+        if name not in tracker.used:
+            diagnostics.append(_make_diagnostic(
+                "W001", "linter.W001", {"name": name},
+                node.lineno, node.col_offset, node.col_offset + len(name),
+                severity="warning",
+            ))
+    return diagnostics
+
+
+def _check_variable_names(code: str, tree: ast.Module) -> list[dict]:
+    diagnostics = []
+
+    class NameChecker(ast.NodeVisitor):
+        def visit_Assign(self, node):
+            for target in node.targets:
+                if isinstance(target, ast.Name):
+                    name = target.id
+                    if name.startswith("_"):
+                        continue
+                    if name in _BLOCKLIST:
+                        diagnostics.append(_make_diagnostic(
+                            "W002", "linter.W002", {"name": name},
+                            target.lineno, target.col_offset,
+                            target.col_offset + len(name), severity="warning",
+                        ))
+                    elif len(name) > 4 and _vowel_ratio(name) < 0.2:
+                        diagnostics.append(_make_diagnostic(
+                            "W003", "linter.W003", {"name": name},
+                            target.lineno, target.col_offset,
+                            target.col_offset + len(name), severity="warning",
+                        ))
+            self.generic_visit(node)
+
+    NameChecker().visit(tree)
+    return diagnostics
+
+
+def _levenshtein(a: str, b: str) -> int:
+    m, n = len(a), len(b)
+    dp = list(range(n + 1))
+    for i in range(1, m + 1):
+        prev = dp[0]
+        dp[0] = i
+        for j in range(1, n + 1):
+            old = dp[j]
+            dp[j] = prev if a[i - 1] == b[j - 1] else 1 + min(prev, dp[j], dp[j - 1])
+            prev = old
+    return dp[n]
+
+
+def _check_similar_names(code: str, tree: ast.Module) -> list[dict]:
+    diagnostics = []
+    seen: list[tuple[str, ast.AST]] = []
+
+    class SimilarChecker(ast.NodeVisitor):
+        def visit_Assign(self, node):
+            for target in node.targets:
+                if isinstance(target, ast.Name):
+                    name = target.id
+                    if len(name) >= 3:
+                        for prev_name, prev_node in seen:
+                            if len(prev_name) >= 3 and _levenshtein(name, prev_name) == 1:
+                                diagnostics.append(_make_diagnostic(
+                                    "W004", "linter.W004", {"name": name, "other": prev_name},
+                                    target.lineno, target.col_offset,
+                                    target.col_offset + len(name), severity="warning",
+                                ))
+                                break
+                        seen.append((name, target))
+            self.generic_visit(node)
+
+    SimilarChecker().visit(tree)
+    return diagnostics
+
+
+def _check_type_reassignment(code: str, tree: ast.Module) -> list[dict]:
+    diagnostics = []
+    var_types: dict[str, tuple[str, ast.AST]] = {}
+
+    def infer_type(node: ast.AST) -> str | None:
+        if isinstance(node, ast.Constant):
+            if isinstance(node.value, bool):
+                return "bool"
+            if isinstance(node.value, int):
+                return "int"
+            if isinstance(node.value, float):
+                return "float"
+            if isinstance(node.value, str):
+                return "str"
+        elif isinstance(node, ast.List):
+            return "list"
+        elif isinstance(node, ast.Dict):
+            return "dict"
+        elif isinstance(node, ast.Tuple):
+            return "tuple"
+        elif isinstance(node, ast.Call):
+            if isinstance(node.func, ast.Name):
+                fname = node.func.id
+                if fname in {"str", "int", "float", "bool", "list", "dict", "set", "tuple"}:
+                    return fname
+                if fname in _GRAPHICS_CONSTRUCTORS:
+                    return fname
+            elif isinstance(node.func, ast.Attribute):
+                return node.func.attr
+        elif isinstance(node, ast.Name):
+            return var_types.get(node.id, (None, None))[0]
+        return None
+
+    class TypeReassignChecker(ast.NodeVisitor):
+        def visit_Assign(self, node):
+            new_type = infer_type(node.value)
+            for target in node.targets:
+                if isinstance(target, ast.Name):
+                    name = target.id
+                    if name in var_types:
+                        old_type, _ = var_types[name]
+                        if old_type and new_type and old_type != new_type:
+                            diagnostics.append(_make_diagnostic(
+                                "W005", "linter.W005",
+                                {"name": name, "fromType": old_type, "toType": new_type},
+                                target.lineno, target.col_offset,
+                                target.col_offset + len(name), severity="warning",
+                            ))
+                    if new_type:
+                        var_types[name] = (new_type, target)
+            self.generic_visit(node)
+
+    TypeReassignChecker().visit(tree)
+    return diagnostics
+
+
 def lint(code: str, filename: str = "main.py") -> list[dict]:
     diagnostics = []
 
@@ -862,6 +1041,10 @@ def lint(code: str, filename: str = "main.py") -> list[dict]:
     diagnostics.extend(_check_binary_op_types(code, tree))
     diagnostics.extend(_check_literal_types(code, tree))
     diagnostics.extend(_check_call_types(code, tree))
+    diagnostics.extend(_check_unused_variables(code, tree))
+    diagnostics.extend(_check_variable_names(code, tree))
+    diagnostics.extend(_check_similar_names(code, tree))
+    diagnostics.extend(_check_type_reassignment(code, tree))
 
     diagnostics.sort(key=lambda d: (d["row"], d["column"]))
 

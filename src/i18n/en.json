@@ -154,7 +154,12 @@
     "E303": "Too many blank lines ({{count}})",
     "E501": "Line too long ({{length}} > {{limit}})",
     "F401": "'{{name}}' imported but unused",
-    "F821": "Undefined name '{{name}}'"
+    "F821": "Undefined name '{{name}}'",
+    "W001": "Variable '{{name}}' is assigned but never used",
+    "W002": "'{{name}}' is a non-descriptive variable name",
+    "W003": "'{{name}}' looks like a random name — use a descriptive name",
+    "W004": "'{{name}}' is very similar to '{{other}}' — possible typo or copy-paste",
+    "W005": "'{{name}}' was {{fromType}}, now reassigned to {{toType}}"
   },
   "docs": {
     "title": "Reference",

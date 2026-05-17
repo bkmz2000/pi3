@@ -38,7 +38,7 @@ export type LintDiagnostic = {
   column: number;
   endRow: number;
   endColumn: number;
-  severity: "error";
+  severity: "error" | "warning";
 };
 
 export type WorkerEvent =

@@ -5,8 +5,10 @@ import { python } from "@codemirror/lang-python";
 import { indentUnit, bracketMatching, indentOnInput } from "@codemirror/language";
 import { EditorState } from "@codemirror/state";
 import { EditorView, lineNumbers, highlightActiveLine, drawSelection, highlightSpecialChars } from "@codemirror/view";
-import { autocompletion, acceptCompletion } from "@codemirror/autocomplete";
+import { autocompletion, acceptCompletion, completionKeymap } from "@codemirror/autocomplete";
+import { lintGutter, setDiagnostics } from "@codemirror/lint";
 import { keymap } from "@codemirror/view";
+import { graphicsCompletionExtension } from "./editor/graphicsCompletion";
 import Rail from "./SideMenu";
 import { useEditor, useIde } from "./state/IdeState";
 import { getProject, getComments, type ApiComment } from "./state/api";
@@ -21,6 +23,7 @@ import { ProjectsPage } from "./components/projects";
 import TeacherDashboard from "./components/teacher/TeacherDashboard";
 import TeacherProjectView from "./components/teacher/TeacherProjectView";
 import { useUser } from "./state/useUser";
+import { useTranslation } from "react-i18next";
 import ForkDialog from "./components/dialogs/ForkDialog";
 import { useThemeStore } from "./state/useTheme";
 import { githubLight, githubDark } from "@uiw/codemirror-theme-github";
@@ -83,6 +86,7 @@ function AppInner() {
   const runner = useRunner();
   const ready = runner.ready;
   const running = runner.running;
+  const { t } = useTranslation();
   const showConsoleOnRun = useIde((s) => s.showConsoleOnRun);
   const showConsole = !showConsoleOnRun || running;
   const theme = useThemeStore((s) => s.theme);
@@ -127,6 +131,25 @@ function AppInner() {
       editorRef.current.view.dispatch({ effects: setCommentsEffect.of(fileComments) });
     }
   });
+
+  useEffect(() => {
+    const view = editorRef.current?.view;
+    if (!view) return;
+    const doc = view.state.doc;
+    const cmDiagnostics = runner.lintErrors.map((d) => {
+      const fromLine = doc.line(Math.min(d.row + 1, doc.lines));
+      const toLine = doc.line(Math.min(d.endRow + 1, doc.lines));
+      const from = fromLine.from + Math.min(d.column, fromLine.length);
+      const to = toLine.from + Math.min(d.endColumn, toLine.length);
+      return {
+        from,
+        to: to > from ? to : from + 1,
+        severity: d.severity as "error" | "warning",
+        message: t(d.messageKey, d.messageArgs as Record<string, string>),
+      };
+    });
+    view.dispatch(setDiagnostics(view.state, cmDiagnostics));
+  }, [runner.lintErrors]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const onChange = useCallback(
     (val: string) => {
@@ -266,12 +289,12 @@ function AppInner() {
                 indentationGuides,
                 EditorView.theme({ "&": { fontSize: fontSize + "px" } }),
                 EditorView.lineWrapping,
-                autocompletion({ defaultKeymap: true }),
+                autocompletion({ defaultKeymap: false }),
+                graphicsCompletionExtension,
+                lintGutter(),
                 keymap.of([
-                  {
-                    key: "Tab",
-                    run: acceptCompletion,
-                  },
+                  { key: "Tab", run: acceptCompletion },
+                  ...completionKeymap.filter(b => b.key !== "Enter"),
                 ]),
                 commentExtension({ canAdd: false, onLineSelect: (line, y) => { setSelectedLine(line); setAnchorY(y); } }),
               ]}

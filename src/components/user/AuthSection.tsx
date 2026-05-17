@@ -15,8 +15,8 @@ export function AuthSection() {
       }}>
         <div style={{
           width: 16, height: 16,
-          border: `2px solid ${theme.panelBorder}`,
-          borderTopColor: theme.accent,
+          border: `2px solid ${theme.chip}`,
+          borderTopColor: theme.runBg,
           borderRadius: 999,
           animation: "pi3blink 1s ease-in-out infinite",
         }} />

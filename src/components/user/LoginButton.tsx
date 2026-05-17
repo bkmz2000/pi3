@@ -14,8 +14,8 @@ export function LoginButton() {
         onClick={() => setOpen(true)}
         style={{
           all: "unset", cursor: "pointer",
-          padding: "6px 14px",
-          borderRadius: 5,
+          padding: "6px 16px",
+          borderRadius: 999,
           background: theme.runBg,
           color: theme.runTxt,
           fontFamily: theme.fontUI,
@@ -24,6 +24,7 @@ export function LoginButton() {
           display: "inline-flex",
           alignItems: "center",
           gap: 6,
+          boxShadow: "0 1px 0 rgba(255,255,255,0.15) inset",
           transition: "opacity 0.15s",
         }}
       >

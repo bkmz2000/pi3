@@ -28,7 +28,19 @@
     "needSignInToSeeProjects": "Вам нужно войти, чтобы видеть проекты.",
     "signInWithSchool": "Войти через школьный аккаунт",
     "outsiderAccount": "Использовать внешний аккаунт",
-    "back": "Назад"
+    "back": "Назад",
+    "welcomeBack": "С возвращением",
+    "createYourAccount": "Создать аккаунт",
+    "signInTagline": "Войдите, чтобы продолжить",
+    "joinClass": "Присоединитесь к классу",
+    "studentSub": "Учусь и пишу код",
+    "teacherSub": "Веду класс",
+    "forgotPassword": "Забыли?",
+    "passwordHint": "4+ символов. Что-то запоминающееся.",
+    "teacherDashboard": "Кабинет учителя",
+    "myClasses": "Мои классы",
+    "askForHelp": "Попросить помощь",
+    "myClass": "Мой класс"
   },
   "sideMenu": {
     "close": "Закрыть",

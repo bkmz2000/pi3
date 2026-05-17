@@ -28,7 +28,19 @@
     "needSignInToSeeProjects": "You need to sign in to see your projects.",
     "signInWithSchool": "Sign in with School Account",
     "outsiderAccount": "Use an outsider account",
-    "back": "Back"
+    "back": "Back",
+    "welcomeBack": "Welcome back",
+    "createYourAccount": "Create your account",
+    "signInTagline": "Sign in to keep coding",
+    "joinClass": "Join your class",
+    "studentSub": "Code & learn",
+    "teacherSub": "Run a class",
+    "forgotPassword": "Forgot?",
+    "passwordHint": "4+ characters. Make it something you'll remember.",
+    "teacherDashboard": "Teacher dashboard",
+    "myClasses": "My classes",
+    "askForHelp": "Ask for help",
+    "myClass": "My class"
   },
   "sideMenu": {
     "close": "Close",

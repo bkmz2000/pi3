@@ -3,12 +3,12 @@ import { Routes, Route, useParams } from "react-router-dom";
 import CodeMirror, { type ReactCodeMirrorRef } from "@uiw/react-codemirror";
 import { python } from "@codemirror/lang-python";
 import { indentUnit, bracketMatching, indentOnInput } from "@codemirror/language";
-import { EditorState } from "@codemirror/state";
+import { EditorState, Prec } from "@codemirror/state";
 import { EditorView, lineNumbers, highlightActiveLine, drawSelection, highlightSpecialChars } from "@codemirror/view";
 import { autocompletion, acceptCompletion, completionKeymap } from "@codemirror/autocomplete";
 import { lintGutter, setDiagnostics } from "@codemirror/lint";
 import { keymap } from "@codemirror/view";
-import { graphicsCompletionExtension } from "./editor/graphicsCompletion";
+import { createGraphicsExtensions, reconfigureGraphicsExtensions } from "./editor/graphicsCompletion";
 import Rail from "./SideMenu";
 import { useEditor, useIde } from "./state/IdeState";
 import { getProject, getComments, type ApiComment } from "./state/api";
@@ -86,8 +86,10 @@ function AppInner() {
   const runner = useRunner();
   const ready = runner.ready;
   const running = runner.running;
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const lang = i18n.language;
   const showConsoleOnRun = useIde((s) => s.showConsoleOnRun);
+  const enableAutocomplete = useIde((s) => s.enableAutocomplete);
   const showConsole = !showConsoleOnRun || running;
   const theme = useThemeStore((s) => s.theme);
   const fontSize = useThemeStore((s) => s.fontSize);
@@ -131,6 +133,12 @@ function AppInner() {
       editorRef.current.view.dispatch({ effects: setCommentsEffect.of(fileComments) });
     }
   });
+
+  useEffect(() => {
+    const view = editorRef.current?.view;
+    if (!view) return;
+    view.dispatch({ effects: reconfigureGraphicsExtensions(theme, lang, enableAutocomplete) });
+  }, [theme, lang, enableAutocomplete]);
 
   useEffect(() => {
     const view = editorRef.current?.view;
@@ -290,12 +298,12 @@ function AppInner() {
                 EditorView.theme({ "&": { fontSize: fontSize + "px" } }),
                 EditorView.lineWrapping,
                 autocompletion({ defaultKeymap: false }),
-                graphicsCompletionExtension,
+                ...createGraphicsExtensions(theme, lang, enableAutocomplete),
                 lintGutter(),
-                keymap.of([
+                Prec.high(keymap.of([
                   { key: "Tab", run: acceptCompletion },
                   ...completionKeymap.filter(b => b.key !== "Enter"),
-                ]),
+                ])),
                 commentExtension({ canAdd: false, onLineSelect: (line, y) => { setSelectedLine(line); setAnchorY(y); } }),
               ]}
               height="100%"

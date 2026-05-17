@@ -1162,13 +1162,15 @@ function SettingsPanel({
   theme: Theme;
   onClose: () => void;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const showHitboxes = useIde((s) => s.showHitboxes);
   const setShowHitboxes = useIde((s) => s.setShowHitboxes);
   const showConsoleOnRun = useIde((s) => s.showConsoleOnRun);
   const setShowConsoleOnRun = useIde((s) => s.setShowConsoleOnRun);
   const enableLinting = useIde((s) => s.enableLinting);
   const setEnableLinting = useIde((s) => s.setEnableLinting);
+  const enableAutocomplete = useIde((s) => s.enableAutocomplete);
+  const setEnableAutocomplete = useIde((s) => s.setEnableAutocomplete);
   const themeId = useThemeStore((s) => s.themeId);
   const setTheme = useThemeStore((s) => s.setTheme);
   const fontSize = useThemeStore((s) => s.fontSize);
@@ -1180,40 +1182,70 @@ function SettingsPanel({
     { id: "daylight", label: "Daylight" },
   ];
 
+  const languages = [
+    { id: "en", label: "English" },
+    { id: "ru", label: "Русский" },
+  ];
+
   return (
     <>
       <PanelHeader title={t('sideMenu.settings')} theme={theme} onClose={onClose} />
       <div style={{ padding: "16px", overflowY: "auto", flex: 1 }}>
-        {/* Theme selector */}
-        <SectionLabel theme={theme}>Theme</SectionLabel>
-        <div style={{
-          display: "flex", gap: 6, marginBottom: 20,
-        }}>
-          {themes.map((t) => (
+
+        {/* Language */}
+        <SectionLabel theme={theme}>{t('sideMenu.language')}</SectionLabel>
+        <div style={{ display: "flex", gap: 6, marginBottom: 20 }}>
+          {languages.map((l) => (
             <button
-              key={t.id}
+              key={l.id}
               type="button"
-              onClick={() => setTheme(t.id)}
+              onClick={() => i18n.changeLanguage(l.id)}
               style={{
                 all: "unset", cursor: "pointer", flex: 1,
                 padding: "10px 0",
                 borderRadius: theme.radiusCard,
                 fontFamily: theme.fontUI,
-                fontWeight: themeId === t.id ? 600 : 400,
+                fontWeight: i18n.language === l.id ? 600 : 400,
                 fontSize: 13,
                 textAlign: "center",
-                background: themeId === t.id ? theme.accent : theme.chip,
-                color: themeId === t.id ? "#fff" : theme.panelTxt,
+                background: i18n.language === l.id ? theme.accent : theme.chip,
+                color: i18n.language === l.id ? "#fff" : theme.panelTxt,
                 transition: "background 0.15s",
               }}
             >
-              {t.label}
+              {l.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Theme selector */}
+        <SectionLabel theme={theme}>{t('sideMenu.theme')}</SectionLabel>
+        <div style={{ display: "flex", gap: 6, marginBottom: 20 }}>
+          {themes.map((th) => (
+            <button
+              key={th.id}
+              type="button"
+              onClick={() => setTheme(th.id)}
+              style={{
+                all: "unset", cursor: "pointer", flex: 1,
+                padding: "10px 0",
+                borderRadius: theme.radiusCard,
+                fontFamily: theme.fontUI,
+                fontWeight: themeId === th.id ? 600 : 400,
+                fontSize: 13,
+                textAlign: "center",
+                background: themeId === th.id ? theme.accent : theme.chip,
+                color: themeId === th.id ? "#fff" : theme.panelTxt,
+                transition: "background 0.15s",
+              }}
+            >
+              {th.label}
             </button>
           ))}
         </div>
 
         {/* Font size */}
-        <SectionLabel theme={theme}>Font Size</SectionLabel>
+        <SectionLabel theme={theme}>{t('sideMenu.fontSize')}</SectionLabel>
         <div style={{
           display: "flex", alignItems: "center", gap: 12,
           padding: "12px 14px", marginBottom: 20,
@@ -1234,10 +1266,10 @@ function SettingsPanel({
         </div>
 
         {/* Auto-hide console */}
-        <SectionLabel theme={theme}>Console</SectionLabel>
+        <SectionLabel theme={theme}>{t('sideMenu.console')}</SectionLabel>
         <ToggleRow
-          label="Auto-hide when idle"
-          hint="Show console only while the project is running"
+          label={t('sideMenu.autoHideConsole')}
+          hint={t('sideMenu.autoHideConsoleHint')}
           on={showConsoleOnRun}
           theme={theme}
           accent={theme.accent}
@@ -1247,10 +1279,10 @@ function SettingsPanel({
         <div style={{ height: 4 }} />
 
         {/* Linting */}
-        <SectionLabel theme={theme}>Linting</SectionLabel>
+        <SectionLabel theme={theme}>{t('sideMenu.linting')}</SectionLabel>
         <ToggleRow
-          label={t('sideMenu.enableLinting') ?? "Check for errors"}
-          hint={t('sideMenu.enableLintingHint') ?? "Show errors before running"}
+          label={t('sideMenu.enableLinting')}
+          hint={t('sideMenu.enableLintingHint')}
           on={enableLinting}
           theme={theme}
           accent={theme.accent}
@@ -1259,8 +1291,21 @@ function SettingsPanel({
 
         <div style={{ height: 4 }} />
 
+        {/* Editor */}
+        <SectionLabel theme={theme}>{t('sideMenu.editor')}</SectionLabel>
+        <ToggleRow
+          label={t('sideMenu.enableAutocomplete')}
+          hint={t('sideMenu.enableAutocompleteHint')}
+          on={enableAutocomplete}
+          theme={theme}
+          accent={theme.accent}
+          onChange={(v) => setEnableAutocomplete(v)}
+        />
+
+        <div style={{ height: 4 }} />
+
         {/* Hitboxes */}
-        <SectionLabel theme={theme}>Runtime</SectionLabel>
+        <SectionLabel theme={theme}>{t('sideMenu.runtime')}</SectionLabel>
         <ToggleRow
           label={t('sideMenu.showHitboxes')}
           hint={t('sideMenu.showHitboxesHint')}

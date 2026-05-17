@@ -205,6 +205,7 @@ type IdeState = {
   showHitboxes: boolean;
   showConsoleOnRun: boolean;
   enableLinting: boolean;
+  enableAutocomplete: boolean;
   loadingProjectContent: boolean;
 
   setActivePanel: (panel: PanelId) => void;
@@ -221,6 +222,7 @@ type IdeState = {
   setShowHitboxes: (show: boolean) => void;
   setShowConsoleOnRun: (show: boolean) => void;
   setEnableLinting: (enable: boolean) => void;
+  setEnableAutocomplete: (enable: boolean) => void;
 };
 
 export const useIde = create<IdeState>((set, get) => ({
@@ -231,6 +233,7 @@ export const useIde = create<IdeState>((set, get) => ({
   showHitboxes: localStorage.getItem("pi3_showHitboxes") === "true",
   showConsoleOnRun: localStorage.getItem("pi3_showConsoleOnRun") === "true",
   enableLinting: localStorage.getItem("pi3_enableLinting") === "true",
+  enableAutocomplete: localStorage.getItem("pi3_enableAutocomplete") !== "false",
   loadingProjectContent: false,
 
   setActivePanel: (panel) => set({ activePanel: panel }),
@@ -248,6 +251,10 @@ export const useIde = create<IdeState>((set, get) => ({
   setEnableLinting: (enable: boolean) => {
     localStorage.setItem("pi3_enableLinting", String(enable));
     set({ enableLinting: enable });
+  },
+  setEnableAutocomplete: (enable: boolean) => {
+    localStorage.setItem("pi3_enableAutocomplete", String(enable));
+    set({ enableAutocomplete: enable });
   },
 
   loadUserProjects: async () => {

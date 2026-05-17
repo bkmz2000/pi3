@@ -314,6 +314,7 @@ class Actor:
             g.rotate(self._angle)
             g.image(self.image, -w / 2, -h / 2)
             if g._show_hitboxes:
+                sf, sfc, ss, ssc, ssw = g._current_fill, g._fill_color, g._current_stroke, g._stroke_color, g._stroke_width
                 col = self.collider
                 g.no_fill()
                 g.stroke(0, 255, 0)
@@ -324,6 +325,11 @@ class Actor:
                     g.rect(col.dx - col.width / 2, col.dy - col.height / 2, col.width, col.height)
                 elif w > 0 and h > 0:
                     g.rect(-w / 2, -h / 2, w, h)
+                g._current_fill, g._fill_color = sf, sfc
+                g._current_stroke, g._stroke_color, g._stroke_width = ss, ssc, ssw
+                g._draw_commands.append(("fill", sfc, {}) if sf else ("no_fill", (), {}))
+                g._draw_commands.append(("stroke", ssc, {}) if ss else ("no_stroke", (), {}))
+                g._draw_commands.append(("stroke_width", (ssw,), {}))
             g.pop()
 
     def die(self):
@@ -409,8 +415,8 @@ class Rect(Actor):
     """A rectangle actor that draws itself centered at (x, y)."""
 
     def __init__(self, x=0, y=0, width=60, height=40, color="white",
-                 stroke_color=None, stroke_width=0):
-        super().__init__(x=x, y=y)
+                 stroke_color=None, stroke_width=0, **kwargs):
+        super().__init__(x=x, y=y, **kwargs)
         self.width = float(width)
         self.height = float(height)
         self.color = color
@@ -433,6 +439,7 @@ class Rect(Actor):
         g.fill(self.color)
         g.rect(-self.width / 2, -self.height / 2, self.width, self.height)
         if g._show_hitboxes:
+            sf, sfc, ss, ssc, ssw = g._current_fill, g._fill_color, g._current_stroke, g._stroke_color, g._stroke_width
             col = self.collider
             g.no_fill()
             g.stroke(0, 255, 0)
@@ -441,6 +448,11 @@ class Rect(Actor):
                 g.rect(col.dx - col.width / 2, col.dy - col.height / 2, col.width, col.height)
             elif col.shape == "circle":
                 g.circle(col.dx, col.dy, col.radius)
+            g._current_fill, g._fill_color = sf, sfc
+            g._current_stroke, g._stroke_color, g._stroke_width = ss, ssc, ssw
+            g._draw_commands.append(("fill", sfc, {}) if sf else ("no_fill", (), {}))
+            g._draw_commands.append(("stroke", ssc, {}) if ss else ("no_stroke", (), {}))
+            g._draw_commands.append(("stroke_width", (ssw,), {}))
         g.pop()
 
 
@@ -448,8 +460,8 @@ class Circle(Actor):
     """A circle actor that draws itself centered at (x, y)."""
 
     def __init__(self, x=0, y=0, radius=30, color="white",
-                 stroke_color=None, stroke_width=0):
-        super().__init__(x=x, y=y)
+                 stroke_color=None, stroke_width=0, **kwargs):
+        super().__init__(x=x, y=y, **kwargs)
         self.radius = float(radius)
         self.color = color
         self.stroke_color = stroke_color
@@ -471,6 +483,7 @@ class Circle(Actor):
         g.fill(self.color)
         g.circle(0, 0, self.radius)
         if g._show_hitboxes:
+            sf, sfc, ss, ssc, ssw = g._current_fill, g._fill_color, g._current_stroke, g._stroke_color, g._stroke_width
             col = self.collider
             g.no_fill()
             g.stroke(0, 255, 0)
@@ -479,6 +492,11 @@ class Circle(Actor):
                 g.circle(col.dx, col.dy, col.radius)
             elif col.shape == "rect":
                 g.rect(col.dx - col.width / 2, col.dy - col.height / 2, col.width, col.height)
+            g._current_fill, g._fill_color = sf, sfc
+            g._current_stroke, g._stroke_color, g._stroke_width = ss, ssc, ssw
+            g._draw_commands.append(("fill", sfc, {}) if sf else ("no_fill", (), {}))
+            g._draw_commands.append(("stroke", ssc, {}) if ss else ("no_stroke", (), {}))
+            g._draw_commands.append(("stroke_width", (ssw,), {}))
         g.pop()
 
 

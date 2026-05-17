@@ -40,7 +40,7 @@ _keys_down = set()
 _keys_pressed = set()
 _keys_released = set()
 
-_frame_count = 0
+frame_count = 0
 _target_fps = 60
 _pending_timer_id = None
 _loop_generation = 0
@@ -414,10 +414,6 @@ def _execute_draw_commands():
                 _ctx.drawImage(js_img, x, y, w, h if h is not None else w)
             else:
                 _ctx.drawImage(js_img, x, y)
-        elif cmd == "image_mode":
-            pass
-        elif cmd == "rect_mode":
-            pass
         elif cmd == "say":
             _draw_say(*args)
 
@@ -655,14 +651,6 @@ def image(img_result: Any, x, y, w=None, h=None) -> None:
     _draw_commands.append(("image", (img_result, float(x), float(y), w, h), {}))
 
 
-def image_mode(mode: str) -> None:
-    _draw_commands.append(("image_mode", (mode,), {}))
-
-
-def rect_mode(mode: str) -> None:
-    _draw_commands.append(("rect_mode", (mode,), {}))
-
-
 # === RANDOM HELPERS ===
 
 
@@ -673,15 +661,12 @@ def random(low, high=None) -> float:
     return _random.uniform(low, high)
 
 
-def random_color() -> str:
+def random_color() -> tuple:
     import random as _random
-    names = [n for n in dir(Colors) if not n.startswith("_")]
+    names = [n for n in dir(Colors) if not n.startswith("_") and isinstance(getattr(Colors, n), tuple)]
     if names:
-        name = _random.choice(names)
-        val = getattr(Colors, name)
-        if isinstance(val, tuple):
-            return name
-    return _random.choice(list(COLOR_NAMES.keys()))
+        return getattr(Colors, _random.choice(names))
+    return _random.choice(list(COLOR_NAMES.values()))
 
 
 def frame_rate(fps) -> None:
@@ -693,7 +678,7 @@ def frame_rate(fps) -> None:
 
 
 def _tick(main, my_generation):
-    global _pending_timer_id, _frame_count, _mouse_clicked, _mouse_released
+    global _pending_timer_id, frame_count, _mouse_clicked, _mouse_released
     global _running, _stop_requested, _loop_generation
     from js import clearTimeout, setTimeout
     from pyodide.ffi import create_proxy
@@ -714,6 +699,7 @@ def _tick(main, my_generation):
         for actor in Actor.all_actors():
             if actor.is_alive():
                 actor._apply_velocity()
+                actor.update()
 
         if main is not None:
             main()
@@ -725,7 +711,7 @@ def _tick(main, my_generation):
 
         _execute_draw_commands()
         _draw_commands.clear()
-        _frame_count += 1
+        frame_count += 1
 
     except Exception:
         traceback.print_exc()
@@ -743,7 +729,7 @@ def _run(main=None, fps=60) -> None:
     from js import setTimeout
     from pyodide.ffi import create_proxy
 
-    global _running, _stop_requested, _loop_generation, _frame_count, _target_fps
+    global _running, _stop_requested, _loop_generation, frame_count, _target_fps
     global _pending_timer_id, tick_proxy, _ctx, _canvas, _width, _height
 
     if _canvas is None:
@@ -768,7 +754,7 @@ def _run(main=None, fps=60) -> None:
     _stop_requested = False
     _loop_generation += 1
     my_generation = _loop_generation
-    _frame_count = 0
+    frame_count = 0
 
     tick_proxy = create_proxy(lambda: _tick(main, my_generation))
     _pending_timer_id = setTimeout(tick_proxy, 0)
@@ -828,7 +814,7 @@ def _inject_event(kind, data):
 
 def _clear():
     global _draw_commands, _pending_size
-    global _frame_count, _stop_requested, _running, _loop_generation
+    global frame_count, _stop_requested, _running, _loop_generation
     global _mouse_x, _mouse_y, _mouse_down, _mouse_clicked, _mouse_released
     global _keys_down, _keys_pressed, _keys_released
     global _fill_color, _stroke_color, _stroke_width
@@ -842,7 +828,7 @@ def _clear():
 
     _draw_commands = []
     _pending_size = None
-    _frame_count = 0
+    frame_count = 0
     _stop_requested = False
     _running = False
     _loop_generation = 0
@@ -872,8 +858,8 @@ __all__ = [
     "fill", "no_fill", "stroke", "no_stroke", "stroke_width",
     "background",
     "push", "pop", "translate", "rotate", "scale",
-    "image", "image_mode", "rect_mode",
-    "frame_rate",
+    "image",
+    "frame_rate", "frame_count",
     "random", "random_color",
     "Colors", "AnchorPoint",
     "Mouse", "Keyboard", "Window",

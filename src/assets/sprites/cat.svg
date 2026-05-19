@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  
+  <polygon points="9,30 20,6 31,30" fill="#f6a560"></polygon>
+  <polygon points="33,30 44,6 55,30" fill="#f6a560"></polygon>
+  
+  <polygon points="13,28 20,13 27,28" fill="#e07a3a"></polygon>
+  <polygon points="37,28 44,13 51,28" fill="#e07a3a"></polygon>
+  
+  <ellipse cx="32" cy="38" rx="22" ry="20" fill="#f6a560"></ellipse>
+  
+  <ellipse cx="23" cy="33" rx="5" ry="6" fill="#0a3d44"></ellipse>
+  <ellipse cx="41" cy="33" rx="5" ry="6" fill="#0a3d44"></ellipse>
+  
+  <ellipse cx="24" cy="31" rx="2" ry="2.5" fill="#fbf6e9"></ellipse>
+  <ellipse cx="42" cy="31" rx="2" ry="2.5" fill="#fbf6e9"></ellipse>
+  
+  <polygon points="32,41 28,45 36,45" fill="#0a3d44"></polygon>
+  
+  <path d="M28,45 Q32,50 36,45" fill="none" stroke="#0a3d44" stroke-width="1.5" stroke-linecap="round"></path>
+  
+  <line x1="4" y1="38" x2="25" y2="40" stroke="#0a3d44" stroke-width="1.2" stroke-linecap="round"></line>
+  <line x1="4" y1="44" x2="25" y2="43" stroke="#0a3d44" stroke-width="1.2" stroke-linecap="round"></line>
+  
+  <line x1="39" y1="40" x2="60" y2="38" stroke="#0a3d44" stroke-width="1.2" stroke-linecap="round"></line>
+  <line x1="39" y1="43" x2="60" y2="44" stroke="#0a3d44" stroke-width="1.2" stroke-linecap="round"></line>
+  
+  <ellipse cx="32" cy="59" rx="13" ry="5" fill="#f6a560"></ellipse>
+</svg>

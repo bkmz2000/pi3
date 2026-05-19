@@ -213,6 +213,51 @@ exports[`SpriteEditor - Snapshot Tests renders correctly when open 1`] = `
             </svg>
           </button>
           <button
+            data-testid="tool-fill"
+            style="all: unset; cursor: pointer; width: 34px; height: 34px; border-radius: 5px; display: inline-flex; align-items: center; justify-content: center; background: transparent; color: rgb(232, 242, 244); transition: background 0.1s;"
+            title="Fill"
+            type="button"
+          >
+            <svg
+              fill="none"
+              height="17"
+              viewBox="0 0 24 24"
+              width="17"
+            >
+              <path
+                d="M6 8.5 L7.5 19 Q7.8 20.5 9.5 20.5 H14.5 Q16.2 20.5 16.5 19 L18 8.5 Z"
+                fill="currentColor"
+                opacity="0.2"
+              />
+              <path
+                d="M6 8.5 L7.5 19 Q7.8 20.5 9.5 20.5 H14.5 Q16.2 20.5 16.5 19 L18 8.5 Z"
+                stroke="currentColor"
+                stroke-linejoin="round"
+                stroke-width="1.5"
+              />
+              <rect
+                fill="currentColor"
+                height="2"
+                rx="1"
+                width="14"
+                x="5"
+                y="7"
+              />
+              <path
+                d="M9.5 7 Q9.5 4 12 4 Q14.5 4 14.5 7"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-width="1.5"
+              />
+              <path
+                d="M12 20.5 Q11.5 23 13.5 22.5 Q15 22 14 20.5"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-width="1.2"
+              />
+            </svg>
+          </button>
+          <button
             data-testid="tool-rect"
             style="all: unset; cursor: pointer; width: 34px; height: 34px; border-radius: 5px; display: inline-flex; align-items: center; justify-content: center; background: rgb(247, 182, 122); color: rgb(255, 255, 255); transition: background 0.1s;"
             title="Rectangle"
@@ -478,15 +523,22 @@ exports[`SpriteEditor - Snapshot Tests renders correctly when open 1`] = `
           style="flex: 1 1 0%; overflow: auto; display: flex; align-items: center; justify-content: center; padding: 24px;"
         >
           <div
-            style="width: 640px; height: 640px; border-radius: 3px; box-shadow: 0 0 0 1px rgba(148,210,216,0.14), 0 24px 50px -22px rgba(0,0,0,0.30); overflow: hidden; cursor: crosshair;"
+            style="width: 640px; height: 640px; position: relative; box-shadow: 0 0 0 1px rgba(148,210,216,0.14), 0 24px 50px -22px rgba(0,0,0,0.30); border-radius: 3px; cursor: crosshair;"
           >
             <div
+              style="position: absolute; inset: 0; border-radius: 3px; pointer-events: none; z-index: 0;"
+            />
+            <div
               data-testid="sprite-canvas"
-              height="640"
+              height="680"
+              style="position: absolute; top: -20px; left: -20px; z-index: 1;"
               tabindex="0"
-              width="640"
+              width="680"
             >
-              <div>
+              <div
+                x="20"
+                y="20"
+              >
                 <div />
                 <div
                   points="312,320,328,320"
@@ -798,6 +850,51 @@ exports[`SpriteEditor - Snapshot Tests renders with custom size 128 1`] = `
             </svg>
           </button>
           <button
+            data-testid="tool-fill"
+            style="all: unset; cursor: pointer; width: 34px; height: 34px; border-radius: 5px; display: inline-flex; align-items: center; justify-content: center; background: transparent; color: rgb(232, 242, 244); transition: background 0.1s;"
+            title="Fill"
+            type="button"
+          >
+            <svg
+              fill="none"
+              height="17"
+              viewBox="0 0 24 24"
+              width="17"
+            >
+              <path
+                d="M6 8.5 L7.5 19 Q7.8 20.5 9.5 20.5 H14.5 Q16.2 20.5 16.5 19 L18 8.5 Z"
+                fill="currentColor"
+                opacity="0.2"
+              />
+              <path
+                d="M6 8.5 L7.5 19 Q7.8 20.5 9.5 20.5 H14.5 Q16.2 20.5 16.5 19 L18 8.5 Z"
+                stroke="currentColor"
+                stroke-linejoin="round"
+                stroke-width="1.5"
+              />
+              <rect
+                fill="currentColor"
+                height="2"
+                rx="1"
+                width="14"
+                x="5"
+                y="7"
+              />
+              <path
+                d="M9.5 7 Q9.5 4 12 4 Q14.5 4 14.5 7"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-width="1.5"
+              />
+              <path
+                d="M12 20.5 Q11.5 23 13.5 22.5 Q15 22 14 20.5"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-width="1.2"
+              />
+            </svg>
+          </button>
+          <button
             data-testid="tool-rect"
             style="all: unset; cursor: pointer; width: 34px; height: 34px; border-radius: 5px; display: inline-flex; align-items: center; justify-content: center; background: rgb(247, 182, 122); color: rgb(255, 255, 255); transition: background 0.1s;"
             title="Rectangle"
@@ -1063,15 +1160,22 @@ exports[`SpriteEditor - Snapshot Tests renders with custom size 128 1`] = `
           style="flex: 1 1 0%; overflow: auto; display: flex; align-items: center; justify-content: center; padding: 24px;"
         >
           <div
-            style="width: 1280px; height: 1280px; border-radius: 3px; box-shadow: 0 0 0 1px rgba(148,210,216,0.14), 0 24px 50px -22px rgba(0,0,0,0.30); overflow: hidden; cursor: crosshair;"
+            style="width: 1280px; height: 1280px; position: relative; box-shadow: 0 0 0 1px rgba(148,210,216,0.14), 0 24px 50px -22px rgba(0,0,0,0.30); border-radius: 3px; cursor: crosshair;"
           >
             <div
+              style="position: absolute; inset: 0; border-radius: 3px; pointer-events: none; z-index: 0;"
+            />
+            <div
               data-testid="sprite-canvas"
-              height="1280"
+              height="1320"
+              style="position: absolute; top: -20px; left: -20px; z-index: 1;"
               tabindex="0"
-              width="1280"
+              width="1320"
             >
-              <div>
+              <div
+                x="20"
+                y="20"
+              >
                 <div />
                 <div
                   points="632,640,648,640"
@@ -1383,6 +1487,51 @@ exports[`SpriteEditor - Snapshot Tests renders with default props 1`] = `
             </svg>
           </button>
           <button
+            data-testid="tool-fill"
+            style="all: unset; cursor: pointer; width: 34px; height: 34px; border-radius: 5px; display: inline-flex; align-items: center; justify-content: center; background: transparent; color: rgb(232, 242, 244); transition: background 0.1s;"
+            title="Fill"
+            type="button"
+          >
+            <svg
+              fill="none"
+              height="17"
+              viewBox="0 0 24 24"
+              width="17"
+            >
+              <path
+                d="M6 8.5 L7.5 19 Q7.8 20.5 9.5 20.5 H14.5 Q16.2 20.5 16.5 19 L18 8.5 Z"
+                fill="currentColor"
+                opacity="0.2"
+              />
+              <path
+                d="M6 8.5 L7.5 19 Q7.8 20.5 9.5 20.5 H14.5 Q16.2 20.5 16.5 19 L18 8.5 Z"
+                stroke="currentColor"
+                stroke-linejoin="round"
+                stroke-width="1.5"
+              />
+              <rect
+                fill="currentColor"
+                height="2"
+                rx="1"
+                width="14"
+                x="5"
+                y="7"
+              />
+              <path
+                d="M9.5 7 Q9.5 4 12 4 Q14.5 4 14.5 7"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-width="1.5"
+              />
+              <path
+                d="M12 20.5 Q11.5 23 13.5 22.5 Q15 22 14 20.5"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-width="1.2"
+              />
+            </svg>
+          </button>
+          <button
             data-testid="tool-rect"
             style="all: unset; cursor: pointer; width: 34px; height: 34px; border-radius: 5px; display: inline-flex; align-items: center; justify-content: center; background: rgb(247, 182, 122); color: rgb(255, 255, 255); transition: background 0.1s;"
             title="Rectangle"
@@ -1648,15 +1797,22 @@ exports[`SpriteEditor - Snapshot Tests renders with default props 1`] = `
           style="flex: 1 1 0%; overflow: auto; display: flex; align-items: center; justify-content: center; padding: 24px;"
         >
           <div
-            style="width: 640px; height: 640px; border-radius: 3px; box-shadow: 0 0 0 1px rgba(148,210,216,0.14), 0 24px 50px -22px rgba(0,0,0,0.30); overflow: hidden; cursor: crosshair;"
+            style="width: 640px; height: 640px; position: relative; box-shadow: 0 0 0 1px rgba(148,210,216,0.14), 0 24px 50px -22px rgba(0,0,0,0.30); border-radius: 3px; cursor: crosshair;"
           >
             <div
+              style="position: absolute; inset: 0; border-radius: 3px; pointer-events: none; z-index: 0;"
+            />
+            <div
               data-testid="sprite-canvas"
-              height="640"
+              height="680"
+              style="position: absolute; top: -20px; left: -20px; z-index: 1;"
               tabindex="0"
-              width="640"
+              width="680"
             >
-              <div>
+              <div
+                x="20"
+                y="20"
+              >
                 <div />
                 <div
                   points="312,320,328,320"
@@ -1968,6 +2124,51 @@ exports[`SpriteEditor - Snapshot Tests renders with initial name 1`] = `
             </svg>
           </button>
           <button
+            data-testid="tool-fill"
+            style="all: unset; cursor: pointer; width: 34px; height: 34px; border-radius: 5px; display: inline-flex; align-items: center; justify-content: center; background: transparent; color: rgb(232, 242, 244); transition: background 0.1s;"
+            title="Fill"
+            type="button"
+          >
+            <svg
+              fill="none"
+              height="17"
+              viewBox="0 0 24 24"
+              width="17"
+            >
+              <path
+                d="M6 8.5 L7.5 19 Q7.8 20.5 9.5 20.5 H14.5 Q16.2 20.5 16.5 19 L18 8.5 Z"
+                fill="currentColor"
+                opacity="0.2"
+              />
+              <path
+                d="M6 8.5 L7.5 19 Q7.8 20.5 9.5 20.5 H14.5 Q16.2 20.5 16.5 19 L18 8.5 Z"
+                stroke="currentColor"
+                stroke-linejoin="round"
+                stroke-width="1.5"
+              />
+              <rect
+                fill="currentColor"
+                height="2"
+                rx="1"
+                width="14"
+                x="5"
+                y="7"
+              />
+              <path
+                d="M9.5 7 Q9.5 4 12 4 Q14.5 4 14.5 7"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-width="1.5"
+              />
+              <path
+                d="M12 20.5 Q11.5 23 13.5 22.5 Q15 22 14 20.5"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-width="1.2"
+              />
+            </svg>
+          </button>
+          <button
             data-testid="tool-rect"
             style="all: unset; cursor: pointer; width: 34px; height: 34px; border-radius: 5px; display: inline-flex; align-items: center; justify-content: center; background: rgb(247, 182, 122); color: rgb(255, 255, 255); transition: background 0.1s;"
             title="Rectangle"
@@ -2233,15 +2434,22 @@ exports[`SpriteEditor - Snapshot Tests renders with initial name 1`] = `
           style="flex: 1 1 0%; overflow: auto; display: flex; align-items: center; justify-content: center; padding: 24px;"
         >
           <div
-            style="width: 640px; height: 640px; border-radius: 3px; box-shadow: 0 0 0 1px rgba(148,210,216,0.14), 0 24px 50px -22px rgba(0,0,0,0.30); overflow: hidden; cursor: crosshair;"
+            style="width: 640px; height: 640px; position: relative; box-shadow: 0 0 0 1px rgba(148,210,216,0.14), 0 24px 50px -22px rgba(0,0,0,0.30); border-radius: 3px; cursor: crosshair;"
           >
             <div
+              style="position: absolute; inset: 0; border-radius: 3px; pointer-events: none; z-index: 0;"
+            />
+            <div
               data-testid="sprite-canvas"
-              height="640"
+              height="680"
+              style="position: absolute; top: -20px; left: -20px; z-index: 1;"
               tabindex="0"
-              width="640"
+              width="680"
             >
-              <div>
+              <div
+                x="20"
+                y="20"
+              >
                 <div />
                 <div
                   points="312,320,328,320"

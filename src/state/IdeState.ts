@@ -91,6 +91,8 @@ type EditorState = {
   deleteFile: (name: string) => void;
   changeAsset: (name: string, url: string) => void;
   toggleAsset: (name: string, url: string) => void;
+  addAssetInstance: (baseName: string, url: string) => void;
+  removeAsset: (instanceName: string) => void;
   renameFile: (oldName: string, newName: string) => void;
   markClean: () => void;
 };
@@ -191,6 +193,30 @@ export const useEditor = create<EditorState>((set) => ({
       const dirty = new Set(s.dirtyFiles);
       dirty.add("*assets*");
 
+      return { ...s, project: { ...s.project, assets }, dirtyFiles: dirty };
+    }),
+
+  addAssetInstance: (baseName, url) =>
+    set((s) => {
+      const assets = { ...(s.project.assets ?? {}) };
+      let key = baseName;
+      if (assets[key] !== undefined) {
+        let n = 1;
+        while (assets[`${baseName}_${n}`] !== undefined) n++;
+        key = `${baseName}_${n}`;
+      }
+      assets[key] = url;
+      const dirty = new Set(s.dirtyFiles);
+      dirty.add("*assets*");
+      return { ...s, project: { ...s.project, assets }, dirtyFiles: dirty };
+    }),
+
+  removeAsset: (instanceName) =>
+    set((s) => {
+      const assets = { ...(s.project.assets ?? {}) };
+      delete assets[instanceName];
+      const dirty = new Set(s.dirtyFiles);
+      dirty.add("*assets*");
       return { ...s, project: { ...s.project, assets }, dirtyFiles: dirty };
     }),
 

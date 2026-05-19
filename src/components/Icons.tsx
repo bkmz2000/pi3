@@ -232,6 +232,40 @@ export function IconUsers({ size = 22, ...rest }: IconProps) {
   );
 }
 
+export function IconBucket({ size = 22, ...rest }: IconProps) {
+  const c = rest.color || "currentColor";
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      {/* Bucket body (trapezoid, wider at bottom) */}
+      <path d="M6 8.5 L7.5 19 Q7.8 20.5 9.5 20.5 H14.5 Q16.2 20.5 16.5 19 L18 8.5 Z"
+        fill={c} opacity="0.2"/>
+      <path d="M6 8.5 L7.5 19 Q7.8 20.5 9.5 20.5 H14.5 Q16.2 20.5 16.5 19 L18 8.5 Z"
+        stroke={c} strokeWidth="1.5" strokeLinejoin="round"/>
+      {/* Top rim */}
+      <rect x="5" y="7" width="14" height="2" rx="1" fill={c}/>
+      {/* Handle (arc) */}
+      <path d="M9.5 7 Q9.5 4 12 4 Q14.5 4 14.5 7"
+        stroke={c} strokeWidth="1.5" strokeLinecap="round"/>
+      {/* Paint drip */}
+      <path d="M12 20.5 Q11.5 23 13.5 22.5 Q15 22 14 20.5"
+        stroke={c} strokeWidth="1.2" strokeLinecap="round"/>
+    </svg>
+  );
+}
+
+export function IconFrame({ size = 22, ...rest }: IconProps) {
+  const c = rest.color || "currentColor";
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <rect x="4" y="4" width="16" height="16" rx="1" stroke={c} strokeWidth={1.8} strokeDasharray="3 2" />
+      <rect x="2" y="2" width="4" height="4" rx="1" fill={c} />
+      <rect x="18" y="2" width="4" height="4" rx="1" fill={c} />
+      <rect x="2" y="18" width="4" height="4" rx="1" fill={c} />
+      <rect x="18" y="18" width="4" height="4" rx="1" fill={c} />
+    </svg>
+  );
+}
+
 export type IconName =
   | "folder"
   | "play"
@@ -259,7 +293,10 @@ export type IconName =
   | "eye"
   | "nodes"
   | "book"
-  | "users";
+  | "users"
+  | "bucket"
+  | "frame"
+  | "filter";
 
 export function Icon({ name, ...props }: IconProps & { name: IconName }) {
   switch (name) {
@@ -290,7 +327,19 @@ export function Icon({ name, ...props }: IconProps & { name: IconName }) {
     case "nodes": return <IconNodes {...props} />;
     case "book": return <IconBook {...props} />;
     case "users": return <IconUsers {...props} />;
+    case "bucket": return <IconBucket {...props} />;
+    case "frame": return <IconFrame {...props} />;
+    case "filter": return <IconFilter {...props} />;
   }
+}
+
+function IconFilter({ size = 22, ...rest }: IconProps) {
+  const c = rest.color || "currentColor";
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <path d="M3 5h18M6 10h12M10 15h4" stroke={c} strokeWidth="1.8" strokeLinecap="round"/>
+    </svg>
+  );
 }
 
 function IconBook({ size = 22, color, strokeWidth }: IconProps) {

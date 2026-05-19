@@ -1,4 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
-  <rect x="12.8" y="26.4" width="35" height="10.200000000000003" fill="#ff0000" stroke="#ffff00" stroke-width="1"/>
-  <polygon points="41,22.2 56.2,32 41,41.6 40.8,22 40.8,22" fill="#ff0000" stroke="#ffff00" stroke-width="1" stroke-linecap="round"/>
+  <ellipse cx="22" cy="32" rx="18" ry="6" fill="#f6a560" opacity="0.22"></ellipse>
+  <rect x="4" y="28" width="30" height="8" rx="4" fill="#f6a560" opacity="0.5"></rect>
+  <rect x="18" y="24" width="30" height="16" rx="7" fill="#f6a560"></rect>
+  <polygon points="48,24 62,32 48,40" fill="#e07a3a"></polygon>
+  <rect x="20" y="26" width="20" height="5" rx="3" fill="#fbf6e9" opacity="0.35"></rect>
 </svg>

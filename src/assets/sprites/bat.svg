@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <path d="M8,40 Q6,24 22,28 Q28,22 32,32" fill="#3a1860"></path>
+  <path d="M56,40 Q58,24 42,28 Q36,22 32,32" fill="#3a1860"></path>
+  <ellipse cx="12" cy="34" rx="12" ry="8" fill="#3a1860" transform="rotate(-15 12 34)"></ellipse>
+  <ellipse cx="52" cy="34" rx="12" ry="8" fill="#3a1860" transform="rotate(15 52 34)"></ellipse>
+  <ellipse cx="32" cy="36" rx="12" ry="16" fill="#3a1860"></ellipse>
+  <polygon points="24,22 28,8 34,22" fill="#3a1860"></polygon>
+  <polygon points="30,22 36,8 40,22" fill="#3a1860"></polygon>
+  <polygon points="25,22 28,13 33,22" fill="#6a30a0" opacity="0.55"></polygon>
+  <polygon points="31,22 36,13 39,22" fill="#6a30a0" opacity="0.55"></polygon>
+  <circle cx="26" cy="34" r="4.5" fill="#f6a560"></circle>
+  <circle cx="38" cy="34" r="4.5" fill="#f6a560"></circle>
+  <circle cx="26" cy="34" r="2.2" fill="#0a3d44"></circle>
+  <circle cx="38" cy="34" r="2.2" fill="#0a3d44"></circle>
+  <polygon points="28,46 30,52 32,46" fill="#fbf6e9"></polygon>
+  <polygon points="32,46 34,52 36,46" fill="#fbf6e9"></polygon>
+</svg>

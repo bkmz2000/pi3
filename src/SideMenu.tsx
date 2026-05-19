@@ -1,6 +1,7 @@
 import { useEffect, useState, lazy, Suspense } from "react";
+import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
-import { PACK_ASSET_LIST } from "./state/assets";
+import { packAssetsByMeta, type Category, type Perspective } from "./state/assets";
 import { useIde, useEditor } from "./state/IdeState";
 import { useRunner } from "./runner/RunnerProvider";
 import { useRunButton } from "./hooks/useRunButton";
@@ -206,26 +207,10 @@ export default function Rail() {
     }
   };
 
-  const allAssets = [...PACK_ASSET_LIST];
   const projectAssets = useEditor((s) => s.project.assets);
   const toggleAsset = useEditor((s) => s.toggleAsset);
-  const userAssetsMap = new Map(Object.entries(projectAssets));
-
-  userAssetsMap.forEach((url, name) => {
-    const existingIndex = allAssets.findIndex((asset) => asset.name === name);
-    if (existingIndex >= 0) {
-      allAssets[existingIndex] = { name, url };
-    } else {
-      allAssets.push({ name, url });
-    }
-  });
-
-  const sortedAssets = allAssets.sort((a, b) => {
-    const aSelected = !!projectAssets[a.name];
-    const bSelected = !!projectAssets[b.name];
-    if (aSelected === bSelected) return 0;
-    return aSelected ? -1 : 1;
-  });
+  const addAssetInstance = useEditor((s) => s.addAssetInstance);
+  const removeAsset = useEditor((s) => s.removeAsset);
 
   const isRunning = running || isP5;
   const runIcon: IconName = !ready ? "settings" : isRunning ? "stop" : "play";
@@ -361,9 +346,9 @@ export default function Rail() {
           {activePanel === "assets" && (
             <AssetsPanel
               theme={theme}
-              assets={sortedAssets}
-              selectedAssets={projectAssets}
-              onToggleAsset={toggleAsset}
+              projectAssets={projectAssets}
+              onAddAsset={addAssetInstance}
+              onRemoveAsset={removeAsset}
               onNewSprite={() => { setEditingAsset(null); setEditorOpen(true); }}
               onEditAsset={(name, url) => {
                 setEditingAsset({ name, url });
@@ -658,6 +643,7 @@ function ExampleRow({
   current?: boolean;
   onClick: () => void;
 }) {
+  const { t } = useTranslation();
   const [hover, setHover] = useState(false);
   return (
     <button
@@ -722,7 +708,7 @@ function ExampleRow({
             letterSpacing: 0.6,
           }}
         >
-          open
+          {t('sideMenu.openBadge')}
         </span>
       )}
     </button>
@@ -889,23 +875,28 @@ function PanelButton({
 }
 
 // ── Assets Panel ───────────────────────────
-function SpriteTile({
+
+const CATEGORIES: Category[] = [
+  "Characters", "Enemies", "Vehicles", "Tiles",
+  "Items", "Hazards", "Effects", "Buildings",
+];
+
+function AvailableSpriteTile({
   url,
   name,
   theme,
-  selected,
   onClick,
 }: {
-  url?: string;
+  url: string;
   name: string;
   theme: Theme;
-  selected?: boolean;
-  onClick?: () => void;
+  onClick: () => void;
 }) {
   const [hover, setHover] = useState(false);
   return (
     <button
       type="button"
+      title={name}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
       onClick={onClick}
@@ -915,49 +906,163 @@ function SpriteTile({
         aspectRatio: "1 / 1",
         background: theme.chip,
         borderRadius: theme.radiusCard,
-        border: `2px solid ${selected ? theme.accent : "transparent"}`,
+        border: `2px solid transparent`,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
         position: "relative",
-        transition: "border-color 0.15s, transform 0.15s",
+        transition: "transform 0.12s",
         transform: hover ? "translateY(-2px)" : "none",
       }}
     >
-      {url ? (
-        <img
-          src={url}
-          alt={name}
-          style={{ width: "80%", height: "80%", objectFit: "contain" }}
-        />
-      ) : (
-        <div
-          style={{
-            width: 36,
-            height: 36,
-            borderRadius: 8,
-            background: theme.accent + "33",
-            color: theme.accent,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontFamily: theme.fontMono,
-            fontSize: 10,
-            fontWeight: 700,
-          }}
-        >
-          ?
-        </div>
-      )}
+      <img src={url} alt={name} style={{ width: "80%", height: "80%", objectFit: "contain" }} />
     </button>
+  );
+}
+
+function UsedSpriteTile({
+  url,
+  name,
+  theme,
+  onDelete,
+  onDuplicate,
+  onEdit,
+}: {
+  url: string;
+  name: string;
+  theme: Theme;
+  onDelete: () => void;
+  onDuplicate: () => void;
+  onEdit: () => void;
+}) {
+  const { t } = useTranslation();
+  const [hover, setHover] = useState(false);
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null);
+  const baseName = name.includes(".") ? name.slice(0, name.lastIndexOf(".")) : name;
+  const pythonName = `assets.sprites.${baseName}`;
+
+  const closeCtx = () => setCtxMenu(null);
+
+  return (
+    <div
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      onClick={() => { closeCtx(); onEdit(); }}
+      onContextMenu={(e) => { e.preventDefault(); setCtxMenu({ x: e.clientX, y: e.clientY }); }}
+      style={{
+        aspectRatio: "1 / 1",
+        background: theme.chip,
+        borderRadius: theme.radiusCard,
+        border: `2px solid ${hover ? theme.accent : theme.accent + "88"}`,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        position: "relative",
+        overflow: "visible",
+        transform: hover ? "scale(1.12)" : "scale(1)",
+        transformOrigin: "center",
+        transition: "transform 0.14s, border-color 0.14s",
+        cursor: "pointer",
+        zIndex: hover ? 3 : 1,
+      }}
+    >
+      <img src={url} alt={name} style={{
+        width: "80%", height: "80%", objectFit: "contain",
+        borderRadius: theme.radiusCard,
+        pointerEvents: "none",
+      }} />
+
+      {/* Name badge — visible on hover, click copies python name */}
+      <div
+        title={`Click to copy: ${pythonName}`}
+        onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(pythonName); }}
+        style={{
+          position: "absolute",
+          bottom: -22,
+          left: "50%",
+          transform: "translateX(-50%)",
+          whiteSpace: "nowrap",
+          fontFamily: theme.fontMono,
+          fontSize: 10,
+          color: theme.panelTxt,
+          background: theme.surfacePanel,
+          border: `1px solid ${theme.panelBorder}`,
+          borderRadius: 4,
+          padding: "1px 5px",
+          cursor: "copy",
+          opacity: hover ? 1 : 0,
+          transition: "opacity 0.12s",
+          pointerEvents: hover ? "auto" : "none",
+          zIndex: 10,
+          display: "flex",
+          alignItems: "center",
+          gap: 3,
+        }}
+      >
+        <Icon name="copy" size={9} color={theme.panelTxtMute} />
+        {baseName}
+      </div>
+
+      {/* Right-click context menu — rendered in a portal to escape the tile's CSS transform */}
+      {ctxMenu && createPortal(
+        <>
+          <div
+            style={{ position: "fixed", inset: 0, zIndex: 99 }}
+            onClick={closeCtx}
+            onContextMenu={(e) => { e.preventDefault(); closeCtx(); }}
+          />
+          <div style={{
+            position: "fixed",
+            left: ctxMenu.x,
+            top: ctxMenu.y,
+            zIndex: 100,
+            background: theme.surfacePanel,
+            border: `1px solid ${theme.panelBorder}`,
+            borderRadius: 8,
+            padding: "4px 0",
+            minWidth: 130,
+            boxShadow: "0 4px 16px rgba(0,0,0,0.18)",
+          }}>
+            <button type="button"
+              onClick={(e) => { e.stopPropagation(); closeCtx(); onDuplicate(); }}
+              style={{
+                all: "unset", display: "flex", alignItems: "center", gap: 8,
+                width: "100%", padding: "6px 12px", cursor: "pointer",
+                fontSize: 12, color: theme.panelTxt, fontFamily: theme.fontUI,
+                boxSizing: "border-box",
+              }}
+              onMouseEnter={e => (e.currentTarget.style.background = theme.chip)}
+              onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+            >
+              <Icon name="copy" size={13} color={theme.panelTxt} />
+              {t('sideMenu.duplicate')}
+            </button>
+            <button type="button"
+              onClick={(e) => { e.stopPropagation(); closeCtx(); onDelete(); }}
+              style={{
+                all: "unset", display: "flex", alignItems: "center", gap: 8,
+                width: "100%", padding: "6px 12px", cursor: "pointer",
+                fontSize: 12, color: "#ef4444", fontFamily: theme.fontUI,
+                boxSizing: "border-box",
+              }}
+              onMouseEnter={e => (e.currentTarget.style.background = "rgba(220,38,38,0.10)")}
+              onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+            >
+              <Icon name="trash" size={13} color="#ef4444" />
+              {t('sideMenu.remove')}
+            </button>
+          </div>
+        </>, document.body
+      )}
+    </div>
   );
 }
 
 type AssetsPanelProps = {
   theme: Theme;
-  assets: { name: string; url: string }[];
-  selectedAssets: Record<string, string>;
-  onToggleAsset: (name: string, url: string) => void;
+  projectAssets: Record<string, string>;
+  onAddAsset: (baseName: string, url: string) => void;
+  onRemoveAsset: (instanceName: string) => void;
   onNewSprite: () => void;
   onEditAsset: (name: string, url: string) => void;
   onClose: () => void;
@@ -965,97 +1070,218 @@ type AssetsPanelProps = {
 
 function AssetsPanel({
   theme,
-  assets,
-  selectedAssets,
-  onToggleAsset,
+  projectAssets,
+  onAddAsset,
+  onRemoveAsset,
   onNewSprite,
   onEditAsset,
   onClose,
 }: AssetsPanelProps) {
   const { t } = useTranslation();
+  const [query, setQuery] = useState("");
+  const [activeCategory, setActiveCategory] = useState<Category | null>(null);
+  const [activePerspective, setActivePerspective] = useState<Perspective | null>(null);
+  const [showFilters, setShowFilters] = useState(false);
+  const activeFilterCount = (activeCategory ? 1 : 0) + (activePerspective ? 1 : 0);
 
-  const selected = assets.filter(({ name }) => selectedAssets[name]);
-  const available = assets.filter(({ name }) => !selectedAssets[name]);
+  const usedEntries = Object.entries(projectAssets);
+
+  const availableSprites = packAssetsByMeta(
+    activeCategory ?? undefined,
+    activePerspective ?? undefined,
+  ).filter(({ name }) => name.includes(query.trim().toLowerCase()));
+
+  const tabBtnStyle = (active: boolean) => ({
+    all: "unset" as const,
+    cursor: "pointer" as const,
+    padding: "3px 8px",
+    borderRadius: 20,
+    fontSize: 11,
+    fontWeight: 600,
+    fontFamily: theme.fontUI,
+    background: active ? theme.accent : theme.chip,
+    color: active ? "#fff" : theme.panelTxtMute,
+    whiteSpace: "nowrap" as const,
+    transition: "background 0.12s, color 0.12s",
+  });
 
   return (
     <>
       <PanelHeader title={t('sideMenu.assets')} theme={theme} onClose={onClose} />
-      <div style={{ padding: "16px", overflowY: "auto", flex: 1 }}>
-        <SectionLabel theme={theme}>{t('sideMenu.selectedAssets')}</SectionLabel>
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr 1fr",
-            gap: 8,
-            marginBottom: 18,
-          }}
-        >
-          {selected.length === 0 ? (
-            <div
-              style={{
-                gridColumn: "1 / -1",
-                textAlign: "center",
-                padding: "16px 0",
-                fontSize: 13,
-                color: theme.panelTxtMute,
-              }}
-            >
+      <div style={{ display: "flex", flexDirection: "column", flex: 1, overflow: "hidden" }}>
+        {/* Used section */}
+        <div style={{ padding: "12px 14px 0" }}>
+          <SectionLabel theme={theme}>{t('sideMenu.selectedAssets')}</SectionLabel>
+        </div>
+        <div style={{ padding: "0 14px 12px" }}>
+          {usedEntries.length === 0 ? (
+            <div style={{ fontSize: 12, color: theme.panelTxtMute, padding: "8px 0" }}>
               {t('sideMenu.noAssetsSelected')}
             </div>
           ) : (
-            selected.map(({ name, url }) => (
-              <SpriteTile
-                key={url}
-                name={name}
-                url={url}
-                theme={theme}
-                selected
-                onClick={() => onEditAsset(name, url)}
-              />
-            ))
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+              {usedEntries.map(([name, url]) => (
+                <UsedSpriteTile
+                  key={name}
+                  name={name}
+                  url={url}
+                  theme={theme}
+                  onDelete={() => onRemoveAsset(name)}
+                  onDuplicate={() => onAddAsset(name, url)}
+                  onEdit={() => onEditAsset(name, url)}
+                />
+              ))}
+            </div>
           )}
         </div>
 
-        <SectionLabel theme={theme}>{t('sideMenu.availableAssets')}</SectionLabel>
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr 1fr",
-            gap: 8,
-          }}
-        >
-          <button
-            type="button"
-            onClick={onNewSprite}
-            style={{
-              all: "unset",
-              cursor: "pointer",
-              aspectRatio: "1 / 1",
-              border: `1.5px dashed ${theme.panelBorder}`,
-              borderRadius: theme.radiusCard,
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 4,
-              color: theme.panelTxtMute,
-              fontFamily: theme.fontUI,
-              fontSize: 11,
-              fontWeight: theme.weightUI,
-            }}
-          >
-            <Icon name="plus" size={20} color="currentColor" />
-            {t('sideMenu.newSprite')}
-          </button>
-          {available.map(({ name, url }) => (
-            <SpriteTile
-              key={url}
-              name={name}
-              url={url}
-              theme={theme}
-              onClick={() => onToggleAsset(name, url)}
+        {/* Available section with filters */}
+        <div style={{ borderTop: `1px solid ${theme.panelBorder}`, padding: "10px 14px 6px" }}>
+          <SectionLabel theme={theme}>{t('sideMenu.availableAssets')}</SectionLabel>
+
+          {/* Search bar + filter toggle */}
+          <div style={{ display: "flex", gap: 6, marginBottom: showFilters ? 6 : 10 }}>
+            <input
+              type="text"
+              placeholder={t('sideMenu.searchSprites')}
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              style={{
+                all: "unset",
+                flex: 1,
+                padding: "6px 10px",
+                background: theme.chip,
+                border: `1px solid ${theme.panelBorder}`,
+                borderRadius: 8,
+                fontFamily: theme.fontUI,
+                fontSize: 12,
+                color: theme.panelTxt,
+              }}
             />
-          ))}
+            <button
+              type="button"
+              onClick={() => setShowFilters(v => !v)}
+              title={t('sideMenu.filterSprites')}
+              style={{
+                all: "unset", cursor: "pointer", flexShrink: 0,
+                height: 32, padding: "0 8px",
+                display: "inline-flex", alignItems: "center", gap: 4,
+                background: showFilters || activeFilterCount > 0
+                  ? theme.accent + "22" : theme.chip,
+                border: `1px solid ${showFilters || activeFilterCount > 0 ? theme.accent : theme.panelBorder}`,
+                borderRadius: 8,
+                fontFamily: theme.fontUI, fontSize: 11, fontWeight: 600,
+                color: showFilters || activeFilterCount > 0 ? theme.accent : theme.panelTxtMute,
+              }}
+            >
+              <Icon name="filter" size={13} color="currentColor" />
+              {activeFilterCount > 0 && (
+                <span style={{
+                  background: theme.accent, color: "#fff",
+                  borderRadius: 99, fontSize: 9, fontWeight: 700,
+                  minWidth: 14, height: 14, display: "inline-flex",
+                  alignItems: "center", justifyContent: "center", padding: "0 3px",
+                }}>
+                  {activeFilterCount}
+                </span>
+              )}
+            </button>
+          </div>
+
+          {/* Filter dropdown */}
+          {showFilters && (
+            <div style={{
+              marginBottom: 8, padding: "8px 10px",
+              background: theme.chip,
+              border: `1px solid ${theme.panelBorder}`,
+              borderRadius: 8,
+            }}>
+              <div style={{ marginBottom: 6 }}>
+                <div style={{ fontSize: 10, fontWeight: 600, color: theme.panelTxtMute,
+                  textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>
+                  {t('sideMenu.filterCategory')}
+                </div>
+                <div style={{ display: "flex", gap: 3, flexWrap: "wrap" }}>
+                  <button style={tabBtnStyle(activeCategory === null)}
+                    onClick={() => setActiveCategory(null)}>{t('sideMenu.filterAll')}</button>
+                  {CATEGORIES.map((cat) => (
+                    <button key={cat} style={tabBtnStyle(activeCategory === cat)}
+                      onClick={() => setActiveCategory(activeCategory === cat ? null : cat)}>
+                      {cat}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: 10, fontWeight: 600, color: theme.panelTxtMute,
+                  textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>
+                  {t('sideMenu.filterPerspective')}
+                </div>
+                <div style={{ display: "flex", gap: 3 }}>
+                  {([null, "side", "top-down"] as const).map((p) => (
+                    <button key={p ?? "all"} style={tabBtnStyle(activePerspective === p)}
+                      onClick={() => setActivePerspective(p)}>
+                      {p === null ? t('sideMenu.filterAll') : p === "side" ? t('sideMenu.filterSide') : t('sideMenu.filterTopDown')}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {activeFilterCount > 0 && (
+                <button type="button"
+                  onClick={() => { setActiveCategory(null); setActivePerspective(null); }}
+                  style={{
+                    all: "unset", cursor: "pointer", marginTop: 6,
+                    fontSize: 10, color: theme.accent, fontFamily: theme.fontUI,
+                  }}>
+                  {t('sideMenu.clearFilters')}
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Available grid */}
+        <div style={{ flex: 1, overflowY: "auto", padding: "0 14px 14px" }}>
+          {availableSprites.length === 0 ? (
+            <div style={{ fontSize: 12, color: theme.panelTxtMute, paddingTop: 8, textAlign: "center" }}>
+              {t('sideMenu.noSpritesMatch')}
+            </div>
+          ) : (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+              <button
+                type="button"
+                onClick={onNewSprite}
+                style={{
+                  all: "unset",
+                  cursor: "pointer",
+                  aspectRatio: "1 / 1",
+                  border: `1.5px dashed ${theme.panelBorder}`,
+                  borderRadius: theme.radiusCard,
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 4,
+                  color: theme.panelTxtMute,
+                  fontFamily: theme.fontUI,
+                  fontSize: 11,
+                  fontWeight: theme.weightUI,
+                }}
+              >
+                <Icon name="plus" size={20} color="currentColor" />
+                {t('sideMenu.newSprite')}
+              </button>
+              {availableSprites.map(({ name, url }) => (
+                <AvailableSpriteTile
+                  key={name}
+                  name={name}
+                  url={url}
+                  theme={theme}
+                  onClick={() => onAddAsset(name, url)}
+                />
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </>

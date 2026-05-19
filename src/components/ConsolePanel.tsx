@@ -144,7 +144,7 @@ export default function ConsolePanel({ onRight = false }: { onRight?: boolean })
             textTransform: "uppercase",
           }}
         >
-          Console
+          {t('sideMenu.console')}
         </div>
         <div
           style={{
@@ -159,7 +159,7 @@ export default function ConsolePanel({ onRight = false }: { onRight?: boolean })
             letterSpacing: 0.6,
           }}
         >
-          {running ? "running" : "idle"}
+          {running ? t('app.statusRunning') : t('app.statusIdle')}
         </div>
         <div style={{ flex: 1 }} />
         <button

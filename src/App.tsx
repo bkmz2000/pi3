@@ -223,7 +223,7 @@ function AppInner() {
       >
         <Rail />
 
-          {/* Main editor column */}
+        {/* Main content column: header on top, editor+console below */}
         <div
           style={{
             flex: 1,
@@ -232,13 +232,6 @@ function AppInner() {
             flexDirection: "column",
             background: theme.editorBg,
             position: "relative",
-          }}
-          onClick={e => {
-            const target = e.target as HTMLElement;
-            if (!target.closest('.cm-comment-gutter') && !target.closest('[data-comment-popover]')) {
-              setSelectedLine(null);
-              setAnchorY(null);
-            }
           }}
         >
           {authError !== null && (
@@ -251,6 +244,7 @@ function AppInner() {
               gap: 12,
               fontSize: 14,
               fontFamily: theme.fontUI,
+              flexShrink: 0,
             }}>
               <span style={{ flex: 1 }}>{authError}</span>
               <button
@@ -268,89 +262,109 @@ function AppInner() {
             </div>
           )}
           <FileBar />
-          <div style={{
-            flex: 1, minHeight: 0, background: theme.editorBg,
-            "--cm-bg": theme.editorBg,
-            "--indent-guide-1": theme.name === "Midnight" ? "rgba(95,212,220,0.06)" : "rgba(14,154,167,0.07)",
-            "--indent-guide-2": theme.name === "Midnight" ? "rgba(95,212,220,0.10)" : "rgba(14,154,167,0.11)",
-            "--indent-guide-3": theme.name === "Midnight" ? "rgba(95,212,220,0.14)" : "rgba(14,154,167,0.15)",
-            "--indent-guide-4": theme.name === "Midnight" ? "rgba(95,212,220,0.18)" : "rgba(14,154,167,0.19)",
-            "--indent-guide-5": theme.name === "Midnight" ? "rgba(95,212,220,0.22)" : "rgba(14,154,167,0.23)",
-            "--indent-guide-6": theme.name === "Midnight" ? "rgba(95,212,220,0.26)" : "rgba(14,154,167,0.27)",
-          } as React.CSSProperties}>
-            <CodeMirror
-              ref={editorRef}
-              key={`${currentFile || "no-file"}-${theme.editorBg}`}
-              value={project.files[currentFile] ?? ""}
-              onChange={onChange}
-              extensions={[
-                python(),
-                EditorState.tabSize.of(4),
-                indentUnit.of("    "),
-                bracketMatching(),
-                indentOnInput(),
-                lineNumbers(),
-                highlightActiveLine(),
-                drawSelection(),
-                highlightSpecialChars(),
-                indentationGuideField,
-                cmTheme,
-                indentationGuides,
-                EditorView.theme({ "&": { fontSize: fontSize + "px" } }),
-                EditorView.lineWrapping,
-                autocompletion({ defaultKeymap: false }),
-                ...createGraphicsExtensions(theme, lang, enableAutocomplete),
-                lintGutter(),
-                Prec.high(keymap.of([
-                  { key: "Tab", run: acceptCompletion },
-                  ...completionKeymap.filter(b => b.key !== "Enter"),
-                ])),
-                commentExtension({ canAdd: false, onLineSelect: (line, y) => { setSelectedLine(line); setAnchorY(y); } }),
-              ]}
-              height="100%"
-              width="100%"
-              className="h-full text-left"
-            />
-          </div>
-          {selectedLine !== null && anchorY !== null && (() => {
-            const lineComments = fileComments.filter(c => c.line_number === selectedLine);
-            if (lineComments.length === 0) return null;
-            return (
-              <div data-comment-popover style={{
-                position: 'fixed',
-                left: 320,
-                top: Math.max(8, Math.min(anchorY - 60, window.innerHeight - 300)),
-                width: 280,
-                background: theme.surfacePanel,
-                border: `1px solid ${theme.panelBorder}`,
-                borderRadius: 8,
-                boxShadow: '0 8px 24px rgba(0,0,0,0.28)',
-                zIndex: 50,
-                padding: 12,
-                display: 'flex', flexDirection: 'column', gap: 8,
-                fontFamily: theme.fontUI,
-              }}>
-                {lineComments.map(c => (
-                  <div key={c.id} style={{
-                    background: theme.surface, borderRadius: 6, padding: '8px 10px',
-                    border: `1px solid ${theme.panelBorder}`,
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', marginBottom: 4 }}>
-                      <span style={{ flex: 1, fontSize: 11.5, fontWeight: 600, color: theme.panelTxt }}>{c.author_name}</span>
-                      <span style={{ fontSize: 10.5, color: theme.panelTxtMute }}>
-                        {new Date(c.created_at).toLocaleDateString()}
-                      </span>
-                    </div>
-                    <div style={{ fontSize: 12.5, color: theme.panelTxt, whiteSpace: 'pre-wrap' }}>{c.text}</div>
-                  </div>
-                ))}
+
+          {/* Editor + Console — row when consoleOnRight, column otherwise */}
+          <div
+            style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: consoleOnRight ? "row" : "column" }}
+            onClick={e => {
+              const target = e.target as HTMLElement;
+              if (!target.closest('.cm-comment-gutter') && !target.closest('[data-comment-popover]')) {
+                setSelectedLine(null);
+                setAnchorY(null);
+              }
+            }}
+          >
+            {/* Editor */}
+            <div style={{
+              flex: 1, minWidth: 0, display: "flex", flexDirection: "column",
+              background: theme.editorBg,
+            }}>
+              <div style={{
+                flex: 1, minHeight: 0, background: theme.editorBg,
+                "--cm-bg": theme.editorBg,
+                "--indent-guide-1": theme.name === "Midnight" ? "rgba(95,212,220,0.06)" : "rgba(14,154,167,0.07)",
+                "--indent-guide-2": theme.name === "Midnight" ? "rgba(95,212,220,0.10)" : "rgba(14,154,167,0.11)",
+                "--indent-guide-3": theme.name === "Midnight" ? "rgba(95,212,220,0.14)" : "rgba(14,154,167,0.15)",
+                "--indent-guide-4": theme.name === "Midnight" ? "rgba(95,212,220,0.18)" : "rgba(14,154,167,0.19)",
+                "--indent-guide-5": theme.name === "Midnight" ? "rgba(95,212,220,0.22)" : "rgba(14,154,167,0.23)",
+                "--indent-guide-6": theme.name === "Midnight" ? "rgba(95,212,220,0.26)" : "rgba(14,154,167,0.27)",
+              } as React.CSSProperties}>
+                <CodeMirror
+                  ref={editorRef}
+                  key={`${currentFile || "no-file"}-${theme.editorBg}`}
+                  value={project.files[currentFile] ?? ""}
+                  onChange={onChange}
+                  extensions={[
+                    python(),
+                    EditorState.tabSize.of(4),
+                    indentUnit.of("    "),
+                    bracketMatching(),
+                    indentOnInput(),
+                    lineNumbers(),
+                    highlightActiveLine(),
+                    drawSelection(),
+                    highlightSpecialChars(),
+                    indentationGuideField,
+                    cmTheme,
+                    indentationGuides,
+                    EditorView.theme({ "&": { fontSize: fontSize + "px" } }),
+                    EditorView.lineWrapping,
+                    autocompletion({ defaultKeymap: false }),
+                    ...createGraphicsExtensions(theme, lang, enableAutocomplete),
+                    lintGutter(),
+                    Prec.high(keymap.of([
+                      { key: "Tab", run: acceptCompletion },
+                      ...completionKeymap.filter(b => b.key !== "Enter"),
+                    ])),
+                    commentExtension({ canAdd: false, onLineSelect: (line, y) => { setSelectedLine(line); setAnchorY(y); } }),
+                  ]}
+                  height="100%"
+                  width="100%"
+                  className="h-full text-left"
+                />
               </div>
-            );
-          })()}
-          {showConsole && !consoleOnRight && <ConsolePanel />}
+              {selectedLine !== null && anchorY !== null && (() => {
+                const lineComments = fileComments.filter(c => c.line_number === selectedLine);
+                if (lineComments.length === 0) return null;
+                return (
+                  <div data-comment-popover style={{
+                    position: 'fixed',
+                    left: 320,
+                    top: Math.max(8, Math.min(anchorY - 60, window.innerHeight - 300)),
+                    width: 280,
+                    background: theme.surfacePanel,
+                    border: `1px solid ${theme.panelBorder}`,
+                    borderRadius: 8,
+                    boxShadow: '0 8px 24px rgba(0,0,0,0.28)',
+                    zIndex: 50,
+                    padding: 12,
+                    display: 'flex', flexDirection: 'column', gap: 8,
+                    fontFamily: theme.fontUI,
+                  }}>
+                    {lineComments.map(c => (
+                      <div key={c.id} style={{
+                        background: theme.surface, borderRadius: 6, padding: '8px 10px',
+                        border: `1px solid ${theme.panelBorder}`,
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', marginBottom: 4 }}>
+                          <span style={{ flex: 1, fontSize: 11.5, fontWeight: 600, color: theme.panelTxt }}>{c.author_name}</span>
+                          <span style={{ fontSize: 10.5, color: theme.panelTxtMute }}>
+                            {new Date(c.created_at).toLocaleDateString()}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: 12.5, color: theme.panelTxt, whiteSpace: 'pre-wrap' }}>{c.text}</div>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+            </div>
+
+            {showConsole && <ConsolePanel onRight={consoleOnRight} />}
+          </div>
+
           <CanvasWindow />
         </div>
-        {showConsole && consoleOnRight && <ConsolePanel onRight />}
       </div>
       {showForkDialog && (
         <ForkDialog

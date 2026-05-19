@@ -4,7 +4,9 @@
     "loadingHint": "This may take a few seconds on first load. After that, Python will be cached for faster startup.",
     "copyConsole": "Copy console",
     "clearConsole": "Clear console",
-    "inputPlaceholder": "Type input here..."
+    "inputPlaceholder": "Type input here...",
+    "statusRunning": "running",
+    "statusIdle": "idle"
   },
   "auth": {
     "signIn": "Sign In",
@@ -107,6 +109,17 @@
     "failedExport": "Failed to export project. Please try again.",
     "failedImport": "Failed to import project: Please make sure it's a valid project file.",
     "docs": "Reference",
+    "searchSprites": "Search sprites…",
+    "filterSprites": "Filters",
+    "filterCategory": "Category",
+    "filterAll": "All",
+    "filterPerspective": "Perspective",
+    "filterSide": "Side",
+    "filterTopDown": "Top-down",
+    "clearFilters": "Clear filters",
+    "noSpritesMatch": "No sprites match",
+    "duplicate": "Duplicate",
+    "openBadge": "open",
     "examplesList": ["hello world", "input", "bounce", "snake", "sokoban", "asteroids"],
     "exampleTags": ["first program", "ask questions", "graphics", "classic", "puzzle", "spaceships"]
   },
@@ -141,10 +154,26 @@
     "exportPng": "Export PNG",
     "enterText": "Enter text:",
     "customColor": "Custom",
-    "centerHint": "Center (where the sprite rotates)"
+    "centerHint": "Center (where the sprite rotates)",
+    "editPath": "Edit Path",
+    "bringForward": "Bring forward",
+    "sendBackward": "Send backward",
+    "grid": "Grid",
+    "gridSize": "Size",
+    "scale": "Scale",
+    "name": "name",
+    "hintSelect": "Click to select · Shift+click to multi-select · Drag canvas to rubber-band · Ctrl+A to select all · Delete to remove",
+    "hintFill": "Click a shape to fill it with the current fill color",
+    "hintRect": "Click and drag to draw a rectangle",
+    "hintEllipse": "Click and drag to draw an ellipse",
+    "hintLine": "Click to start, drag to extend · Double-click to finish",
+    "hintText": "Click on the canvas to place text",
+    "hintEditpath": "Click a path or polygon to select · Drag the handles to move vertices"
   },
   "canvas": {
-    "label": "canvas"
+    "label": "canvas",
+    "statusLive": "live",
+    "statusPaused": "paused"
   },
   "console": {
     "checking": "Checking for errors...",

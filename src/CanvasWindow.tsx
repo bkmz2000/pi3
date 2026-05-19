@@ -109,7 +109,7 @@ export default function CanvasWindow() {
             letterSpacing: 0.5,
           }}
         >
-          {running ? "live" : "paused"}
+          {running ? t('canvas.statusLive') : t('canvas.statusPaused')}
         </span>
         <div style={{ flex: 1 }} />
       </div>

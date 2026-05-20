@@ -47,6 +47,13 @@ function resolveUser(req: Request): AuthUser | undefined {
 }
 
 export function authMiddleware(req: Request, res: Response, next: NextFunction): void {
+  // Allow bypassing auth in test environments (E2E tests)
+  if (process.env.SKIP_AUTH === 'true') {
+    req.user = { id: 'test-user', name: 'Test User', role: 'student' };
+    next();
+    return;
+  }
+
   const user = resolveUser(req);
   if (!user) {
     res.status(401).json({ error: 'Unauthorized' });

@@ -15,6 +15,7 @@ import {
   waitForFn,
   sleep,
   assert,
+  findButton,
   DEFAULT_TIMEOUT
 } from './test-utils.js';
 
@@ -51,17 +52,26 @@ async function runTests() {
   try {
     console.log('🐶 Launching browser...');
     browser = await puppeteer.launch({
-      headless: false,
+      headless: true,
       devtools: false,
       defaultViewport: { width: 1280, height: 800 },
       args: ['--no-sandbox', '--disable-setuid-sandbox'],
-      slowMo: 30,
     });
 
     const page = await browser.newPage();
 
+    // Capture page errors
+    page.on('error', err => console.error('Page error:', err));
+    page.on('console', msg => {
+      if (msg.type() === 'error') console.log('Browser console error:', msg.text());
+    });
+
     console.log(`🌐 Navigating to ${DEV_SERVER_URL}...`);
-    await page.goto(DEV_SERVER_URL, { waitUntil: 'networkidle0', timeout: DEFAULT_TIMEOUT });
+    try {
+      await page.goto(DEV_SERVER_URL, { waitUntil: 'networkidle0', timeout: DEFAULT_TIMEOUT });
+    } catch (navError) {
+      throw new Error(`Failed to navigate to ${DEV_SERVER_URL}: ${navError.message}`);
+    }
     await sleep(2000);
 
     console.log('\n=== Running Sprite Editor Tests ===\n');
@@ -84,13 +94,10 @@ async function runTests() {
       );
       
       console.log('✅ Assets panel opened successfully');
-      
-      const newSpriteButton = await waitForElement(
-        page,
-        'button:has-text("New sprite"), button:has-text("+ New sprite")',
-        { timeout: 5000 }
-      );
-      
+
+      const newSpriteButton = await findButton(page, 'New sprite');
+      if (!newSpriteButton) throw new Error('New sprite button not found');
+
       console.log('🎨 Clicking New sprite button...');
       await newSpriteButton.click();
       
@@ -389,8 +396,17 @@ async function runTests() {
       console.log('   📝 Sprite name set');
       
       // Save as PNG
-      const savePngButton = await waitForElement(page, '[aria-label="Sprite Editor"] button:has-text("Save as PNG")', { timeout: 5000 });
-      await savePngButton.click();
+      const savePngButton = await page.evaluate(() => {
+        const buttons = document.querySelectorAll('[aria-label="Sprite Editor"] button');
+        for (const btn of buttons) {
+          if (btn.textContent?.includes('Save as PNG') || btn.textContent?.includes('Save')) {
+            return btn;
+          }
+        }
+        return null;
+      });
+      if (!savePngButton) throw new Error('Save as PNG button not found');
+      await page.evaluate(btn => btn.click(), savePngButton);
       
       // Wait for sprite editor to close (indicates save was successful)
       await waitForFn(

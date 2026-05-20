@@ -153,7 +153,7 @@ router.get('/callback', async (req: Request, res: Response): Promise<void> => {
   }
 
   const stateCookie = req.cookies?.oauth_state;
-  res.clearCookie('oauth_state', { path: '/api/auth/callback' });
+  res.clearCookie('oauth_state', { path: '/' });
 
   if (!stateCookie || !verifyState(stateCookie, state)) {
     console.error('[auth/callback] state mismatch — cookie:', stateCookie, 'url state:', state);
@@ -163,7 +163,7 @@ router.get('/callback', async (req: Request, res: Response): Promise<void> => {
 
   const cookieReturnUrl = req.cookies?.oauth_return;
   const returnUrl = (cookieReturnUrl && isSafeReturnUrl(cookieReturnUrl)) ? cookieReturnUrl : '/';
-  res.clearCookie('oauth_return', { path: '/api/auth/callback' });
+  res.clearCookie('oauth_return', { path: '/' });
 
   // Exchange code for tokens
   let access_token: string;

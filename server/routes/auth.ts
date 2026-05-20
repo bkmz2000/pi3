@@ -109,18 +109,18 @@ router.get('/login', (req: Request, res: Response): void => {
   res.cookie('oauth_state', signState(state), {
     httpOnly: true,
     secure: IS_PROD,
-    sameSite: 'none',
+    sameSite: 'lax',
     maxAge: 10 * 60 * 1000, // 10 min
-    path: '/api/auth/callback',
+    path: '/',
   });
 
   if (returnUrl !== '/') {
     res.cookie('oauth_return', returnUrl, {
       httpOnly: true,
       secure: IS_PROD,
-      sameSite: 'none',
+      sameSite: 'lax',
       maxAge: 10 * 60 * 1000,
-      path: '/api/auth/callback',
+      path: '/',
     });
   }
 

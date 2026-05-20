@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { getDb } from '../db/index.js';
 import { authMiddleware } from '../middleware/auth.js';
+import { getProjectAccess, getProjectWithAccess, hasRole, ProjectRole } from '../middleware/projectAuth.js';
 import { createSharesRouter } from './shares.js';
 import { createProjectCommentsRouter } from './comments.js';
 
@@ -18,40 +19,6 @@ interface Project {
   updated_at: number;
 }
 
-interface ProjectAccess {
-  id: string;
-  user_id: string;
-  role: string | null;
-}
-
-function checkAccess(projectId: string, userId: string, requiredLevel: number): { allowed: boolean; role: string | null } {
-  const db = getDb();
-  const project = db.prepare(`
-    SELECT p.id, p.user_id,
-           CASE WHEN p.user_id = ? THEN 'owner'
-                WHEN ps.role IS NOT NULL THEN ps.role
-                ELSE NULL END as role
-    FROM projects p
-    LEFT JOIN project_shares ps ON p.id = ps.project_id AND ps.user_id = ?
-    WHERE p.id = ?
-  `).get(userId, userId, projectId) as ProjectAccess | undefined;
-
-  if (!project || !project.role) {
-    return { allowed: false, role: null };
-  }
-
-  const roleHierarchy: Record<string, number> = {
-    owner: 3,
-    editor: 2,
-    viewer: 1,
-  };
-
-  const userLevel = roleHierarchy[project.role] ?? 0;
-  return {
-    allowed: userLevel >= requiredLevel,
-    role: project.role,
-  };
-}
 
 export function createProjectsRouter(): Router {
   const router = Router();
@@ -138,12 +105,12 @@ export function createProjectsRouter(): Router {
   router.get('/:id/teacher-share', (req: Request, res: Response): void => {
     const { id } = req.params;
     const db = getDb();
-    const project = db.prepare('SELECT user_id FROM projects WHERE id = ?').get(id) as { user_id: string } | undefined;
-    if (!project) {
+    const access = getProjectAccess(id as string, req.user!.id);
+    if (!access.exists) {
       res.status(404).json({ error: 'Not Found', message: 'Project not found' });
       return;
     }
-    if (project.user_id !== req.user!.id) {
+    if (access.role !== 'owner') {
       res.status(403).json({ error: 'Forbidden', message: 'Only owner can view share status' });
       return;
     }
@@ -164,12 +131,12 @@ export function createProjectsRouter(): Router {
   router.post('/:id/help-request', (req: Request, res: Response): void => {
     const { id } = req.params;
     const db = getDb();
-    const project = db.prepare('SELECT user_id FROM projects WHERE id = ?').get(id) as { user_id: string } | undefined;
-    if (!project) {
+    const access = getProjectAccess(id as string, req.user!.id);
+    if (!access.exists) {
       res.status(404).json({ error: 'Not Found', message: 'Project not found' });
       return;
     }
-    if (project.user_id !== req.user!.id) {
+    if (access.role !== 'owner') {
       res.status(403).json({ error: 'Forbidden', message: 'Only project owner can request help' });
       return;
     }
@@ -204,17 +171,7 @@ export function createProjectsRouter(): Router {
 
   router.get('/:id', (req: Request, res: Response): void => {
     const { id } = req.params;
-    const db = getDb();
-    const project = db.prepare(`
-      SELECT p.*,
-             CASE WHEN p.user_id = ? THEN 'owner'
-                  WHEN ps.role IS NOT NULL THEN ps.role
-                  ELSE NULL END as role
-      FROM projects p
-      LEFT JOIN project_shares ps ON p.id = ps.project_id AND ps.user_id = ?
-      WHERE p.id = ?
-    `).get(req.user!.id, req.user!.id, id) as (Project & { role: string | null }) | undefined;
-
+    const project = getProjectWithAccess<Project>(id as string, req.user!.id);
     if (!project) {
       res.status(404).json({ error: 'Not Found', message: 'Project not found' });
       return;
@@ -236,21 +193,12 @@ export function createProjectsRouter(): Router {
     const { id } = req.params;
     const { name, description, is_public } = req.body;
     const db = getDb();
-    const project = db.prepare(`
-      SELECT p.*,
-             CASE WHEN p.user_id = ? THEN 'owner'
-                  WHEN ps.role IS NOT NULL THEN ps.role
-                  ELSE NULL END as role
-      FROM projects p
-      LEFT JOIN project_shares ps ON p.id = ps.project_id AND ps.user_id = ?
-      WHERE p.id = ?
-    `).get(req.user!.id, req.user!.id, id) as (Project & { role: string | null }) | undefined;
-
+    const project = getProjectWithAccess<Project>(id as string, req.user!.id);
     if (!project) {
       res.status(404).json({ error: 'Not Found', message: 'Project not found' });
       return;
     }
-    if (project.role !== 'owner' && project.role !== 'editor') {
+    if (!hasRole(project, 'editor')) {
       res.status(403).json({ error: 'Forbidden', message: 'Write access required' });
       return;
     }
@@ -297,17 +245,12 @@ export function createProjectsRouter(): Router {
   router.delete('/:id', (req: Request, res: Response): void => {
     const { id } = req.params;
     const db = getDb();
-    const project = db.prepare(`
-      SELECT p.*, CASE WHEN p.user_id = ? THEN 'owner' ELSE NULL END as role
-      FROM projects p
-      WHERE p.id = ?
-    `).get(req.user!.id, id) as (Project & { role: string | null }) | undefined;
-
-    if (!project) {
+    const access = getProjectAccess(id as string, req.user!.id);
+    if (!access.exists) {
       res.status(404).json({ error: 'Not Found', message: 'Project not found' });
       return;
     }
-    if (project.role !== 'owner') {
+    if (access.role !== 'owner') {
       res.status(403).json({ error: 'Forbidden', message: 'Only owner can delete project' });
       return;
     }
@@ -331,12 +274,13 @@ export function createProjectsRouter(): Router {
     const { files, assets, currentFile } = req.body;
     const db = getDb();
 
-    const access = checkAccess(id, req.user!.id, 2); // editor+
-    if (!access.allowed) {
-      res.status(access.role === null ? 404 : 403).json({
-        error: access.role === null ? 'Not Found' : 'Forbidden',
-        message: access.role === null ? 'Project not found' : 'Write access required',
-      });
+    const access = getProjectAccess(id as string, req.user!.id);
+    if (!access.exists) {
+      res.status(404).json({ error: 'Not Found', message: 'Project not found' });
+      return;
+    }
+    if (!hasRole(access, 'editor')) {
+      res.status(403).json({ error: 'Forbidden', message: 'Write access required' });
       return;
     }
 

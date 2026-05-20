@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { getDb } from '../db/index.js';
 import { authMiddleware } from '../middleware/auth.js';
+import { getProjectAccess, hasRole } from '../middleware/projectAuth.js';
 
 interface CommentRow {
   id: string;
@@ -12,15 +13,6 @@ interface CommentRow {
   text: string;
   author_id: string;
   created_at: number;
-}
-
-function hasAccess(projectId: string, userId: string): 'owner' | 'viewer' | null {
-  const db = getDb();
-  const project = db.prepare('SELECT user_id FROM projects WHERE id = ?').get(projectId) as { user_id: string } | undefined;
-  if (!project) return null;
-  if (project.user_id === userId) return 'owner';
-  const share = db.prepare('SELECT id FROM project_shares WHERE project_id = ? AND user_id = ?').get(projectId, userId);
-  return share ? 'viewer' : null;
 }
 
 function isTeacher(userId: string): boolean {
@@ -36,7 +28,12 @@ export function createProjectCommentsRouter(): Router {
 
   router.get('/', (req: Request, res: Response): void => {
     const projectId = req.params['id'] as string;
-    if (!hasAccess(projectId, req.user!.id)) {
+    const access = getProjectAccess(projectId, req.user!.id);
+    if (!access.exists) {
+      res.status(404).json({ error: 'Not Found', message: 'Project not found' });
+      return;
+    }
+    if (!hasRole(access, 'viewer')) {
       res.status(403).json({ error: 'Forbidden', message: 'Access denied' });
       return;
     }
@@ -63,9 +60,10 @@ export function createProjectCommentsRouter(): Router {
 
   router.post('/', (req: Request, res: Response): void => {
     const projectId = req.params['id'] as string;
-    const access = hasAccess(projectId, req.user!.id);
-    // Only teachers with share access can add comments
-    if (access !== 'viewer' || !isTeacher(req.user!.id)) {
+    const access = getProjectAccess(projectId, req.user!.id);
+    // Only teachers with a non-owner share (editor or viewer) can add comments
+    const hasShare = access.role === 'editor' || access.role === 'viewer';
+    if (!hasShare || !isTeacher(req.user!.id)) {
       res.status(403).json({ error: 'Forbidden', message: 'Only teachers with share access can add comments' });
       return;
     }

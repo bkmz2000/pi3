@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { getDb } from '../db/index.js';
 import { authMiddleware } from '../middleware/auth.js';
+import { getProjectAccess } from '../middleware/projectAuth.js';
 
 interface ProjectShare {
   id: string;
@@ -12,21 +13,17 @@ interface ProjectShare {
   updated_at: number;
 }
 
-type OwnershipResult = 'ok' | 'forbidden' | 'notfound';
-
-function checkOwnership(projectId: string, userId: string): OwnershipResult {
-  const db = getDb();
-  const project = db.prepare('SELECT user_id FROM projects WHERE id = ?').get(projectId) as { user_id: string } | undefined;
-  if (!project) return 'notfound';
-  return project.user_id === userId ? 'ok' : 'forbidden';
-}
-
-function ownershipError(result: OwnershipResult, res: Response): void {
-  if (result === 'notfound') {
+function requireOwner(projectId: string, userId: string, res: Response): boolean {
+  const access = getProjectAccess(projectId, userId);
+  if (!access.exists) {
     res.status(404).json({ error: 'Not Found', message: 'Project not found' });
-  } else {
-    res.status(403).json({ error: 'Forbidden', message: 'Only owner can manage project shares' });
+    return false;
   }
+  if (access.role !== 'owner') {
+    res.status(403).json({ error: 'Forbidden', message: 'Only owner can manage project shares' });
+    return false;
+  }
+  return true;
 }
 
 export function createSharesRouter(): Router {
@@ -38,8 +35,7 @@ export function createSharesRouter(): Router {
     const { username, role = 'viewer' } = req.body;
     const db = getDb();
 
-    const ownership = checkOwnership(projectId, req.user!.id);
-    if (ownership !== 'ok') { ownershipError(ownership, res); return; }
+    if (!requireOwner(projectId, req.user!.id, res)) return;
 
     if (!username || typeof username !== 'string') {
       res.status(400).json({ error: 'Bad Request', message: 'Username is required' });
@@ -106,8 +102,7 @@ export function createSharesRouter(): Router {
     const userId = req.params.userId as string;
     const db = getDb();
 
-    const ownership = checkOwnership(projectId, req.user!.id);
-    if (ownership !== 'ok') { ownershipError(ownership, res); return; }
+    if (!requireOwner(projectId, req.user!.id, res)) return;
 
     const share = db.prepare('SELECT * FROM project_shares WHERE project_id = ? AND user_id = ?').get(projectId, userId) as ProjectShare | undefined;
 
@@ -133,8 +128,7 @@ export function createSharesRouter(): Router {
     const projectId = req.params.id as string;
     const db = getDb();
 
-    const ownership = checkOwnership(projectId, req.user!.id);
-    if (ownership !== 'ok') { ownershipError(ownership, res); return; }
+    if (!requireOwner(projectId, req.user!.id, res)) return;
 
     const shares = db.prepare(`
       SELECT ps.id, ps.user_id, ps.role, ps.created_at, u.name as user_name

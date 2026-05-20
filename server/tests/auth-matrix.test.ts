@@ -116,7 +116,7 @@ describe('project access matrix', () => {
   }
 
   const saveCases: Array<[Actor, number]> = [
-    ['owner', 200], ['editor', 200], ['viewer', 403], ['stranger', 404], ['unauth', 401],
+    ['owner', 200], ['editor', 200], ['viewer', 403], ['stranger', 403], ['unauth', 401],
   ];
   for (const [actor, expected] of saveCases) {
     it(`PUT /:id/save — ${actor} -> ${expected}`, async () => {
@@ -199,7 +199,7 @@ describe('IDOR / cross-tenant isolation', () => {
 
     expect((await request(app).get(`/api/projects/${projectId}`).set(h)).status).toBe(403);
     expect((await request(app).put(`/api/projects/${projectId}`).set(h).send({ name: 'pwned' })).status).toBe(403);
-    expect((await request(app).put(`/api/projects/${projectId}/save`).set(h).send({ files: {} })).status).toBe(404);
+    expect((await request(app).put(`/api/projects/${projectId}/save`).set(h).send({ files: {} })).status).toBe(403);
     expect((await request(app).delete(`/api/projects/${projectId}`).set(h)).status).toBe(403);
 
     // Side-effect check: nothing was mutated.

@@ -1,0 +1,1 @@
+ALTER TABLE projects ADD COLUMN tilemaps TEXT NOT NULL DEFAULT '{}';

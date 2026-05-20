@@ -922,6 +922,8 @@ class TileMap:
             layer.draw(x, y)
 
 
+from graphics.animation import Animation  # noqa: E402
+
 __all__ = [
     "_version",
     "size", "width", "height",
@@ -938,6 +940,7 @@ __all__ = [
     "Mouse", "Keyboard", "Window",
     "Actor", "Rect", "Circle", "Group", "Collider",
     "TilemapLayer", "TileMap",
+    "Animation",
     "run", "stop",
     "assets",
 ]

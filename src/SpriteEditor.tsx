@@ -1,4 +1,5 @@
 import { useRef, useState, useEffect, useCallback, type CSSProperties } from "react";
+import type { AnimationData } from "./state/IdeState";
 import { flushSync } from "react-dom";
 import { useTranslation } from "react-i18next";
 import {
@@ -153,12 +154,14 @@ type SpriteEditorProps = {
   open: boolean;
   onClose: () => void;
   onSave: (name: string, dataUrl: string) => void;
+  onSaveAnimation?: (name: string, data: AnimationData) => void;
   size?: 64 | 128;
   initialName?: string;
   initialDataUrl?: string;
+  initialAnimation?: AnimationData;
 };
 
-export default function SpriteEditor({ open, onClose, onSave, size = 64, initialName, initialDataUrl }: SpriteEditorProps) {
+export default function SpriteEditor({ open, onClose, onSave, onSaveAnimation, size = 64, initialName, initialDataUrl, initialAnimation }: SpriteEditorProps) {
   const theme = useThemeStore((s) => s.theme);
   const { t } = useTranslation();
   const [scale, setScale] = useState(10);
@@ -209,6 +212,18 @@ export default function SpriteEditor({ open, onClose, onSave, size = 64, initial
   const [gridSize, setGridSize] = useState(8);
   const [textPrompt, setTextPrompt] = useState<{ x: number; y: number; base: ShapeBase } | null>(null);
   const [textInput, setTextInput] = useState('');
+
+  // ── Animation mode ────────────────────────────────────────────────────────
+  const isAnimMode = !!(initialAnimation || onSaveAnimation);
+  const [animFrames, setAnimFrames] = useState<string[]>(() =>
+    initialAnimation?.frames.length ? [...initialAnimation.frames] : ['']
+  );
+  const [currentFrameIdx, setCurrentFrameIdx] = useState(0);
+  const [animFps, setAnimFps] = useState(initialAnimation?.fps ?? 8);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [playbackIdx, setPlaybackIdx] = useState(0);
+  const [onionSkin, setOnionSkin] = useState(false);
+  const playIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const selectedId = selectedIds.length === 1 ? selectedIds[0]! : null;
   const selectedShape = selectedId ? (shapes.find(s => s.id === selectedId) ?? null) : null;
@@ -520,6 +535,108 @@ export default function SpriteEditor({ open, onClose, onSave, size = 64, initial
     return () => { isMounted = false; };
   }, [initialDataUrl, open, loadImageToShapes]);
 
+  // Load first animation frame when editor opens in animation mode
+  useEffect(() => {
+    if (!isAnimMode || !open) return;
+    const firstFrame = animFrames[0];
+    if (firstFrame) loadImageToShapes(firstFrame);
+    else { setShapes([]); setHistory([]); setFuture([]); }
+    setCurrentFrameIdx(0);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  // Build SVG data URL from current shapes (shared by save paths)
+  const buildSVGDataUrl = useCallback((): string => {
+    const rotAttr = (s: ShapeBase, cx: number, cy: number) =>
+      s.rotation ? ` transform="rotate(${s.rotation.toFixed(2)},${cx},${cy})"` : "";
+    const opAttr = (s: ShapeBase) =>
+      (s.opacity !== undefined && s.opacity !== 1) ? ` opacity="${s.opacity}"` : '';
+    const els = shapesRef.current.map(s => {
+      const f = s.fill, st = s.stroke, sw = s.strokeWidth;
+      if (s.kind === "rect") {
+        const r = s as RectData;
+        const rxAttr = r.rx ? ` rx="${r.rx}"` : '';
+        return `<rect x="${r.x}" y="${r.y}" width="${r.width}" height="${r.height}"${rxAttr} fill="${f}" stroke="${st}" stroke-width="${sw}"${opAttr(s)}${rotAttr(s, r.x + r.width / 2, r.y + r.height / 2)}/>`;
+      }
+      if (s.kind === "ellipse") {
+        const el = s as EllipseData;
+        return `<ellipse cx="${el.x}" cy="${el.y}" rx="${el.radiusX}" ry="${el.radiusY}" fill="${f}" stroke="${st}" stroke-width="${sw}"${opAttr(s)}${rotAttr(s, el.x, el.y)}/>`;
+      }
+      if (s.kind === "line" || s.kind === "freehand") {
+        const pts = (s as LineData).points;
+        const fh = s.kind === "freehand" ? (s as FreehandData) : null;
+        const d = pts.reduce((acc, p, i) => i === 0 ? `M ${p}` : i === 1 ? `${acc} ${p}` : i % 2 === 0 ? `${acc} L ${p}` : `${acc} ${p}`, "");
+        const fillAttr = fh?.closed ? `fill="${f}"` : 'fill="none"';
+        const capAttr = s.lineCap ? ` stroke-linecap="${s.lineCap}"` : ' stroke-linecap="round"';
+        const joinAttr = s.lineJoin ? ` stroke-linejoin="${s.lineJoin}"` : '';
+        const dashAttr = s.dash ? ` stroke-dasharray="${s.dash.join(' ')}"` : '';
+        return `<path d="${d}${fh?.closed ? " Z" : ""}" ${fillAttr} stroke="${st}" stroke-width="${sw}"${opAttr(s)}${capAttr}${joinAttr}${dashAttr}/>`;
+      }
+      if (s.kind === "polygon") {
+        const p = s as PolygonData; if (p.points.length < 6) return "";
+        const pts: string[] = [];
+        for (let i = 0; i < p.points.length; i += 2) pts.push(`${p.points[i]},${p.points[i + 1]}`);
+        return `<polygon points="${pts.join(" ")}" fill="${f}" stroke="${st}" stroke-width="${sw}"${opAttr(s)} stroke-linecap="round"/>`;
+      }
+      if (s.kind === "text") {
+        const td = s as TextData;
+        return `<text x="${td.x}" y="${td.y + td.fontSize}" font-size="${td.fontSize}" fill="${f}"${opAttr(s)}${rotAttr(s, td.x, td.y)}>${td.text}</text>`;
+      }
+      if (s.kind === "path") {
+        const pd = s as PathData;
+        const psx = pd.scaleX ?? 1, psy = pd.scaleY ?? 1;
+        const transforms: string[] = [];
+        if (pd.x !== 0 || pd.y !== 0) transforms.push(`translate(${pd.x},${pd.y})`);
+        if (psx !== 1 || psy !== 1) transforms.push(`scale(${psx},${psy})`);
+        if (s.rotation) transforms.push(`rotate(${s.rotation})`);
+        const transformAttr = transforms.length ? ` transform="${transforms.join(' ')}"` : '';
+        const capAttr = pd.lineCap ? ` stroke-linecap="${pd.lineCap}"` : '';
+        const joinAttr = pd.lineJoin ? ` stroke-linejoin="${pd.lineJoin}"` : '';
+        const dashAttr = pd.dash ? ` stroke-dasharray="${pd.dash.join(' ')}"` : '';
+        return `<path d="${pd.d}" fill="${f}" stroke="${st}" stroke-width="${sw}"${opAttr(pd)}${transformAttr}${capAttr}${joinAttr}${dashAttr}/>`;
+      }
+      return "";
+    }).join("\n  ");
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">\n  ${els}\n</svg>`;
+    return `data:image/svg+xml;base64,${btoa(svg)}`;
+  }, [size]);
+
+  // Serialize current shapes → save into frames array, return updated array
+  const serializeCurrentFrame = useCallback((): string[] => {
+    const url = buildSVGDataUrl();
+    const next = [...animFrames];
+    next[currentFrameIdx] = url;
+    return next;
+  }, [buildSVGDataUrl, animFrames, currentFrameIdx]);
+
+  // Switch to a different frame: flush current shapes, load target frame
+  const switchToFrame = useCallback(async (idx: number) => {
+    if (idx === currentFrameIdx) return;
+    const nextFrames = serializeCurrentFrame();
+    setAnimFrames(nextFrames);
+    setCurrentFrameIdx(idx);
+    setSelectedIds([]);
+    setHistory([]);
+    setFuture([]);
+    const targetUrl = nextFrames[idx];
+    if (targetUrl) await loadImageToShapes(targetUrl);
+    else { setShapes([]); }
+  }, [currentFrameIdx, serializeCurrentFrame, loadImageToShapes]);
+
+  // Playback loop
+  useEffect(() => {
+    if (isPlaying) {
+      setPlaybackIdx(currentFrameIdx);
+      playIntervalRef.current = setInterval(() => {
+        setPlaybackIdx(i => (i + 1) % animFrames.length);
+      }, 1000 / animFps);
+    } else {
+      if (playIntervalRef.current) clearInterval(playIntervalRef.current);
+    }
+    return () => { if (playIntervalRef.current) clearInterval(playIntervalRef.current); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPlaying, animFps, animFrames.length]);
+
   const snapGrid = (v: number) => gridOn ? Math.round(v / gridSize) * gridSize : v;
 
   const getPos = (e: KonvaEventObject<MouseEvent>) => {
@@ -784,59 +901,12 @@ export default function SpriteEditor({ open, onClose, onSave, size = 64, initial
   };
 
   const saveSVG = () => {
-    const rotAttr = (s: ShapeBase, cx: number, cy: number) =>
-      s.rotation ? ` transform="rotate(${s.rotation.toFixed(2)},${cx},${cy})"` : "";
-    const opAttr = (s: ShapeBase) =>
-      (s.opacity !== undefined && s.opacity !== 1) ? ` opacity="${s.opacity}"` : '';
-    const els = shapes.map(s => {
-      const f = s.fill, st = s.stroke, sw = s.strokeWidth;
-      if (s.kind === "rect") {
-        const r = s as RectData;
-        const rxAttr = r.rx ? ` rx="${r.rx}"` : '';
-        return `<rect x="${r.x}" y="${r.y}" width="${r.width}" height="${r.height}"${rxAttr} fill="${f}" stroke="${st}" stroke-width="${sw}"${opAttr(s)}${rotAttr(s, r.x + r.width / 2, r.y + r.height / 2)}/>`;
-      }
-      if (s.kind === "ellipse") {
-        const el = s as EllipseData;
-        return `<ellipse cx="${el.x}" cy="${el.y}" rx="${el.radiusX}" ry="${el.radiusY}" fill="${f}" stroke="${st}" stroke-width="${sw}"${opAttr(s)}${rotAttr(s, el.x, el.y)}/>`;
-      }
-      if (s.kind === "line" || s.kind === "freehand") {
-        const pts = (s as LineData).points;
-        const fh = s.kind === "freehand" ? (s as FreehandData) : null;
-        const d = pts.reduce((acc, p, i) => i === 0 ? `M ${p}` : i === 1 ? `${acc} ${p}` : i % 2 === 0 ? `${acc} L ${p}` : `${acc} ${p}`, "");
-        const fillAttr = fh?.closed ? `fill="${f}"` : 'fill="none"';
-        const capAttr = s.lineCap ? ` stroke-linecap="${s.lineCap}"` : ' stroke-linecap="round"';
-        const joinAttr = s.lineJoin ? ` stroke-linejoin="${s.lineJoin}"` : '';
-        const dashAttr = s.dash ? ` stroke-dasharray="${s.dash.join(' ')}"` : '';
-        return `<path d="${d}${fh?.closed ? " Z" : ""}" ${fillAttr} stroke="${st}" stroke-width="${sw}"${opAttr(s)}${capAttr}${joinAttr}${dashAttr}/>`;
-      }
-      if (s.kind === "polygon") {
-        const p = s as PolygonData; if (p.points.length < 6) return "";
-        const pts: string[] = [];
-        for (let i = 0; i < p.points.length; i += 2) pts.push(`${p.points[i]},${p.points[i + 1]}`);
-        return `<polygon points="${pts.join(" ")}" fill="${f}" stroke="${st}" stroke-width="${sw}"${opAttr(s)} stroke-linecap="round"/>`;
-      }
-      if (s.kind === "text") {
-        const td = s as TextData;
-        return `<text x="${td.x}" y="${td.y + td.fontSize}" font-size="${td.fontSize}" fill="${f}"${opAttr(s)}${rotAttr(s, td.x, td.y)}>${td.text}</text>`;
-      }
-      if (s.kind === "path") {
-        const pd = s as PathData;
-        const opacityAttr = opAttr(pd);
-        const psx = pd.scaleX ?? 1, psy = pd.scaleY ?? 1;
-        const transforms: string[] = [];
-        if (pd.x !== 0 || pd.y !== 0) transforms.push(`translate(${pd.x},${pd.y})`);
-        if (psx !== 1 || psy !== 1) transforms.push(`scale(${psx},${psy})`);
-        if (s.rotation) transforms.push(`rotate(${s.rotation})`);
-        const transformAttr = transforms.length ? ` transform="${transforms.join(' ')}"` : '';
-        const capAttr = pd.lineCap ? ` stroke-linecap="${pd.lineCap}"` : '';
-        const joinAttr = pd.lineJoin ? ` stroke-linejoin="${pd.lineJoin}"` : '';
-        const dashAttr = pd.dash ? ` stroke-dasharray="${pd.dash.join(' ')}"` : '';
-        return `<path d="${pd.d}" fill="${f}" stroke="${st}" stroke-width="${sw}"${opacityAttr}${transformAttr}${capAttr}${joinAttr}${dashAttr}/>`;
-      }
-      return "";
-    }).join("\n  ");
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">\n  ${els}\n</svg>`;
-    onSave(spriteName, `data:image/svg+xml;base64,${btoa(svg)}`);
+    if (isAnimMode) {
+      const allFrames = serializeCurrentFrame();
+      onSaveAnimation?.(spriteName, { frames: allFrames, fps: animFps });
+    } else {
+      onSave(spriteName, buildSVGDataUrl());
+    }
   };
 
   const tools: { id: Tool; icon: Parameters<typeof Icon>[0]["name"]; label: string }[] = [
@@ -1008,7 +1078,7 @@ export default function SpriteEditor({ open, onClose, onSave, size = 64, initial
             <span style={{ fontSize: 11, color: theme.panelTxtMute }}>{t('spriteEditor.name')}</span>
             <input data-testid="sprite-name-input" value={spriteName} onChange={e => setSpriteName(e.target.value)}
               style={{ all: "unset", width: 90, fontFamily: theme.fontMono, fontSize: 12, color: theme.panelTxt }} />
-            <span style={{ fontSize: 11, color: theme.panelTxtMute }}>.svg</span>
+            {!isAnimMode && <span style={{ fontSize: 11, color: theme.panelTxtMute }}>.svg</span>}
           </div>
 
           <button type="button" data-testid="save-svg-button" onClick={saveSVG}
@@ -1120,8 +1190,19 @@ export default function SpriteEditor({ open, onClose, onSave, size = 64, initial
                 position: "absolute", inset: 0, borderRadius: 3, pointerEvents: "none", zIndex: 0,
                 background: "repeating-conic-gradient(#e2e8f0 0% 25%, #fff 0% 50%) 0 0 / 8px 8px",
               }} />
-              <Stage ref={stageRef} data-testid="sprite-canvas" width={W + 2 * PAD} height={H + 2 * PAD}
-                style={{ position: "absolute", top: -PAD, left: -PAD, zIndex: 1 }}
+              {/* Onion skin — previous frame ghost */}
+              {isAnimMode && onionSkin && !isPlaying && currentFrameIdx > 0 && animFrames[currentFrameIdx - 1] && (
+                <img src={animFrames[currentFrameIdx - 1]} alt=""
+                  style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0.3, pointerEvents: "none", zIndex: 1 }} />
+              )}
+              {/* Playback overlay — shows current playback frame as image */}
+              {isAnimMode && isPlaying && animFrames[playbackIdx] && (
+                <img src={animFrames[playbackIdx]} alt=""
+                  style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none", zIndex: 10 }} />
+              )}
+              <Stage ref={stageRef} data-testid="sprite-canvas"
+                width={W + 2 * PAD} height={H + 2 * PAD}
+                style={{ position: "absolute", top: -PAD, left: -PAD, zIndex: 1, ...(isPlaying ? { opacity: 0, pointerEvents: "none" } : {}) }}
                 onMouseDown={onMouseDown} onMouseMove={onMouseMove} onMouseUp={onMouseUp}
                 onDblClick={onDoubleClick}
                 onKeyDown={(e: KonvaEventObject<KeyboardEvent>) => {
@@ -1158,6 +1239,79 @@ export default function SpriteEditor({ open, onClose, onSave, size = 64, initial
             </div>
           </div>
         </div>
+
+        {/* ── Filmstrip (animation mode only) ── */}
+        {isAnimMode && (
+          <div style={{
+            borderTop: `1px solid ${theme.panelBorder}`,
+            background: theme.chip,
+            flexShrink: 0,
+          }}>
+            {/* Toolbar row */}
+            <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 12px", borderBottom: `1px solid ${theme.panelBorder}` }}>
+              <button type="button" title="Add frame" onClick={() => {
+                const nextFrames = serializeCurrentFrame();
+                const blank = '';
+                nextFrames.splice(currentFrameIdx + 1, 0, blank);
+                setAnimFrames(nextFrames);
+                void switchToFrame(currentFrameIdx + 1).then(() => {
+                  setAnimFrames(f => { const n = [...f]; n[currentFrameIdx + 1] = ''; return n; });
+                  setShapes([]); setHistory([]); setFuture([]);
+                });
+              }} style={{ all: "unset", cursor: "pointer", padding: "2px 8px", borderRadius: 4, border: `1px solid ${theme.panelBorder}`, fontSize: 12, color: theme.panelTxt }}>+ Add</button>
+              <button type="button" title="Duplicate frame" onClick={() => {
+                const nextFrames = serializeCurrentFrame();
+                const copy = nextFrames[currentFrameIdx] ?? '';
+                nextFrames.splice(currentFrameIdx + 1, 0, copy);
+                setAnimFrames(nextFrames);
+                setCurrentFrameIdx(currentFrameIdx + 1);
+              }} style={{ all: "unset", cursor: "pointer", padding: "2px 8px", borderRadius: 4, border: `1px solid ${theme.panelBorder}`, fontSize: 12, color: theme.panelTxt }}>Dup</button>
+              <button type="button" title="Delete frame" disabled={animFrames.length <= 1} onClick={() => {
+                if (animFrames.length <= 1) return;
+                const nextFrames = serializeCurrentFrame();
+                nextFrames.splice(currentFrameIdx, 1);
+                const newIdx = Math.min(currentFrameIdx, nextFrames.length - 1);
+                setAnimFrames(nextFrames);
+                setCurrentFrameIdx(newIdx);
+                setHistory([]); setFuture([]);
+                const target = nextFrames[newIdx];
+                if (target) loadImageToShapes(target);
+                else { setShapes([]); }
+              }} style={{ all: "unset", cursor: animFrames.length > 1 ? "pointer" : "default", padding: "2px 8px", borderRadius: 4, border: `1px solid ${theme.panelBorder}`, fontSize: 12, color: theme.stopBg, opacity: animFrames.length > 1 ? 1 : 0.4 }}>Del</button>
+              <div style={{ width: 1, height: 16, background: theme.panelBorder }} />
+              <Stepper label="fps" value={animFps} min={1} max={60} onChange={v => setAnimFps(v)} theme={theme} />
+              <button type="button" title={isPlaying ? "Stop" : "Preview"} onClick={() => setIsPlaying(v => !v)}
+                style={{ all: "unset", cursor: "pointer", width: 28, height: 28, borderRadius: 4, display: "inline-flex", alignItems: "center", justifyContent: "center", background: isPlaying ? theme.stopBg : theme.runBg, color: isPlaying ? "#fff" : theme.runTxt, fontSize: 14 }}>
+                {isPlaying ? "■" : "▶"}
+              </button>
+              <button type="button" title="Onion skin" onClick={() => setOnionSkin(v => !v)}
+                style={{ all: "unset", cursor: "pointer", padding: "2px 8px", borderRadius: 4, border: `1px solid ${onionSkin ? theme.accent : theme.panelBorder}`, fontSize: 11, letterSpacing: 0.4, textTransform: "uppercase", background: onionSkin ? theme.accent + "28" : "transparent", color: onionSkin ? theme.accent : theme.panelTxtMute }}>
+                Onion
+              </button>
+            </div>
+            {/* Frame thumbnails */}
+            <div style={{ display: "flex", gap: 6, padding: "8px 12px", overflowX: "auto", alignItems: "center" }}>
+              {animFrames.map((frameUrl, idx) => (
+                <button key={idx} type="button" title={`Frame ${idx + 1}`}
+                  onClick={() => { if (!isPlaying) switchToFrame(idx); }}
+                  style={{
+                    all: "unset", cursor: "pointer", flexShrink: 0,
+                    display: "flex", flexDirection: "column", alignItems: "center", gap: 3,
+                  }}>
+                  <div style={{
+                    width: 48, height: 48, borderRadius: 4, overflow: "hidden",
+                    border: `2px solid ${idx === currentFrameIdx ? theme.accent : theme.panelBorder}`,
+                    background: "repeating-conic-gradient(#e2e8f0 0% 25%, #fff 0% 50%) 0 0 / 6px 6px",
+                    position: "relative",
+                  }}>
+                    {frameUrl && <img src={frameUrl} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} />}
+                  </div>
+                  <span style={{ fontSize: 9, fontFamily: theme.fontMono, color: idx === currentFrameIdx ? theme.accent : theme.panelTxtMute }}>{idx + 1}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* ── Footer — fixed height so grid controls don't cause layout shift ── */}
         <div style={{

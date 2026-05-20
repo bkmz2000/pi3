@@ -132,6 +132,8 @@ export default function Rail() {
     name: string;
     url: string;
   } | null>(null);
+  const [animEditorOpen, setAnimEditorOpen] = useState(false);
+  const [editingAnimation, setEditingAnimation] = useState<{ name: string; data: import('./state/IdeState').AnimationData } | null>(null);
 
   const { user } = useUser();
   const { ready } = useRunner();
@@ -179,6 +181,7 @@ export default function Rail() {
         files: full.files,
         assets: full.assets,
         tilemaps: full.tilemaps ?? {},
+        animations: full.animations ?? {},
       },
       full.id,
     );
@@ -206,6 +209,7 @@ export default function Rail() {
           files: importedProject.files,
           assets: importedProject.assets,
           tilemaps: importedProject.tilemaps ?? {},
+          animations: importedProject.animations ?? {},
         },
         importedProject.id,
       );
@@ -218,12 +222,15 @@ export default function Rail() {
 
   const projectAssets = useEditor((s) => s.project.assets);
   const projectTilemaps = useEditor((s) => s.project.tilemaps);
+  const projectAnimations = useEditor((s) => s.project.animations);
   const toggleAsset = useEditor((s) => s.toggleAsset);
   const changeAsset = useEditor((s) => s.changeAsset);
   const addAssetInstance = useEditor((s) => s.addAssetInstance);
   const removeAsset = useEditor((s) => s.removeAsset);
   const saveTilemap = useEditor((s) => s.saveTilemap);
   const deleteTilemap = useEditor((s) => s.deleteTilemap);
+  const saveAnimation = useEditor((s) => s.saveAnimation);
+  const deleteAnimation = useEditor((s) => s.deleteAnimation);
 
   const isRunning = running || isP5;
   const runIcon: IconName = !ready ? "settings" : isRunning ? "stop" : "play";
@@ -310,6 +317,14 @@ export default function Rail() {
           label={t('sideMenu.tilemaps')}
           active={isOpen("tilemaps")}
           onClick={() => togglePanel("tilemaps")}
+          theme={theme}
+        />
+
+        <RailButton
+          icon="play"
+          label={t('sideMenu.animations')}
+          active={isOpen("animations")}
+          onClick={() => togglePanel("animations")}
           theme={theme}
         />
 
@@ -407,6 +422,16 @@ export default function Rail() {
               onClose={closePanels}
             />
           )}
+          {activePanel === "animations" && (
+            <AnimationsPanel
+              theme={theme}
+              animations={projectAnimations ?? {}}
+              onEdit={(name, data) => { setEditingAnimation({ name, data }); setAnimEditorOpen(true); }}
+              onNew={() => { setEditingAnimation(null); setAnimEditorOpen(true); }}
+              onDelete={deleteAnimation}
+              onClose={closePanels}
+            />
+          )}
           {activePanel === "settings" && (
             <SettingsPanel
               theme={theme}
@@ -478,6 +503,22 @@ export default function Rail() {
           }}
           initialName={editingAsset?.name.replace(/\.svg$/i, '') || ''}
           initialDataUrl={editingAsset?.url}
+        />
+      </Suspense>
+
+      <Suspense fallback={null}>
+        <SpriteEditor
+          key={animEditorOpen ? `anim-${editingAnimation?.name ?? "__new__"}` : "anim-closed"}
+          open={animEditorOpen}
+          onClose={() => { setAnimEditorOpen(false); setEditingAnimation(null); }}
+          onSave={() => { /* unused in anim mode; handled by onSaveAnimation */ }}
+          initialName={editingAnimation?.name ?? ""}
+          initialAnimation={editingAnimation?.data}
+          onSaveAnimation={(name, data) => {
+            saveAnimation(name, data);
+            setAnimEditorOpen(false);
+            setEditingAnimation(null);
+          }}
         />
       </Suspense>
     </>
@@ -1179,6 +1220,91 @@ function TilemapsPanel({
             </button>
           </div>
         ))}
+      </div>
+    </>
+  );
+}
+
+// ── Animations Panel ───────────────────────
+function AnimationsPanel({
+  theme, animations, onEdit, onNew, onDelete, onClose,
+}: {
+  theme: Theme;
+  animations: Record<string, import('./state/IdeState').AnimationData>;
+  onEdit: (name: string, data: import('./state/IdeState').AnimationData) => void;
+  onNew: () => void;
+  onDelete: (name: string) => void;
+  onClose: () => void;
+}) {
+  const { t } = useTranslation();
+  const names = Object.keys(animations);
+  return (
+    <>
+      <PanelHeader title={t('sideMenu.animations')} theme={theme} onClose={onClose} />
+      <div style={{ padding: "12px 14px", display: "flex", flexDirection: "column", gap: 8 }}>
+        <button
+          type="button"
+          onClick={onNew}
+          style={{
+            all: "unset", cursor: "pointer",
+            display: "flex", alignItems: "center", gap: 8,
+            padding: "8px 12px", borderRadius: theme.radiusCard,
+            border: `1.5px dashed ${theme.panelBorder}`,
+            color: theme.panelTxtMute, fontSize: 13, fontFamily: theme.fontUI,
+          }}
+        >
+          <Icon name="plus" size={16} color="currentColor" />
+          {t('sideMenu.newAnimation')}
+        </button>
+        {names.length === 0 && (
+          <div style={{ fontSize: 12, color: theme.panelTxtMute, paddingTop: 4 }}>
+            {t('sideMenu.noAnimations')}
+          </div>
+        )}
+        {names.map((name) => {
+          const anim = animations[name];
+          const pythonName = `assets.animations.${name}`;
+          return (
+            <div key={name} style={{
+              display: "flex", alignItems: "center", gap: 6,
+              padding: "7px 10px", borderRadius: theme.radiusCard,
+              background: theme.surfacePanel, border: `1px solid ${theme.panelBorder}`,
+            }}>
+              <Icon name="play" size={14} color={theme.panelTxtMute} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div
+                  title={`Click to copy: ${pythonName}`}
+                  onClick={() => navigator.clipboard.writeText(pythonName)}
+                  style={{
+                    fontSize: 13, fontFamily: theme.fontUI, color: theme.panelTxt,
+                    cursor: "copy", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                  }}
+                >
+                  {name}
+                </div>
+                <div style={{ fontSize: 10, color: theme.panelTxtMute, fontFamily: theme.fontUI }}>
+                  {anim.frames.length} {t('sideMenu.frames')} · {anim.fps} fps
+                </div>
+              </div>
+              <button
+                type="button"
+                title={t('sideMenu.editAnimation')}
+                onClick={() => onEdit(name, anim)}
+                style={{ all: "unset", cursor: "pointer", color: theme.panelTxtMute, display: "flex" }}
+              >
+                <Icon name="pencil" size={13} color="currentColor" />
+              </button>
+              <button
+                type="button"
+                title={t('sideMenu.deleteAnimation')}
+                onClick={() => onDelete(name)}
+                style={{ all: "unset", cursor: "pointer", color: "#ef4444", display: "flex" }}
+              >
+                <Icon name="trash" size={13} color="currentColor" />
+              </button>
+            </div>
+          );
+        })}
       </div>
     </>
   );

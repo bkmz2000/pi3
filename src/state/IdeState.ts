@@ -19,7 +19,7 @@ import { importProjectFromFile as importZipFile } from "../utils/zip";
 import { getProjects, createProject as apiCreateProject, updateProject as apiUpdateProject, deleteProject as apiDeleteProject, saveProjectContent, Project as ApiProject } from "./api";
 import { toEditorProject } from "./projectNormalization";
 
-export type PanelId = "projects" | "assets" | "tilemaps" | "settings" | "docs" | null;
+export type PanelId = "projects" | "assets" | "tilemaps" | "animations" | "settings" | "docs" | null;
 
 export type TilemapLayer = {
   name: string;
@@ -31,12 +31,18 @@ export type TilemapData = {
   layers: TilemapLayer[];
 };
 
+export type AnimationData = {
+  frames: string[];
+  fps: number;
+};
+
 export type Project = {
   name?: string;
   files: Record<string, string>;
   currentFile?: string;
   assets: Record<string, string>;
   tilemaps: Record<string, TilemapData>;
+  animations: Record<string, AnimationData>;
 };
 
 // Re-export adapter for convenience
@@ -52,13 +58,14 @@ function pickAssets(...names: string[]): Record<string, string> {
 }
 
 const Examples: Record<string, Project> = {
-  "hello world": { files: { "main.py": HelloWorld }, assets: {}, tilemaps: {} },
-  input: { files: { "input.py": Input }, assets: {}, tilemaps: {} },
-  p5: { files: { "p5.py": P5 }, assets: {}, tilemaps: {} },
+  "hello world": { files: { "main.py": HelloWorld }, assets: {}, tilemaps: {}, animations: {} },
+  input: { files: { "input.py": Input }, assets: {}, tilemaps: {}, animations: {} },
+  p5: { files: { "p5.py": P5 }, assets: {}, tilemaps: {}, animations: {} },
   snake: {
     files: { "snake.py": Snake },
     assets: {},
     tilemaps: {},
+    animations: {},
   },
   sokoban: {
     files: { "sokoban.py": Sokoban },
@@ -71,6 +78,7 @@ const Examples: Record<string, Project> = {
       "p1_front",
     ),
     tilemaps: {},
+    animations: {},
   },
   asteroids: {
     files: { "main.py": Asteroids },
@@ -81,21 +89,25 @@ const Examples: Record<string, Project> = {
       "small_asteroid.svg": SmallAsteroidSvg,
     },
     tilemaps: {},
+    animations: {},
   },
   catch: {
     files: { "catch.py": Catch },
     assets: {},
     tilemaps: {},
+    animations: {},
   },
   robot: {
     files: { "robot.py": Robot },
     assets: {},
     tilemaps: {},
+    animations: {},
   },
   swatches: {
     files: { "swatches.py": Swatches },
     assets: {},
     tilemaps: {},
+    animations: {},
   },
 };
 
@@ -117,6 +129,8 @@ type EditorState = {
   renameFile: (oldName: string, newName: string) => void;
   saveTilemap: (name: string, data: TilemapData) => void;
   deleteTilemap: (name: string) => void;
+  saveAnimation: (name: string, data: AnimationData) => void;
+  deleteAnimation: (name: string) => void;
   markClean: () => void;
 };
 
@@ -263,6 +277,23 @@ export const useEditor = create<EditorState>((set) => ({
       return { project: { ...s.project, tilemaps }, dirtyFiles: dirty };
     }),
 
+  saveAnimation: (name, data) =>
+    set((s) => {
+      const animations = { ...(s.project.animations ?? {}), [name]: data };
+      const dirty = new Set(s.dirtyFiles);
+      dirty.add("*animations*");
+      return { project: { ...s.project, animations }, dirtyFiles: dirty };
+    }),
+
+  deleteAnimation: (name) =>
+    set((s) => {
+      const animations = { ...(s.project.animations ?? {}) };
+      delete animations[name];
+      const dirty = new Set(s.dirtyFiles);
+      dirty.add("*animations*");
+      return { project: { ...s.project, animations }, dirtyFiles: dirty };
+    }),
+
   markClean: () => set({ dirtyFiles: new Set() }),
 }));
 
@@ -361,6 +392,7 @@ export const useIde = create<IdeState>((set, get) => ({
       files: { "main.py": '# New project\nprint("Hello World!")' },
       assets: {},
       tilemaps: {},
+      animations: {},
     });
 
     const { userProjects } = get();
@@ -391,6 +423,7 @@ export const useIde = create<IdeState>((set, get) => ({
       files: exampleProject.files,
       assets: exampleProject.assets,
       tilemaps: exampleProject.tilemaps,
+      animations: exampleProject.animations,
       currentFile: exampleProject.currentFile,
     });
 
@@ -408,6 +441,7 @@ export const useIde = create<IdeState>((set, get) => ({
         files: project.files,
         assets: project.assets,
         tilemaps: project.tilemaps,
+        animations: project.animations,
         currentFile: useEditor.getState().currentFile,
       });
 
@@ -462,6 +496,7 @@ export const useIde = create<IdeState>((set, get) => ({
       name: importedProject.name,
       files,
       assets,
+      animations: {},
       currentFile: importedProject.currentFile,
     });
 

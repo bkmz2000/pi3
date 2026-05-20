@@ -5,7 +5,7 @@ exports[`SpriteEditor - Snapshot Tests renders correctly when closed 1`] = `<div
 exports[`SpriteEditor - Snapshot Tests renders correctly when open 1`] = `
 <div>
   <div
-    style="position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.5);"
+    style="position: fixed; inset: 0; z-index: 70; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.5);"
   >
     <div
       data-testid="sprite-editor-modal"
@@ -642,7 +642,7 @@ exports[`SpriteEditor - Snapshot Tests renders correctly when open 1`] = `
 exports[`SpriteEditor - Snapshot Tests renders with custom size 128 1`] = `
 <DocumentFragment>
   <div
-    style="position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.5);"
+    style="position: fixed; inset: 0; z-index: 70; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.5);"
   >
     <div
       data-testid="sprite-editor-modal"
@@ -1279,7 +1279,7 @@ exports[`SpriteEditor - Snapshot Tests renders with custom size 128 1`] = `
 exports[`SpriteEditor - Snapshot Tests renders with default props 1`] = `
 <DocumentFragment>
   <div
-    style="position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.5);"
+    style="position: fixed; inset: 0; z-index: 70; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.5);"
   >
     <div
       data-testid="sprite-editor-modal"
@@ -1916,7 +1916,7 @@ exports[`SpriteEditor - Snapshot Tests renders with default props 1`] = `
 exports[`SpriteEditor - Snapshot Tests renders with initial name 1`] = `
 <DocumentFragment>
   <div
-    style="position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.5);"
+    style="position: fixed; inset: 0; z-index: 70; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.5);"
   >
     <div
       data-testid="sprite-editor-modal"

@@ -1,0 +1,1 @@
+ALTER TABLE projects ADD COLUMN animations TEXT NOT NULL DEFAULT '{}';

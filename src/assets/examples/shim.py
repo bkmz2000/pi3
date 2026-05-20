@@ -758,3 +758,23 @@ def _ide_build_tilemaps(tilemap_json: str, asset_bitmaps: dict) -> object:
         result[map_name] = _TileMap(layers=layers, layer_by_name=layer_by_name)
 
     return SimpleNamespace(**result)
+
+
+def _ide_build_animations(anim_list: list) -> object:
+    """
+    anim_list: Python list of [name, {frames: [ImageBitmap, ...], fps: number}] from JS
+    Returns a SimpleNamespace of Animation objects keyed by name (without extension).
+    """
+    from types import SimpleNamespace
+    from graphics.animation import Animation
+
+    def strip_ext(name):
+        return name.rsplit(".", 1)[0] if "." in name else name
+
+    anims = {}
+    for name, data in anim_list:
+        frames = [{"done": True, "img": bm} for bm in data["frames"]]
+        fps = data.get("fps", 8)
+        anims[strip_ext(name)] = Animation(frames, fps=fps)
+
+    return SimpleNamespace(**anims)

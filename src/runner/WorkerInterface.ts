@@ -14,12 +14,13 @@ export type InputEventData = {
 };
 
 export type WorkerCommand =
-  | { cmd: "init"; shim: string; transform: string; actors: string; graphicsInit: string; graphicsActors: string; linter: string }
+  | { cmd: "init"; shim: string; transform: string; actors: string; graphicsInit: string; graphicsActors: string; graphicsAnimation: string; linter: string }
   | {
       cmd: "run";
       files: Record<string, string>;
       assets: Record<string, ImageBitmap>;
       tilemaps?: Record<string, unknown>;
+      animations?: Record<string, { frames: ImageBitmap[]; fps: number }>;
       entry: string;
       showHitboxes?: boolean;
       themePalette?: Record<string, [number, number, number]>;

@@ -49,6 +49,7 @@ async function initPyodide(
   actors: string,
   graphicsInit: string,
   graphicsActors: string,
+  graphicsAnimation: string,
   linter: string,
 ) {
   console.log("Worker: Writing modules to filesystem...");
@@ -69,6 +70,7 @@ async function initPyodide(
   }
   p.FS.writeFile("/graphics/__init__.py", graphicsInit);
   p.FS.writeFile("/graphics/actors/__init__.py", graphicsActors);
+  p.FS.writeFile("/graphics/animation.py", graphicsAnimation);
   
   // Write linter module
   p.FS.writeFile("/linter.py", linter);
@@ -149,12 +151,13 @@ async function runGraphicsScript(
   files: Record<string, string>,
   assets: Record<string, ImageBitmap>,
   tilemaps: Record<string, unknown> | undefined,
+  animations: Record<string, { frames: ImageBitmap[]; fps: number }> | undefined,
   entry: string,
   showHitboxes: boolean = false,
   themePalette?: Record<string, [number, number, number]>,
 ) {
   prepareFiles(p, files);
-  
+
   if (!offscreen) {
     post({
       type: "error",
@@ -167,6 +170,9 @@ async function runGraphicsScript(
   const assetsEntries = Object.entries(assets);
   p.globals.set("_asset_bitmaps", assetsEntries);
   p.globals.set("_tilemap_data", JSON.stringify(tilemaps ?? {}));
+  // Animations: list of [name, {frames: [ImageBitmap, ...], fps: number}]
+  const animEntries = Object.entries(animations ?? {}).map(([name, anim]) => [name, anim]);
+  p.globals.set("_animation_data", animEntries);
   p.globals.set("_using_graphics", true);
 
   // Inject theme-aware color palette into Colors before running user code
@@ -195,7 +201,8 @@ graphics._show_hitboxes = ${showHitboxes ? "True" : "False"}
 from types import SimpleNamespace
 _sprites = _shim._ide_build_assets(_asset_bitmaps).sprites
 _tilemaps = _shim._ide_build_tilemaps(_tilemap_data, dict(_asset_bitmaps.to_py()))
-graphics.assets = SimpleNamespace(sprites=_sprites, tilemaps=_tilemaps)
+_animations = _shim._ide_build_animations(_animation_data.to_py())
+graphics.assets = SimpleNamespace(sprites=_sprites, tilemaps=_tilemaps, animations=_animations)
   `);
 
   // Now set proper initial state AFTER clear, but BEFORE user code
@@ -223,6 +230,7 @@ async function runScript(
   files: Record<string, string>,
   assets: Record<string, ImageBitmap>,
   tilemaps: Record<string, unknown> | undefined,
+  animations: Record<string, { frames: ImageBitmap[]; fps: number }> | undefined,
   entry: string,
   showHitboxes: boolean = false,
   themePalette?: Record<string, [number, number, number]>,
@@ -232,7 +240,7 @@ async function runScript(
   p.globals.set("_using_graphics", false);
 
   if (usesNewGraphics(code)) {
-    await runGraphicsScript(p, files, assets, tilemaps, entry, showHitboxes, themePalette);
+    await runGraphicsScript(p, files, assets, tilemaps, animations, entry, showHitboxes, themePalette);
     return;
   }
 
@@ -285,7 +293,7 @@ self.onmessage = async (e: MessageEvent<WorkerCommand>) => {
       console.log("Worker: Initializing Pyodide...");
       const p = await ensurePyodide();
       console.log("Worker: Pyodide loaded, initializing modules...");
-      await initPyodide(p, msg.shim, msg.transform, msg.actors, msg.graphicsInit, msg.graphicsActors, msg.linter);
+      await initPyodide(p, msg.shim, msg.transform, msg.actors, msg.graphicsInit, msg.graphicsActors, msg.graphicsAnimation, msg.linter);
       console.log("Worker: Initialization complete, posting ready");
       post({ type: "ready" });
     } catch (err: unknown) {
@@ -299,7 +307,7 @@ self.onmessage = async (e: MessageEvent<WorkerCommand>) => {
   } else if (msg.cmd === "run") {
     try {
       const p = await ensurePyodide();
-      await runScript(p, msg.files, msg.assets, msg.tilemaps, msg.entry, msg.showHitboxes, msg.themePalette);
+      await runScript(p, msg.files, msg.assets, msg.tilemaps, msg.animations, msg.entry, msg.showHitboxes, msg.themePalette);
     } catch (err: unknown) {
       post({ type: "error", error: String(err) });
       post({ type: "result" });

@@ -1,13 +1,14 @@
 import { useCallback, useEffect } from "react";
 import { create } from "zustand";
 import { WorkerCommand, WorkerEvent, WorkerEventType, LintDiagnostic } from "./WorkerInterface";
-import { useIde, useEditor } from "../state/IdeState";
+import { useIde, useEditor, type AnimationData } from "../state/IdeState";
 import { useThemeStore } from "../state/useTheme";
 import Shim from "../assets/examples/shim.py?raw";
 import Transform from "../assets/examples/transform.py?raw";
 import Actors from "../assets/examples/actors.py?raw";
 import GraphicsInit from "../assets/python/graphics/__init__.py?raw";
 import GraphicsActors from "../assets/python/graphics/actors/__init__.py?raw";
+import GraphicsAnimation from "../assets/python/graphics/animation.py?raw";
 import Linter from "../assets/python/linter.py?raw";
 
 type OutputLine = {
@@ -207,6 +208,7 @@ function getWorker(): Worker {
     actors: Actors,
     graphicsInit: GraphicsInit,
     graphicsActors: GraphicsActors,
+    graphicsAnimation: GraphicsAnimation,
     linter: Linter,
   } satisfies WorkerCommand);
   return worker;
@@ -303,6 +305,39 @@ export function useRunner() {
     return { bitmaps, transferables };
   }, []);
 
+  const loadAnimations = useCallback(async (animations: Record<string, AnimationData>) => {
+    const result: Record<string, { frames: ImageBitmap[]; fps: number }> = {};
+    const transferables: ImageBitmap[] = [];
+    await Promise.all(
+      Object.entries(animations).map(async ([name, anim]) => {
+        const frames: ImageBitmap[] = new Array(anim.frames.length);
+        await Promise.all(
+          anim.frames.map(async (url, i) => {
+            try {
+              const img = new Image();
+              await new Promise<void>((resolve, reject) => {
+                img.onload = () => resolve();
+                img.onerror = () => reject(new Error(`Failed to load frame ${i} of ${name}`));
+                img.src = url;
+              });
+              const canvas = document.createElement("canvas");
+              canvas.width = img.width || 64;
+              canvas.height = img.height || 64;
+              canvas.getContext("2d")!.drawImage(img, 0, 0);
+              const bm = await createImageBitmap(canvas);
+              frames[i] = bm;
+              transferables.push(bm);
+            } catch (err) {
+              console.warn(`[RunnerProvider] could not load animation frame ${i} of ${name}:`, err);
+            }
+          }),
+        );
+        result[name] = { frames: frames.filter(Boolean), fps: anim.fps };
+      }),
+    );
+    return { animBitmaps: result, animTransferables: transferables };
+  }, []);
+
   const run = useCallback(
     async (
       files: Record<string, string>,
@@ -313,6 +348,8 @@ export function useRunner() {
       useRunnerStore.getState().setRunning(true);
       outputQueue = [];
       const { bitmaps, transferables } = await loadAssets(nameToUrl);
+      const { animations } = useEditor.getState().project;
+      const { animBitmaps, animTransferables } = await loadAnimations(animations ?? {});
       const showHitboxes = useIde.getState().showHitboxes;
       const themePalette = useThemeStore.getState().theme.colorPalette;
       const { tilemaps } = useEditor.getState().project;
@@ -323,13 +360,14 @@ export function useRunner() {
           entry,
           assets: bitmaps,
           tilemaps,
+          animations: animBitmaps,
           showHitboxes,
           themePalette,
         } satisfies WorkerCommand,
-        transferables,
+        [...transferables, ...animTransferables],
       );
     },
-    [loadAssets],
+    [loadAssets, loadAnimations],
   );
 
   const interrupt = useCallback((): Promise<void> => {

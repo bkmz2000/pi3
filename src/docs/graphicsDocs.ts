@@ -702,6 +702,73 @@ export const DOCS: DocCategory[] = [
           { name: "name", type: "str", en: "Filename without extension, e.g. assets.sprites.ship for ship.svg.", ru: "Имя файла без расширения, например assets.sprites.ship для ship.svg." },
         ],
       },
+      {
+        id: "assets_animations",
+        name: "assets.animations",
+        signature: "assets.animations.<name>",
+        en: "Access a project animation by name. Returns an Animation object whose frames are the drawings from the Animations panel. Call update() each frame and draw animation.frame with image().",
+        ru: "Доступ к анимации проекта по имени. Возвращает объект Animation, кадры которого — рисунки из панели Анимации. Каждый кадр вызывайте update() и рисуйте animation.frame с помощью image().",
+        params: [
+          { name: "name", type: "str", en: "Animation name as set in the Animations panel, e.g. assets.animations.walk.", ru: "Имя анимации из панели Анимации, например assets.animations.walk." },
+        ],
+      },
+    ],
+  },
+
+  // ─── Sprite Animation ──────────────────────────────────────────────────────
+  {
+    id: "sprite_animation",
+    en: "Sprite Animation",
+    ru: "Покадровая анимация",
+    entries: [
+      {
+        id: "animation_class",
+        name: "Animation",
+        signature: "Animation(frames, fps=8)",
+        en: "A frame-cycling sprite animation. Pass a list of sprite frames and the playback speed. Call update() every frame to advance the timer, then draw animation.frame with image(). Create animations in the Animations panel — they load automatically as assets.animations.<name>.",
+        ru: "Покадровая спрайтовая анимация. Передайте список кадров и скорость воспроизведения. Вызывайте update() каждый кадр для продвижения таймера, затем рисуйте animation.frame с помощью image(). Создавайте анимации в панели Анимации — они загружаются автоматически как assets.animations.<name>.",
+        params: [
+          { name: "frames", type: "list", en: "List of sprite frames (e.g. from assets.animations.walk.frame or custom list).", ru: "Список кадров спрайта." },
+          { name: "fps", type: "number", optional: true, default: "8", en: "Playback speed in frames per second.", ru: "Скорость воспроизведения в кадрах в секунду." },
+        ],
+      },
+      {
+        id: "animation_update",
+        name: "animation.update",
+        signature: "animation.update()",
+        en: "Advance the animation timer by one game frame. Must be called once per frame inside main() to move between sprite frames.",
+        ru: "Продвигает таймер анимации на один игровой кадр. Нужно вызывать один раз за кадр внутри main() для смены кадров спрайта.",
+      },
+      {
+        id: "animation_frame",
+        name: "animation.frame",
+        signature: "animation.frame",
+        en: "The current sprite frame. Pass directly to image() to draw it. Returns None if the animation has no frames.",
+        ru: "Текущий кадр спрайта. Передайте напрямую в image() для отрисовки. Возвращает None, если у анимации нет кадров.",
+        returns: { type: "sprite", en: "Current frame sprite, or None.", ru: "Текущий кадр-спрайт, или None." },
+      },
+      {
+        id: "animation_play",
+        name: "animation.play / pause / reset",
+        signature: "animation.play()  animation.pause()  animation.reset()",
+        en: "Control playback. play() resumes, pause() freezes on the current frame, reset() jumps back to frame 0 and resumes.",
+        ru: "Управление воспроизведением. play() возобновляет, pause() замораживает на текущем кадре, reset() переходит к кадру 0 и возобновляет.",
+      },
+      {
+        id: "animation_loop",
+        name: "animation.loop",
+        signature: "animation.loop = True",
+        en: "Whether the animation loops back to frame 0 after the last frame. Set to False to hold on the last frame when done.",
+        ru: "Зацикливать ли анимацию после последнего кадра. Установите False, чтобы остановиться на последнем кадре.",
+      },
+      {
+        id: "animation_done",
+        name: "animation.done",
+        signature: "animation.done",
+        en: "True when a non-looping animation has finished playing and is holding on the last frame.",
+        ru: "True, когда незацикленная анимация завершила воспроизведение и остановилась на последнем кадре.",
+        returns: { type: "bool", en: "True if finished.", ru: "True, если завершена." },
+      },
     ],
   },
 ];

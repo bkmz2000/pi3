@@ -43,29 +43,31 @@ class AuthProviderError extends Error {
 }
 
 function parseLoginusToken(raw: unknown): LoginusTokenResponse {
-  const data = typeof raw === 'object' && raw !== null ? (raw as Record<string, unknown>) : {};
-  const payload = (data.data ?? data) as Record<string, unknown>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const data = typeof raw === 'object' && raw !== null ? (raw as any) : {};
+  const payload = data.data ?? data;
 
   if (typeof payload.access_token !== 'string' || payload.access_token.length === 0) {
     throw new AuthProviderError('token', 'Missing or invalid access_token');
   }
 
   return {
-    access_token: payload.access_token as string,
+    access_token: payload.access_token,
     id_token: typeof payload.id_token === 'string' ? payload.id_token : undefined,
   };
 }
 
 function parseLoginusUserinfo(raw: unknown): LoginusUserinfo {
-  const data = typeof raw === 'object' && raw !== null ? (raw as Record<string, unknown>) : {};
-  const payload = (data.data ?? data) as Record<string, unknown>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const data = typeof raw === 'object' && raw !== null ? (raw as any) : {};
+  const payload = data.data ?? data;
 
   if (typeof payload.id !== 'string' || payload.id.length === 0) {
     throw new AuthProviderError('userinfo', 'Missing or invalid id');
   }
 
   return {
-    id: payload.id as string,
+    id: payload.id,
     email: typeof payload.email === 'string' ? payload.email : undefined,
     firstName: typeof payload.firstName === 'string' ? payload.firstName : undefined,
     lastName: typeof payload.lastName === 'string' ? payload.lastName : undefined,

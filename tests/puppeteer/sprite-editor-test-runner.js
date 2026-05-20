@@ -74,6 +74,24 @@ async function runTests() {
     }
     await sleep(2000);
 
+    // Check if page loaded successfully and we have content
+    const pageTitle = await page.title();
+    console.log(`✅ Page loaded. Title: "${pageTitle}"`);
+
+    // Wait for app to be ready
+    try {
+      await waitForFn(
+        page,
+        () => page.evaluate(() => document.querySelector('[class*="App"], [class*="ide"], .cm-editor') !== null),
+        { timeout: 5000, errorMessage: 'App UI did not render' }
+      );
+      console.log('✅ App UI ready');
+    } catch (err) {
+      const html = await page.content();
+      console.log('⚠️ App UI check failed, page content preview:', html.substring(0, 500));
+      throw err;
+    }
+
     console.log('\n=== Running Sprite Editor Tests ===\n');
 
     // Test: Open sprite editor from assets panel

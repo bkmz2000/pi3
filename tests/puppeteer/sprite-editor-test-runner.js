@@ -97,27 +97,46 @@ async function runTests() {
     // Test: Open sprite editor from assets panel
     console.log('1. Open sprite editor from assets panel');
     try {
-      // Find Assets button - try multiple selectors
-      let assetsButton = await page.$('button[aria-label="Assets"]');
-      if (!assetsButton) {
-        console.log('   📝 Assets button not found by aria-label, searching by text...');
-        assetsButton = await page.evaluate(() => {
-          const buttons = document.querySelectorAll('button');
-          for (const btn of buttons) {
-            if (btn.textContent?.includes('Asset')) return btn;
+      // Find and click Assets button with multiple strategies
+      const clicked = await page.evaluate(() => {
+        const buttons = document.querySelectorAll('button');
+        let target = null;
+
+        // Try aria-label first
+        for (const btn of buttons) {
+          if (btn.getAttribute('aria-label')?.toLowerCase().includes('asset')) {
+            target = btn;
+            break;
           }
-          return null;
-        });
-      }
+        }
 
-      if (!assetsButton) {
-        console.log('   📝 Available buttons:', await page.evaluate(() =>
-          Array.from(document.querySelectorAll('button')).map(b => ({text: b.textContent?.trim(), ariaLabel: b.getAttribute('aria-label')}))
-        ));
-        throw new Error('Assets button not found');
-      }
+        // Try text content
+        if (!target) {
+          for (const btn of buttons) {
+            if (btn.textContent?.toLowerCase().includes('asset')) {
+              target = btn;
+              break;
+            }
+          }
+        }
 
-      await page.evaluate(btn => btn.click(), assetsButton);
+        if (target) {
+          target.click();
+          console.log('✅ Assets button clicked');
+          return true;
+        } else {
+          const btnList = Array.from(buttons).map(b => ({
+            text: b.textContent?.trim().substring(0, 30),
+            ariaLabel: b.getAttribute('aria-label')
+          }));
+          console.log('DEBUG: Available buttons:', JSON.stringify(btnList));
+          return false;
+        }
+      });
+
+      if (!clicked) {
+        throw new Error('Assets button not found - checked all available buttons');
+      }
       
       await waitForFn(
         page,

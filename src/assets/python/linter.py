@@ -775,21 +775,41 @@ def _check_unused_variables(code: str, tree: ast.Module) -> list[dict]:
     diagnostics = []
 
     class UsageTracker(ast.NodeVisitor):
+        """Tracks module-level assignments and all usages (any depth)."""
         def __init__(self):
             self.assigned: dict[str, ast.AST] = {}
             self.used: set[str] = set()
+            self._scope_depth = 0
+
+        def _track_target(self, target: ast.AST) -> None:
+            if self._scope_depth > 0:
+                return
+            if isinstance(target, ast.Name):
+                name = target.id
+                if not name.startswith("_") and len(name) > _SHORT_NAME_EXEMPTION:
+                    self.assigned[name] = target
+            elif isinstance(target, (ast.Tuple, ast.List)):
+                for elt in target.elts:
+                    self._track_target(elt)
 
         def visit_Assign(self, node):
             for target in node.targets:
-                if isinstance(target, ast.Name):
-                    name = target.id
-                    if not name.startswith("_") and len(name) > _SHORT_NAME_EXEMPTION:
-                        self.assigned[name] = target
+                self._track_target(target)
             self.generic_visit(node)
 
         def visit_AugAssign(self, node):
             if isinstance(node.target, ast.Name):
                 self.used.add(node.target.id)
+            self.generic_visit(node)
+
+        def visit_For(self, node):
+            self._track_target(node.target)
+            self.generic_visit(node)
+
+        def visit_With(self, node):
+            for item in node.items:
+                if item.optional_vars is not None:
+                    self._track_target(item.optional_vars)
             self.generic_visit(node)
 
         def visit_Name(self, node):
@@ -798,7 +818,11 @@ def _check_unused_variables(code: str, tree: ast.Module) -> list[dict]:
 
         def visit_FunctionDef(self, node):
             self.used.add(node.name)
+            self._scope_depth += 1
             self.generic_visit(node)
+            self._scope_depth -= 1
+
+        visit_AsyncFunctionDef = visit_FunctionDef
 
         def visit_ClassDef(self, node):
             self.used.add(node.name)

@@ -113,12 +113,17 @@ export function createGroupsRouter(): Router {
   // DELETE /api/groups/:id — teacher: delete group
   router.delete('/:id', (req: Request, res: Response): void => {
     if (!requireTeacher(req, res)) return;
-    const group = checkGroupOwnership(req.params['id'] as string, req.user!.id);
+    const groupId = req.params['id'] as string;
+    const group = checkGroupOwnership(groupId, req.user!.id);
     if (!group) {
       res.status(404).json({ error: 'Not Found', message: 'Group not found' });
       return;
     }
-    getDb().prepare('DELETE FROM groups WHERE id = ?').run(req.params['id'] as string);
+    const db = getDb();
+    db.transaction(() => {
+      db.prepare('DELETE FROM group_members WHERE group_id = ?').run(groupId);
+      db.prepare('DELETE FROM groups WHERE id = ?').run(groupId);
+    })();
     res.status(204).send();
   });
 
@@ -136,13 +141,17 @@ export function createGroupsRouter(): Router {
       return;
     }
     const db = getDb();
-    const target = db.prepare('SELECT id, name FROM users WHERE name = ?').get(username.trim()) as { id: string; name: string } | undefined;
+    const target = db.prepare('SELECT id, name, role FROM users WHERE name = ?').get(username.trim()) as { id: string; name: string; role: string } | undefined;
     if (!target) {
       res.status(404).json({ error: 'Not Found', message: 'User not found' });
       return;
     }
     if (target.id === req.user!.id) {
       res.status(400).json({ error: 'Bad Request', message: 'Cannot add yourself' });
+      return;
+    }
+    if (target.role !== 'student') {
+      res.status(400).json({ error: 'Bad Request', message: 'Only students can be added to groups' });
       return;
     }
     const existing = db.prepare('SELECT id FROM group_members WHERE group_id = ? AND student_id = ?').get(req.params['id'] as string, target.id);

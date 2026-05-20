@@ -67,7 +67,7 @@ export function createProjectsRouter(): Router {
                   ELSE NULL END as role
       FROM projects p
       LEFT JOIN project_shares ps ON p.id = ps.project_id AND ps.user_id = ?
-      WHERE p.user_id = ? OR (ps.user_id = ? AND p.is_public = 1)
+      WHERE p.user_id = ? OR ps.user_id = ?
       ORDER BY p.updated_at DESC
     `).all(req.user!.id, req.user!.id, req.user!.id, req.user!.id);
     res.json(projects);
@@ -121,15 +121,12 @@ export function createProjectsRouter(): Router {
         p.id, p.name, p.description, p.updated_at,
         u.id as student_id, u.name as student_name,
         hr.id as help_request_id, hr.status as help_request_status, hr.created_at as help_request_created_at,
-        (
-          SELECT g.name FROM group_members gm
-          JOIN groups g ON g.id = gm.group_id
-          WHERE gm.student_id = p.user_id AND g.teacher_id = ?
-          LIMIT 1
-        ) as group_name
+        g.name as group_name
       FROM project_shares ps
       JOIN projects p ON p.id = ps.project_id
       JOIN users u ON u.id = p.user_id
+      JOIN group_members gm ON gm.student_id = p.user_id
+      JOIN groups g ON g.id = gm.group_id AND g.teacher_id = ?
       LEFT JOIN help_requests hr ON hr.project_id = p.id AND hr.status = 'pending'
       WHERE ps.user_id = ?
       ORDER BY (hr.id IS NULL), hr.created_at ASC, p.updated_at DESC
@@ -179,8 +176,11 @@ export function createProjectsRouter(): Router {
     const hasTeacher = db.prepare(`
       SELECT ps.id FROM project_shares ps
       JOIN users u ON u.id = ps.user_id
+      JOIN group_members gm ON gm.student_id = ? AND gm.group_id IN (
+        SELECT id FROM groups WHERE teacher_id = ps.user_id
+      )
       WHERE ps.project_id = ? AND u.role = 'teacher' LIMIT 1
-    `).get(id);
+    `).get(req.user!.id, id);
     if (!hasTeacher) {
       res.status(400).json({ error: 'Bad Request', message: 'Project must be shared with a teacher first' });
       return;
@@ -260,6 +260,10 @@ export function createProjectsRouter(): Router {
     const values: unknown[] = [];
 
     if (name !== undefined) {
+      if (typeof name !== 'string' || name.trim().length === 0) {
+        res.status(400).json({ error: 'Bad Request', message: 'Project name must be a non-empty string' });
+        return;
+      }
       updates.push('name = ?');
       values.push(name.trim());
     }
@@ -309,8 +313,12 @@ export function createProjectsRouter(): Router {
     }
 
     try {
-      db.prepare('DELETE FROM project_shares WHERE project_id = ?').run(id);
-      db.prepare('DELETE FROM projects WHERE id = ?').run(id);
+      db.transaction(() => {
+        db.prepare('DELETE FROM help_requests WHERE project_id = ?').run(id);
+        db.prepare('DELETE FROM comments WHERE project_id = ?').run(id);
+        db.prepare('DELETE FROM project_shares WHERE project_id = ?').run(id);
+        db.prepare('DELETE FROM projects WHERE id = ?').run(id);
+      })();
       res.status(204).send();
     } catch (error) {
       console.error('Error deleting project:', error);

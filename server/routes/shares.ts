@@ -12,10 +12,21 @@ interface ProjectShare {
   updated_at: number;
 }
 
-function checkOwnership(projectId: string, userId: string): boolean {
+type OwnershipResult = 'ok' | 'forbidden' | 'notfound';
+
+function checkOwnership(projectId: string, userId: string): OwnershipResult {
   const db = getDb();
   const project = db.prepare('SELECT user_id FROM projects WHERE id = ?').get(projectId) as { user_id: string } | undefined;
-  return project?.user_id === userId;
+  if (!project) return 'notfound';
+  return project.user_id === userId ? 'ok' : 'forbidden';
+}
+
+function ownershipError(result: OwnershipResult, res: Response): void {
+  if (result === 'notfound') {
+    res.status(404).json({ error: 'Not Found', message: 'Project not found' });
+  } else {
+    res.status(403).json({ error: 'Forbidden', message: 'Only owner can manage project shares' });
+  }
 }
 
 export function createSharesRouter(): Router {
@@ -27,18 +38,16 @@ export function createSharesRouter(): Router {
     const { username, role = 'viewer' } = req.body;
     const db = getDb();
 
-    if (!checkOwnership(projectId, req.user!.id)) {
-      res.status(403).json({ error: 'Forbidden', message: 'Only owner can share project' });
-      return;
-    }
+    const ownership = checkOwnership(projectId, req.user!.id);
+    if (ownership !== 'ok') { ownershipError(ownership, res); return; }
 
     if (!username || typeof username !== 'string') {
       res.status(400).json({ error: 'Bad Request', message: 'Username is required' });
       return;
     }
 
-    if (!['owner', 'editor', 'viewer'].includes(role)) {
-      res.status(400).json({ error: 'Bad Request', message: 'Invalid role. Must be owner, editor, or viewer' });
+    if (!['editor', 'viewer'].includes(role)) {
+      res.status(400).json({ error: 'Bad Request', message: 'Invalid role. Must be editor or viewer' });
       return;
     }
 
@@ -71,12 +80,13 @@ export function createSharesRouter(): Router {
     };
 
     try {
-      db.prepare(`
-        INSERT INTO project_shares (id, project_id, user_id, role, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?)
-      `).run(share.id, share.project_id, share.user_id, share.role, share.created_at, share.updated_at);
-
-      db.prepare('UPDATE projects SET updated_at = ? WHERE id = ?').run(now, projectId);
+      db.transaction(() => {
+        db.prepare(`
+          INSERT INTO project_shares (id, project_id, user_id, role, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?)
+        `).run(share.id, share.project_id, share.user_id, share.role, share.created_at, share.updated_at);
+        db.prepare('UPDATE projects SET updated_at = ? WHERE id = ?').run(now, projectId);
+      })();
 
       res.status(201).json({
         id: share.id,
@@ -96,10 +106,8 @@ export function createSharesRouter(): Router {
     const userId = req.params.userId as string;
     const db = getDb();
 
-    if (!checkOwnership(projectId, req.user!.id)) {
-      res.status(403).json({ error: 'Forbidden', message: 'Only owner can remove shares' });
-      return;
-    }
+    const ownership = checkOwnership(projectId, req.user!.id);
+    if (ownership !== 'ok') { ownershipError(ownership, res); return; }
 
     const share = db.prepare('SELECT * FROM project_shares WHERE project_id = ? AND user_id = ?').get(projectId, userId) as ProjectShare | undefined;
 
@@ -109,11 +117,11 @@ export function createSharesRouter(): Router {
     }
 
     try {
-      db.prepare('DELETE FROM project_shares WHERE id = ?').run(share.id);
-
       const now = Date.now();
-      db.prepare('UPDATE projects SET updated_at = ? WHERE id = ?').run(now, projectId);
-
+      db.transaction(() => {
+        db.prepare('DELETE FROM project_shares WHERE id = ?').run(share.id);
+        db.prepare('UPDATE projects SET updated_at = ? WHERE id = ?').run(now, projectId);
+      })();
       res.status(204).send();
     } catch (error) {
       console.error('Error removing share:', error);
@@ -125,10 +133,8 @@ export function createSharesRouter(): Router {
     const projectId = req.params.id as string;
     const db = getDb();
 
-    if (!checkOwnership(projectId, req.user!.id)) {
-      res.status(403).json({ error: 'Forbidden', message: 'Only owner can view shares' });
-      return;
-    }
+    const ownership = checkOwnership(projectId, req.user!.id);
+    if (ownership !== 'ok') { ownershipError(ownership, res); return; }
 
     const shares = db.prepare(`
       SELECT ps.id, ps.user_id, ps.role, ps.created_at, u.name as user_name

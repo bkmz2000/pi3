@@ -25,9 +25,10 @@ export function createHelpRequestsRouter(): Router {
         JOIN projects p ON p.id = hr.project_id
         JOIN users u ON u.id = hr.student_id
         JOIN group_members gm ON gm.student_id = hr.student_id AND gm.group_id = ?
+        JOIN groups g ON g.id = gm.group_id AND g.teacher_id = ?
         WHERE hr.status IN ('pending', 'in_progress')
         ORDER BY hr.created_at ASC
-      `).all(req.user!.id, groupId);
+      `).all(req.user!.id, groupId, req.user!.id);
       res.json(requests);
     } else {
       const requests = db.prepare(`
@@ -38,9 +39,11 @@ export function createHelpRequestsRouter(): Router {
         JOIN project_shares ps ON ps.project_id = hr.project_id AND ps.user_id = ?
         JOIN projects p ON p.id = hr.project_id
         JOIN users u ON u.id = hr.student_id
+        JOIN group_members gm ON gm.student_id = hr.student_id
+        JOIN groups g ON g.id = gm.group_id AND g.teacher_id = ?
         WHERE hr.status = 'pending'
         ORDER BY hr.created_at ASC
-      `).all(req.user!.id);
+      `).all(req.user!.id, req.user!.id);
       res.json(requests);
     }
   });
@@ -53,6 +56,10 @@ export function createHelpRequestsRouter(): Router {
     }
     const hrId = req.params['id'] as string;
     const { status } = req.body as { status?: string };
+    if (status !== undefined && status !== 'in_progress' && status !== 'addressed') {
+      res.status(400).json({ error: 'Bad Request', message: 'status must be in_progress or addressed' });
+      return;
+    }
     const newStatus = status === 'in_progress' ? 'in_progress' : 'addressed';
 
     const db = getDb();

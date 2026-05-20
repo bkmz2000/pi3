@@ -86,7 +86,15 @@ export const completionCompartment = new Compartment();
 function getActiveArgIndex(argsText: string): number {
   let depth = 0;
   let index = 0;
-  for (const ch of argsText) {
+  let inStr: string | null = null;
+  for (let i = 0; i < argsText.length; i++) {
+    const ch = argsText[i];
+    if (inStr) {
+      if (ch === "\\") { i++; continue; }
+      if (ch === inStr) inStr = null;
+      continue;
+    }
+    if (ch === '"' || ch === "'") { inStr = ch; continue; }
     if (ch === "(" || ch === "[" || ch === "{") depth++;
     else if (ch === ")" || ch === "]" || ch === "}") depth--;
     else if (ch === "," && depth === 0) index++;
@@ -167,7 +175,10 @@ function getSignatureTooltip(
 ): Tooltip | null {
   const pos = state.selection.main.head;
   const doc = state.doc;
-  const lookback = Math.max(0, pos - 500);
+  // Scan back at most 20 lines for the opening paren (handles long arg lists without unbounded lookback)
+  const curLine = doc.lineAt(pos).number;
+  const startLine = Math.max(1, curLine - 20);
+  const lookback = doc.line(startLine).from;
   const text = doc.sliceString(lookback, pos);
 
   let depth = 0;

@@ -85,6 +85,21 @@ describe('Comments — create', () => {
     expect(res.status).toBe(403);
   });
 
+  it('student with viewer share cannot add a comment (not a teacher)', async () => {
+    const now = Date.now();
+    const studentViewerId = uuidv4();
+    const studentViewerToken = uuidv4().replace(/-/g, '') + uuidv4().replace(/-/g, '');
+    db.prepare('INSERT INTO users (id, api_token, name, role, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)')
+      .run(studentViewerId, studentViewerToken, 'StudentViewer', 'student', now, now);
+    db.prepare('INSERT INTO project_shares (id, project_id, user_id, role, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)')
+      .run(uuidv4(), projectId, studentViewerId, 'viewer', now, now);
+    const res = await request(app)
+      .post(`/api/projects/${projectId}/comments`)
+      .set({ Authorization: `Bearer ${studentViewerToken}` })
+      .send({ file_path: 'main.py', line_number: 1, anchor_text: '', text: 'Peer review' });
+    expect(res.status).toBe(403);
+  });
+
   it('unauthenticated request is rejected', async () => {
     const res = await request(app)
       .post(`/api/projects/${projectId}/comments`)

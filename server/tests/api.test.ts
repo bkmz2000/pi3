@@ -335,4 +335,12 @@ describe('Sharing API', () => {
 
     expect(res.status).toBe(403);
   });
+
+  it('cannot share with role owner', async () => {
+    const res = await request(app)
+      .post(`/api/projects/${testProject.id}/share`)
+      .set(authHeader(testUser1.api_token))
+      .send({ username: testUser2.name, role: 'owner' });
+    expect(res.status).toBe(400);
+  });
 });

@@ -46,7 +46,16 @@ export function initDb(): void {
     `CREATE UNIQUE INDEX IF NOT EXISTS idx_users_oauth_provider_id ON users(oauth_provider_id) WHERE oauth_provider_id IS NOT NULL`,
   ];
   for (const stmt of migrations) {
-    try { database.exec(stmt); } catch { /* column already exists */ }
+    try {
+      database.exec(stmt);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      // Swallow "already exists" idempotency errors; surface real failures
+      if (!msg.includes('already exists') && !msg.includes('duplicate column')) {
+        console.error('Migration failed:', stmt, err);
+        throw err;
+      }
+    }
   }
 }
 

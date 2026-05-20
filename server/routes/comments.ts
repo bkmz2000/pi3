@@ -23,6 +23,12 @@ function hasAccess(projectId: string, userId: string): 'owner' | 'viewer' | null
   return share ? 'viewer' : null;
 }
 
+function isTeacher(userId: string): boolean {
+  const db = getDb();
+  const user = db.prepare("SELECT role FROM users WHERE id = ?").get(userId) as { role: string } | undefined;
+  return user?.role === 'teacher';
+}
+
 // Router for /api/projects/:id/comments
 export function createProjectCommentsRouter(): Router {
   const router = Router({ mergeParams: true });
@@ -58,8 +64,8 @@ export function createProjectCommentsRouter(): Router {
   router.post('/', (req: Request, res: Response): void => {
     const projectId = req.params['id'] as string;
     const access = hasAccess(projectId, req.user!.id);
-    // Only viewers (teachers) can add comments, not the owner (student)
-    if (access !== 'viewer') {
+    // Only teachers with share access can add comments
+    if (access !== 'viewer' || !isTeacher(req.user!.id)) {
       res.status(403).json({ error: 'Forbidden', message: 'Only teachers with share access can add comments' });
       return;
     }

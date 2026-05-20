@@ -14,6 +14,7 @@ let db: Database.Database;
 let teacher: { id: string; api_token: string; name: string };
 let student: { id: string; api_token: string; name: string };
 let projectId: string;
+let groupId: string;
 
 function auth(token: string) {
   return { Authorization: `Bearer ${token}` };
@@ -42,6 +43,12 @@ beforeEach(() => {
   projectId = uuidv4();
   db.prepare('INSERT INTO projects (id, user_id, name, is_public, files, assets, current_file, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
     .run(projectId, student.id, 'My Project', 0, '{}', '{}', 'main.py', now, now);
+
+  groupId = uuidv4();
+  db.prepare('INSERT INTO groups (id, teacher_id, name, created_at) VALUES (?, ?, ?, ?)')
+    .run(groupId, teacher.id, 'Class A', now);
+  db.prepare('INSERT INTO group_members (id, group_id, student_id, joined_at) VALUES (?, ?, ?, ?)')
+    .run(uuidv4(), groupId, student.id, now);
 });
 
 afterAll(() => {
@@ -143,7 +150,6 @@ describe('Help Requests', () => {
   });
 
   it('cannot create help request without teacher share', async () => {
-    // Remove the share first
     db.prepare('DELETE FROM project_shares WHERE project_id = ?').run(projectId);
     const res = await request(app)
       .post(`/api/projects/${projectId}/help-request`)
@@ -151,13 +157,31 @@ describe('Help Requests', () => {
     expect(res.status).toBe(400);
   });
 
-  it('GET /api/projects/shared-with-me shows shared projects', async () => {
+  it('cannot create help request without group membership', async () => {
+    db.prepare('DELETE FROM group_members WHERE group_id = ?').run(groupId);
+    const res = await request(app)
+      .post(`/api/projects/${projectId}/help-request`)
+      .set(auth(student.api_token));
+    expect(res.status).toBe(400);
+  });
+
+  it('GET /api/projects/shared-with-me shows shared projects for teacher with group membership', async () => {
     const res = await request(app)
       .get('/api/projects/shared-with-me')
       .set(auth(teacher.api_token));
     expect(res.status).toBe(200);
     expect(res.body).toHaveLength(1);
     expect(res.body[0].student_name).toBe(student.name);
+    expect(res.body[0].group_name).toBe('Class A');
+  });
+
+  it('GET /api/projects/shared-with-me excludes projects outside teacher group', async () => {
+    db.prepare('DELETE FROM group_members WHERE group_id = ?').run(groupId);
+    const res = await request(app)
+      .get('/api/projects/shared-with-me')
+      .set(auth(teacher.api_token));
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(0);
   });
 
   it('shared-with-me shows help request indicator', async () => {

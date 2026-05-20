@@ -3,7 +3,6 @@ import { create } from "zustand";
 import { WorkerCommand, WorkerEvent, WorkerEventType, LintDiagnostic } from "./WorkerInterface";
 import { useIde } from "../state/IdeState";
 import { useThemeStore } from "../state/useTheme";
-import i18n from "../i18n";
 import Shim from "../assets/examples/shim.py?raw";
 import Transform from "../assets/examples/transform.py?raw";
 import Actors from "../assets/examples/actors.py?raw";
@@ -102,10 +101,6 @@ export const useRunnerStore = create<RunnerState>((set) => ({
       }
       case "lint": {
         set({ lintErrors: msg.diagnostics });
-        for (const d of msg.diagnostics) {
-          const translated = i18n.t(d.messageKey, d.messageArgs);
-          set((s) => ({ output: [...s.output, { kind: "stderr", text: `[${d.code}] Line ${d.row + 1}: ${translated}` }] }));
-        }
         break;
       }
       default: {
@@ -133,6 +128,7 @@ export const useRunnerStore = create<RunnerState>((set) => ({
 // --- Worker singleton ---
 
 let worker: Worker | null = null;
+let lintReqId = 0;
 let cleanupEvents: (() => void) | null = null;
 let canvasTransferred = false;
 let interruptBuffer: Uint8Array | null = null;
@@ -337,31 +333,29 @@ export function useRunner() {
   const interrupt = useCallback((): Promise<void> => {
     return new Promise((resolve) => {
       const worker = getWorker();
-      
-      const handleMessage = (e: MessageEvent) => {
-        if (e.data?.type === "interrupt_ack") {
-          worker.removeEventListener("message", handleMessage);
-          resolve();
-        }
+      let settled = false;
+
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        worker.removeEventListener("message", handleMessage);
+        if (interruptBuffer) interruptBuffer[0] = 0;
+        useRunnerStore.getState().stop();
+        resolve();
       };
-      
+
+      const handleMessage = (e: MessageEvent) => {
+        if (e.data?.type === "interrupt_ack") finish();
+      };
+
       worker.addEventListener("message", handleMessage);
-      
       worker.postMessage({ cmd: "interrupt" } satisfies WorkerCommand);
 
-      if (interruptBuffer) {
-        interruptBuffer[0] = 2;
-        setTimeout(() => {
-          if (interruptBuffer) interruptBuffer[0] = 0;
-        }, 100);
-      }
+      if (interruptBuffer) interruptBuffer[0] = 2;
 
-      useRunnerStore.getState().stop();
-      
-      setTimeout(() => {
-        worker.removeEventListener("message", handleMessage);
-        resolve();
-      }, 100);
+      // Fallback: resolve after 150ms if no ack arrives (e.g. no SAB in dev)
+      const timer = setTimeout(finish, 150);
     });
   }, []);
 
@@ -384,16 +378,25 @@ export function useRunner() {
 
   const lint = useCallback((code: string, filename: string) => {
     return new Promise<LintDiagnostic[]>((resolve) => {
-      const handler = (e: MessageEvent<WorkerEvent>) => {
-        if (e.data.type === "lint") {
-          getWorker().removeEventListener("message", handler);
-          const diagnostics = e.data.diagnostics;
-          useRunnerStore.getState().setLintErrors(diagnostics);
-          resolve(diagnostics);
-        }
+      const reqId = ++lintReqId;
+      let settled = false;
+
+      const finish = (diagnostics: LintDiagnostic[]) => {
+        if (settled) return;
+        settled = true;
+        getWorker().removeEventListener("message", handler);
+        clearTimeout(timer);
+        useRunnerStore.getState().setLintErrors(diagnostics);
+        resolve(diagnostics);
       };
+
+      const handler = (e: MessageEvent<WorkerEvent>) => {
+        if (e.data.type === "lint" && e.data.reqId === reqId) finish(e.data.diagnostics);
+      };
+
+      const timer = setTimeout(() => finish([]), 10_000);
       getWorker().addEventListener("message", handler);
-      getWorker().postMessage({ cmd: "lint", code, filename } satisfies WorkerCommand);
+      getWorker().postMessage({ cmd: "lint", code, filename, reqId } satisfies WorkerCommand);
     });
   }, []);
 

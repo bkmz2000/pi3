@@ -6,6 +6,7 @@ let offscreen: OffscreenCanvas | null = null;
 let activePaths: string[] = [];
 let pendingInterruptBuffer: Uint8Array | null = null;
 let pendingOffscreen: OffscreenCanvas | null = null;
+let shimProxy: { _inject_event: (kind: string, data: unknown) => void; noLoop: () => void; _ide_console: { resolve: (v: string) => void } | null; destroy: () => void } | null = null;
 
 function post(e: WorkerEvent) {
   self.postMessage(e);
@@ -105,6 +106,7 @@ import _shim_p5 as _shim
 _shim._ide_init(_ide_post_output, _ide_post_input_request)
 import linter
     `);
+    shimProxy = p.globals.get("_shim");
     console.log("Worker: Python initialization completed successfully");
   } catch (err: unknown) {
     console.error("Worker: Python initialization failed:", err);
@@ -138,7 +140,8 @@ function prepareFiles(p: PyodideInterface, files: Record<string, string>) {
 }
 
 function usesNewGraphics(code: string): boolean {
-  return code.includes("import graphics") || code.includes("from graphics");
+  // Match only on non-commented portions of each line
+  return /^[^#'"]*\b(import graphics|from graphics)\b/m.test(code);
 }
 
 async function runGraphicsScript(
@@ -241,6 +244,7 @@ async function runScript(
     post({ type: "start", isP5, canvasActive: isP5 });
   } catch (err: unknown) {
     post({ type: "error", error: `Transform failed: ${err}` });
+    post({ type: "result" });
     return;
   }
 
@@ -303,18 +307,15 @@ self.onmessage = async (e: MessageEvent<WorkerCommand>) => {
       if (usingGraphics) {
         pyodide.runPython(`graphics._inject_event("${msg.kind}", ${JSON.stringify(msg.data)})`);
       } else {
-        const shim = pyodide.globals.get("_shim");
-        shim?._inject_event(msg.kind, msg.data);
-        shim?.destroy();
+        shimProxy?._inject_event(msg.kind, msg.data);
       }
     } catch {
       /* ignore */
     }
   } else if (msg.cmd === "interrupt") {
     if (!pyodide) return;
-    const shim = pyodide.globals.get("_shim");
     try {
-      shim?.noLoop();
+      shimProxy?.noLoop();
     } catch {
       /* ignore */
     }
@@ -330,16 +331,15 @@ self.onmessage = async (e: MessageEvent<WorkerCommand>) => {
     post({ type: "interrupt_ack" });
   } else if (msg.cmd === "input_response") {
     if (!pyodide) return;
-    const shim = pyodide.globals.get("_shim");
-    const console_ = shim?._ide_console;
+    const console_ = shimProxy?._ide_console;
     console_?.resolve(msg.value);
-    shim?.destroy();
   } else if (msg.cmd === "set_interrupt_buffer") {
     if (pyodide) pyodide.setInterruptBuffer(new Uint8Array(msg.buffer));
     else pendingInterruptBuffer = new Uint8Array(msg.buffer);
   } else if (msg.cmd === "lint") {
+    const { reqId } = msg;
     if (!pyodide) {
-      post({ type: "lint", diagnostics: [] });
+      post({ type: "lint", diagnostics: [], reqId });
       return;
     }
     try {
@@ -356,10 +356,10 @@ self.onmessage = async (e: MessageEvent<WorkerCommand>) => {
       pyodideGlobals.delete("_lint_code");
       pyodideGlobals.delete("_lint_filename");
 
-      post({ type: "lint", diagnostics });
+      post({ type: "lint", diagnostics, reqId });
     } catch (err) {
       console.warn("Worker: Lint skipped —", err);
-      post({ type: "lint", diagnostics: [] });
+      post({ type: "lint", diagnostics: [], reqId });
     }
   }
 };

@@ -133,6 +133,17 @@ describe('Groups API', () => {
         .send({ username: student2.name });
       expect(res.status).toBe(403);
     });
+
+    it('cannot invite a teacher (non-student)', async () => {
+      const teacher2 = { id: uuidv4(), api_token: uuidv4().replace(/-/g, '') + uuidv4().replace(/-/g, ''), name: 'Teacher2', role: 'teacher' };
+      db.prepare('INSERT INTO users (id, api_token, name, role, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)')
+        .run(teacher2.id, teacher2.api_token, teacher2.name, teacher2.role, Date.now(), Date.now());
+      const res = await request(app)
+        .post(`/api/groups/${groupId}/invite`)
+        .set(auth(teacher.api_token))
+        .send({ username: teacher2.name });
+      expect(res.status).toBe(400);
+    });
   });
 
   describe('DELETE /api/groups/:id/members/:userId', () => {
@@ -181,6 +192,15 @@ describe('Groups API', () => {
       const res = await request(app).post('/api/groups').set(auth(teacher.api_token)).send({ name: 'G1' });
       const del = await request(app).delete(`/api/groups/${res.body.id}`).set(auth(teacher.api_token));
       expect(del.status).toBe(204);
+    });
+
+    it('deleting group removes members', async () => {
+      const res = await request(app).post('/api/groups').set(auth(teacher.api_token)).send({ name: 'G1' });
+      const gId = res.body.id;
+      await request(app).post(`/api/groups/${gId}/invite`).set(auth(teacher.api_token)).send({ username: student1.name });
+      await request(app).delete(`/api/groups/${gId}`).set(auth(teacher.api_token));
+      const members = db.prepare('SELECT id FROM group_members WHERE group_id = ?').all(gId);
+      expect(members).toHaveLength(0);
     });
 
     it('student cannot delete a group', async () => {

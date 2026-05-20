@@ -28,7 +28,7 @@ export type WorkerCommand =
   | { cmd: "attach_canvas"; canvas: OffscreenCanvas }
   | { cmd: "event"; kind: WorkerEventType; data: InputEventData }
   | { cmd: "input_response"; value: string }
-  | { cmd: "lint"; code: string; filename: string };
+  | { cmd: "lint"; code: string; filename: string; reqId: number };
 
 export type LintDiagnostic = {
   code: string;
@@ -49,6 +49,6 @@ export type WorkerEvent =
   | { type: "result" }
   | { type: "error"; error: string }
   | { type: "input_request"; prompt: string }
-  | { type: "lint"; diagnostics: LintDiagnostic[] }
+  | { type: "lint"; diagnostics: LintDiagnostic[]; reqId: number }
   | { type: "interrupt_ack" }
   | { type: "canvas_resize"; width: number; height: number };

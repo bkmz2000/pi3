@@ -44,28 +44,28 @@ class AuthProviderError extends Error {
 
 function parseLoginusToken(raw: unknown): LoginusTokenResponse {
   const data = typeof raw === 'object' && raw !== null ? (raw as Record<string, unknown>) : {};
-  const payload = data.data ?? data;
+  const payload = (data.data ?? data) as Record<string, unknown>;
 
   if (typeof payload.access_token !== 'string' || payload.access_token.length === 0) {
     throw new AuthProviderError('token', 'Missing or invalid access_token');
   }
 
   return {
-    access_token: payload.access_token,
+    access_token: payload.access_token as string,
     id_token: typeof payload.id_token === 'string' ? payload.id_token : undefined,
   };
 }
 
 function parseLoginusUserinfo(raw: unknown): LoginusUserinfo {
   const data = typeof raw === 'object' && raw !== null ? (raw as Record<string, unknown>) : {};
-  const payload = data.data ?? data;
+  const payload = (data.data ?? data) as Record<string, unknown>;
 
   if (typeof payload.id !== 'string' || payload.id.length === 0) {
     throw new AuthProviderError('userinfo', 'Missing or invalid id');
   }
 
   return {
-    id: payload.id,
+    id: payload.id as string,
     email: typeof payload.email === 'string' ? payload.email : undefined,
     firstName: typeof payload.firstName === 'string' ? payload.firstName : undefined,
     lastName: typeof payload.lastName === 'string' ? payload.lastName : undefined,

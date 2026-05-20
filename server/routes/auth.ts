@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import { randomBytes, createHmac, timingSafeEqual } from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import { getDb } from '../db/index.js';
-import { authMiddleware, optionalAuth, regenerateSession } from '../middleware/auth.js';
+import { authMiddleware, regenerateSession } from '../middleware/auth.js';
 
 const router = Router();
 
@@ -43,7 +43,7 @@ class AuthProviderError extends Error {
 }
 
 function parseLoginusToken(raw: unknown): LoginusTokenResponse {
-  const data = typeof raw === 'object' && raw !== null ? (raw as any) : {};
+  const data = typeof raw === 'object' && raw !== null ? (raw as Record<string, unknown>) : {};
   const payload = data.data ?? data;
 
   if (typeof payload.access_token !== 'string' || payload.access_token.length === 0) {
@@ -57,7 +57,7 @@ function parseLoginusToken(raw: unknown): LoginusTokenResponse {
 }
 
 function parseLoginusUserinfo(raw: unknown): LoginusUserinfo {
-  const data = typeof raw === 'object' && raw !== null ? (raw as any) : {};
+  const data = typeof raw === 'object' && raw !== null ? (raw as Record<string, unknown>) : {};
   const payload = data.data ?? data;
 
   if (typeof payload.id !== 'string' || payload.id.length === 0) {

@@ -55,8 +55,3 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction):
   req.user = user;
   next();
 }
-
-export function optionalAuth(req: Request, res: Response, next: NextFunction): void {
-  req.user = resolveUser(req);
-  next();
-}

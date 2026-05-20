@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { getDb } from '../db/index.js';
 import { authMiddleware } from '../middleware/auth.js';
-import { getProjectAccess, getProjectWithAccess, hasRole, ProjectRole } from '../middleware/projectAuth.js';
+import { getProjectAccess, getProjectWithAccess, hasRole } from '../middleware/projectAuth.js';
 import { createSharesRouter } from './shares.js';
 import { createProjectCommentsRouter } from './comments.js';
 

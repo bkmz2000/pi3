@@ -36,7 +36,7 @@ describe('Provider Adapter Contract', () => {
       const errorResponse = {
         error: 'invalid_grant',
         error_description: 'Authorization code has expired',
-      } as any;
+      } as any; // eslint-disable-line @typescript-eslint/no-explicit-any
 
       expect(errorResponse.access_token).toBeUndefined();
     });
@@ -47,7 +47,7 @@ describe('Provider Adapter Contract', () => {
           error: 'invalid_grant',
           error_description: 'Authorization code has expired',
         },
-      } as any;
+      } as any; // eslint-disable-line @typescript-eslint/no-explicit-any
 
       expect(errorResponse.data.access_token).toBeUndefined();
     });
@@ -87,7 +87,7 @@ describe('Provider Adapter Contract', () => {
     it('documents minimal userinfo response (only required id)', () => {
       const minimalResponse = {
         id: 'minimal_user',
-      } as any;
+      } as any; // eslint-disable-line @typescript-eslint/no-explicit-any
 
       expect(minimalResponse.id).toBe('minimal_user');
       expect(minimalResponse.email).toBeUndefined();

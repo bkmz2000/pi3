@@ -97,8 +97,27 @@ async function runTests() {
     // Test: Open sprite editor from assets panel
     console.log('1. Open sprite editor from assets panel');
     try {
-      await waitForElement(page, 'button[aria-label="Assets"]', { timeout: 5000 });
-      await page.click('button[aria-label="Assets"]');
+      // Find Assets button - try multiple selectors
+      let assetsButton = await page.$('button[aria-label="Assets"]');
+      if (!assetsButton) {
+        console.log('   📝 Assets button not found by aria-label, searching by text...');
+        assetsButton = await page.evaluate(() => {
+          const buttons = document.querySelectorAll('button');
+          for (const btn of buttons) {
+            if (btn.textContent?.includes('Asset')) return btn;
+          }
+          return null;
+        });
+      }
+
+      if (!assetsButton) {
+        console.log('   📝 Available buttons:', await page.evaluate(() =>
+          Array.from(document.querySelectorAll('button')).map(b => ({text: b.textContent?.trim(), ariaLabel: b.getAttribute('aria-label')}))
+        ));
+        throw new Error('Assets button not found');
+      }
+
+      await page.evaluate(btn => btn.click(), assetsButton);
       
       await waitForFn(
         page,

@@ -98,12 +98,12 @@ async function runTests() {
     console.log('1. Open sprite editor from assets panel');
     try {
       // Find and click Assets button with multiple strategies
-      const clicked = await page.evaluate(() => {
-        const buttons = document.querySelectorAll('button');
+      const { clicked, buttons } = await page.evaluate(() => {
+        const allButtons = document.querySelectorAll('button');
         let target = null;
 
         // Try aria-label first
-        for (const btn of buttons) {
+        for (const btn of allButtons) {
           if (btn.getAttribute('aria-label')?.toLowerCase().includes('asset')) {
             target = btn;
             break;
@@ -112,7 +112,7 @@ async function runTests() {
 
         // Try text content
         if (!target) {
-          for (const btn of buttons) {
+          for (const btn of allButtons) {
             if (btn.textContent?.toLowerCase().includes('asset')) {
               target = btn;
               break;
@@ -120,23 +120,28 @@ async function runTests() {
           }
         }
 
+        const btnList = Array.from(allButtons).map(b => ({
+          text: b.textContent?.trim().substring(0, 30),
+          ariaLabel: b.getAttribute('aria-label'),
+          id: b.id
+        }));
+
         if (target) {
           target.click();
-          console.log('✅ Assets button clicked');
-          return true;
+          return { clicked: true, buttons: btnList };
         } else {
-          const btnList = Array.from(buttons).map(b => ({
-            text: b.textContent?.trim().substring(0, 30),
-            ariaLabel: b.getAttribute('aria-label')
-          }));
-          console.log('DEBUG: Available buttons:', JSON.stringify(btnList));
-          return false;
+          return { clicked: false, buttons: btnList };
         }
       });
 
+      console.log('   📋 Button search results:', { clicked, buttonCount: buttons.length });
+      console.log('   📋 Available buttons:', buttons);
+
       if (!clicked) {
-        throw new Error('Assets button not found - checked all available buttons');
+        throw new Error(`Assets button not found among ${buttons.length} buttons`);
       }
+
+      console.log('   ✅ Assets button clicked');
       
       await waitForFn(
         page,

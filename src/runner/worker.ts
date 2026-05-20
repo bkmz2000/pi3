@@ -193,19 +193,11 @@ graphics.assets = SimpleNamespace(sprites=_sprites)
   `);
 
   // Now set proper initial state AFTER clear, but BEFORE user code
-  // This ensures old ticks (if any) will see -999 and return
+  // This ensures old ticks (if any) will see a new generation and return
   await p.runPythonAsync(`
 graphics._running = False
 graphics._stop_requested = False
-graphics._loop_generation = graphics._loop_generation + 1
-graphics._every_handlers = {}
-graphics._key_handlers = {}
-graphics._mouse_down = False
-graphics._mouse_clicked = False
-graphics._mouse_released = False
-graphics._keys_pressed = set()
-graphics._keys_released = set()
-graphics._frame_count = 0
+graphics._reset_run_state()
   `);
 
   const code = files[entry] ?? "";

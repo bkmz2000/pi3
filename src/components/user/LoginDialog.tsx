@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useUser } from '../../state/useUser';
 import { useThemeStore } from '../../state/useTheme';
+import { getConfig, type Config } from '../../state/api';
 import { Icon } from '../Icons';
 
 interface LoginDialogProps {
@@ -22,8 +23,17 @@ export function LoginDialog({ open, onClose }: LoginDialogProps) {
   const [role, setRole] = useState<'student' | 'teacher'>('student');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [config, setConfig] = useState<Config | null>(null);
+
+  useEffect(() => {
+    if (open) {
+      getConfig().then(setConfig).catch(() => setConfig({ allowPasswordAuth: false }));
+    }
+  }, [open]);
 
   if (!open) return null;
+
+  const allowPasswordAuth = config?.allowPasswordAuth ?? false;
 
   const switchTab = (next: Tab) => {
     setTab(next);
@@ -129,32 +139,34 @@ export function LoginDialog({ open, onClose }: LoginDialogProps) {
         </div>
 
         {/* Tab bar */}
-        <div style={{
-          display: 'grid', gridTemplateColumns: '1fr 1fr',
-          padding: '10px 12px 0',
-          gap: 4,
-          borderBottom: `1px solid ${theme.panelBorder}`,
-        }}>
-          {([
-            { id: 'signin' as Tab, label: t('auth.signIn') },
-            { id: 'signup' as Tab, label: t('auth.signUp') },
-          ]).map((m) => (
-            <button
-              key={m.id}
-              type="button"
-              onClick={() => switchTab(m.id)}
-              style={{
-                all: 'unset', cursor: 'pointer', textAlign: 'center',
-                padding: '8px 0', fontSize: 13, fontWeight: 600,
-                color: tab === m.id ? theme.panelTxt : theme.panelTxtMute,
-                borderBottom: `2px solid ${tab === m.id ? theme.accent : 'transparent'}`,
-                transition: 'all 0.15s',
-              }}
-            >
-              {m.label}
-            </button>
-          ))}
-        </div>
+        {allowPasswordAuth && (
+          <div style={{
+            display: 'grid', gridTemplateColumns: '1fr 1fr',
+            padding: '10px 12px 0',
+            gap: 4,
+            borderBottom: `1px solid ${theme.panelBorder}`,
+          }}>
+            {([
+              { id: 'signin' as Tab, label: t('auth.signIn') },
+              { id: 'signup' as Tab, label: t('auth.signUp') },
+            ]).map((m) => (
+              <button
+                key={m.id}
+                type="button"
+                onClick={() => switchTab(m.id)}
+                style={{
+                  all: 'unset', cursor: 'pointer', textAlign: 'center',
+                  padding: '8px 0', fontSize: 13, fontWeight: 600,
+                  color: tab === m.id ? theme.panelTxt : theme.panelTxtMute,
+                  borderBottom: `2px solid ${tab === m.id ? theme.accent : 'transparent'}`,
+                  transition: 'all 0.15s',
+                }}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Form body */}
         <form
@@ -162,7 +174,7 @@ export function LoginDialog({ open, onClose }: LoginDialogProps) {
           style={{ padding: '18px 22px 22px', display: 'flex', flexDirection: 'column', gap: 14 }}
         >
           {/* Role chooser (signup only) */}
-          {isSignUp && (
+          {allowPasswordAuth && isSignUp && (
             <div>
               <div style={{ fontSize: 11.5, fontWeight: 600, color: theme.panelTxtMute, marginBottom: 8 }}>
                 {t('auth.role')}
@@ -170,7 +182,6 @@ export function LoginDialog({ open, onClose }: LoginDialogProps) {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                 {([
                   { id: 'student' as const, icon: 'folder' as const, title: t('auth.roleStudent'), sub: t('auth.studentSub') },
-                  { id: 'teacher' as const, icon: 'sparkle' as const, title: t('auth.roleTeacher'), sub: t('auth.teacherSub') },
                 ]).map((r) => {
                   const on = role === r.id;
                   const c = roleColors[r.id];
@@ -238,54 +249,51 @@ export function LoginDialog({ open, onClose }: LoginDialogProps) {
           )}
 
           {/* Username */}
-          <div>
-            <label style={{ display: 'block', marginBottom: 5, fontSize: 12, fontWeight: 600, color: theme.panelTxtMute }}>
-              {t('auth.yourName')}
-            </label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder={t('auth.enterYourName')}
-              disabled={loading}
-              autoFocus
-              style={inputStyle}
-            />
-          </div>
+          {allowPasswordAuth && (
+            <div>
+              <label style={{ display: 'block', marginBottom: 5, fontSize: 12, fontWeight: 600, color: theme.panelTxtMute }}>
+                {t('auth.yourName')}
+              </label>
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder={t('auth.enterYourName')}
+                disabled={loading}
+                autoFocus
+                style={inputStyle}
+              />
+            </div>
+          )}
 
           {/* Password */}
-          <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 5 }}>
-              <label style={{ fontSize: 12, fontWeight: 600, color: theme.panelTxtMute }}>
-                {t('auth.password')}
-              </label>
-              {!isSignUp && (
-                <button
-                  type="button"
-                  onClick={() => console.warn('[pi3] Forgot password not implemented yet')}
-                  style={{
-                    all: 'unset', cursor: 'pointer',
-                    fontSize: 11.5, color: theme.accent, fontWeight: 600,
-                  }}
-                >
-                  {t('auth.forgotPassword')}
-                </button>
+          {allowPasswordAuth && (
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 5 }}>
+                <label style={{ fontSize: 12, fontWeight: 600, color: theme.panelTxtMute }}>
+                  {t('auth.password')}
+                </label>
+                {!isSignUp && (
+                  <span style={{ fontSize: 11.5, color: theme.panelTxtMute, fontWeight: 500, opacity: 0.5 }}>
+                    {t('auth.forgotPassword')}
+                  </span>
+                )}
+              </div>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder={isSignUp ? t('auth.createPassword') : t('auth.enterPassword')}
+                disabled={loading}
+                style={inputStyle}
+              />
+              {isSignUp && (
+                <div style={{ fontSize: 11, color: theme.panelTxtMute, marginTop: 5 }}>
+                  {t('auth.passwordHint')}
+                </div>
               )}
             </div>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder={isSignUp ? t('auth.createPassword') : t('auth.enterPassword')}
-              disabled={loading}
-              style={inputStyle}
-            />
-            {isSignUp && (
-              <div style={{ fontSize: 11, color: theme.panelTxtMute, marginTop: 5 }}>
-                {t('auth.passwordHint')}
-              </div>
-            )}
-          </div>
+          )}
 
           {/* Error */}
           {error && (
@@ -325,7 +333,7 @@ export function LoginDialog({ open, onClose }: LoginDialogProps) {
           <div style={{ textAlign: 'center', fontSize: 12, color: theme.panelTxtMute }}>
             {isSignUp ? (
               <>
-                {t('auth.switchToSignIn').split('?')[0]}?{' '}
+                {t('auth.switchToSignInQuestion')}{' '}
                 <button
                   type="button"
                   onClick={() => switchTab('signin')}
@@ -336,7 +344,7 @@ export function LoginDialog({ open, onClose }: LoginDialogProps) {
               </>
             ) : (
               <>
-                {t('auth.switchToSignUp').split('?')[0]}?{' '}
+                {t('auth.switchToSignUpQuestion')}{' '}
                 <button
                   type="button"
                   onClick={() => switchTab('signup')}

@@ -5,7 +5,7 @@ import session from 'express-session';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { initDb } from './db/index.js';
-import usersRouter from './routes/users.js';
+import { createUsersRouter } from './routes/users.js';
 import projectsRouter from './routes/projects.js';
 import authRouter from './routes/auth.js';
 import { createGroupsRouter } from './routes/groups.js';
@@ -13,12 +13,47 @@ import { createHelpRequestsRouter } from './routes/help-requests.js';
 
 const PORT = process.env.PORT || 3001;
 const DIST_DIR = process.env.DIST_DIR || join(dirname(fileURLToPath(import.meta.url)), '../dist');
+const ALLOW_PASSWORD_AUTH = process.env.ALLOW_PASSWORD_AUTH === 'true';
+
+// Derive CORS allowed origins from APP_BASE_URL and environment
+const DEFAULT_BASE_URL = process.env.NODE_ENV === 'production' ? 'https://pi3.sys5.ru' : 'http://localhost:3001';
+const APP_BASE_URL = process.env.APP_BASE_URL || DEFAULT_BASE_URL;
+const ALLOWED_ORIGINS = [APP_BASE_URL];
+// Also allow localhost variants in development
+if (process.env.NODE_ENV !== 'production') {
+  ALLOWED_ORIGINS.push('http://localhost:5173', 'http://localhost:3001');
+}
+
+// Validate SESSION_SECRET in production
+if (process.env.NODE_ENV === 'production') {
+  const sessionSecret = process.env.SESSION_SECRET;
+  if (!sessionSecret || sessionSecret === 'dev-secret-change-in-production') {
+    throw new Error(
+      'FATAL: SESSION_SECRET is not set or is the default dev value. ' +
+      'Set the SESSION_SECRET environment variable to a strong random secret before deploying to production.'
+    );
+  }
+}
 
 const app = express();
 
 app.set('trust proxy', 1);
 
-app.use(cors({ origin: true, credentials: true }));
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) {
+      callback(null, true);
+      return;
+    }
+    if (ALLOWED_ORIGINS.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+}));
 app.use(cookieParser());
 app.use(express.json({ limit: '10mb' }));
 app.use(session({
@@ -41,13 +76,17 @@ app.use((req, res, next) => {
 initDb();
 
 app.use('/api/auth', authRouter);
-app.use('/api/users', usersRouter);
+app.use('/api/users', createUsersRouter(ALLOW_PASSWORD_AUTH));
 app.use('/api/projects', projectsRouter);
 app.use('/api/groups', createGroupsRouter());
 app.use('/api/help-requests', createHelpRequestsRouter());
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: Date.now() });
+});
+
+app.get('/api/config', (req, res) => {
+  res.json({ allowPasswordAuth: ALLOW_PASSWORD_AUTH });
 });
 
 app.use(express.static(DIST_DIR));

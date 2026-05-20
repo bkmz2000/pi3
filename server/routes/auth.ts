@@ -2,12 +2,12 @@ import { Router, Request, Response } from 'express';
 import { randomBytes, createHmac, timingSafeEqual } from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import { getDb } from '../db/index.js';
-import { optionalAuth } from '../middleware/auth.js';
+import { authMiddleware, optionalAuth, regenerateSession } from '../middleware/auth.js';
 
 const router = Router();
 
 function isSafeReturnUrl(url: string): boolean {
-  return url.startsWith('/') && !url.startsWith('//');
+  return url.startsWith('/') && !url.startsWith('//') && !url.includes('\\');
 }
 
 const DOMAIN = process.env.LOGINUS_DOMAIN || 'https://loginus.ru';
@@ -17,6 +17,7 @@ const DEFAULT_BASE_URL = process.env.NODE_ENV === 'production' ? 'https://pi3.sy
 const APP_BASE_URL = process.env.APP_BASE_URL || DEFAULT_BASE_URL;
 const REDIRECT_URI = `${APP_BASE_URL}/api/auth/callback`;
 const TEACHER_ROLE = process.env.LOGINUS_TEACHER_ROLE || 'teacher';
+// Use SESSION_SECRET for state signing (validated at bootstrap)
 const STATE_SECRET = process.env.SESSION_SECRET || 'dev-secret-change-in-production';
 const IS_PROD = process.env.NODE_ENV === 'production';
 
@@ -27,6 +28,55 @@ interface LoginusUserinfo {
   lastName?: string;
   preferred_username?: string;
   globalRoles?: { name: string }[];
+}
+
+interface LoginusTokenResponse {
+  access_token: string;
+  id_token?: string;
+}
+
+class AuthProviderError extends Error {
+  constructor(public code: string, message: string) {
+    super(message);
+    this.name = 'AuthProviderError';
+  }
+}
+
+function parseLoginusToken(raw: unknown): LoginusTokenResponse {
+  const data = typeof raw === 'object' && raw !== null ? (raw as any) : {};
+  const payload = data.data ?? data;
+
+  if (typeof payload.access_token !== 'string' || payload.access_token.length === 0) {
+    throw new AuthProviderError('token', 'Missing or invalid access_token');
+  }
+
+  return {
+    access_token: payload.access_token,
+    id_token: typeof payload.id_token === 'string' ? payload.id_token : undefined,
+  };
+}
+
+function parseLoginusUserinfo(raw: unknown): LoginusUserinfo {
+  const data = typeof raw === 'object' && raw !== null ? (raw as any) : {};
+  const payload = data.data ?? data;
+
+  if (typeof payload.id !== 'string' || payload.id.length === 0) {
+    throw new AuthProviderError('userinfo', 'Missing or invalid id');
+  }
+
+  return {
+    id: payload.id,
+    email: typeof payload.email === 'string' ? payload.email : undefined,
+    firstName: typeof payload.firstName === 'string' ? payload.firstName : undefined,
+    lastName: typeof payload.lastName === 'string' ? payload.lastName : undefined,
+    preferred_username: typeof payload.preferred_username === 'string' ? payload.preferred_username : undefined,
+    globalRoles: Array.isArray(payload.globalRoles) ? payload.globalRoles : undefined,
+  };
+}
+
+function mapProviderRoleToAppRole(userinfo: LoginusUserinfo): 'student' | 'teacher' {
+  const isTeacher = userinfo.globalRoles?.some((r) => r.name === TEACHER_ROLE) ?? false;
+  return isTeacher ? 'teacher' : 'student';
 }
 
 function signState(state: string): string {
@@ -111,7 +161,8 @@ router.get('/callback', async (req: Request, res: Response): Promise<void> => {
     return;
   }
 
-  const returnUrl = req.cookies?.oauth_return || '/';
+  const cookieReturnUrl = req.cookies?.oauth_return;
+  const returnUrl = (cookieReturnUrl && isSafeReturnUrl(cookieReturnUrl)) ? cookieReturnUrl : '/';
   res.clearCookie('oauth_return', { path: '/api/auth/callback' });
 
   // Exchange code for tokens
@@ -134,13 +185,17 @@ router.get('/callback', async (req: Request, res: Response): Promise<void> => {
       res.redirect('/?auth_error=token');
       return;
     }
-    const body = await tokenRes.json() as { access_token?: string; id_token?: string; data?: { access_token?: string; id_token?: string } };
-    const tokens = body.data ?? body;
-    access_token = tokens.access_token!;
-    id_token = tokens.id_token;
+    const tokenData = parseLoginusToken(await tokenRes.json());
+    access_token = tokenData.access_token;
+    id_token = tokenData.id_token;
   } catch (err) {
-    console.error('Token exchange error:', err);
-    res.redirect('/?auth_error=token');
+    if (err instanceof AuthProviderError) {
+      console.error(`Token exchange error (${err.code}):`, err.message);
+      res.redirect(`/?auth_error=${err.code}`);
+    } else {
+      console.error('Token exchange error:', err);
+      res.redirect('/?auth_error=token');
+    }
     return;
   }
 
@@ -155,16 +210,19 @@ router.get('/callback', async (req: Request, res: Response): Promise<void> => {
       res.redirect('/?auth_error=userinfo');
       return;
     }
-    const userinfoBody = await userinfoRes.json() as LoginusUserinfo & { data?: LoginusUserinfo };
-    userinfo = userinfoBody.data ?? userinfoBody;
+    userinfo = parseLoginusUserinfo(await userinfoRes.json());
   } catch (err) {
-    console.error('Userinfo fetch error:', err);
-    res.redirect('/?auth_error=userinfo');
+    if (err instanceof AuthProviderError) {
+      console.error(`Userinfo fetch error (${err.code}):`, err.message);
+      res.redirect(`/?auth_error=${err.code}`);
+    } else {
+      console.error('Userinfo fetch error:', err);
+      res.redirect('/?auth_error=userinfo');
+    }
     return;
   }
 
-  const isTeacher = userinfo.globalRoles?.some((r) => r.name === TEACHER_ROLE) ?? false;
-  const role = isTeacher ? 'teacher' : 'student';
+  const role = mapProviderRoleToAppRole(userinfo);
   const name = userinfo.preferred_username
     || [userinfo.firstName, userinfo.lastName].filter(Boolean).join(' ')
     || userinfo.email
@@ -192,21 +250,24 @@ router.get('/callback', async (req: Request, res: Response): Promise<void> => {
     `).run(userId, api_token, name, role, userinfo.id, now, now);
   }
 
-  if (id_token) req.session.idToken = id_token;
-  req.session.userId = userId;
-
-  res.redirect(returnUrl);
+  try {
+    await regenerateSession(req);
+    if (id_token) req.session.idToken = id_token;
+    req.session.userId = userId;
+    res.redirect(returnUrl);
+  } catch (err) {
+    console.error('Session regeneration error:', err);
+    res.redirect('/?auth_error=session');
+  }
 });
 
 // POST /api/auth/logout
-router.post('/logout', optionalAuth, (req: Request, res: Response): void => {
+router.post('/logout', authMiddleware, (req: Request, res: Response): void => {
   const idToken = req.session.idToken;
   const db = getDb();
-  if (req.user?.id) {
-    const newToken = uuidv4().replace(/-/g, '') + uuidv4().replace(/-/g, '');
-    db.prepare('UPDATE users SET api_token = ?, updated_at = ? WHERE id = ?')
-      .run(newToken, Date.now(), req.user.id);
-  }
+  const newToken = uuidv4().replace(/-/g, '') + uuidv4().replace(/-/g, '');
+  db.prepare('UPDATE users SET api_token = ?, updated_at = ? WHERE id = ?')
+    .run(newToken, Date.now(), req.user!.id);
 
   req.session.destroy(() => {
     res.clearCookie('connect.sid');

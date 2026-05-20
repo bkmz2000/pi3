@@ -278,3 +278,11 @@ export async function inviteToGroup(groupId: string, username: string): Promise<
 export async function removeFromGroup(groupId: string, userId: string): Promise<void> {
   return api.delete<void>(`/api/groups/${groupId}/members/${userId}`);
 }
+
+export interface Config {
+  allowPasswordAuth: boolean;
+}
+
+export async function getConfig(): Promise<Config> {
+  return api.get<Config>('/api/config');
+}

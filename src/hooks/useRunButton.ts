@@ -39,8 +39,10 @@ export function useRunButton(options: UseRunButtonOptions = {}) {
       
       // Save if there are dirty files
       if (dirtyFiles.size > 0) {
-        saveCurrentProject();
-        markClean();
+        const success = await saveCurrentProject();
+        if (success) {
+          markClean();
+        }
       }
       
       clear();  // Clear previous output

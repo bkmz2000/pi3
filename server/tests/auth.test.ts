@@ -8,7 +8,7 @@ import Database from 'better-sqlite3';
 import { createTestDb, closeTestDb } from './setup.js';
 import { v4 as uuidv4 } from 'uuid';
 
-import usersRouter from '../routes/users.js';
+import { createUsersRouter } from '../routes/users.js';
 import authRouter from '../routes/auth.js';
 
 let app: express.Application;
@@ -26,7 +26,7 @@ beforeAll(() => {
     saveUninitialized: false,
     cookie: { httpOnly: true, secure: false, sameSite: 'lax' },
   }));
-  app.use('/api/users', usersRouter);
+  app.use('/api/users', createUsersRouter(true));
   app.use('/api/auth', authRouter);
 });
 
@@ -162,5 +162,41 @@ describe('Bearer token invalidation on logout', () => {
       .get('/api/users/me')
       .set('Authorization', `Bearer ${api_token}`);
     expect(meResAfter.status).toBe(401);
+  });
+});
+
+// 8.5 — Logout requires authenticated session (CSRF defense)
+describe('Session-gated logout (CSRF defense)', () => {
+  it('logout without session is rejected (401)', async () => {
+    // Request logout without any authentication
+    const res = await request(app)
+      .post('/api/auth/logout');
+
+    expect(res.status).toBe(401);
+  });
+
+  it('logout with Bearer token rotates token even without session', async () => {
+    const { api_token, id } = makeUser();
+
+    // Get old token from database
+    const oldTokenRes = db.prepare('SELECT api_token FROM users WHERE id = ?').get(id) as { api_token: string };
+    const oldToken = oldTokenRes.api_token;
+
+    // Logout using Bearer token
+    const logoutRes = await request(app)
+      .post('/api/auth/logout')
+      .set('Authorization', `Bearer ${api_token}`);
+
+    expect(logoutRes.status).toBe(200);
+
+    // Token should be rotated in database
+    const newTokenRes = db.prepare('SELECT api_token FROM users WHERE id = ?').get(id) as { api_token: string };
+    expect(newTokenRes.api_token).not.toBe(oldToken);
+
+    // Old token should be rejected
+    const meRes = await request(app)
+      .get('/api/users/me')
+      .set('Authorization', `Bearer ${api_token}`);
+    expect(meRes.status).toBe(401);
   });
 });

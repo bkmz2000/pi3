@@ -17,6 +17,7 @@ import { PACK_ASSET_LIST } from "./assets";
 import { projectStorage } from "../utils/storage";
 import { importProjectFromFile as importZipFile } from "../utils/zip";
 import { getProjects, createProject as apiCreateProject, updateProject as apiUpdateProject, deleteProject as apiDeleteProject, saveProjectContent, Project as ApiProject } from "./api";
+import { toEditorProject } from "./projectNormalization";
 
 export type PanelId = "projects" | "assets" | "settings" | "docs" | null;
 
@@ -26,6 +27,9 @@ export type Project = {
   currentFile?: string;
   assets: Record<string, string>;
 };
+
+// Re-export adapter for convenience
+export { toEditorProject };
 
 function pickAssets(...names: string[]): Record<string, string> {
   const byName = Object.fromEntries(
@@ -106,7 +110,7 @@ export const useEditor = create<EditorState>((set) => ({
 
   changeFile: (name, text) =>
     set((s) => {
-      // Check if we're editing an example project (no currentProjectId)
+      // Clone example on first edit (copy-on-write)
       if (s.currentProjectId === null) {
         const exampleName = Object.keys(Examples).find(
           (key) => Examples[key] === s.project,
@@ -119,7 +123,8 @@ export const useEditor = create<EditorState>((set) => ({
           const dirty = new Set(s.dirtyFiles);
           dirty.add(name);
 
-          return { project, dirtyFiles: dirty };
+          // Mark as cloned session so re-opens show fresh example
+          return { project, dirtyFiles: dirty, currentProjectId: `__example_session_${exampleName}` };
         }
       }
 
@@ -178,7 +183,9 @@ export const useEditor = create<EditorState>((set) => ({
     set((s) => {
       const assets = { ...(s.project.assets ?? {}) };
       assets[name] = url;
-      return { project: { ...s.project, assets } };
+      const dirty = new Set(s.dirtyFiles);
+      dirty.add("*assets*");
+      return { project: { ...s.project, assets }, dirtyFiles: dirty };
     }),
 
   toggleAsset: (name, url) =>
@@ -234,6 +241,7 @@ type IdeState = {
   enableAutocomplete: boolean;
   consoleOnRight: boolean;
   loadingProjectContent: boolean;
+  saveError: string | null;
 
   setActivePanel: (panel: PanelId) => void;
   togglePanel: (panel: Exclude<PanelId, null>) => void;
@@ -243,9 +251,10 @@ type IdeState = {
   deleteUserProject: (id: string) => Promise<void>;
   renameUserProject: (id: string, newName: string) => Promise<void>;
   forkExample: (exampleName: string, exampleProject: Project, newName?: string) => Promise<ApiProject>;
-  saveCurrentProject: () => Promise<void>;
+  saveCurrentProject: () => Promise<boolean>;
   downloadProject: (id: string) => Promise<void>;
   importProjectFromFile: (file: File) => Promise<ApiProject>;
+  setSaveError: (error: string | null) => void;
   setShowHitboxes: (show: boolean) => void;
   setShowConsoleOnRun: (show: boolean) => void;
   setEnableLinting: (enable: boolean) => void;
@@ -264,6 +273,7 @@ export const useIde = create<IdeState>((set, get) => ({
   enableAutocomplete: localStorage.getItem("pi3_enableAutocomplete") !== "false",
   consoleOnRight: localStorage.getItem("pi3_consoleOnRight") === "true",
   loadingProjectContent: false,
+  saveError: null,
 
   setActivePanel: (panel) => set({ activePanel: panel }),
   togglePanel: (panel) =>
@@ -353,7 +363,7 @@ export const useIde = create<IdeState>((set, get) => ({
 
   saveCurrentProject: async () => {
     const { currentProjectId, project } = useEditor.getState();
-    if (!currentProjectId) return;
+    if (!currentProjectId) return false;
 
     try {
       await saveProjectContent(currentProjectId, {
@@ -370,11 +380,17 @@ export const useIde = create<IdeState>((set, get) => ({
             ? { ...p, files: project.files, assets: project.assets, updated_at: Date.now() }
             : p
         ),
+        saveError: null,
       });
+      return true;
     } catch (error) {
-      console.error("Failed to save project:", error);
+      const errorMessage = error instanceof Error ? error.message : "Failed to save project";
+      set({ saveError: errorMessage });
+      return false;
     }
   },
+
+  setSaveError: (error) => set({ saveError: error }),
 
   downloadProject: async (id: string) => {
     await projectStorage.downloadProjectZip(id);

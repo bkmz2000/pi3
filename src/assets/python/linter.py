@@ -22,6 +22,7 @@ LINE_LENGTH = 100
 INT_LIKE = {"int"}
 NUM_LIKE = {"int", "float"}
 STR_LIKE = {"str"}
+LIST_LIKE = {"list"}
 
 
 def _get_line(code: str, lineno: int) -> str:
@@ -419,6 +420,8 @@ def _check_binary_op_types(code: str, tree: ast.Module) -> list[dict]:
                     if not (
                         (left_type in STR_LIKE and right_type in INT_LIKE)
                         or (left_type in INT_LIKE and right_type in STR_LIKE)
+                        or (left_type in LIST_LIKE and right_type in INT_LIKE)
+                        or (left_type in INT_LIKE and right_type in LIST_LIKE)
                     ):
                         self.diagnostics.append(
                             _make_diagnostic(
@@ -908,7 +911,10 @@ def _check_type_reassignment(code: str, tree: ast.Module) -> list[dict]:
                 if fname in _GRAPHICS_CONSTRUCTORS:
                     return fname
             elif isinstance(node.func, ast.Attribute):
-                return node.func.attr
+                attr_name = node.func.attr
+                if attr_name in _GRAPHICS_CONSTRUCTORS:
+                    return attr_name
+                return None
         elif isinstance(node, ast.Name):
             return var_types.get(node.id, (None, None))[0]
         return None

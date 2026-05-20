@@ -26,6 +26,8 @@ import { useUser } from "./state/useUser";
 import { useTranslation } from "react-i18next";
 import ForkDialog from "./components/dialogs/ForkDialog";
 import { useThemeStore } from "./state/useTheme";
+import { ToastContainer } from "./components/ToastContainer";
+import { SaveErrorIndicator } from "./components/SaveErrorIndicator";
 import { githubLight, githubDark } from "@uiw/codemirror-theme-github";
 
 function SessionChecker() {
@@ -167,7 +169,7 @@ function AppInner() {
     [currentFile, changeFile],
   );
 
-  const handleSave = useCallback((e: KeyboardEvent) => {
+  const handleSave = useCallback(async (e: KeyboardEvent) => {
     if ((e.ctrlKey || e.metaKey) && e.key === "s") {
       e.preventDefault();
 
@@ -177,8 +179,10 @@ function AppInner() {
       }
 
       if (dirtyFiles.size > 0 && currentProjectId) {
-        saveCurrentProject();
-        markClean();
+        const success = await saveCurrentProject();
+        if (success) {
+          markClean();
+        }
       }
     }
   }, [currentProjectId, dirtyFiles, saveCurrentProject, markClean]);
@@ -387,6 +391,8 @@ export default function App() {
         <Route path="/ide/:projectId" element={<AppInner />} />
         <Route path="/" element={<AppInner />} />
       </Routes>
+      <SaveErrorIndicator />
+      <ToastContainer />
     </>
   );
 }

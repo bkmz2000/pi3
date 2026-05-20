@@ -97,19 +97,22 @@ export function UserMenu() {
           icon: <Icon name="sparkle" size={14} color={theme.runBg} />,
           label: t('auth.teacherDashboard'),
           highlighted: true,
-          onClick: () => { console.warn('[pi3] Teacher dashboard not implemented yet'); setOpen(false); },
+          comingSoon: false,
+          onClick: () => { navigate('/teacher'); setOpen(false); },
         },
         {
           icon: <Icon name="folder" size={14} color={theme.panelTxtMute} />,
           label: t('auth.myProjects'),
           highlighted: false,
+          comingSoon: false,
           onClick: () => { navigate('/projects'); setOpen(false); },
         },
         {
           icon: <Icon name="users" size={14} color={theme.panelTxtMute} />,
           label: t('auth.myClasses'),
           highlighted: false,
-          onClick: () => { console.warn('[pi3] My classes not implemented yet'); setOpen(false); },
+          comingSoon: true,
+          onClick: () => {},
         },
       ]
     : [
@@ -117,19 +120,22 @@ export function UserMenu() {
           icon: <Icon name="folder" size={14} color={theme.panelTxtMute} />,
           label: t('auth.myProjects'),
           highlighted: false,
+          comingSoon: false,
           onClick: () => { navigate('/projects'); setOpen(false); },
         },
         {
           icon: <HandIcon color={theme.panelTxtMute} />,
           label: t('auth.askForHelp'),
           highlighted: false,
-          onClick: () => { console.warn('[pi3] Ask for help not implemented yet'); setOpen(false); },
+          comingSoon: true,
+          onClick: () => {},
         },
         {
           icon: <Icon name="users" size={14} color={theme.panelTxtMute} />,
           label: t('auth.myClass'),
           highlighted: false,
-          onClick: () => { console.warn('[pi3] My class not implemented yet'); setOpen(false); },
+          comingSoon: true,
+          onClick: () => {},
         },
       ];
 
@@ -202,19 +208,29 @@ export function UserMenu() {
           {menuItems.map((item, i) => (
             <button
               key={i}
-              onClick={item.onClick}
+              onClick={item.comingSoon ? undefined : item.onClick}
+              disabled={item.comingSoon}
               style={{
-                all: 'unset', cursor: 'pointer',
+                all: 'unset', cursor: item.comingSoon ? 'default' : 'pointer',
                 display: 'flex', alignItems: 'center', gap: 10,
                 width: '100%', boxSizing: 'border-box',
                 padding: '8px 10px', borderRadius: theme.radiusButton + 2,
                 background: item.highlighted ? highlightBg : 'transparent',
-                color: item.highlighted ? highlightColor : theme.panelTxt,
+                color: item.comingSoon ? theme.panelTxtMute : (item.highlighted ? highlightColor : theme.panelTxt),
                 fontSize: 13, fontWeight: item.highlighted ? 600 : 500,
+                opacity: item.comingSoon ? 0.55 : 1,
               }}
             >
               {item.icon}
-              <span>{item.label}</span>
+              <span style={{ flex: 1 }}>{item.label}</span>
+              {item.comingSoon && (
+                <span style={{
+                  fontSize: 10, fontWeight: 600, padding: '1px 6px', borderRadius: 99,
+                  background: theme.railActiveBg, color: theme.panelTxtMute,
+                }}>
+                  {t('teacher.comingSoon')}
+                </span>
+              )}
             </button>
           ))}
 

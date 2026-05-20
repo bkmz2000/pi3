@@ -10,6 +10,7 @@ import type { KonvaEventObject } from "konva/lib/Node";
 import type Konva from "konva";
 import { useThemeStore, type Theme } from "./state/useTheme";
 import { Icon } from "./components/Icons";
+import { ThemedDialog } from "./components/ThemedDialog";
 
 // ── Types ──────────────────────────────────
 type ShapeBase = { id: string; fill: string; stroke: string; strokeWidth: number; rotation: number; opacity?: number; lineCap?: string; lineJoin?: string; dash?: number[] };
@@ -206,6 +207,8 @@ export default function SpriteEditor({ open, onClose, onSave, size = 64, initial
   const [freehandStartPoint, setFreehandStartPoint] = useState<{ x: number; y: number } | null>(null);
   const [gridOn, setGridOn] = useState(false);
   const [gridSize, setGridSize] = useState(8);
+  const [textPrompt, setTextPrompt] = useState<{ x: number; y: number; base: ShapeBase } | null>(null);
+  const [textInput, setTextInput] = useState('');
 
   const selectedId = selectedIds.length === 1 ? selectedIds[0]! : null;
   const selectedShape = selectedId ? (shapes.find(s => s.id === selectedId) ?? null) : null;
@@ -235,8 +238,7 @@ export default function SpriteEditor({ open, onClose, onSave, size = 64, initial
         setOpacity(shape.opacity ?? 1);
       }
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedIds]);
+  }, [selectedIds, shapes]);
 
   const commit = useCallback((next: ShapeData[]) => {
     setHistory(h => [...h, shapesRef.current]);
@@ -510,7 +512,12 @@ export default function SpriteEditor({ open, onClose, onSave, size = 64, initial
   }, []);
 
   useEffect(() => {
-    if (initialDataUrl && open) setTimeout(() => loadImageToShapes(initialDataUrl), 0);
+    if (!initialDataUrl || !open) return;
+    let isMounted = true;
+    loadImageToShapes(initialDataUrl).then(() => {
+      if (!isMounted) return;
+    });
+    return () => { isMounted = false; };
   }, [initialDataUrl, open, loadImageToShapes]);
 
   const snapGrid = (v: number) => gridOn ? Math.round(v / gridSize) * gridSize : v;
@@ -539,8 +546,8 @@ export default function SpriteEditor({ open, onClose, onSave, size = 64, initial
     const { x, y } = getPos(e);
     const base: ShapeBase = { id: uid(), fill, stroke, strokeWidth, rotation: 0, opacity };
     if (tool === "text") {
-      const text = window.prompt(t('spriteEditor.enterText')) ?? "";
-      if (text) commit([...shapes, { ...base, kind: "text", x, y, text, fontSize: 10 }]);
+      setTextInput('');
+      setTextPrompt({ x, y, base });
       return;
     }
     setIsDrawing(true);
@@ -874,7 +881,41 @@ export default function SpriteEditor({ open, onClose, onSave, size = 64, initial
 
   const selectedIdx = selectedId ? shapes.findIndex(s => s.id === selectedId) : -1;
 
+  const handleTextCommit = () => {
+    if (textPrompt && textInput.trim()) {
+      commit([...shapes, { ...textPrompt.base, kind: 'text', x: textPrompt.x, y: textPrompt.y, text: textInput.trim(), fontSize: 10 }]);
+    }
+    setTextPrompt(null);
+  };
+
   return (
+    <>
+    {textPrompt && (
+      <ThemedDialog title={t('spriteEditor.enterText')} onClose={() => setTextPrompt(null)}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <input
+            autoFocus
+            value={textInput}
+            onChange={e => setTextInput(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') handleTextCommit(); else if (e.key === 'Escape') setTextPrompt(null); }}
+            style={{
+              width: '100%', boxSizing: 'border-box',
+              background: theme.surface, border: `1px solid ${theme.panelBorder}`,
+              borderRadius: 6, padding: '8px 10px',
+              color: theme.panelTxt, fontSize: 13, fontFamily: theme.fontUI, outline: 'none',
+            }}
+          />
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+            <button type="button" onClick={() => setTextPrompt(null)} style={{ all: 'unset', cursor: 'pointer', padding: '7px 14px', borderRadius: 6, background: theme.railActiveBg, color: theme.panelTxt, fontSize: 13 }}>
+              {t('teacher.cancel')}
+            </button>
+            <button type="button" onClick={handleTextCommit} style={{ all: 'unset', cursor: 'pointer', padding: '7px 16px', borderRadius: 6, background: theme.runBg, color: theme.runTxt, fontSize: 13, fontWeight: 600 }}>
+              OK
+            </button>
+          </div>
+        </div>
+      </ThemedDialog>
+    )}
     <div style={{
       position: "fixed", inset: 0, zIndex: 50,
       display: "flex", alignItems: "center", justifyContent: "center",
@@ -1175,5 +1216,6 @@ export default function SpriteEditor({ open, onClose, onSave, size = 64, initial
         </div>
       </div>
     </div>
+    </>
   );
 }

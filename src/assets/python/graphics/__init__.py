@@ -812,6 +812,24 @@ def _inject_event(kind, data):
 # === CLEAR ===
 
 
+def _reset_run_state():
+    """Reset state between program runs while maintaining monotonic loop generation."""
+    global frame_count, _loop_generation
+    global _mouse_x, _mouse_y, _mouse_down, _mouse_clicked, _mouse_released
+    global _keys_down, _keys_pressed, _keys_released
+
+    frame_count = 0
+    _loop_generation += 1
+    _mouse_x = 0
+    _mouse_y = 0
+    _mouse_down = False
+    _mouse_clicked = False
+    _mouse_released = False
+    _keys_down = set()
+    _keys_pressed = set()
+    _keys_released = set()
+
+
 def _clear():
     global _draw_commands, _pending_size
     global frame_count, _stop_requested, _running, _loop_generation

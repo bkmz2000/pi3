@@ -14,6 +14,7 @@ import { getProject } from "./state/api";
 import Backdrop from "./components/Backdrop";
 import NewProjectDialog from "./components/dialogs/NewProjectDialog";
 import ImportDialog from "./components/dialogs/ImportDialog";
+import { ThemedDialog } from "./components/ThemedDialog";
 import {
   Icon,
   type IconName,
@@ -123,6 +124,7 @@ export default function Rail() {
   const [editorOpen, setEditorOpen] = useState(false);
   const [showNewProjectDialog, setShowNewProjectDialog] = useState(false);
   const [showImportDialog, setShowImportDialog] = useState(false);
+  const [alertMsg, setAlertMsg] = useState<string | null>(null);
   const [editingAsset, setEditingAsset] = useState<{
     name: string;
     url: string;
@@ -161,8 +163,10 @@ export default function Rail() {
     if (currentProjectId === userProject.id) return;
 
     if (currentProjectId && dirtyFiles.size > 0) {
-      await saveCurrentProject();
-      markClean();
+      const success = await saveCurrentProject();
+      if (success) {
+        markClean();
+      }
     }
 
     // Fetch full project data — the list endpoint doesn't include files/assets
@@ -186,7 +190,7 @@ export default function Rail() {
       await downloadProject(id);
     } catch (error) {
       console.error("Failed to export project:", error);
-      alert(t('sideMenu.failedExport'));
+      setAlertMsg(t('sideMenu.failedExport'));
     }
   };
 
@@ -203,12 +207,13 @@ export default function Rail() {
       setShowImportDialog(false);
     } catch (error) {
       console.error("Failed to import project:", error);
-      alert(t('sideMenu.failedImport'));
+      setAlertMsg(t('sideMenu.failedImport'));
     }
   };
 
   const projectAssets = useEditor((s) => s.project.assets);
   const toggleAsset = useEditor((s) => s.toggleAsset);
+  const changeAsset = useEditor((s) => s.changeAsset);
   const addAssetInstance = useEditor((s) => s.addAssetInstance);
   const removeAsset = useEditor((s) => s.removeAsset);
 
@@ -217,6 +222,25 @@ export default function Rail() {
 
   return (
     <>
+      {alertMsg && (
+        <ThemedDialog title={t('sideMenu.close')} onClose={() => setAlertMsg(null)}>
+          <p style={{ margin: '0 0 16px', fontSize: 13, color: 'inherit' }}>{alertMsg}</p>
+          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <button
+              type="button"
+              onClick={() => setAlertMsg(null)}
+              style={{
+                all: 'unset', cursor: 'pointer',
+                padding: '7px 16px', borderRadius: 6,
+                background: theme.runBg, color: theme.runTxt,
+                fontSize: 13, fontWeight: 600,
+              }}
+            >
+              OK
+            </button>
+          </div>
+        </ThemedDialog>
+      )}
       {/* Rail */}
       <div
         style={{
@@ -402,21 +426,14 @@ export default function Rail() {
             const oldName = editingAsset?.name.replace(/\.svg$/i, '') || '';
 
             if (editingAsset && oldName !== cleanName) {
-              const newAssets = { ...projectAssets };
-              delete newAssets[editingAsset.name];
-              newAssets[cleanName + ".svg"] = dataUrl;
-              changeEditorCurrentProject(
-                { ...useEditor.getState().project, assets: newAssets },
-                currentProjectId || undefined,
-              );
+              // Renamed: remove old asset, add new asset
+              removeAsset(editingAsset.name);
+              changeAsset(cleanName + ".svg", dataUrl);
             } else if (editingAsset) {
-              const newAssets = { ...projectAssets };
-              newAssets[editingAsset.name] = dataUrl;
-              changeEditorCurrentProject(
-                { ...useEditor.getState().project, assets: newAssets },
-                currentProjectId || undefined,
-              );
+              // Updated: change existing asset
+              changeAsset(editingAsset.name, dataUrl);
             } else {
+              // New: toggle asset
               toggleAsset(cleanName + ".svg", dataUrl);
             }
             setEditorOpen(false);

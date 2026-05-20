@@ -7,6 +7,15 @@ export interface AuthUser {
   role: 'student' | 'teacher';
 }
 
+export function regenerateSession(req: Request): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    req.session.regenerate((err) => {
+      if (err) { reject(err); return; }
+      resolve();
+    });
+  });
+}
+
 declare module 'express' {
   interface Request {
     user?: AuthUser;

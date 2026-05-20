@@ -168,13 +168,6 @@ export default function TeacherProjectView() {
       .catch(() => {});
   }, [projectId, currentFile]);
 
-  // Sync comments into editor when ref becomes available
-  useEffect(() => {
-    if (editorRef.current?.view && comments.length > 0) {
-      editorRef.current.view.dispatch({ effects: setCommentsEffect.of(comments) });
-    }
-  });
-
   const handleLineSelect = useCallback((lineNum: number | null, y: number | null) => {
     setSelectedLine(lineNum);
     setAnchorY(y);

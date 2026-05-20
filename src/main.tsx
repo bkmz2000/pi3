@@ -3,7 +3,10 @@ import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import "./index.css";
 import "./i18n";
+import { initializeApp } from "./appInit";
 import App from "./App";
+
+initializeApp();
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

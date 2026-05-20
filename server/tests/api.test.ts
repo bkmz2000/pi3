@@ -7,7 +7,7 @@ import Database from 'better-sqlite3';
 import { createTestDb, closeTestDb } from './setup.js';
 import { v4 as uuidv4 } from 'uuid';
 
-import usersRouter from '../routes/users.js';
+import { createUsersRouter } from '../routes/users.js';
 import projectsRouter from '../routes/projects.js';
 
 let app: express.Application;
@@ -25,7 +25,7 @@ beforeAll(() => {
   app.use(cors());
   app.use(express.json());
   app.use(session({ secret: 'test-secret', resave: false, saveUninitialized: false }));
-  app.use('/api/users', usersRouter);
+  app.use('/api/users', createUsersRouter(true));
   app.use('/api/projects', projectsRouter);
 });
 

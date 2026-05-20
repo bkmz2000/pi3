@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { useIde, useEditor } from "../state/IdeState";
+import { useIde, useEditor, toEditorProject } from "../state/IdeState";
 import { getProjects, createProject, deleteProject as apiDeleteProject, getProject, Project as ApiProject } from "../state/api";
 
 export function useProjects() {
@@ -67,12 +67,7 @@ export function useProjects() {
     setApiError(null);
     try {
       const project = await getProject(id);
-      const editorProject = {
-        name: project.name,
-        files: project.files,
-        assets: project.assets,
-        currentFile: project.current_file,
-      };
+      const editorProject = toEditorProject(project);
       changeEditorCurrentProject(editorProject, id);
       setApiLoading(false);
       return project;
@@ -94,8 +89,9 @@ export function useProjects() {
 
   const handleForkExample = useCallback(async (exampleName: string) => {
     const exampleProject = projects[exampleName];
-    const forkedProject = await forkExample(exampleName, exampleProject);
-    changeEditorCurrentProject(forkedProject, forkedProject.id);
+    const forkedApiProject = await forkExample(exampleName, exampleProject);
+    const forkedProject = toEditorProject(forkedApiProject);
+    changeEditorCurrentProject(forkedProject, forkedApiProject.id);
   }, [projects, forkExample, changeEditorCurrentProject]);
 
   const handleNewProject = useCallback(async (name: string) => {
@@ -108,10 +104,8 @@ export function useProjects() {
     const firstUserProject = userProjects[0];
     if (firstUserProject) {
       const full = await getProject(firstUserProject.id);
-      changeEditorCurrentProject(
-        { files: full.files, assets: full.assets, currentFile: full.current_file },
-        full.id,
-      );
+      const editorProject = toEditorProject(full);
+      changeEditorCurrentProject(editorProject, full.id);
     } else {
       const firstExample = Object.keys(projects)[0];
       if (firstExample) {

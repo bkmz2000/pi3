@@ -18,6 +18,16 @@ export default {
   },
   testMatch: ['**/server/tests/**/*.test.ts'],
   collectCoverageFrom: ['server/**/*.ts'],
+  // Ratchet floor seeded at real measured actuals (2026-05-20). Server is the
+  // strongest-covered layer; this stops it silently regressing. Only moves UP.
+  coverageThreshold: {
+    global: {
+      branches: 50,
+      functions: 75,
+      lines: 60,
+      statements: 60,
+    },
+  },
   coverageDirectory: 'coverage/server',
   moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json', 'node'],
 };

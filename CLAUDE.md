@@ -17,6 +17,9 @@ npm run server
 # Build
 npm run build
 
+# Typecheck (no emit; app + server projects)
+npm run typecheck
+
 # Lint
 npm run lint
 
@@ -24,8 +27,14 @@ npm run lint
 npm test
 npm run test:watch
 
+# Frontend tests with coverage gate (what CI runs)
+npm run test:ci
+
 # Server/API tests (Node, server/tests/)
 npm run test:server
+
+# Server tests with coverage gate (what CI runs)
+npm run test:server:ci
 
 # Run a single unit test file
 npx jest tests/unit/SpriteEditor.polygon.test.tsx
@@ -34,6 +43,41 @@ npx jest tests/unit/SpriteEditor.polygon.test.tsx
 npm run test:smoke
 npm run test:puppeteer
 ```
+
+## Testing & CI Gates
+
+CI (`.github/workflows/ci.yml`) runs four required jobs before `docker-e2e`:
+`lint`, `typecheck`, `test` (frontend `test:ci`, coverage-gated), and
+`server-tests` (`test:server:ci`, coverage-gated). `docker-e2e` runs the
+Puppeteer production suite + sprite-editor suite.
+
+**The coverage ratchet.** Thresholds in `jest.config.cjs` and
+`server/tests/jest.server.config.js` are seeded at *real measured actuals*, not
+aspirational targets. The rule: **floors only ever move up.** When you add a
+tier of tests, bump the relevant threshold slot **in the same PR**, so the diff
+shows the gain and CI prevents later regression. A feature PR that drops the
+test ratio of the area it touches turns CI red — by design, this is what keeps
+tests in sync with feature velocity. Frontend uses per-path slots
+(`./src/state/`, `./src/runner/`) checked independently of `global`.
+
+**Where tests live.**
+- Frontend unit (jsdom): `tests/unit/**/*.test.{ts,tsx}`. Mocks in
+  `tests/unit/__mocks__/` (konva, react-konva, useUser).
+- Server/API (node, in-memory SQLite): `server/tests/**/*.test.ts`; DB harness
+  in `server/tests/setup.ts`.
+- E2E (Puppeteer, needs running app): `tests/puppeteer/`. Shared helpers in
+  `test-utils.js`. Note: `test:smoke`'s entrypoint `ide-smoke-test.js` does not
+  yet exist — writing it is a planned Tier 3 item, not wired into CI until then.
+
+**Testing the worker without Pyodide.** `src/runner/WorkerInterface.ts` defines
+typed `WorkerCommand`/`WorkerEvent` unions. Test `RunnerProvider` /
+`useRunnerStore` by posting synthetic `WorkerEvent`s to the message handler — no
+real worker or WASM load required. This is the intended pattern for runner-layer
+unit tests.
+
+The phased test backlog (foundation regression net → state/runner units → E2E
+for big features) is in the strategy plan
+`~/.claude/plans/have-a-look-bright-honey.md`.
 
 ## Architecture
 

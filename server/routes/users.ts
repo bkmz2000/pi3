@@ -2,9 +2,10 @@ import { Router, Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import bcrypt from 'bcryptjs';
 import { getDb } from '../db/index.js';
-import { authMiddleware } from '../middleware/auth.js';
+import { authMiddleware, regenerateSession } from '../middleware/auth.js';
 
-const router = Router();
+export function createUsersRouter(allowPasswordAuth: boolean = false) {
+  const router = Router();
 
 interface User {
   id: string;
@@ -18,7 +19,12 @@ interface User {
 
 // POST /api/users/outsider — create outsider account + start session
 router.post('/outsider', async (req: Request, res: Response): Promise<void> => {
-  const { name, password, role } = req.body;
+  if (!allowPasswordAuth) {
+    res.status(403).json({ error: 'Forbidden', message: 'Password authentication is not enabled' });
+    return;
+  }
+
+  const { name, password } = req.body;
 
   if (!name || typeof name !== 'string' || name.trim().length === 0) {
     res.status(400).json({ error: 'Bad Request', message: 'Name is required' });
@@ -29,7 +35,6 @@ router.post('/outsider', async (req: Request, res: Response): Promise<void> => {
     return;
   }
 
-  const userRole = role === 'teacher' ? 'teacher' : 'student';
   const db = getDb();
 
   const existing = db.prepare('SELECT id FROM users WHERE name = ?').get(name.trim());
@@ -44,7 +49,7 @@ router.post('/outsider', async (req: Request, res: Response): Promise<void> => {
     id: uuidv4(),
     api_token: uuidv4().replace(/-/g, '') + uuidv4().replace(/-/g, ''),
     name: name.trim(),
-    role: userRole,
+    role: 'student',
     password_hash,
     created_at: now,
     updated_at: now,
@@ -56,13 +61,8 @@ router.post('/outsider', async (req: Request, res: Response): Promise<void> => {
       VALUES (?, ?, ?, ?, ?, ?, ?)
     `).run(user.id, user.api_token, user.name, user.role, user.password_hash, user.created_at, user.updated_at);
 
-    await new Promise<void>((resolve, reject) => {
-      req.session.regenerate((err) => {
-        if (err) { reject(err); return; }
-        req.session.userId = user.id;
-        resolve();
-      });
-    });
+    await regenerateSession(req);
+    req.session.userId = user.id;
 
     res.status(201).json({
       id: user.id,
@@ -78,6 +78,11 @@ router.post('/outsider', async (req: Request, res: Response): Promise<void> => {
 
 // POST /api/users/outsider/login — sign in with username/password + start session
 router.post('/outsider/login', async (req: Request, res: Response): Promise<void> => {
+  if (!allowPasswordAuth) {
+    res.status(403).json({ error: 'Forbidden', message: 'Password authentication is not enabled' });
+    return;
+  }
+
   const { name, password } = req.body;
 
   if (!name || typeof name !== 'string') {
@@ -104,13 +109,8 @@ router.post('/outsider/login', async (req: Request, res: Response): Promise<void
   }
 
   try {
-    await new Promise<void>((resolve, reject) => {
-      req.session.regenerate((err) => {
-        if (err) { reject(err); return; }
-        req.session.userId = user.id;
-        resolve();
-      });
-    });
+    await regenerateSession(req);
+    req.session.userId = user.id;
     res.json({
       id: user.id,
       name: user.name,
@@ -138,4 +138,7 @@ router.get('/me', authMiddleware, (req: Request, res: Response): void => {
   res.json(user);
 });
 
-export default router;
+  return router;
+}
+
+export default createUsersRouter();

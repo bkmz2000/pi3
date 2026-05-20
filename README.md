@@ -133,6 +133,12 @@ npm run dev &
 npm run test:puppeteer
 ```
 
+### Authentication & OAuth
+
+pi3 integrates with **Loginus** for OAuth 2.0 authentication. See [LOGINUS_AUTH_INTEGRATION_UNIVERSAL.md](LOGINUS_AUTH_INTEGRATION_UNIVERSAL.md) for the complete OAuth integration guide.
+
+**Recent Fix (2026-05-20):** OAuth cookie path was corrected from `/api/auth/callback` to `/` to fix login/logout redirect issues per OAuth specification.
+
 ---
 
 ## Deployment

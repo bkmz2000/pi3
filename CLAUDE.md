@@ -133,3 +133,33 @@ Rail-based layout. Most panel content is inline in `SideMenu.tsx`; `DocsPanel` i
 
 ### PWA
 Service worker at `public/sw.js` (cache name `webide-v2`). Caches Pyodide CDN assets and app shell on install.
+
+### OAuth & Authentication
+
+**OAuth Provider:** Loginus (lk.systematika.org)
+
+**Environment Variables** (server-side):
+- `LOGINUS_DOMAIN` — OAuth provider URL (default: `https://loginus.ru`)
+- `LOGINUS_CLIENT_ID` — OAuth client ID
+- `LOGINUS_CLIENT_SECRET` — OAuth client secret
+- `LOGINUS_TEACHER_ROLE` — Role name for teachers (default: `teacher`)
+
+**Auth Routes:**
+- `GET /api/auth/login` — Initiates OAuth flow with state/nonce generation
+- `GET /api/auth/callback` — OAuth callback; validates state, exchanges code for tokens, creates session
+- `POST /api/auth/logout` — Revokes session and redirects to OAuth logout (if id_token present)
+
+**Key Implementation Details:**
+- OAuth state and return URL stored in httpOnly cookies with `path: '/'` and `sameSite: 'lax'` (critical for callback validation)
+- State is cryptographically signed with `SESSION_SECRET` using HMAC-SHA256
+- Session created via `express-session` with settings in `server/index.ts` 
+- `authMiddleware` in `server/middleware/auth.ts` validates Bearer tokens and session cookies
+- Frontend auth flow: `useUser` → `checkSession()` on mount → `getMe()` API call to verify session
+- Password auth can be enabled via `ALLOW_PASSWORD_AUTH=true` environment variable
+- See `LOGINUS_AUTH_INTEGRATION_UNIVERSAL.md` for complete OAuth integration guide
+
+**Recent Fix (2026-05-20):**
+Fixed critical OAuth cookie path validation issue. OAuth state/return cookies were scoped to `/api/auth/callback` instead of `/`, preventing proper callback verification. Changed to `path: '/'` per OAuth 2.0 specification. This fixed:
+- Login redirecting to Loginus dashboard instead of app callback
+- Logout validation errors with OAuth provider
+- Infinite redirect loops during authentication

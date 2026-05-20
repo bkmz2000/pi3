@@ -44,6 +44,7 @@ export function initDb(): void {
     `ALTER TABLE projects ADD COLUMN current_file TEXT NOT NULL DEFAULT 'main.py'`,
     `ALTER TABLE users ADD COLUMN oauth_provider_id TEXT`,
     `CREATE UNIQUE INDEX IF NOT EXISTS idx_users_oauth_provider_id ON users(oauth_provider_id) WHERE oauth_provider_id IS NOT NULL`,
+    `ALTER TABLE projects ADD COLUMN tilemaps TEXT NOT NULL DEFAULT '{}'`,
   ];
   for (const stmt of migrations) {
     try {

@@ -25,6 +25,7 @@ export function createTestDb(): Database.Database {
       is_public INTEGER NOT NULL DEFAULT 0,
       files TEXT NOT NULL DEFAULT '{}',
       assets TEXT NOT NULL DEFAULT '{}',
+      tilemaps TEXT NOT NULL DEFAULT '{}',
       current_file TEXT NOT NULL DEFAULT 'main.py',
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL,

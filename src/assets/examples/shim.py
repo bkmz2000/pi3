@@ -719,3 +719,42 @@ def _ide_build_assets(bitmap_list: list) -> object:
         }
     )
     return SimpleNamespace(sprites=sprites)
+
+
+def _ide_build_tilemaps(tilemap_json: str, asset_bitmaps: dict) -> object:
+    """
+    tilemap_json: JSON string of Record<string, TilemapData>
+    asset_bitmaps: dict of sprite_name -> ImageBitmap (from _asset_bitmaps)
+    Returns a SimpleNamespace of TileMap objects keyed by tilemap name.
+    """
+    import json
+    from types import SimpleNamespace
+    from graphics import TilemapLayer as _TilemapLayer, TileMap as _TileMap
+
+    def strip_ext(name):
+        return name.rsplit(".", 1)[0] if "." in name else name
+
+    bitmaps_by_name = {strip_ext(k): v for k, v in asset_bitmaps.items()}
+
+    raw = json.loads(tilemap_json)
+    result = {}
+    for map_name, map_data in raw.items():
+        layers = []
+        layer_by_name = {}
+        for layer_data in map_data.get("layers", []):
+            raw_cells = layer_data.get("cells", {})
+            cells = {
+                int(col_str): {int(row_str): name for row_str, name in rows.items()}
+                for col_str, rows in raw_cells.items()
+            }
+            layer = _TilemapLayer(
+                name=layer_data["name"],
+                tile_size=layer_data["tileSize"],
+                cells=cells,
+                bitmaps=bitmaps_by_name,
+            )
+            layers.append(layer)
+            layer_by_name[layer_data["name"]] = layer
+        result[map_name] = _TileMap(layers=layers, layer_by_name=layer_by_name)
+
+    return SimpleNamespace(**result)

@@ -1,7 +1,7 @@
 import { useCallback, useEffect } from "react";
 import { create } from "zustand";
 import { WorkerCommand, WorkerEvent, WorkerEventType, LintDiagnostic } from "./WorkerInterface";
-import { useIde } from "../state/IdeState";
+import { useIde, useEditor } from "../state/IdeState";
 import { useThemeStore } from "../state/useTheme";
 import Shim from "../assets/examples/shim.py?raw";
 import Transform from "../assets/examples/transform.py?raw";
@@ -315,12 +315,14 @@ export function useRunner() {
       const { bitmaps, transferables } = await loadAssets(nameToUrl);
       const showHitboxes = useIde.getState().showHitboxes;
       const themePalette = useThemeStore.getState().theme.colorPalette;
+      const { tilemaps } = useEditor.getState().project;
       getWorker().postMessage(
         {
           cmd: "run",
           files,
           entry,
           assets: bitmaps,
+          tilemaps,
           showHitboxes,
           themePalette,
         } satisfies WorkerCommand,

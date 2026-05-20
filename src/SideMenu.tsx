@@ -2,7 +2,7 @@ import { useEffect, useState, lazy, Suspense } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { packAssetsByMeta, type Category, type Perspective } from "./state/assets";
-import { useIde, useEditor } from "./state/IdeState";
+import { useIde, useEditor, type TilemapData } from "./state/IdeState";
 import { useRunner } from "./runner/RunnerProvider";
 import { useRunButton } from "./hooks/useRunButton";
 import { useProjects } from "./hooks/useProjects";
@@ -21,6 +21,7 @@ import {
 } from "./components/Icons";
 
 const SpriteEditor = lazy(() => import("./SpriteEditor"));
+const TileEditor = lazy(() => import("./TileEditor"));
 const DocsPanel = lazy(() => import("./components/DocsPanel"));
 
 // ── Logo ───────────────────────────────────
@@ -122,6 +123,8 @@ export default function Rail() {
   const markClean = useEditor((s) => s.markClean);
 
   const [editorOpen, setEditorOpen] = useState(false);
+  const [tileEditorOpen, setTileEditorOpen] = useState(false);
+  const [editingTilemap, setEditingTilemap] = useState<string | null>(null);
   const [showNewProjectDialog, setShowNewProjectDialog] = useState(false);
   const [showImportDialog, setShowImportDialog] = useState(false);
   const [alertMsg, setAlertMsg] = useState<string | null>(null);
@@ -175,6 +178,7 @@ export default function Rail() {
       {
         files: full.files,
         assets: full.assets,
+        tilemaps: full.tilemaps ?? {},
       },
       full.id,
     );
@@ -201,6 +205,7 @@ export default function Rail() {
         {
           files: importedProject.files,
           assets: importedProject.assets,
+          tilemaps: importedProject.tilemaps ?? {},
         },
         importedProject.id,
       );
@@ -212,10 +217,13 @@ export default function Rail() {
   };
 
   const projectAssets = useEditor((s) => s.project.assets);
+  const projectTilemaps = useEditor((s) => s.project.tilemaps);
   const toggleAsset = useEditor((s) => s.toggleAsset);
   const changeAsset = useEditor((s) => s.changeAsset);
   const addAssetInstance = useEditor((s) => s.addAssetInstance);
   const removeAsset = useEditor((s) => s.removeAsset);
+  const saveTilemap = useEditor((s) => s.saveTilemap);
+  const deleteTilemap = useEditor((s) => s.deleteTilemap);
 
   const isRunning = running || isP5;
   const runIcon: IconName = !ready ? "settings" : isRunning ? "stop" : "play";
@@ -294,6 +302,14 @@ export default function Rail() {
           label={t('sideMenu.assets')}
           active={isOpen("assets")}
           onClick={() => togglePanel("assets")}
+          theme={theme}
+        />
+
+        <RailButton
+          icon="grid"
+          label={t('sideMenu.tilemaps')}
+          active={isOpen("tilemaps")}
+          onClick={() => togglePanel("tilemaps")}
           theme={theme}
         />
 
@@ -381,6 +397,16 @@ export default function Rail() {
               onClose={closePanels}
             />
           )}
+          {activePanel === "tilemaps" && (
+            <TilemapsPanel
+              theme={theme}
+              tilemaps={projectTilemaps}
+              onOpen={(name) => { setEditingTilemap(name); setTileEditorOpen(true); }}
+              onNew={() => { setEditingTilemap(null); setTileEditorOpen(true); }}
+              onDelete={deleteTilemap}
+              onClose={closePanels}
+            />
+          )}
           {activePanel === "settings" && (
             <SettingsPanel
               theme={theme}
@@ -412,6 +438,16 @@ export default function Rail() {
           onImport={handleImportProject}
         />
       )}
+
+      <Suspense fallback={null}>
+        <TileEditor
+          key={tileEditorOpen ? (editingTilemap ?? "__new__") : "closed"}
+          open={tileEditorOpen}
+          initialName={editingTilemap ?? ""}
+          onClose={() => { setTileEditorOpen(false); setEditingTilemap(null); }}
+          onSave={(name, data) => { saveTilemap(name, data); setTileEditorOpen(false); setEditingTilemap(null); }}
+        />
+      </Suspense>
 
       <Suspense fallback={null}>
         <SpriteEditor
@@ -1072,6 +1108,78 @@ function UsedSpriteTile({
         </>, document.body
       )}
     </div>
+  );
+}
+
+// ── Tilemaps Panel ─────────────────────────
+function TilemapsPanel({
+  theme, tilemaps, onOpen, onNew, onDelete, onClose,
+}: {
+  theme: Theme;
+  tilemaps: Record<string, TilemapData>;
+  onOpen: (name: string) => void;
+  onNew: () => void;
+  onDelete: (name: string) => void;
+  onClose: () => void;
+}) {
+  const { t } = useTranslation();
+  const names = Object.keys(tilemaps);
+  return (
+    <>
+      <PanelHeader title={t('sideMenu.tilemaps')} theme={theme} onClose={onClose} />
+      <div style={{ padding: "12px 14px", display: "flex", flexDirection: "column", gap: 8 }}>
+        <button
+          type="button"
+          onClick={onNew}
+          style={{
+            all: "unset", cursor: "pointer",
+            display: "flex", alignItems: "center", gap: 8,
+            padding: "8px 12px", borderRadius: theme.radiusCard,
+            border: `1.5px dashed ${theme.panelBorder}`,
+            color: theme.panelTxtMute, fontSize: 13, fontFamily: theme.fontUI,
+          }}
+        >
+          <Icon name="plus" size={16} color="currentColor" />
+          {t('sideMenu.newTilemap')}
+        </button>
+        {names.length === 0 && (
+          <div style={{ fontSize: 12, color: theme.panelTxtMute, paddingTop: 4 }}>
+            {t('sideMenu.noTilemaps')}
+          </div>
+        )}
+        {names.map((name) => (
+          <div key={name} style={{
+            display: "flex", alignItems: "center", gap: 6,
+            padding: "7px 10px", borderRadius: theme.radiusCard,
+            background: theme.surfacePanel, border: `1px solid ${theme.panelBorder}`,
+          }}>
+            <Icon name="grid" size={14} color={theme.panelTxtMute} />
+            <span
+              style={{ flex: 1, fontSize: 13, fontFamily: theme.fontUI, color: theme.panelTxt, cursor: "pointer" }}
+              onClick={() => onOpen(name)}
+            >
+              {name}
+            </span>
+            <button
+              type="button"
+              title={t('sideMenu.editTilemap')}
+              onClick={() => onOpen(name)}
+              style={{ all: "unset", cursor: "pointer", color: theme.panelTxtMute, display: "flex" }}
+            >
+              <Icon name="pencil" size={13} color="currentColor" />
+            </button>
+            <button
+              type="button"
+              title={t('sideMenu.deleteTilemap')}
+              onClick={() => onDelete(name)}
+              style={{ all: "unset", cursor: "pointer", color: "#ef4444", display: "flex" }}
+            >
+              <Icon name="trash" size={13} color="currentColor" />
+            </button>
+          </div>
+        ))}
+      </div>
+    </>
   );
 }
 

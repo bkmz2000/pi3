@@ -1,10 +1,12 @@
 import { Project as ApiProject } from "./api";
+import type { TilemapData } from "./IdeState";
 
 export type EditorProject = {
   name?: string;
   files: Record<string, string>;
   currentFile?: string;
   assets: Record<string, string>;
+  tilemaps: Record<string, TilemapData>;
 };
 
 // Normalize ApiProject (snake_case) to editor Project (camelCase)
@@ -14,5 +16,6 @@ export function toEditorProject(api: ApiProject): EditorProject {
     files: api.files,
     currentFile: api.current_file,
     assets: api.assets,
+    tilemaps: api.tilemaps ?? {},
   };
 }

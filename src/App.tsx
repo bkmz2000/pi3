@@ -58,6 +58,7 @@ function ProjectLoader() {
             name: apiProject.name,
             files: apiProject.files,
             assets: apiProject.assets,
+            tilemaps: apiProject.tilemaps ?? {},
             currentFile: apiProject.current_file,
           },
           projectId,

@@ -148,6 +148,7 @@ async function runGraphicsScript(
   p: PyodideInterface,
   files: Record<string, string>,
   assets: Record<string, ImageBitmap>,
+  tilemaps: Record<string, unknown> | undefined,
   entry: string,
   showHitboxes: boolean = false,
   themePalette?: Record<string, [number, number, number]>,
@@ -165,6 +166,7 @@ async function runGraphicsScript(
   // Assets are already ImageBitmaps created in the main thread
   const assetsEntries = Object.entries(assets);
   p.globals.set("_asset_bitmaps", assetsEntries);
+  p.globals.set("_tilemap_data", JSON.stringify(tilemaps ?? {}));
   p.globals.set("_using_graphics", true);
 
   // Inject theme-aware color palette into Colors before running user code
@@ -192,7 +194,8 @@ graphics._show_hitboxes = ${showHitboxes ? "True" : "False"}
 
 from types import SimpleNamespace
 _sprites = _shim._ide_build_assets(_asset_bitmaps).sprites
-graphics.assets = SimpleNamespace(sprites=_sprites)
+_tilemaps = _shim._ide_build_tilemaps(_tilemap_data, dict(_asset_bitmaps.to_py()))
+graphics.assets = SimpleNamespace(sprites=_sprites, tilemaps=_tilemaps)
   `);
 
   // Now set proper initial state AFTER clear, but BEFORE user code
@@ -219,6 +222,7 @@ async function runScript(
   p: PyodideInterface,
   files: Record<string, string>,
   assets: Record<string, ImageBitmap>,
+  tilemaps: Record<string, unknown> | undefined,
   entry: string,
   showHitboxes: boolean = false,
   themePalette?: Record<string, [number, number, number]>,
@@ -228,7 +232,7 @@ async function runScript(
   p.globals.set("_using_graphics", false);
 
   if (usesNewGraphics(code)) {
-    await runGraphicsScript(p, files, assets, entry, showHitboxes, themePalette);
+    await runGraphicsScript(p, files, assets, tilemaps, entry, showHitboxes, themePalette);
     return;
   }
 
@@ -295,7 +299,7 @@ self.onmessage = async (e: MessageEvent<WorkerCommand>) => {
   } else if (msg.cmd === "run") {
     try {
       const p = await ensurePyodide();
-      await runScript(p, msg.files, msg.assets, msg.entry, msg.showHitboxes, msg.themePalette);
+      await runScript(p, msg.files, msg.assets, msg.tilemaps, msg.entry, msg.showHitboxes, msg.themePalette);
     } catch (err: unknown) {
       post({ type: "error", error: String(err) });
       post({ type: "result" });

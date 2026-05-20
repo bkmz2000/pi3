@@ -414,6 +414,23 @@ def _execute_draw_commands():
                 _ctx.drawImage(js_img, x, y, w, h if h is not None else w)
             else:
                 _ctx.drawImage(js_img, x, y)
+        elif cmd == "tilemap_layer":
+            from pyodide.ffi import to_js
+            layer, ox, oy = args
+            ts = layer.tile_size
+            cw = float(_canvas.width)
+            ch = float(_canvas.height)
+            for col, rows in layer._cells.items():
+                sx = ox + col * ts
+                if sx + ts <= 0 or sx >= cw:
+                    continue
+                for row, name in rows.items():
+                    sy = oy + row * ts
+                    if sy + ts <= 0 or sy >= ch:
+                        continue
+                    bmp = layer._bitmaps.get(name)
+                    if bmp is not None:
+                        _ctx.drawImage(to_js(bmp), sx, sy, ts, ts)
         elif cmd == "say":
             _draw_say(*args)
 
@@ -867,6 +884,44 @@ def _clear():
     Actor._id_counter = 0
 
 
+class TilemapLayer:
+    """A single named layer in a tilemap. Cells addressed by (col, row) integers."""
+
+    def __init__(self, name: str, tile_size: int, cells: dict, bitmaps: dict):
+        self.name = name
+        self.tile_size = tile_size
+        self._cells = cells    # dict[int, dict[int, str]]
+        self._bitmaps = bitmaps  # dict[str, ImageBitmap]
+
+    def draw(self, x=0, y=0):
+        _draw_commands.append(("tilemap_layer", (self, float(x), float(y)), {}))
+
+    def tile_at(self, px, py):
+        col = int(px // self.tile_size)
+        row = int(py // self.tile_size)
+        return self._cells.get(col, {}).get(row)
+
+    def get_tile(self, col, row):
+        return self._cells.get(col, {}).get(row)
+
+    def tiles(self):
+        for col, rows in self._cells.items():
+            for row, name in rows.items():
+                yield (col, row, name)
+
+
+class TileMap:
+    """A collection of named TilemapLayers, drawn bottom-to-top."""
+
+    def __init__(self, layers: list, layer_by_name: dict):
+        self._layers = layers
+        self.layers = layer_by_name
+
+    def draw(self, x=0, y=0):
+        for layer in self._layers:
+            layer.draw(x, y)
+
+
 __all__ = [
     "_version",
     "size", "width", "height",
@@ -882,6 +937,7 @@ __all__ = [
     "Colors", "AnchorPoint",
     "Mouse", "Keyboard", "Window",
     "Actor", "Rect", "Circle", "Group", "Collider",
+    "TilemapLayer", "TileMap",
     "run", "stop",
     "assets",
 ]

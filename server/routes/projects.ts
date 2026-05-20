@@ -14,6 +14,7 @@ interface Project {
   is_public: number;
   files: string;
   assets: string;
+  tilemaps: string;
   current_file: string;
   created_at: number;
   updated_at: number;
@@ -41,7 +42,7 @@ export function createProjectsRouter(): Router {
   });
 
   router.post('/', (req: Request, res: Response): void => {
-    const { name, description, files, assets, currentFile } = req.body;
+    const { name, description, files, assets, tilemaps, currentFile } = req.body;
     if (!name || typeof name !== 'string' || name.trim().length === 0) {
       res.status(400).json({ error: 'Bad Request', message: 'Project name is required' });
       return;
@@ -56,19 +57,21 @@ export function createProjectsRouter(): Router {
       is_public: 0,
       files: JSON.stringify(files || {}),
       assets: JSON.stringify(assets || {}),
+      tilemaps: JSON.stringify(tilemaps || {}),
       current_file: currentFile || 'main.py',
       created_at: now,
       updated_at: now,
     };
     try {
       db.prepare(`
-        INSERT INTO projects (id, user_id, name, description, is_public, files, assets, current_file, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(project.id, project.user_id, project.name, project.description, project.is_public, project.files, project.assets, project.current_file, project.created_at, project.updated_at);
+        INSERT INTO projects (id, user_id, name, description, is_public, files, assets, tilemaps, current_file, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(project.id, project.user_id, project.name, project.description, project.is_public, project.files, project.assets, project.tilemaps, project.current_file, project.created_at, project.updated_at);
       res.status(201).json({
         ...project,
         files: JSON.parse(project.files || '{}'),
         assets: JSON.parse(project.assets || '{}'),
+        tilemaps: JSON.parse(project.tilemaps || '{}'),
       });
     } catch (error) {
       console.error('Error creating project:', error);
@@ -186,6 +189,7 @@ export function createProjectsRouter(): Router {
       ...project,
       files: JSON.parse(project.files || '{}'),
       assets: JSON.parse(project.assets || '{}'),
+      tilemaps: JSON.parse(project.tilemaps || '{}'),
     });
   });
 
@@ -271,7 +275,7 @@ export function createProjectsRouter(): Router {
 
   router.put('/:id/save', (req: Request, res: Response): void => {
     const id = req.params.id as string;
-    const { files, assets, currentFile } = req.body;
+    const { files, assets, tilemaps, currentFile } = req.body;
     const db = getDb();
 
     const access = getProjectAccess(id as string, req.user!.id);
@@ -296,6 +300,10 @@ export function createProjectsRouter(): Router {
       updates.push('assets = ?');
       values.push(JSON.stringify(assets));
     }
+    if (tilemaps !== undefined) {
+      updates.push('tilemaps = ?');
+      values.push(JSON.stringify(tilemaps));
+    }
     if (currentFile !== undefined) {
       updates.push('current_file = ?');
       values.push(currentFile);
@@ -310,6 +318,7 @@ export function createProjectsRouter(): Router {
         ...updated,
         files: JSON.parse(updated.files || '{}'),
         assets: JSON.parse(updated.assets || '{}'),
+        tilemaps: JSON.parse(updated.tilemaps || '{}'),
       });
     } catch (error) {
       console.error('Error saving project content:', error);

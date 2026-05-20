@@ -19,6 +19,7 @@ export type WorkerCommand =
       cmd: "run";
       files: Record<string, string>;
       assets: Record<string, ImageBitmap>;
+      tilemaps?: Record<string, unknown>;
       entry: string;
       showHitboxes?: boolean;
       themePalette?: Record<string, [number, number, number]>;

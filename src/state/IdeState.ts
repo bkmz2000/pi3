@@ -19,13 +19,24 @@ import { importProjectFromFile as importZipFile } from "../utils/zip";
 import { getProjects, createProject as apiCreateProject, updateProject as apiUpdateProject, deleteProject as apiDeleteProject, saveProjectContent, Project as ApiProject } from "./api";
 import { toEditorProject } from "./projectNormalization";
 
-export type PanelId = "projects" | "assets" | "settings" | "docs" | null;
+export type PanelId = "projects" | "assets" | "tilemaps" | "settings" | "docs" | null;
+
+export type TilemapLayer = {
+  name: string;
+  tileSize: number;
+  cells: Record<number, Record<number, string>>;
+};
+
+export type TilemapData = {
+  layers: TilemapLayer[];
+};
 
 export type Project = {
   name?: string;
   files: Record<string, string>;
   currentFile?: string;
   assets: Record<string, string>;
+  tilemaps: Record<string, TilemapData>;
 };
 
 // Re-export adapter for convenience
@@ -41,12 +52,13 @@ function pickAssets(...names: string[]): Record<string, string> {
 }
 
 const Examples: Record<string, Project> = {
-  "hello world": { files: { "main.py": HelloWorld }, assets: {} },
-  input: { files: { "input.py": Input }, assets: {} },
-  p5: { files: { "p5.py": P5 }, assets: {} },
+  "hello world": { files: { "main.py": HelloWorld }, assets: {}, tilemaps: {} },
+  input: { files: { "input.py": Input }, assets: {}, tilemaps: {} },
+  p5: { files: { "p5.py": P5 }, assets: {}, tilemaps: {} },
   snake: {
     files: { "snake.py": Snake },
     assets: {},
+    tilemaps: {},
   },
   sokoban: {
     files: { "sokoban.py": Sokoban },
@@ -58,6 +70,7 @@ const Examples: Record<string, Project> = {
       "star",
       "p1_front",
     ),
+    tilemaps: {},
   },
   asteroids: {
     files: { "main.py": Asteroids },
@@ -67,18 +80,22 @@ const Examples: Record<string, Project> = {
       "big_asteroid.svg": BigAsteroidSvg,
       "small_asteroid.svg": SmallAsteroidSvg,
     },
+    tilemaps: {},
   },
   catch: {
     files: { "catch.py": Catch },
     assets: {},
+    tilemaps: {},
   },
   robot: {
     files: { "robot.py": Robot },
     assets: {},
+    tilemaps: {},
   },
   swatches: {
     files: { "swatches.py": Swatches },
     assets: {},
+    tilemaps: {},
   },
 };
 
@@ -98,6 +115,8 @@ type EditorState = {
   addAssetInstance: (baseName: string, url: string) => void;
   removeAsset: (instanceName: string) => void;
   renameFile: (oldName: string, newName: string) => void;
+  saveTilemap: (name: string, data: TilemapData) => void;
+  deleteTilemap: (name: string) => void;
   markClean: () => void;
 };
 
@@ -227,6 +246,23 @@ export const useEditor = create<EditorState>((set) => ({
       return { ...s, project: { ...s.project, assets }, dirtyFiles: dirty };
     }),
 
+  saveTilemap: (name, data) =>
+    set((s) => {
+      const tilemaps = { ...(s.project.tilemaps ?? {}), [name]: data };
+      const dirty = new Set(s.dirtyFiles);
+      dirty.add("*tilemaps*");
+      return { project: { ...s.project, tilemaps }, dirtyFiles: dirty };
+    }),
+
+  deleteTilemap: (name) =>
+    set((s) => {
+      const tilemaps = { ...(s.project.tilemaps ?? {}) };
+      delete tilemaps[name];
+      const dirty = new Set(s.dirtyFiles);
+      dirty.add("*tilemaps*");
+      return { project: { ...s.project, tilemaps }, dirtyFiles: dirty };
+    }),
+
   markClean: () => set({ dirtyFiles: new Set() }),
 }));
 
@@ -324,6 +360,7 @@ export const useIde = create<IdeState>((set, get) => ({
       name,
       files: { "main.py": '# New project\nprint("Hello World!")' },
       assets: {},
+      tilemaps: {},
     });
 
     const { userProjects } = get();
@@ -353,6 +390,7 @@ export const useIde = create<IdeState>((set, get) => ({
       name: newName || `${exampleName}_edited`,
       files: exampleProject.files,
       assets: exampleProject.assets,
+      tilemaps: exampleProject.tilemaps,
       currentFile: exampleProject.currentFile,
     });
 
@@ -369,6 +407,7 @@ export const useIde = create<IdeState>((set, get) => ({
       await saveProjectContent(currentProjectId, {
         files: project.files,
         assets: project.assets,
+        tilemaps: project.tilemaps,
         currentFile: useEditor.getState().currentFile,
       });
 

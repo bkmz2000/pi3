@@ -917,7 +917,7 @@ export default function SpriteEditor({ open, onClose, onSave, size = 64, initial
       </ThemedDialog>
     )}
     <div style={{
-      position: "fixed", inset: 0, zIndex: 50,
+      position: "fixed", inset: 0, zIndex: 70,
       display: "flex", alignItems: "center", justifyContent: "center",
       background: "rgba(0,0,0,0.5)",
     }}

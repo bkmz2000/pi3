@@ -620,6 +620,52 @@ export const DOCS: DocCategory[] = [
     ],
   },
 
+  // ─── Tilemap ───────────────────────────────────────────────────────────────
+  {
+    id: "tilemap",
+    en: "Tilemap",
+    ru: "Тайловая карта",
+    entries: [
+      {
+        id: "assets_tilemaps",
+        name: "assets.tilemaps",
+        signature: "assets.tilemaps.<name>",
+        en: "Access a project tilemap by name. Returns a TileMap object containing all of its layers. The tilemap must be created in the sprite editor and added to the project first.",
+        ru: "Доступ к тайловой карте проекта по имени. Возвращает объект TileMap со всеми его слоями. Тайловая карта должна быть предварительно создана в редакторе спрайтов.",
+        params: [
+          { name: "name", type: "str", en: "Tilemap name as set in the editor, e.g. assets.tilemaps.level1.", ru: "Имя тайловой карты из редактора, например assets.tilemaps.level1." },
+        ],
+        returns: { type: "TileMap", en: "A TileMap object.", ru: "Объект TileMap." },
+      },
+      {
+        id: "tilemap_class",
+        name: "TileMap",
+        signature: "tilemap.draw(x=0, y=0)",
+        en: "A collection of named TilemapLayers drawn bottom-to-top. Call draw() each frame to render all layers at an offset — useful for scrolling.",
+        ru: "Набор именованных слоёв тайловой карты, рисуемых снизу вверх. Вызывайте draw() каждый кадр для отрисовки всех слоёв со смещением — удобно для прокрутки.",
+        params: [
+          { name: "draw(x=0, y=0)", type: "—", en: "Draw all layers at pixel offset (x, y). Tiles outside the canvas are skipped automatically.", ru: "Рисует все слои со смещением (x, y) в пикселях. Тайлы за пределами холста автоматически пропускаются." },
+          { name: "layers", type: "dict", en: 'Dict of layer name → TilemapLayer. Access a specific layer with tilemap.layers["Layer 1"].', ru: 'Словарь имя слоя → TilemapLayer. Доступ к слою: tilemap.layers["Layer 1"].' },
+        ],
+      },
+      {
+        id: "tilemap_layer_class",
+        name: "TilemapLayer",
+        signature: "layer.draw(x=0, y=0)",
+        en: "A single named layer from a TileMap. Contains a sparse grid of tile names mapped to ImageBitmaps from the project assets. You can draw individual layers and query tiles by position.",
+        ru: "Один именованный слой тайловой карты. Содержит разрежённую сетку из имён тайлов, привязанных к изображениям из ассетов проекта. Можно рисовать отдельные слои и получать тайлы по позиции.",
+        params: [
+          { name: "draw(x=0, y=0)", type: "—", en: "Draw this layer at pixel offset (x, y).", ru: "Рисует этот слой со смещением (x, y) в пикселях." },
+          { name: "tile_at(px, py)", type: "str|None", en: "Return the tile name at pixel position (px, py), or None if empty.", ru: "Возвращает имя тайла в пиксельной позиции (px, py) или None, если ячейка пустая." },
+          { name: "get_tile(col, row)", type: "str|None", en: "Return the tile name at grid column/row, or None if empty.", ru: "Возвращает имя тайла по координатам столбца и строки сетки или None, если ячейка пустая." },
+          { name: "tiles()", type: "generator", en: "Yield (col, row, name) for every filled cell in the layer.", ru: "Генерирует (col, row, name) для каждой заполненной ячейки слоя." },
+          { name: "name", type: "str", en: "The layer's name as set in the editor.", ru: "Имя слоя из редактора." },
+          { name: "tile_size", type: "number", en: "Tile size in pixels (all tiles in a layer are the same size).", ru: "Размер тайла в пикселях (все тайлы в слое одного размера)." },
+        ],
+      },
+    ],
+  },
+
   // ─── Utilities ─────────────────────────────────────────────────────────────
   {
     id: "utils",

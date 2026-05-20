@@ -446,6 +446,7 @@ export default function Rail() {
           initialName={editingTilemap ?? ""}
           onClose={() => { setTileEditorOpen(false); setEditingTilemap(null); }}
           onSave={(name, data) => { saveTilemap(name, data); setTileEditorOpen(false); setEditingTilemap(null); }}
+          onNewSprite={() => { setEditingAsset(null); setEditorOpen(true); }}
         />
       </Suspense>
 

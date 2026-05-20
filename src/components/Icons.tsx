@@ -118,6 +118,14 @@ export function IconCursor({ size = 22, ...rest }: IconProps) {
   );
 }
 
+export function IconHand({ size = 22, ...rest }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...s(rest)}>
+      <path d="M8 13V6.5a1.5 1.5 0 0 1 3 0V13m0-6.5V5a1.5 1.5 0 0 1 3 0v7.5M14 9a1.5 1.5 0 0 1 3 0v3M17 12a1.5 1.5 0 0 1 3 0v2a7 7 0 0 1-7 7 6 6 0 0 1-6-6v-2a1.5 1.5 0 0 1 3 0" />
+    </svg>
+  );
+}
+
 export function IconSquare({ size = 22, ...rest }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" {...s(rest)}>
@@ -296,7 +304,8 @@ export type IconName =
   | "users"
   | "bucket"
   | "frame"
-  | "filter";
+  | "filter"
+  | "hand";
 
 export function Icon({ name, ...props }: IconProps & { name: IconName }) {
   switch (name) {
@@ -330,6 +339,7 @@ export function Icon({ name, ...props }: IconProps & { name: IconName }) {
     case "bucket": return <IconBucket {...props} />;
     case "frame": return <IconFrame {...props} />;
     case "filter": return <IconFilter {...props} />;
+    case "hand": return <IconHand {...props} />;
   }
 }
 

@@ -5,12 +5,11 @@ import type { KonvaEventObject } from "konva/lib/Node";
 import { useThemeStore } from "./state/useTheme";
 import type { TilemapData, TilemapLayer } from "./state/IdeState";
 import { useEditor } from "./state/IdeState";
-import { PACK_ASSET_LIST } from "./state/assets";
 import { Icon } from "./components/Icons";
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
-type Tool = "paint" | "erase" | "fill";
+type Tool = "paint" | "erase" | "fill" | "hand";
 type LayerVis = Record<number, boolean>;
 
 // Encode/decode cell keys
@@ -75,6 +74,28 @@ function floodFill(
   return result;
 }
 
+// Snap-paint along a horizontal or vertical line between two grid cells
+function applyLine(
+  cells: Record<number, Record<number, string>>,
+  start: { col: number; row: number },
+  end: { col: number; row: number },
+  apply: (cells: Record<number, Record<number, string>>, col: number, row: number) => Record<number, Record<number, string>>,
+): Record<number, Record<number, string>> {
+  let result = cells;
+  if (Math.abs(end.col - start.col) >= Math.abs(end.row - start.row)) {
+    const r = start.row;
+    const c0 = Math.min(start.col, end.col);
+    const c1 = Math.max(start.col, end.col);
+    for (let c = c0; c <= c1; c++) result = apply(result, c, r);
+  } else {
+    const col = start.col;
+    const r0 = Math.min(start.row, end.row);
+    const r1 = Math.max(start.row, end.row);
+    for (let r = r0; r <= r1; r++) result = apply(result, col, r);
+  }
+  return result;
+}
+
 const TILE_SIZES = [8, 16, 32, 64, 128] as const;
 
 // ── Sprite image cache ───────────────────────────────────────────────────────
@@ -99,9 +120,10 @@ interface TileEditorProps {
   initialName: string;
   onClose: () => void;
   onSave: (name: string, data: TilemapData) => void;
+  onNewSprite?: () => void;
 }
 
-export default function TileEditor({ open, initialName, onClose, onSave }: TileEditorProps) {
+export default function TileEditor({ open, initialName, onClose, onSave, onNewSprite }: TileEditorProps) {
   const theme = useThemeStore((s) => s.theme);
   const projectAssets = useEditor((s) => s.project.assets);
   const projectTilemaps = useEditor((s) => s.project.tilemaps);
@@ -126,9 +148,11 @@ export default function TileEditor({ open, initialName, onClose, onSave }: TileE
   const containerRef = useRef<HTMLDivElement>(null);
   const [stageSize, setStageSize] = useState({ w: 800, h: 600 });
   const [pan, setPan] = useState({ x: 400, y: 300 });
+  const [isPanning, setIsPanning] = useState(false);
   const panningRef = useRef(false);
   const lastPointerRef = useRef({ x: 0, y: 0 });
   const spaceDownRef = useRef(false);
+  const lineStartCellRef = useRef<{ col: number; row: number } | null>(null);
 
   // ── Undo/redo ─────────────────────────────────────────────────────────────
   const [history, setHistory] = useState<UndoEntry[]>([]);
@@ -138,10 +162,9 @@ export default function TileEditor({ open, initialName, onClose, onSave }: TileE
   const [spriteImages, setSpriteImages] = useState<Record<string, HTMLImageElement>>({});
   const [, forceRender] = useState(0);
 
-  // ── All available sprites ─────────────────────────────────────────────────
+  // ── All available sprites (project assets only) ───────────────────────────
   const allSprites = useMemo(() => {
     const map: Record<string, string> = {};
-    for (const { name, url } of PACK_ASSET_LIST) map[name] = url;
     for (const [name, url] of Object.entries(projectAssets)) {
       const key = name.replace(/\.[^.]+$/, "");
       map[key] = url;
@@ -220,6 +243,12 @@ export default function TileEditor({ open, initialName, onClose, onSave }: TileE
       if (e.code === "Space") { spaceDownRef.current = true; e.preventDefault(); }
       if (e.key === "z" && (e.ctrlKey || e.metaKey) && !e.shiftKey) { e.preventDefault(); undoRef.current(); }
       if ((e.key === "z" && (e.ctrlKey || e.metaKey) && e.shiftKey) || (e.key === "y" && (e.ctrlKey || e.metaKey))) { e.preventDefault(); redoRef.current(); }
+      // Tool shortcuts (skip when typing in an input/textarea)
+      if ((e.target as HTMLElement).tagName === "INPUT" || (e.target as HTMLElement).tagName === "TEXTAREA") return;
+      if (e.key === "h" || e.key === "H") setTool("hand");
+      if (e.key === "b" || e.key === "B") setTool("paint");
+      if (e.key === "e" || e.key === "E") setTool("erase");
+      if (e.key === "g" || e.key === "G") setTool("fill");
     };
     const onKeyUp = (e: KeyboardEvent) => { if (e.code === "Space") spaceDownRef.current = false; };
     window.addEventListener("keydown", onKey);
@@ -246,7 +275,7 @@ export default function TileEditor({ open, initialName, onClose, onSave }: TileE
     return [col, row];
   }, [layers, activeLayerIdx]);
 
-  const handleStageMouseMove = useCallback(() => {
+  const handleStageMouseMove = useCallback((e: KonvaEventObject<MouseEvent>) => {
     const pos = stageRef.current?.getPointerPosition();
     if (!pos) return;
 
@@ -259,6 +288,27 @@ export default function TileEditor({ open, initialName, onClose, onSave }: TileE
     }
 
     const [col, row] = getCell(pos.x, pos.y);
+
+    // Shift+drag: snap stroke to horizontal or vertical line
+    if (paintingRef.current && e.evt.shiftKey && lineStartCellRef.current) {
+      const start = lineStartCellRef.current;
+      const horizontal = Math.abs(col - start.col) >= Math.abs(row - start.row);
+      const snappedCol = horizontal ? col : start.col;
+      const snappedRow = horizontal ? start.row : row;
+      setGhostCell({ col: snappedCol, row: snappedRow });
+
+      const baseCells = strokeStartCells.current ?? layers[activeLayerIdx].cells;
+      if (tool === "paint" && activeSprite) {
+        const newCells = applyLine(baseCells, start, { col: snappedCol, row: snappedRow },
+          (c, cl, rw) => cellsSet(c, cl, rw, activeSprite));
+        setLayers(prev => prev.map((l, i) => i === activeLayerIdx ? { ...l, cells: newCells } : l));
+      } else if (tool === "erase") {
+        const newCells = applyLine(baseCells, start, { col: snappedCol, row: snappedRow }, cellsDel);
+        setLayers(prev => prev.map((l, i) => i === activeLayerIdx ? { ...l, cells: newCells } : l));
+      }
+      return;
+    }
+
     setGhostCell({ col, row });
 
     if (!paintingRef.current) return;
@@ -283,14 +333,16 @@ export default function TileEditor({ open, initialName, onClose, onSave }: TileE
     const pos = stageRef.current?.getPointerPosition();
     if (!pos) return;
 
-    // Middle mouse or space+left → pan
-    if (e.evt.button === 1 || (e.evt.button === 0 && spaceDownRef.current)) {
+    // Middle mouse, space+left, or hand tool → pan
+    if (e.evt.button === 1 || (e.evt.button === 0 && spaceDownRef.current) || (e.evt.button === 0 && tool === "hand")) {
       panningRef.current = true;
+      setIsPanning(true);
       lastPointerRef.current = { x: pos.x, y: pos.y };
       return;
     }
 
     const [col, row] = getCell(pos.x, pos.y);
+    lineStartCellRef.current = { col, row };
     const layer = layers[activeLayerIdx];
 
     if (e.evt.button === 2 || tool === "erase") {
@@ -318,7 +370,7 @@ export default function TileEditor({ open, initialName, onClose, onSave }: TileE
   }, [layers, activeLayerIdx, tool, activeSprite, getCell, commit]);
 
   const handleStageMouseUp = useCallback(() => {
-    if (panningRef.current) { panningRef.current = false; return; }
+    if (panningRef.current) { panningRef.current = false; setIsPanning(false); return; }
     if (paintingRef.current && strokeStartCells.current !== null) {
       const newCells = layers[activeLayerIdx]?.cells;
       if (newCells && newCells !== strokeStartCells.current) {
@@ -326,6 +378,7 @@ export default function TileEditor({ open, initialName, onClose, onSave }: TileE
       }
       strokeStartCells.current = null;
       paintingRef.current = false;
+      lineStartCellRef.current = null;
     }
   }, [layers, activeLayerIdx, commit]);
 
@@ -338,6 +391,7 @@ export default function TileEditor({ open, initialName, onClose, onSave }: TileE
       }
       strokeStartCells.current = null;
       paintingRef.current = false;
+      lineStartCellRef.current = null;
     }
   }, [layers, activeLayerIdx, commit]);
 
@@ -371,10 +425,13 @@ export default function TileEditor({ open, initialName, onClose, onSave }: TileE
   );
 
   const toolDefs = [
-    { id: "paint" as Tool, icon: "pencil" as const, label: "Paint" },
-    { id: "erase" as Tool, icon: "square" as const, label: "Erase" },
+    { id: "hand" as Tool, icon: "hand" as const, label: "Pan (H) — also Space+drag or middle mouse" },
+    { id: "paint" as Tool, icon: "pencil" as const, label: "Paint — Shift+drag for straight lines" },
+    { id: "erase" as Tool, icon: "square" as const, label: "Erase — Shift+drag for straight lines" },
     { id: "fill" as Tool, icon: "bucket" as const, label: "Fill" },
   ];
+
+  const cursor = isPanning ? "grabbing" : tool === "hand" ? "grab" : "crosshair";
 
   const sideBtn = (active = false, disabled = false) => ({
     all: "unset" as const,
@@ -489,7 +546,7 @@ export default function TileEditor({ open, initialName, onClose, onSave }: TileE
           {/* Canvas */}
           <div
             ref={containerRef}
-            style={{ flex: 1, overflow: "hidden" }}
+            style={{ flex: 1, overflow: "hidden", cursor }}
             onContextMenu={e => e.preventDefault()}
           >
             <Stage
@@ -670,8 +727,19 @@ export default function TileEditor({ open, initialName, onClose, onSave }: TileE
               padding: "8px 10px 6px",
               borderTop: `1px solid ${theme.panelBorder}`,
               borderBottom: `1px solid ${theme.panelBorder}`,
+              display: "flex", alignItems: "center", justifyContent: "space-between",
             }}>
               <span style={{ fontSize: 11, fontWeight: 700, color: theme.panelTxtMute, textTransform: "uppercase", letterSpacing: 0.5 }}>Sprites</span>
+              {onNewSprite && (
+                <button
+                  type="button"
+                  title="New sprite"
+                  onClick={onNewSprite}
+                  style={{ all: "unset", cursor: "pointer", display: "flex", alignItems: "center", color: theme.panelTxtMute }}
+                >
+                  <Icon name="plus" size={13} color="currentColor" />
+                </button>
+              )}
             </div>
             <div style={{ flex: 1, overflowY: "auto", padding: "6px 8px 8px" }}>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 4 }}>

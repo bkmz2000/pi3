@@ -306,13 +306,20 @@ class Actor:
             return
         if self.image:
             import graphics as g
-            img = self.image["img"]
-            w = img.width if hasattr(img, "width") else 0
-            h = img.height if hasattr(img, "height") else 0
             g.push()
             g.translate(self._x, self._y)
             g.rotate(self._angle)
-            g.image(self.image, -w / 2, -h / 2)
+            img = self.image
+            if isinstance(img, dict) and img.get("done"):
+                if "anim_name" in img:
+                    anim_name = img["anim_name"]
+                    frame_idx = img.get("frame_idx", 0)
+                    g._draw_commands.append(("animation_frame_centered", (anim_name, frame_idx, 0.0, 0.0, None, None), {}))
+                elif "name" in img:
+                    name = img["name"]
+                    g._draw_commands.append(("image_centered", (name, 0.0, 0.0, None, None), {}))
+            else:
+                g._draw_commands.append(("image_centered", (str(img), 0.0, 0.0, None, None), {}))
             if g._show_hitboxes:
                 sf, sfc, ss, ssc, ssw = g._current_fill, g._fill_color, g._current_stroke, g._stroke_color, g._stroke_width
                 col = self.collider
@@ -323,8 +330,6 @@ class Actor:
                     g.circle(col.dx, col.dy, col.radius)
                 elif col.shape == "rect":
                     g.rect(col.dx - col.width / 2, col.dy - col.height / 2, col.width, col.height)
-                elif w > 0 and h > 0:
-                    g.rect(-w / 2, -h / 2, w, h)
                 g._current_fill, g._fill_color = sf, sfc
                 g._current_stroke, g._stroke_color, g._stroke_width = ss, ssc, ssw
                 g._draw_commands.append(("fill", sfc, {}) if sf else ("no_fill", (), {}))

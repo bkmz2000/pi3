@@ -14,8 +14,6 @@ _version = "1.0"
 
 # === GLOBAL STATE ===
 
-_canvas = None
-_ctx = None
 _width = 300
 _height = 300
 _running = False
@@ -318,199 +316,8 @@ def _anchor_pad_y(anchor, padding):
     return anchor.y
 
 
-def _init(canvas):
-    global _canvas, _ctx
-    _canvas = canvas
-    if canvas:
-        _ctx = canvas.getContext("2d")
-
-
-def _execute_draw_commands():
-    global _ctx
-    for cmd, args, kwargs in _draw_commands:
-        if cmd == "circle":
-            x, y, r = args
-            _ctx.beginPath()
-            _ctx.arc(x, y, r, 0, math.pi * 2)
-            if _current_fill:
-                _ctx.fill()
-            if _current_stroke:
-                _ctx.stroke()
-        elif cmd == "ellipse":
-            x, y, w, h = args
-            _ctx.beginPath()
-            _ctx.ellipse(x, y, w / 2, h / 2, 0, 0, math.pi * 2)
-            if _current_fill:
-                _ctx.fill()
-            if _current_stroke:
-                _ctx.stroke()
-        elif cmd == "rect":
-            x, y, w, h = args
-            _ctx.beginPath()
-            _ctx.rect(x, y, w, h)
-            if _current_fill:
-                _ctx.fill()
-            if _current_stroke:
-                _ctx.stroke()
-        elif cmd == "line":
-            x1, y1, x2, y2 = args
-            _ctx.beginPath()
-            _ctx.moveTo(x1, y1)
-            _ctx.lineTo(x2, y2)
-            _ctx.stroke()
-        elif cmd == "point":
-            x, y = args
-            _ctx.beginPath()
-            _ctx.arc(x, y, max(_stroke_width / 2, 1), 0, math.pi * 2)
-            _ctx.fill()
-        elif cmd == "text":
-            s, x, y = args
-            _ctx.fillText(str(s), x, y)
-        elif cmd == "text_size":
-            n = args[0]
-            _ctx.font = f"{n}px sans-serif"
-        elif cmd == "text_align":
-            h, v = args
-            _ctx.textAlign = h
-            if v:
-                _ctx.textBaseline = v
-        elif cmd == "fill":
-            r, g, b = args
-            _ctx.fillStyle = _color_str(r, g, b)
-        elif cmd == "no_fill":
-            _ctx.fillStyle = "rgba(0,0,0,0)"
-        elif cmd == "stroke":
-            r, g, b = args
-            _ctx.strokeStyle = _color_str(r, g, b)
-        elif cmd == "no_stroke":
-            _ctx.strokeStyle = "rgba(0,0,0,0)"
-        elif cmd == "stroke_width":
-            _ctx.lineWidth = args[0]
-        elif cmd == "background":
-            r, g, b = args
-            _ctx.fillStyle = _color_str(r, g, b)
-            _ctx.fillRect(0, 0, _width, _height)
-        elif cmd == "push":
-            _ctx.save()
-        elif cmd == "pop":
-            _ctx.restore()
-        elif cmd == "translate":
-            _ctx.translate(*args)
-        elif cmd == "rotate":
-            _ctx.rotate(args[0] * math.pi / 180)
-        elif cmd == "scale":
-            _ctx.scale(*args)
-        elif cmd == "image":
-            img_result, x, y, w, h = args
-            if isinstance(img_result, dict):
-                if not img_result.get("done") or img_result.get("img") is None:
-                    continue
-                raw = img_result["img"]
-            else:
-                raw = img_result
-            from pyodide.ffi import to_js
-            js_img = to_js(raw)
-            if w is not None:
-                _ctx.drawImage(js_img, x, y, w, h if h is not None else w)
-            else:
-                _ctx.drawImage(js_img, x, y)
-        elif cmd == "tilemap_layer":
-            from pyodide.ffi import to_js
-            layer, ox, oy = args
-            ts = layer.tile_size
-            cw = float(_canvas.width)
-            ch = float(_canvas.height)
-            for col, rows in layer._cells.items():
-                sx = ox + col * ts
-                if sx + ts <= 0 or sx >= cw:
-                    continue
-                for row, name in rows.items():
-                    sy = oy + row * ts
-                    if sy + ts <= 0 or sy >= ch:
-                        continue
-                    bmp = layer._bitmaps.get(name)
-                    if bmp is not None:
-                        _ctx.drawImage(to_js(bmp), sx, sy, ts, ts)
-        elif cmd == "say":
-            _draw_say(*args)
-
-
-def _draw_say(s, anchor, padding):
-    """Render a speech bubble at anchor point with a tail."""
-    ax = float(anchor.x)
-    ay = float(anchor.y)
-    h_align = anchor.h_align
-    v_align = anchor.v_align
-
-    # Measure text width; estimate from char count if measureText unavailable
-    try:
-        metrics = _ctx.measureText(s)
-        text_w = float(metrics.width)
-    except Exception:
-        text_w = len(s) * 9.0  # rough fallback
-
-    # Estimate font size from canvas font string (e.g. "16px sans-serif")
-    font_size = 16.0
-    try:
-        font_part = _ctx.font.strip().split("px")[0].strip().split()[-1]
-        font_size = float(font_part)
-    except Exception:
-        pass
-
-    text_h = font_size
-    bubble_w = text_w + 2 * padding
-    bubble_h = text_h + 2 * padding
-    tail = min(10, padding + 2)
-    corner_r = 6
-
-    # Compute bubble top-left corner and tail triangle points
-    bx_map = {"left": ax, "right": ax - bubble_w, "center": ax - bubble_w / 2}
-    bx = bx_map.get(h_align, ax - bubble_w / 2)
-
-    if v_align == "bottom":      # anchor is at the top of the actor → bubble above
-        by = ay - bubble_h - tail
-        mid_bx = bx + bubble_w / 2
-        tail_pts = [(mid_bx, ay), (mid_bx - tail / 2, by + bubble_h), (mid_bx + tail / 2, by + bubble_h)]
-    elif v_align == "top":       # anchor at bottom of actor → bubble below
-        by = ay + tail
-        mid_bx = bx + bubble_w / 2
-        tail_pts = [(mid_bx, ay), (mid_bx - tail / 2, by), (mid_bx + tail / 2, by)]
-    else:                        # middle → bubble to the side
-        by = ay - bubble_h / 2
-        if h_align == "left":
-            bx = ax + tail
-            tail_pts = [(ax, ay), (bx, ay - tail / 2), (bx, ay + tail / 2)]
-        else:
-            bx = ax - bubble_w - tail
-            tail_pts = [(ax, ay), (ax - tail, ay - tail / 2), (ax - tail, ay + tail / 2)]
-
-    _ctx.save()
-    _ctx.fillStyle = "rgba(0,0,0,0.78)"
-    _ctx.strokeStyle = "rgba(0,0,0,0)"
-
-    # Tail triangle
-    _ctx.beginPath()
-    _ctx.moveTo(tail_pts[0][0], tail_pts[0][1])
-    _ctx.lineTo(tail_pts[1][0], tail_pts[1][1])
-    _ctx.lineTo(tail_pts[2][0], tail_pts[2][1])
-    _ctx.closePath()
-    _ctx.fill()
-
-    # Rounded bubble
-    _ctx.beginPath()
-    try:
-        _ctx.roundRect(bx, by, bubble_w, bubble_h, corner_r)
-    except Exception:
-        _ctx.rect(bx, by, bubble_w, bubble_h)
-    _ctx.fill()
-
-    # Text
-    _ctx.fillStyle = "white"
-    _ctx.textAlign = "left"
-    _ctx.textBaseline = "middle"
-    _ctx.fillText(s, bx + padding, by + bubble_h / 2)
-
-    _ctx.restore()
+def _init(canvas=None):
+    pass
 
 
 # === SIZE ===
@@ -573,7 +380,7 @@ def text(s: Any, x_or_anchor, y=None, *, padding: int = 6) -> None:
 
 def say(s: Any, anchor, *, padding: int = 8) -> None:
     """Draw a speech bubble with a tail pointing at anchor."""
-    _draw_commands.append(("say", (str(s), anchor, int(padding)), {}))
+    _draw_commands.append(("say", (str(s), float(anchor.x), float(anchor.y), anchor.h_align, anchor.v_align, int(padding)), {}))
 
 
 def text_size(n) -> None:
@@ -665,7 +472,18 @@ def scale(x, y=None) -> None:
 
 
 def image(img_result: Any, x, y, w=None, h=None) -> None:
-    _draw_commands.append(("image", (img_result, float(x), float(y), w, h), {}))
+    if isinstance(img_result, dict):
+        if not img_result.get("done"):
+            return
+        if "anim_name" in img_result:
+            anim_name = img_result["anim_name"]
+            frame_idx = img_result.get("frame_idx", 0)
+            _draw_commands.append(("animation_frame", (anim_name, frame_idx, float(x), float(y), w, h), {}))
+        elif "name" in img_result:
+            name = img_result["name"]
+            _draw_commands.append(("image", (name, float(x), float(y), w, h), {}))
+    else:
+        _draw_commands.append(("image", (str(img_result), float(x), float(y), w, h), {}))
 
 
 # === RANDOM HELPERS ===
@@ -697,8 +515,8 @@ def frame_rate(fps) -> None:
 def _tick(main, my_generation):
     global _pending_timer_id, frame_count, _mouse_clicked, _mouse_released
     global _running, _stop_requested, _loop_generation
-    from js import clearTimeout, setTimeout
-    from pyodide.ffi import create_proxy
+    from js import clearTimeout, setTimeout, _ide_flush_draw_commands
+    from pyodide.ffi import create_proxy, to_js
     from graphics.actors import Actor
 
     if _loop_generation != my_generation:
@@ -710,7 +528,7 @@ def _tick(main, my_generation):
         return
 
     try:
-        _execute_draw_commands()
+        _ide_flush_draw_commands(to_js(_draw_commands))
         _draw_commands.clear()
 
         for actor in Actor.all_actors():
@@ -726,7 +544,7 @@ def _tick(main, my_generation):
         _keys_pressed.clear()
         _keys_released.clear()
 
-        _execute_draw_commands()
+        _ide_flush_draw_commands(to_js(_draw_commands))
         _draw_commands.clear()
         frame_count += 1
 
@@ -743,16 +561,12 @@ tick_proxy = None
 
 
 def _run(main=None, fps=60) -> None:
-    from js import setTimeout
+    from js import setTimeout, _ide_canvas_resize  # type: ignore
     from pyodide.ffi import create_proxy
 
     global _running, _stop_requested, _loop_generation, frame_count, _target_fps
-    global _pending_timer_id, tick_proxy, _ctx, _canvas, _width, _height
+    global _pending_timer_id, tick_proxy, _width, _height
 
-    if _canvas is None:
-        raise RuntimeError("No canvas attached. Call attach_canvas first.")
-
-    _ctx = _canvas.getContext("2d")
     _target_fps = int(fps)
 
     if _pending_timer_id is not None:
@@ -761,10 +575,7 @@ def _run(main=None, fps=60) -> None:
 
     if _pending_size:
         _width, _height = _pending_size
-        _canvas.width = _width
-        _canvas.height = _height
 
-    from js import _ide_canvas_resize  # type: ignore
     _ide_canvas_resize(_width, _height)
 
     _running = True
@@ -852,7 +663,7 @@ def _clear():
     global frame_count, _stop_requested, _running, _loop_generation
     global _mouse_x, _mouse_y, _mouse_down, _mouse_clicked, _mouse_released
     global _keys_down, _keys_pressed, _keys_released
-    global _fill_color, _stroke_color, _stroke_width
+    global _fill_color, _stroke_color, _stroke_width, _width, _height
     global _current_fill, _current_stroke, _pending_timer_id
     from js import clearTimeout
     from graphics.actors import Actor
@@ -887,14 +698,14 @@ def _clear():
 class TilemapLayer:
     """A single named layer in a tilemap. Cells addressed by (col, row) integers."""
 
-    def __init__(self, name: str, tile_size: int, cells: dict, bitmaps: dict):
+    def __init__(self, name: str, tile_size: int, cells: dict, bitmaps: dict = {}):
         self.name = name
         self.tile_size = tile_size
         self._cells = cells    # dict[int, dict[int, str]]
-        self._bitmaps = bitmaps  # dict[str, ImageBitmap]
 
     def draw(self, x=0, y=0):
-        _draw_commands.append(("tilemap_layer", (self, float(x), float(y)), {}))
+        cells_flat = [[col, row, name] for col, rows in self._cells.items() for row, name in rows.items()]
+        _draw_commands.append(("tilemap_layer", (cells_flat, self.tile_size, float(x), float(y)), {}))
 
     def tile_at(self, px, py):
         col = int(px // self.tile_size)
@@ -916,6 +727,12 @@ class TileMap:
     def __init__(self, layers: list, layer_by_name: dict):
         self._layers = layers
         self.layers = layer_by_name
+
+    def __getattr__(self, name):
+        try:
+            return self.layers[name]
+        except KeyError:
+            raise AttributeError(f"TileMap has no layer '{name}'")
 
     def draw(self, x=0, y=0):
         for layer in self._layers:

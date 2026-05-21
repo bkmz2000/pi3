@@ -3,9 +3,6 @@ import { create } from "zustand";
 import { WorkerCommand, WorkerEvent, WorkerEventType, LintDiagnostic } from "./WorkerInterface";
 import { useIde, useEditor, type AnimationData } from "../state/IdeState";
 import { useThemeStore } from "../state/useTheme";
-import Shim from "../assets/examples/shim.py?raw";
-import Transform from "../assets/examples/transform.py?raw";
-import Actors from "../assets/examples/actors.py?raw";
 import GraphicsInit from "../assets/python/graphics/__init__.py?raw";
 import GraphicsActors from "../assets/python/graphics/actors/__init__.py?raw";
 import GraphicsAnimation from "../assets/python/graphics/animation.py?raw";
@@ -21,7 +18,6 @@ type RunnerState = {
   running: boolean;
   output: OutputLine[];
   inputPrompt: string | null;
-  isP5: boolean;
   canvasActive: boolean;
   canvasWidth: number;
   canvasHeight: number;
@@ -42,7 +38,6 @@ export const useRunnerStore = create<RunnerState>((set) => ({
   running: false,
   output: [],
   inputPrompt: null,
-  isP5: false,
   canvasActive: false,
   canvasWidth: 0,
   canvasHeight: 0,
@@ -90,7 +85,6 @@ export const useRunnerStore = create<RunnerState>((set) => ({
       case "start": {
         set({
           running: true,
-          isP5: msg.isP5,
           canvasActive: msg.canvasActive,
         });
         break;
@@ -113,9 +107,9 @@ export const useRunnerStore = create<RunnerState>((set) => ({
 
   setRunning: (running) => set({ running }),
   clear: () =>
-    set({ output: [], inputPrompt: null, isP5: false, running: false, canvasActive: false, lintErrors: [], canvasWidth: 0, canvasHeight: 0, canvasScale: 1 }),
+    set({ output: [], inputPrompt: null, running: false, canvasActive: false, lintErrors: [], canvasWidth: 0, canvasHeight: 0, canvasScale: 1 }),
   stop: () =>
-    set({ inputPrompt: null, isP5: false, running: false, canvasActive: false }),
+    set({ inputPrompt: null, running: false, canvasActive: false }),
 
   respondToInput: (value) => {
     set({ inputPrompt: null });
@@ -203,9 +197,6 @@ function getWorker(): Worker {
   initInterruptBuffer(worker);
   worker.postMessage({
     cmd: "init",
-    shim: Shim,
-    transform: Transform,
-    actors: Actors,
     graphicsInit: GraphicsInit,
     graphicsActors: GraphicsActors,
     graphicsAnimation: GraphicsAnimation,
@@ -255,7 +246,7 @@ function wireEvents(canvas: HTMLCanvasElement): () => void {
 }
 
 export function useRunner() {
-  const { ready, running, output, clear, inputPrompt, respondToInput, isP5, canvasActive, canvasWidth, canvasHeight, canvasScale, lintErrors, _appendOutput } =
+  const { ready, running, output, clear, inputPrompt, respondToInput, canvasActive, canvasWidth, canvasHeight, canvasScale, lintErrors, _appendOutput } =
     useRunnerStore();
 
   useEffect(() => {
@@ -443,7 +434,6 @@ export function useRunner() {
   return {
     ready,
     running,
-    isP5,
     canvasActive,
     canvasWidth,
     canvasHeight,

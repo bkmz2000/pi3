@@ -14,7 +14,7 @@ export type InputEventData = {
 };
 
 export type WorkerCommand =
-  | { cmd: "init"; shim: string; transform: string; actors: string; graphicsInit: string; graphicsActors: string; graphicsAnimation: string; linter: string }
+  | { cmd: "init"; graphicsInit: string; graphicsActors: string; graphicsAnimation: string; linter: string }
   | {
       cmd: "run";
       files: Record<string, string>;
@@ -45,7 +45,7 @@ export type LintDiagnostic = {
 
 export type WorkerEvent =
   | { type: "ready" }
-  | { type: "start"; isP5: boolean; canvasActive: boolean }
+  | { type: "start"; canvasActive: boolean }
   | { type: "stdout"; text: string }
   | { type: "stderr"; text: string }
   | { type: "result" }

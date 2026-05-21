@@ -6,7 +6,10 @@ let offscreen: OffscreenCanvas | null = null;
 let activePaths: string[] = [];
 let pendingInterruptBuffer: Uint8Array | null = null;
 let pendingOffscreen: OffscreenCanvas | null = null;
-let shimProxy: { _inject_event: (kind: string, data: unknown) => void; noLoop: () => void; _ide_console: { resolve: (v: string) => void } | null; destroy: () => void } | null = null;
+
+// JS-side asset stores — ImageBitmaps never enter Pyodide
+let runAssets: Record<string, ImageBitmap> = {};
+let runAnimations: Record<string, { frames: ImageBitmap[]; fps: number }> = {};
 
 function post(e: WorkerEvent) {
   self.postMessage(e);
@@ -42,42 +45,336 @@ async function ensurePyodide(): Promise<PyodideInterface> {
   throw new Error("Failed to load Pyodide");
 }
 
+// Rewrite `input(...)` → `(await _async_input(...))` using paren matching so that
+// chained calls like `input("x").strip()` become `(await _async_input("x")).strip()`.
+// Skips occurrences inside string literals and comments (best-effort).
+function rewriteInputCalls(code: string): string {
+  const INPUT_RE = /\binput\s*\(/g;
+  let result = '';
+  let last = 0;
+  let m: RegExpExecArray | null;
+  while ((m = INPUT_RE.exec(code)) !== null) {
+    const start = m.index;
+    // Skip if inside a string or comment (simple heuristic: count unescaped quotes before)
+    const before = code.slice(0, start);
+    const singles = (before.match(/(?<!\\)'/g) ?? []).length;
+    const doubles = (before.match(/(?<!\\)"/g) ?? []).length;
+    if (singles % 2 !== 0 || doubles % 2 !== 0) continue; // inside a string literal
+
+    const parenStart = start + m[0].length - 1; // position of the '('
+    // Find matching ')' by counting depth
+    let depth = 1;
+    let j = parenStart + 1;
+    while (j < code.length && depth > 0) {
+      const ch = code[j];
+      if (ch === '(') depth++;
+      else if (ch === ')') depth--;
+      j++;
+    }
+    // j is now one past the matching ')'
+    const innerContent = code.slice(parenStart + 1, j - 1);
+    result += code.slice(last, start);
+    result += `(await _async_input(${innerContent}))`;
+    last = j;
+    INPUT_RE.lastIndex = j;
+  }
+  result += code.slice(last);
+  return result;
+}
+
+// --- JS-side canvas renderer ---
+
+function lookupAsset(assets: Record<string, ImageBitmap>, name: string): ImageBitmap | undefined {
+  return assets[name] ?? assets[name + ".png"] ?? assets[name + ".svg"];
+}
+
+function drawSay(
+  ctx: OffscreenCanvasRenderingContext2D,
+  s: string,
+  ax: number,
+  ay: number,
+  hAlign: string,
+  vAlign: string,
+  padding: number,
+) {
+  let metrics: TextMetrics;
+  try {
+    metrics = ctx.measureText(s);
+  } catch {
+    metrics = { width: s.length * 9 } as TextMetrics;
+  }
+  const textW = metrics.width;
+
+  let fontSize = 16;
+  try {
+    const fontPart = ctx.font.trim().split("px")[0].trim().split(/\s+/).pop()!;
+    fontSize = parseFloat(fontPart) || 16;
+  } catch {
+    /* use default */
+  }
+
+  const textH = fontSize;
+  const bubbleW = textW + 2 * padding;
+  const bubbleH = textH + 2 * padding;
+  const tail = Math.min(10, padding + 2);
+  const cornerR = 6;
+
+  let bx: number;
+  if (hAlign === "left") bx = ax;
+  else if (hAlign === "right") bx = ax - bubbleW;
+  else bx = ax - bubbleW / 2;
+
+  let by: number;
+  let tailPts: [number, number][];
+  if (vAlign === "bottom") {
+    by = ay - bubbleH - tail;
+    const mid = bx + bubbleW / 2;
+    tailPts = [[mid, ay], [mid - tail / 2, by + bubbleH], [mid + tail / 2, by + bubbleH]];
+  } else if (vAlign === "top") {
+    by = ay + tail;
+    const mid = bx + bubbleW / 2;
+    tailPts = [[mid, ay], [mid - tail / 2, by], [mid + tail / 2, by]];
+  } else {
+    by = ay - bubbleH / 2;
+    if (hAlign === "left") {
+      bx = ax + tail;
+      tailPts = [[ax, ay], [bx, ay - tail / 2], [bx, ay + tail / 2]];
+    } else {
+      bx = ax - bubbleW - tail;
+      tailPts = [[ax, ay], [ax - tail, ay - tail / 2], [ax - tail, ay + tail / 2]];
+    }
+  }
+
+  ctx.save();
+  ctx.fillStyle = "rgba(0,0,0,0.78)";
+  ctx.strokeStyle = "rgba(0,0,0,0)";
+
+  ctx.beginPath();
+  ctx.moveTo(tailPts[0][0], tailPts[0][1]);
+  ctx.lineTo(tailPts[1][0], tailPts[1][1]);
+  ctx.lineTo(tailPts[2][0], tailPts[2][1]);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.beginPath();
+  const ctxExt = ctx as OffscreenCanvasRenderingContext2D & { roundRect?: (x: number, y: number, w: number, h: number, r: number) => void };
+  if (ctxExt.roundRect) {
+    ctxExt.roundRect(bx, by, bubbleW, bubbleH, cornerR);
+  } else {
+    ctx.rect(bx, by, bubbleW, bubbleH);
+  }
+  ctx.fill();
+
+  ctx.fillStyle = "white";
+  ctx.textAlign = "left";
+  ctx.textBaseline = "middle";
+  ctx.fillText(s, bx + padding, by + bubbleH / 2);
+  ctx.restore();
+}
+
+function executeDrawCommands(
+  ctx: OffscreenCanvasRenderingContext2D,
+  commands: unknown[],
+  assets: Record<string, ImageBitmap>,
+  animations: Record<string, { frames: ImageBitmap[]; fps: number }>,
+  canvasW: number,
+  canvasH: number,
+) {
+  for (const entry of commands) {
+    const [cmd, args] = entry as [string, unknown[]];
+    switch (cmd) {
+      case "background": {
+        const [r, g, b] = args as [number, number, number];
+        ctx.fillStyle = `rgb(${r},${g},${b})`;
+        ctx.fillRect(0, 0, canvasW, canvasH);
+        break;
+      }
+      case "circle": {
+        const [x, y, r] = args as [number, number, number];
+        ctx.beginPath();
+        ctx.arc(x, y, r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        break;
+      }
+      case "ellipse": {
+        const [x, y, w, h] = args as [number, number, number, number];
+        ctx.beginPath();
+        ctx.ellipse(x, y, w / 2, h / 2, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        break;
+      }
+      case "rect": {
+        const [x, y, w, h] = args as [number, number, number, number];
+        ctx.beginPath();
+        ctx.rect(x, y, w, h);
+        ctx.fill();
+        ctx.stroke();
+        break;
+      }
+      case "line": {
+        const [x1, y1, x2, y2] = args as [number, number, number, number];
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        ctx.stroke();
+        break;
+      }
+      case "point": {
+        const [x, y] = args as [number, number];
+        ctx.beginPath();
+        ctx.arc(x, y, Math.max(ctx.lineWidth / 2, 1), 0, Math.PI * 2);
+        ctx.fill();
+        break;
+      }
+      case "text": {
+        const [s, x, y] = args as [string, number, number];
+        ctx.fillText(String(s), x, y);
+        break;
+      }
+      case "text_size": {
+        const [n] = args as [number];
+        ctx.font = `${n}px sans-serif`;
+        break;
+      }
+      case "text_align": {
+        const [h, v] = args as [CanvasTextAlign, CanvasTextBaseline | null];
+        ctx.textAlign = h;
+        if (v) ctx.textBaseline = v;
+        break;
+      }
+      case "fill": {
+        const [r, g, b] = args as [number, number, number];
+        ctx.fillStyle = `rgb(${r},${g},${b})`;
+        break;
+      }
+      case "no_fill": {
+        ctx.fillStyle = "rgba(0,0,0,0)";
+        break;
+      }
+      case "stroke": {
+        const [r, g, b] = args as [number, number, number];
+        ctx.strokeStyle = `rgb(${r},${g},${b})`;
+        break;
+      }
+      case "no_stroke": {
+        ctx.strokeStyle = "rgba(0,0,0,0)";
+        break;
+      }
+      case "stroke_width": {
+        const [w] = args as [number];
+        ctx.lineWidth = w;
+        break;
+      }
+      case "push": {
+        ctx.save();
+        break;
+      }
+      case "pop": {
+        ctx.restore();
+        break;
+      }
+      case "translate": {
+        const [x, y] = args as [number, number];
+        ctx.translate(x, y);
+        break;
+      }
+      case "rotate": {
+        const [deg] = args as [number];
+        ctx.rotate((deg * Math.PI) / 180);
+        break;
+      }
+      case "scale": {
+        const [sx, sy] = args as [number, number];
+        ctx.scale(sx, sy);
+        break;
+      }
+      case "image": {
+        const [name, x, y, w, h] = args as [string, number, number, number | null, number | null];
+        const bm = lookupAsset(assets, name);
+        if (!bm) break;
+        if (w != null) ctx.drawImage(bm, x, y, w, h ?? w);
+        else ctx.drawImage(bm, x, y);
+        break;
+      }
+      case "image_centered": {
+        const [name, x, y, w, h] = args as [string, number, number, number | null, number | null];
+        const bm = lookupAsset(assets, name);
+        if (!bm) break;
+        const dw = w ?? bm.width;
+        const dh = h ?? bm.height;
+        ctx.drawImage(bm, x - dw / 2, y - dh / 2, dw, dh);
+        break;
+      }
+      case "animation_frame": {
+        const [animName, frameIdx, x, y, w, h] = args as [string, number, number, number, number | null, number | null];
+        const anim = animations[animName];
+        if (!anim) break;
+        const bm = anim.frames[frameIdx % anim.frames.length];
+        if (!bm) break;
+        if (w != null) ctx.drawImage(bm, x, y, w, h ?? w);
+        else ctx.drawImage(bm, x, y);
+        break;
+      }
+      case "animation_frame_centered": {
+        const [animName, frameIdx, x, y, w, h] = args as [string, number, number, number, number | null, number | null];
+        const anim = animations[animName];
+        if (!anim) break;
+        const bm = anim.frames[frameIdx % anim.frames.length];
+        if (!bm) break;
+        const dw = w ?? bm.width;
+        const dh = h ?? bm.height;
+        ctx.drawImage(bm, x - dw / 2, y - dh / 2, dw, dh);
+        break;
+      }
+      case "tilemap_layer": {
+        const [cellsFlat, tileSize, ox, oy] = args as [Array<[number, number, string]>, number, number, number];
+        for (const [col, row, name] of cellsFlat) {
+          const sx = ox + col * tileSize;
+          const sy = oy + row * tileSize;
+          if (sx + tileSize <= 0 || sx >= canvasW || sy + tileSize <= 0 || sy >= canvasH) continue;
+          const bm = lookupAsset(assets, name);
+          if (bm) ctx.drawImage(bm, sx, sy, tileSize, tileSize);
+        }
+        break;
+      }
+      case "say": {
+        const [s, ax, ay, hAlign, vAlign, padding] = args as [string, number, number, string, string, number];
+        drawSay(ctx, s, ax, ay, hAlign, vAlign, padding);
+        break;
+      }
+    }
+  }
+}
+
 async function initPyodide(
   p: PyodideInterface,
-  shim: string,
-  transform: string,
-  actors: string,
   graphicsInit: string,
   graphicsActors: string,
   graphicsAnimation: string,
   linter: string,
 ) {
   console.log("Worker: Writing modules to filesystem...");
-  p.FS.writeFile("/_shim_p5.py", shim);
-  p.FS.writeFile("/transform.py", transform);
-  p.FS.writeFile("/actors.py", actors);
 
-  // Write new graphics package
   try {
     p.FS.mkdir("/graphics");
   } catch {
-    // Directory may already exist
+    /* already exists */
   }
   try {
     p.FS.mkdir("/graphics/actors");
   } catch {
-    // Directory may already exist
+    /* already exists */
   }
   p.FS.writeFile("/graphics/__init__.py", graphicsInit);
   p.FS.writeFile("/graphics/actors/__init__.py", graphicsActors);
   p.FS.writeFile("/graphics/animation.py", graphicsAnimation);
-  
-  // Write linter module
   p.FS.writeFile("/linter.py", linter);
-  
+
   console.log("Worker: Files written, running Python initialization...");
 
-  // Set up IDE callbacks as individual globals AND on js object for Python compatibility
+  // Register JS callbacks as Pyodide globals
   p.globals.set(
     "_ide_post_output",
     (kind: "stdout" | "stderr", text: string) => {
@@ -88,27 +385,78 @@ async function initPyodide(
     post({ type: "input_request", prompt });
   });
   p.globals.set("_ide_canvas_resize", (width: number, height: number) => {
+    if (offscreen) {
+      offscreen.width = width;
+      offscreen.height = height;
+    }
     post({ type: "canvas_resize", width, height });
   });
 
-  // Expose on actual js module for Python's "from js import X"
-  // We need to use runPython to properly set up the js module
+  // _ide_resolve_input: called from JS when input_response arrives
+  // Stores a reference so the Python future can be resolved
+  p.globals.set("_ide_resolve_input", (value: string) => {
+    // Will be replaced in Python with the actual future resolver each time input() is called
+    const resolver = p.globals.get("_input_resolve");
+    if (resolver) resolver(value);
+  });
+
+  // _ide_flush_draw_commands: called from Python each tick with to_js(_draw_commands)
+  p.globals.set("_ide_flush_draw_commands", (commands: unknown[]) => {
+    if (!offscreen) return;
+    const ctx = offscreen.getContext("2d");
+    if (!ctx) return;
+    executeDrawCommands(ctx, Array.from(commands as Iterable<unknown>), runAssets, runAnimations, offscreen.width, offscreen.height);
+  });
+
+  // Expose all callbacks on the js module and inline stdout/input setup
   await p.runPythonAsync(`
+import sys
 import js
+import asyncio
+import builtins
+
 js._ide_post_output = _ide_post_output
 js._ide_post_input_request = _ide_post_input_request
 js._ide_canvas_resize = _ide_canvas_resize
+js._ide_resolve_input = _ide_resolve_input
+js._ide_flush_draw_commands = _ide_flush_draw_commands
+
+class _Writer:
+    def __init__(self, kind):
+        self._kind = kind
+        self._buf = ""
+    def write(self, s):
+        self._buf += s
+        if "\\n" in s:
+            _ide_post_output(self._kind, self._buf)
+            self._buf = ""
+    def flush(self):
+        if self._buf:
+            _ide_post_output(self._kind, self._buf)
+            self._buf = ""
+
+sys.stdout = _Writer("stdout")
+sys.stderr = _Writer("stderr")
+
+async def _async_input(prompt=""):
+    _ide_post_input_request(prompt)
+    loop = asyncio.get_event_loop()
+    fut = loop.create_future()
+    def _resolve(v):
+        if not fut.done():
+            loop.call_soon_threadsafe(fut.set_result, v)
+    globals()["_input_resolve"] = _resolve
+    return await fut
+
+builtins.input = _async_input
   `);
 
   try {
     await p.runPythonAsync(`
 import sys
 sys.path.insert(0, "/")
-import _shim_p5 as _shim
-_shim._ide_init(_ide_post_output, _ide_post_input_request)
 import linter
     `);
-    shimProxy = p.globals.get("_shim");
     console.log("Worker: Python initialization completed successfully");
   } catch (err: unknown) {
     console.error("Worker: Python initialization failed:", err);
@@ -121,7 +469,6 @@ import linter
   }
   if (pendingOffscreen) {
     offscreen = pendingOffscreen;
-    p.globals.set("__ide_canvas", pendingOffscreen);
     pendingOffscreen = null;
   }
 }
@@ -142,7 +489,6 @@ function prepareFiles(p: PyodideInterface, files: Record<string, string>) {
 }
 
 function usesNewGraphics(code: string): boolean {
-  // Match only on non-commented portions of each line
   return /^[^#'"]*\b(import graphics|from graphics)\b/m.test(code);
 }
 
@@ -166,47 +512,83 @@ async function runGraphicsScript(
     return;
   }
 
-  // Assets are already ImageBitmaps created in the main thread
-  const assetsEntries = Object.entries(assets);
-  p.globals.set("_asset_bitmaps", assetsEntries);
+  // Store assets JS-side only — do NOT pass bitmaps into Pyodide
+  runAssets = assets;
+  runAnimations = animations ?? {};
+
+  // Pass only names/metadata into Python
+  p.globals.set("_asset_names", Object.keys(assets));
+  p.globals.set(
+    "_anim_meta",
+    Object.entries(animations ?? {}).map(([n, a]) => [n, a.frames.length, a.fps]),
+  );
   p.globals.set("_tilemap_data", JSON.stringify(tilemaps ?? {}));
-  // Animations: list of [name, {frames: [ImageBitmap, ...], fps: number}]
-  const animEntries = Object.entries(animations ?? {}).map(([name, anim]) => [name, anim]);
-  p.globals.set("_animation_data", animEntries);
   p.globals.set("_using_graphics", true);
 
-  // Inject theme-aware color palette into Colors before running user code
   if (themePalette && Object.keys(themePalette).length > 0) {
     const paletteEntries = Object.entries(themePalette);
     p.globals.set("_theme_palette", paletteEntries);
     await p.runPythonAsync(
-      `import graphics; graphics.Colors._update_theme(dict(_theme_palette.to_py()))`
+      `import graphics; graphics.Colors._update_theme(dict(_theme_palette.to_py()))`,
     );
   }
 
   await p.runPythonAsync(`
-def setup(f):
-    return f
-
 import graphics
-graphics._init(__ide_canvas)
-
-# Clear state from previous runs BEFORE user code runs
 from graphics.actors import Actor
+from types import SimpleNamespace
+import json
+
+# Reset actor state from previous runs
 Actor._registry.clear()
 Actor._id_counter = 0
 graphics._loop_generation = graphics._loop_generation + 1
 graphics._show_hitboxes = ${showHitboxes ? "True" : "False"}
 
-from types import SimpleNamespace
-_sprites = _shim._ide_build_assets(_asset_bitmaps).sprites
-_tilemaps = _shim._ide_build_tilemaps(_tilemap_data, dict(_asset_bitmaps.to_py()))
-_animations = _shim._ide_build_animations(_animation_data.to_py())
-graphics.assets = SimpleNamespace(sprites=_sprites, tilemaps=_tilemaps, animations=_animations)
+# Build sprites namespace from asset names (no bitmaps)
+_sprites_dict = {}
+for _name in _asset_names.to_py():
+    _key = _name.rsplit(".", 1)[0] if "." in _name else _name
+    _sprites_dict[_key] = {"done": True, "name": _name}
+_sprites = SimpleNamespace(**_sprites_dict)
+
+# Build animations namespace from metadata
+_anim_ns = {}
+for _aname, _fcount, _fps in _anim_meta.to_py():
+    from graphics.animation import Animation
+    _frames_list = [{"done": True, "anim_name": _aname, "frame_idx": _i} for _i in range(_fcount)]
+    _anim_obj = Animation.__new__(Animation)
+    _anim_obj.name = _aname
+    _anim_obj.fps = _fps
+    _anim_obj._frames = _frames_list
+    _anim_obj._current_frame = 0
+    _anim_obj._last_tick = 0
+    _anim_ns[_aname] = _anim_obj
+
+# Build tilemaps from JSON data
+_tilemaps_dict = {}
+_raw_tm = json.loads(_tilemap_data)
+for _tm_name, _tm_data in _raw_tm.items():
+    _layers = []
+    _layer_by_name = {}
+    _tile_size = _tm_data.get("tileSize", 32)
+    for _layer_data in _tm_data.get("layers", []):
+        _lname = _layer_data.get("name", "")
+        _cells_raw = _layer_data.get("cells", {})
+        _cells = {}
+        for _col_str, _rows in _cells_raw.items():
+            _col = int(_col_str)
+            _cells[_col] = {}
+            for _row_str, _cell_name in _rows.items():
+                _cells[_col][int(_row_str)] = _cell_name
+        _layer = graphics.TilemapLayer(_lname, _tile_size, _cells, {})
+        _layers.append(_layer)
+        _layer_by_name[_lname] = _layer
+    _tilemaps_dict[_tm_name] = graphics.TileMap(_layers, _layer_by_name)
+
+graphics.assets = SimpleNamespace(sprites=_sprites, tilemaps=SimpleNamespace(**_tilemaps_dict), animations=SimpleNamespace(**_anim_ns))
   `);
 
-  // Now set proper initial state AFTER clear, but BEFORE user code
-  // This ensures old ticks (if any) will see a new generation and return
   await p.runPythonAsync(`
 graphics._running = False
 graphics._stop_requested = False
@@ -214,8 +596,8 @@ graphics._reset_run_state()
   `);
 
   const code = files[entry] ?? "";
-  post({ type: "start", isP5: false, canvasActive: true });
-  
+  post({ type: "start", canvasActive: true });
+
   try {
     await p.runPythonAsync(code);
   } catch (err: unknown) {
@@ -244,44 +626,22 @@ async function runScript(
     return;
   }
 
-  let transformed: string;
-  let isP5: boolean;
+  // Plain Python script — wrap in async def so input() suspends correctly.
+  // Pyodide's WebLoop can't re-enter run_until_complete, so we rewrite input(...)
+  // as (await _async_input(...)) and wrap the script in an async def.
+  // Paren-matching ensures nested calls like int(input("x")) work correctly.
+  const transformed = rewriteInputCalls(code);
+  const indented = transformed.split('\n').map((l) => '    ' + l).join('\n');
+  const asyncCode = `async def __run():\n${indented}\nawait __run()\n`;
 
+  post({ type: "start", canvasActive: false });
   try {
-    const result = p
-      .runPython(`transform(${JSON.stringify(code)}, ${JSON.stringify(entry)})`)
-      .toJs({ dict_converter: Object.fromEntries });
-    transformed = result.code;
-    isP5 = result.metadata.is_p5;
-    post({ type: "start", isP5, canvasActive: isP5 });
+    await p.runPythonAsync(asyncCode);
   } catch (err: unknown) {
-    post({ type: "error", error: `Transform failed: ${err}` });
+    post({ type: "error", error: String(err) });
     post({ type: "result" });
     return;
   }
-
-  if (isP5) {
-    if (!offscreen) {
-      post({
-        type: "error",
-        error: "No canvas attached. Call attachCanvas first.",
-      });
-      return;
-    }
-    // Assets are already ImageBitmaps created in the main thread
-    const assetsEntries = Object.entries(assets);
-    p.globals.set("_asset_bitmaps", assetsEntries);
-    await p.runPythonAsync(
-      `assets = _shim._ide_build_assets(_asset_bitmaps.to_py())`,
-    );
-
-    await p.runPythonAsync(
-      `_shim._ide_run_p5(__ide_canvas, ${JSON.stringify(transformed)}, ${JSON.stringify(entry)}, assets)`,
-    );
-  } else {
-    await p.runPythonAsync(transformed);
-  }
-
   post({ type: "result" });
 }
 
@@ -293,7 +653,7 @@ self.onmessage = async (e: MessageEvent<WorkerCommand>) => {
       console.log("Worker: Initializing Pyodide...");
       const p = await ensurePyodide();
       console.log("Worker: Pyodide loaded, initializing modules...");
-      await initPyodide(p, msg.shim, msg.transform, msg.actors, msg.graphicsInit, msg.graphicsActors, msg.graphicsAnimation, msg.linter);
+      await initPyodide(p, msg.graphicsInit, msg.graphicsActors, msg.graphicsAnimation, msg.linter);
       console.log("Worker: Initialization complete, posting ready");
       post({ type: "ready" });
     } catch (err: unknown) {
@@ -302,8 +662,7 @@ self.onmessage = async (e: MessageEvent<WorkerCommand>) => {
     }
   } else if (msg.cmd === "attach_canvas") {
     offscreen = msg.canvas;
-    if (pyodide) pyodide.globals.set("__ide_canvas", offscreen);
-    else pendingOffscreen = msg.canvas;
+    if (!pyodide) pendingOffscreen = msg.canvas;
   } else if (msg.cmd === "run") {
     try {
       const p = await ensurePyodide();
@@ -318,19 +677,12 @@ self.onmessage = async (e: MessageEvent<WorkerCommand>) => {
       const usingGraphics = pyodide.globals.get("_using_graphics");
       if (usingGraphics) {
         pyodide.runPython(`graphics._inject_event("${msg.kind}", ${JSON.stringify(msg.data)})`);
-      } else {
-        shimProxy?._inject_event(msg.kind, msg.data);
       }
     } catch {
       /* ignore */
     }
   } else if (msg.cmd === "interrupt") {
     if (!pyodide) return;
-    try {
-      shimProxy?.noLoop();
-    } catch {
-      /* ignore */
-    }
     try {
       const usingGraphics = pyodide.globals.get("_using_graphics");
       if (usingGraphics) {
@@ -343,8 +695,7 @@ self.onmessage = async (e: MessageEvent<WorkerCommand>) => {
     post({ type: "interrupt_ack" });
   } else if (msg.cmd === "input_response") {
     if (!pyodide) return;
-    const console_ = shimProxy?._ide_console;
-    console_?.resolve(msg.value);
+    pyodide.globals.get("_ide_resolve_input")?.(msg.value);
   } else if (msg.cmd === "set_interrupt_buffer") {
     if (pyodide) pyodide.setInterruptBuffer(new Uint8Array(msg.buffer));
     else pendingInterruptBuffer = new Uint8Array(msg.buffer);
@@ -360,7 +711,7 @@ self.onmessage = async (e: MessageEvent<WorkerCommand>) => {
       pyodideGlobals.set("_lint_filename", msg.filename || "main.py");
 
       const result = await pyodide.runPythonAsync(
-        `import linter; linter.lint(_lint_code, _lint_filename)`
+        `import linter; linter.lint(_lint_code, _lint_filename)`,
       );
 
       const diagnostics: LintDiagnostic[] = result.toJs({ dict_converter: Object.fromEntries });

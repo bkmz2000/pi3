@@ -137,7 +137,7 @@ export default function Rail() {
 
   const { user } = useUser();
   const { ready } = useRunner();
-  const { running, isP5, handleRunToggle } = useRunButton();
+  const { running, handleRunToggle } = useRunButton();
   const {
     projects,
     userProjects,
@@ -232,7 +232,7 @@ export default function Rail() {
   const saveAnimation = useEditor((s) => s.saveAnimation);
   const deleteAnimation = useEditor((s) => s.deleteAnimation);
 
-  const isRunning = running || isP5;
+  const isRunning = running;
   const runIcon: IconName = !ready ? "settings" : isRunning ? "stop" : "play";
 
   return (

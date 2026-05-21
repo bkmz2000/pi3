@@ -23,6 +23,13 @@ export default function CanvasWindow() {
     return () => attachCanvas(null);
   }, [attachCanvas]);
 
+  // Clamp after canvas resize so the title bar never ends up above the viewport
+  useEffect(() => {
+    if (!windowRef.current) return;
+    const rect = windowRef.current.getBoundingClientRect();
+    if (rect.top < 0) setPos(p => ({ x: p.x, y: p.y - rect.top }));
+  }, [canvasWidth, canvasHeight]);
+
   const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     dragState.current = {
       startX: e.clientX,
@@ -55,7 +62,7 @@ export default function CanvasWindow() {
     <div
       ref={windowRef}
       style={{
-        position: "absolute",
+        position: "fixed",
         right: 24,
         bottom: 156,
         width: canvasWidth > 0 ? canvasWidth : 300,

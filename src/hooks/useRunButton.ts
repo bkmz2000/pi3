@@ -18,12 +18,12 @@ export function useRunButton(options: UseRunButtonOptions = {}) {
   const saveCurrentProject = useIde((s) => s.saveCurrentProject);
   const enableLinting = useIde((s) => s.enableLinting);
 
-  const { running, isP5, run, interrupt, lint, clear, _appendOutput } = useRunner();
+  const { running, run, interrupt, lint, clear, _appendOutput } = useRunner();
 
   const isStartingRef = useRef(false);
 
   const handleRunToggle = useCallback(async () => {
-    if (running || isP5) {
+    if (running) {
       await interrupt();
       return;
     }
@@ -68,11 +68,10 @@ export function useRunButton(options: UseRunButtonOptions = {}) {
     } finally {
       isStartingRef.current = false;
     }
-  }, [running, isP5, project, currentFile, dirtyFiles, lint, clear, _appendOutput, run, interrupt, saveCurrentProject, markClean, options, t, enableLinting]);
+  }, [running, project, currentFile, dirtyFiles, lint, clear, _appendOutput, run, interrupt, saveCurrentProject, markClean, options, t, enableLinting]);
 
   return {
     running,
-    isP5,
     handleRunToggle,
   };
 }

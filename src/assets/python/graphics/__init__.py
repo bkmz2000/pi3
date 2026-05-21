@@ -1374,10 +1374,24 @@ class Light:
         self._flicker = False
         Light._seed_counter += 1
         self._seed = Light._seed_counter
+        # Polygon cache. Visibility polygons depend only on (source position,
+        # radius, obstacle AABBs) — none of which usually change per frame.
+        # We snapshot the obstacle AABBs once and the per-source key on each
+        # draw(); polygons are only recomputed when their inputs differ.
+        # _cache_counters is exposed for tests.
+        self._obstacle_fp = None     # tuple of obstacle AABBs from last draw
+        self._source_polys = []      # parallel to _sources: (sx, sy, radius, poly, poly_flat)
+        self._cache_counters = {"recomputed": 0, "reused": 0}
+
+    def _invalidate_polys(self):
+        """Drop all cached visibility polygons; next draw() rebuilds them."""
+        self._obstacle_fp = None
+        self._source_polys = []
 
     def _add_one_obstacle(self, obs):
         if obs is not None:
             self._obstacles.append(obs)
+            self._invalidate_polys()
 
     def add_obstacles(self, src):
         """Add an iterable (Group, list, all_tiles result) or a single Actor."""
@@ -1408,6 +1422,9 @@ class Light:
                     self._sources.append(("actor", a))
         else:
             self._sources.append(("actor", src))
+        # Truncate the parallel poly cache; per-source comparison handles
+        # mismatched lengths gracefully but explicit is clearer.
+        self._source_polys = self._source_polys[: len(self._sources)]
         return self
 
     def shade(self, name):
@@ -1449,20 +1466,58 @@ class Light:
             return _flicker_value(self._seed, frame_count)
         return 1.0
 
+    def _obstacle_fingerprint(self):
+        """Tuple of obstacle AABBs — cheap to compare; changes when any
+        obstacle moves or resizes."""
+        return tuple(
+            r for r in (_obstacle_rect(o) for o in self._obstacles) if r is not None
+        )
+
     def draw(self):
-        """Emit light_begin / light_poly* / light_end into the draw stream."""
+        """Emit light_begin / light_poly* / light_end into the draw stream.
+
+        Visibility polygons are cached and only recomputed when their inputs
+        change (source moved, radius changed, or any obstacle moved/resized).
+        For a fully static scene the per-frame cost drops to O(sources +
+        obstacles) — just the fingerprint comparison.
+        """
         _draw_commands.append(("light_begin", self._ambient, {}))
-        for src in self._sources:
+
+        obstacle_fp = self._obstacle_fingerprint()
+        obstacles_changed = obstacle_fp != self._obstacle_fp
+        radius = self._radius
+
+        for i, src in enumerate(self._sources):
             sx, sy = self._source_position(src)
-            poly = _compute_visibility_polygon(sx, sy, self._radius, self._obstacles)
-            poly_flat = [float(c) for p in poly for c in p]
+            cached = self._source_polys[i] if i < len(self._source_polys) else None
+            if (cached is not None
+                    and not obstacles_changed
+                    and cached[0] == sx
+                    and cached[1] == sy
+                    and cached[2] == radius):
+                _, _, _, poly, poly_flat = cached
+                self._cache_counters["reused"] += 1
+            else:
+                poly = _compute_visibility_polygon(sx, sy, radius, self._obstacles)
+                poly_flat = [float(c) for p in poly for c in p]
+                entry = (sx, sy, radius, poly, poly_flat)
+                if i < len(self._source_polys):
+                    self._source_polys[i] = entry
+                else:
+                    self._source_polys.append(entry)
+                self._cache_counters["recomputed"] += 1
+
             intensity = self._intensity()
             _draw_commands.append((
                 "light_poly",
-                (poly_flat, float(sx), float(sy), float(self._radius),
+                (poly_flat, float(sx), float(sy), float(radius),
                  tuple(self._shade_rgb), float(intensity)),
                 {},
             ))
+
+        if obstacles_changed:
+            self._obstacle_fp = obstacle_fp
+
         _draw_commands.append(("light_end", (), {}))
 
 

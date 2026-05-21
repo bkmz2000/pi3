@@ -1466,6 +1466,82 @@ poly_intensity = next(c[1][5] for c in g._draw_commands if c[0] == "light_poly")
 test("Flicker intensity in range", 0.85 <= poly_intensity <= 1.0)
 
 
+# --- Polygon caching ---
+
+print("\n=== Runtime: Light polygon cache ===")
+reset()
+g._width = 400; g._height = 400
+cache_walls = [Rect(50 + i*30, 50, 20, 20) for i in range(5)]
+cache_light = Light(radius=120)
+for w in cache_walls:
+    cache_light.add_obst(w)
+for pos in [(10, 10), (200, 200), (350, 350)]:
+    cache_light.add_source(pos)
+
+# Frame 1: nothing cached yet → all 3 recomputed.
+reset_draw = lambda: g._draw_commands.clear()
+reset_draw(); cache_light.draw()
+test("First draw computes all source polygons",
+     cache_light._cache_counters == {"recomputed": 3, "reused": 0})
+
+# Frames 2-10: static scene → every source reuses its cached polygon.
+for _ in range(9):
+    reset_draw(); cache_light.draw()
+test("Static scene reuses polygons (no recompute in 9 subsequent frames)",
+     cache_light._cache_counters == {"recomputed": 3, "reused": 27})
+
+# Moving any obstacle invalidates every source (the obstacle could shadow any of them).
+cache_walls[2]._x += 50
+reset_draw(); cache_light.draw()
+test("Obstacle move triggers full recompute",
+     cache_light._cache_counters == {"recomputed": 6, "reused": 27})
+
+# After the move settles, polygons are cached again.
+reset_draw(); cache_light.draw()
+test("Polygons cached again after obstacle settles",
+     cache_light._cache_counters == {"recomputed": 6, "reused": 30})
+
+# Radius change invalidates every source (encoded in the per-source cache key).
+cache_light.radius(200)
+reset_draw(); cache_light.draw()
+test("Radius change invalidates all sources",
+     cache_light._cache_counters == {"recomputed": 9, "reused": 30})
+
+# Adding a new source only computes that one; existing sources still cached.
+cache_light.add_source((100, 100))
+reset_draw(); cache_light.draw()
+test("Adding a source only recomputes the new one",
+     cache_light._cache_counters == {"recomputed": 10, "reused": 33})
+
+# Moving a single source recomputes that source only (other source positions/radius unchanged).
+# Re-bake first so counters are at a known steady state.
+reset_draw(); cache_light.draw()
+# Snapshot before moving.
+before = dict(cache_light._cache_counters)
+moving_src = Circle(50, 50, 4)
+cache_light.add_source(moving_src)
+reset_draw(); cache_light.draw()   # +1 recompute (the new actor source), 4 reuses
+moving_src._x += 30                # move only the new actor source
+reset_draw(); cache_light.draw()
+# Expect: just the moved source recomputed, the other 4 reused.
+delta_recompute = cache_light._cache_counters["recomputed"] - before["recomputed"]
+delta_reused = cache_light._cache_counters["reused"] - before["reused"]
+# After adding source: recompute +1, reuse +4. After move: recompute +1, reuse +4. Total: +2, +8.
+test("Moving one source only recomputes that source",
+     delta_recompute == 2 and delta_reused == 8)
+
+# The cached polygon objects are the same Python list across frames (identity check).
+reset()
+g._width = 400; g._height = 400
+stable_light = Light(radius=80).add_obst(Rect(50, 50, 20, 20)).add_source((10, 10))
+reset_draw(); stable_light.draw()
+poly_first = stable_light._source_polys[0][3]
+reset_draw(); stable_light.draw()
+poly_second = stable_light._source_polys[0][3]
+test("Cached polygon is the same list object across frames",
+     poly_first is poly_second)
+
+
 # === Summary ===
 
 print(f"\n{'='*50}")

@@ -328,6 +328,46 @@ export const DOCS: DocCategory[] = [
           { name: "y", type: "number", optional: true, en: "Vertical scale factor. Defaults to x.", ru: "Коэффициент масштабирования по вертикали. По умолчанию равен x." },
         ],
       },
+      {
+        id: "camera",
+        name: "Camera",
+        signature: "with Camera() as cam: ...",
+        en: "A 2D camera offset. Use as a context manager — inside `with cam:` everything you draw is shifted so the camera's position appears at the center of the canvas. Combine with cam.follow(actor) for scrolling worlds.",
+        ru: "Двухмерное смещение камеры. Используется как контекстный менеджер — внутри `with cam:` всё, что рисуется, сдвигается так, чтобы позиция камеры оказывалась в центре холста. В сочетании с cam.follow(actor) удобно для прокручиваемых уровней.",
+        params: [
+          { name: "Camera(x=0, y=0)", type: "—", en: "Create a camera at world position (x, y).", ru: "Создать камеру в мировой позиции (x, y)." },
+          { name: "cam.pos", type: "Vector2", en: "Camera position as a Vector2 (mutable).", ru: "Позиция камеры как Vector2 (изменяемая)." },
+          { name: "cam.follow(actor, lerp=1.0)", type: "Camera", en: "Make the camera track an actor each frame. lerp=1.0 snaps; values <1 smooth.", ru: "Камера следует за актором каждый кадр. lerp=1.0 — мгновенно; меньшие значения сглаживают движение." },
+          { name: "cam.unfollow()", type: "Camera", en: "Stop following.", ru: "Перестать следовать за актором." },
+          { name: "with cam: ...", type: "—", en: "Inside the block, draw calls are shifted so the camera position lands at the canvas center.", ru: "Внутри блока все вызовы рисования сдвигаются так, чтобы позиция камеры оказалась в центре холста." },
+        ],
+      },
+    ],
+  },
+
+  // ─── Math ──────────────────────────────────────────────────────────────────
+  {
+    id: "math",
+    en: "Math",
+    ru: "Математика",
+    entries: [
+      {
+        id: "vector2",
+        name: "Vector2 / Point",
+        signature: "Vector2(x, y)  /  Point(x, y)",
+        en: "A 2D vector with arithmetic and geometry helpers. `Point` is an alias of `Vector2` — use whichever reads more naturally. Accepts numeric pairs, tuples, or other Vector2s in arithmetic. Mutable: you can assign to `.x` and `.y`.",
+        ru: "Двухмерный вектор с арифметикой и геометрическими методами. `Point` — псевдоним `Vector2`, используйте тот, что читается естественнее. Поддерживает арифметику с парами чисел, кортежами и другими Vector2. Изменяемый: можно присваивать `.x` и `.y`.",
+        params: [
+          { name: "v.x, v.y", type: "number", en: "Components (mutable).", ru: "Компоненты (изменяемые)." },
+          { name: "v + w / v - w / -v", type: "Vector2", en: "Arithmetic with another Vector2 or a 2-tuple.", ru: "Арифметика с другим Vector2 или парой (x, y)." },
+          { name: "v * k / v / k", type: "Vector2", en: "Scalar multiply / divide.", ru: "Умножение / деление на скаляр." },
+          { name: "v == w", type: "bool", en: "Component-wise equality.", ru: "Покомпонентное сравнение." },
+          { name: "v.length / v.length_sq", type: "number", en: "Magnitude and squared magnitude.", ru: "Длина и квадрат длины." },
+          { name: "v.distance_to(w)", type: "number", en: "Distance to another vector or 2-tuple.", ru: "Расстояние до другого вектора или пары." },
+          { name: "v.dot(w)", type: "number", en: "Dot product.", ru: "Скалярное произведение." },
+          { name: "v.normalized()", type: "Vector2", en: "Unit vector in the same direction (zero vector stays zero).", ru: "Единичный вектор в том же направлении (нулевой вектор остаётся нулевым)." },
+        ],
+      },
     ],
   },
 
@@ -490,6 +530,8 @@ export const DOCS: DocCategory[] = [
           { name: "angle", type: "number", optional: true, default: "0", en: "Rotation in degrees.", ru: "Угол поворота в градусах." },
           { name: "vx", type: "number", optional: true, default: "0", en: "Horizontal velocity (pixels per frame, applied automatically).", ru: "Горизонтальная скорость (пикселей в кадр, применяется автоматически)." },
           { name: "vy", type: "number", optional: true, default: "0", en: "Vertical velocity (pixels per frame, applied automatically).", ru: "Вертикальная скорость (пикселей в кадр, применяется автоматически)." },
+          { name: "pos", type: "Vector2", en: "Position as a Vector2. Reading returns a fresh vector; assigning sets x and y. Useful for math: actor.pos += Vector2(0, 1).", ru: "Позиция как Vector2. Чтение возвращает новый вектор; присваивание устанавливает x и y. Удобно для математики: actor.pos += Vector2(0, 1)." },
+          { name: "vel", type: "Vector2", en: "Velocity as a Vector2 (pairs with pos).", ru: "Скорость как Vector2 (пара к pos)." },
           { name: "speed", type: "number", optional: true, default: "0", en: "Speed along the angle direction (applied automatically).", ru: "Скорость вдоль направления угла (применяется автоматически)." },
           { name: "image", type: "sprite", optional: true, en: "Sprite from assets.sprites.", ru: "Спрайт из assets.sprites." },
           { name: "visible", type: "bool", optional: true, default: "True", en: "Whether the actor is drawn.", ru: "Отображается ли актор." },
@@ -549,8 +591,8 @@ export const DOCS: DocCategory[] = [
         id: "actor_anchors",
         name: "Actor anchor points",
         signature: "actor.<edge>",
-        en: "Each actor exposes AnchorPoints at its edges. The size comes from the collider: a Circle uses its radius, a Rect uses half its width and height, a bare Actor returns its center for all anchors. Anchors are static snapshots — they capture the position at the moment you access them, not a live reference.",
-        ru: "Каждый актор предоставляет AnchorPoint у своих краёв. Размер берётся из коллайдера: Circle использует радиус, Rect — половину ширины и высоты, базовый Actor возвращает свой центр для всех якорей. Якоря — статические снимки позиции в момент обращения, не живые ссылки.",
+        en: "Each actor exposes AnchorPoints at its edges. Size precedence: an explicit collider (Circle radius, Rect half-size) wins; otherwise the actor's sprite (`image`) dimensions are used; a bare Actor with no image returns its center for all anchors. AnchorPoints behave as Vector2 (arithmetic, equality, distance_to), so you can pass them to tile_at() or do math directly.",
+        ru: "Каждый актор предоставляет AnchorPoint у своих краёв. Приоритет размеров: явный коллайдер (радиус Circle, половина размеров Rect); иначе — размеры спрайта (`image`); базовый Actor без изображения возвращает свой центр для всех якорей. AnchorPoint ведёт себя как Vector2 (арифметика, равенство, distance_to), его можно передавать в tile_at() или использовать в математике напрямую.",
         params: [
           { name: "actor.center", type: "AnchorPoint", en: "Center of the actor.", ru: "Центр актора." },
           { name: "actor.top", type: "AnchorPoint", en: "Top edge center. Use with say() or text() to place content above the actor.", ru: "Центр верхнего края. Используйте с say() или text(), чтобы разместить контент над актором." },
@@ -656,7 +698,7 @@ export const DOCS: DocCategory[] = [
         ru: "Один именованный слой тайловой карты. Содержит разрежённую сетку из имён тайлов, привязанных к изображениям из ассетов проекта. Можно рисовать отдельные слои и получать тайлы по позиции.",
         params: [
           { name: "draw(x=0, y=0)", type: "—", en: "Draw this layer at pixel offset (x, y).", ru: "Рисует этот слой со смещением (x, y) в пикселях." },
-          { name: "tile_at(px, py)", type: "str|None", en: "Return the tile name at pixel position (px, py), or None if empty.", ru: "Возвращает имя тайла в пиксельной позиции (px, py) или None, если ячейка пустая." },
+          { name: "tile_at(px, py)", type: "str|None", en: "Return the tile name at pixel position (px, py), or None if empty. Also accepts a single Vector2/Point/AnchorPoint: tile_at(player.bottom).", ru: "Возвращает имя тайла в пиксельной позиции (px, py) или None, если ячейка пустая. Также принимает один Vector2/Point/AnchorPoint: tile_at(player.bottom)." },
           { name: "get_tile(col, row)", type: "str|None", en: "Return the tile name at grid column/row, or None if empty.", ru: "Возвращает имя тайла по координатам столбца и строки сетки или None, если ячейка пустая." },
           { name: "tiles()", type: "generator", en: "Yield (col, row, name) for every filled cell in the layer.", ru: "Генерирует (col, row, name) для каждой заполненной ячейки слоя." },
           { name: "name", type: "str", en: "The layer's name as set in the editor.", ru: "Имя слоя из редактора." },

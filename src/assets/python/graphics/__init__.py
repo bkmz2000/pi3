@@ -126,14 +126,130 @@ _CODE_TO_NAME = {v: k for k, v in _KEY_CODES.items()}
 
 assets = None
 
+
+# === VECTOR ===
+
+
+class Vector2:
+    """2D vector with arithmetic and geometry helpers.
+
+    Vector2(3, 4); Vector2((3, 4)); Vector2(other_vec). Mutable x, y.
+    Use `Point` as an alias when reading as a position is clearer.
+    """
+
+    def __init__(self, x=0.0, y=0.0):
+        if isinstance(x, Vector2):
+            self.x, self.y = float(x.x), float(x.y)
+        elif isinstance(x, (tuple, list)):
+            self.x, self.y = float(x[0]), float(x[1])
+        else:
+            self.x, self.y = float(x), float(y)
+
+    def __repr__(self):
+        return f"Vector2({self.x}, {self.y})"
+
+    def __iter__(self):
+        yield self.x
+        yield self.y
+
+    def __eq__(self, other):
+        if isinstance(other, Vector2):
+            return self.x == other.x and self.y == other.y
+        if isinstance(other, (tuple, list)) and len(other) == 2:
+            return self.x == other[0] and self.y == other[1]
+        return NotImplemented
+
+    def __hash__(self):
+        return hash((self.x, self.y))
+
+    def __add__(self, other):
+        ox, oy = _vec_pair(other)
+        return Vector2(self.x + ox, self.y + oy)
+
+    def __radd__(self, other):
+        return self.__add__(other)
+
+    def __sub__(self, other):
+        ox, oy = _vec_pair(other)
+        return Vector2(self.x - ox, self.y - oy)
+
+    def __rsub__(self, other):
+        ox, oy = _vec_pair(other)
+        return Vector2(ox - self.x, oy - self.y)
+
+    def __neg__(self):
+        return Vector2(-self.x, -self.y)
+
+    def __mul__(self, scalar):
+        return Vector2(self.x * scalar, self.y * scalar)
+
+    def __rmul__(self, scalar):
+        return Vector2(self.x * scalar, self.y * scalar)
+
+    def __truediv__(self, scalar):
+        return Vector2(self.x / scalar, self.y / scalar)
+
+    def __iadd__(self, other):
+        ox, oy = _vec_pair(other)
+        self.x += ox
+        self.y += oy
+        return self
+
+    def __isub__(self, other):
+        ox, oy = _vec_pair(other)
+        self.x -= ox
+        self.y -= oy
+        return self
+
+    @property
+    def length(self):
+        return math.sqrt(self.x * self.x + self.y * self.y)
+
+    @property
+    def length_sq(self):
+        return self.x * self.x + self.y * self.y
+
+    def distance_to(self, other):
+        ox, oy = _vec_pair(other)
+        dx = self.x - ox
+        dy = self.y - oy
+        return math.sqrt(dx * dx + dy * dy)
+
+    def dot(self, other):
+        ox, oy = _vec_pair(other)
+        return self.x * ox + self.y * oy
+
+    def normalized(self):
+        n = self.length
+        if n == 0:
+            return Vector2(0, 0)
+        return Vector2(self.x / n, self.y / n)
+
+
+def _vec_pair(other):
+    if isinstance(other, Vector2):
+        return other.x, other.y
+    if isinstance(other, (tuple, list)) and len(other) == 2:
+        return float(other[0]), float(other[1])
+    raise TypeError(f"Expected Vector2 or 2-tuple, got {type(other).__name__}")
+
+
+# `Point` reads more naturally for positions; same class as Vector2.
+Point = Vector2
+
+
 from graphics.actors import Actor, Rect, Circle, Group, Collider  # noqa: E402
 
 
 # === ANCHOR POINT ===
 
 
-class AnchorPoint:
-    """A resolved position with alignment hints for text() and say()."""
+class AnchorPoint(Vector2):
+    """A resolved position with alignment hints for text() and say().
+
+    Behaves as a Vector2 for arithmetic and `tile_at(anchor)`; its x/y may be
+    lazy (e.g. Window.center recomputes when the canvas size changes).
+    """
 
     def __init__(self, x, y, h_align="left", v_align="top"):
         self._x = x        # callable or number
@@ -145,9 +261,17 @@ class AnchorPoint:
     def x(self):
         return self._x() if callable(self._x) else self._x
 
+    @x.setter
+    def x(self, value):
+        self._x = value
+
     @property
     def y(self):
         return self._y() if callable(self._y) else self._y
+
+    @y.setter
+    def y(self, value):
+        self._y = value
 
 
 # === MOUSE SINGLETON ===
@@ -707,7 +831,15 @@ class TilemapLayer:
         cells_flat = [[col, row, name] for col, rows in self._cells.items() for row, name in rows.items()]
         _draw_commands.append(("tilemap_layer", (cells_flat, self.tile_size, float(x), float(y)), {}))
 
-    def tile_at(self, px, py):
+    def tile_at(self, px, py=None):
+        if py is None:
+            # Accept Vector2/AnchorPoint/tuple
+            if isinstance(px, Vector2):
+                px, py = px.x, px.y
+            elif isinstance(px, (tuple, list)) and len(px) == 2:
+                px, py = px[0], px[1]
+            else:
+                raise TypeError("tile_at requires (x, y) or a Vector2/Point")
         col = int(px // self.tile_size)
         row = int(py // self.tile_size)
         return self._cells.get(col, {}).get(row)
@@ -741,6 +873,79 @@ class TileMap:
 
 from graphics.animation import Animation  # noqa: E402
 
+
+# === CAMERA ===
+
+
+class Camera:
+    """A 2D camera offset. Use as a context manager:
+
+        cam = Camera()
+        cam.follow(player)
+        def main():
+            with cam:
+                level.draw()
+                player.draw()
+
+    On __enter__ the camera pushes a transform that shifts the view so its
+    position is at the center of the canvas. On __exit__ it restores.
+    """
+
+    def __init__(self, x=0.0, y=0.0):
+        self.pos = Vector2(x, y)
+        self._target = None
+        self._lerp = 1.0
+
+    @property
+    def x(self):
+        return self.pos.x
+
+    @x.setter
+    def x(self, value):
+        self.pos.x = float(value)
+
+    @property
+    def y(self):
+        return self.pos.y
+
+    @y.setter
+    def y(self, value):
+        self.pos.y = float(value)
+
+    def follow(self, actor, lerp=1.0):
+        """Center the view on `actor` each frame. lerp=1.0 snaps; <1 smooths."""
+        self._target = actor
+        self._lerp = float(lerp)
+        return self
+
+    def unfollow(self):
+        self._target = None
+        return self
+
+    def _update_follow(self):
+        if self._target is None:
+            return
+        tx = self._target.x
+        ty = self._target.y
+        if self._lerp >= 1.0:
+            self.pos.x = tx
+            self.pos.y = ty
+        else:
+            self.pos.x += (tx - self.pos.x) * self._lerp
+            self.pos.y += (ty - self.pos.y) * self._lerp
+
+    def __enter__(self):
+        self._update_follow()
+        push()
+        # Center the view on `pos`: translate so world point `pos` lands at canvas center.
+        translate(_width / 2 - self.pos.x, _height / 2 - self.pos.y)
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        pop()
+        return False
+
+
 __all__ = [
     "_version",
     "size", "width", "height",
@@ -754,8 +959,10 @@ __all__ = [
     "frame_rate", "frame_count",
     "random", "random_color",
     "Colors", "AnchorPoint",
+    "Vector2", "Point",
     "Mouse", "Keyboard", "Window",
     "Actor", "Rect", "Circle", "Group", "Collider",
+    "Camera",
     "TilemapLayer", "TileMap",
     "Animation",
     "run", "stop",

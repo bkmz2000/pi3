@@ -330,12 +330,20 @@ function executeDrawCommands(
       }
       case "tilemap_layer": {
         const [cellsFlat, tileSize, ox, oy] = args as [Array<[number, number, string]>, number, number, number];
+        // Cull against the current transform's visible world rect (handles Camera translate/scale).
+        const t = ctx.getTransform();
+        const sx0 = t.a !== 0 ? -t.e / t.a : 0;
+        const sy0 = t.d !== 0 ? -t.f / t.d : 0;
+        const viewLeft = sx0 - ox;
+        const viewTop = sy0 - oy;
+        const viewRight = viewLeft + (t.a !== 0 ? canvasW / t.a : canvasW);
+        const viewBottom = viewTop + (t.d !== 0 ? canvasH / t.d : canvasH);
         for (const [col, row, name] of cellsFlat) {
-          const sx = ox + col * tileSize;
-          const sy = oy + row * tileSize;
-          if (sx + tileSize <= 0 || sx >= canvasW || sy + tileSize <= 0 || sy >= canvasH) continue;
+          const wx = col * tileSize;
+          const wy = row * tileSize;
+          if (wx + tileSize <= viewLeft || wx >= viewRight || wy + tileSize <= viewTop || wy >= viewBottom) continue;
           const bm = lookupAsset(assets, name);
-          if (bm) ctx.drawImage(bm, sx, sy, tileSize, tileSize);
+          if (bm) ctx.drawImage(bm, ox + wx, oy + wy, tileSize, tileSize);
         }
         break;
       }
@@ -516,8 +524,11 @@ async function runGraphicsScript(
   runAssets = assets;
   runAnimations = animations ?? {};
 
-  // Pass only names/metadata into Python
-  p.globals.set("_asset_names", Object.keys(assets));
+  // Pass only names/metadata into Python (include bitmap dimensions so Actor anchor points work without a collider)
+  p.globals.set(
+    "_asset_meta",
+    Object.entries(assets).map(([name, bm]) => [name, bm.width, bm.height]),
+  );
   p.globals.set(
     "_anim_meta",
     Object.entries(animations ?? {}).map(([n, a]) => [n, a.frames.length, a.fps]),
@@ -545,11 +556,11 @@ Actor._id_counter = 0
 graphics._loop_generation = graphics._loop_generation + 1
 graphics._show_hitboxes = ${showHitboxes ? "True" : "False"}
 
-# Build sprites namespace from asset names (no bitmaps)
+# Build sprites namespace from asset names + dimensions (no bitmaps)
 _sprites_dict = {}
-for _name in _asset_names.to_py():
+for _name, _w, _h in _asset_meta.to_py():
     _key = _name.rsplit(".", 1)[0] if "." in _name else _name
-    _sprites_dict[_key] = {"done": True, "name": _name}
+    _sprites_dict[_key] = {"done": True, "name": _name, "width": int(_w), "height": int(_h)}
 _sprites = SimpleNamespace(**_sprites_dict)
 
 # Build animations namespace from metadata

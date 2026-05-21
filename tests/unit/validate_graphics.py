@@ -913,6 +913,187 @@ r_anc._x = 200
 test("Actor anchor is a static snapshot, not dynamic", snap.x == 120)
 
 
+# --- Vector2 ---
+
+print("\n=== Runtime: Vector2 / Point ===")
+
+from graphics import Vector2, Point
+
+test("Vector2 in __all__", "Vector2" in g.__all__)
+test("Point in __all__", "Point" in g.__all__)
+test("Point is Vector2", Point is Vector2)
+
+v = Vector2(3, 4)
+test("Vector2(3,4).x == 3", v.x == 3)
+test("Vector2(3,4).y == 4", v.y == 4)
+test("Vector2 from tuple", Vector2((3, 4)) == Vector2(3, 4))
+test("Vector2 from Vector2", Vector2(Vector2(3, 4)) == Vector2(3, 4))
+test("Vector2 mutable x", (lambda v: (setattr(v, "x", 7), v.x == 7)[1])(Vector2(0, 0)))
+
+# Arithmetic
+test("v + w", Vector2(1, 2) + Vector2(3, 4) == Vector2(4, 6))
+test("v + tuple", Vector2(1, 2) + (3, 4) == Vector2(4, 6))
+test("v - w", Vector2(5, 5) - Vector2(2, 1) == Vector2(3, 4))
+test("-v", -Vector2(3, 4) == Vector2(-3, -4))
+test("v * scalar", Vector2(2, 3) * 2 == Vector2(4, 6))
+test("scalar * v", 2 * Vector2(2, 3) == Vector2(4, 6))
+test("v / scalar", Vector2(4, 6) / 2 == Vector2(2, 3))
+inc = Vector2(1, 1); inc += Vector2(2, 3)
+test("v += w", inc == Vector2(3, 4))
+dec = Vector2(5, 5); dec -= Vector2(1, 2)
+test("v -= w", dec == Vector2(4, 3))
+
+# Equality / hash
+test("Vector2 == tuple", Vector2(3, 4) == (3, 4))
+test("Vector2 != other", Vector2(3, 4) != Vector2(3, 5))
+test("Vector2 hashable", isinstance(hash(Vector2(3, 4)), int))
+
+# Geometry
+test("length 3-4-5", Vector2(3, 4).length == 5)
+test("length_sq", Vector2(3, 4).length_sq == 25)
+test("distance_to", Vector2(0, 0).distance_to(Vector2(3, 4)) == 5)
+test("distance_to tuple", Vector2(0, 0).distance_to((3, 4)) == 5)
+test("dot", Vector2(1, 2).dot(Vector2(3, 4)) == 11)
+test("normalized length ~ 1", abs(Vector2(3, 4).normalized().length - 1.0) < 1e-9)
+test("normalized zero stays zero", Vector2(0, 0).normalized() == Vector2(0, 0))
+
+
+# --- AnchorPoint is a Vector2 ---
+
+print("\n=== Runtime: AnchorPoint ⊂ Vector2 ===")
+
+reset()
+ap_actor = Rect(10, 20, 40, 20)
+ap = ap_actor.bottom  # x=10, y=30 (10+20/2... wait collider rect)
+# Rect collider is set: width=40, height=20 → half=(20, 10). bottom = (10, 20+10=30)
+test("AnchorPoint is Vector2 subclass", isinstance(ap, Vector2))
+test("AnchorPoint arithmetic", (ap + Vector2(0, 5)).y == 35)
+test("AnchorPoint == AnchorPoint same coords",
+     Rect(10, 20, 40, 20).center == Rect(10, 20, 40, 20).center)
+test("AnchorPoint.distance_to", ap.distance_to(Vector2(10, 30)) == 0)
+
+
+# --- Actor pos / vel proxies ---
+
+print("\n=== Runtime: Actor.pos / Actor.vel ===")
+
+reset()
+a_p = Actor(); a_p._x = 5; a_p._y = 7
+p = a_p.pos
+test("actor.pos returns Vector2", isinstance(p, Vector2))
+test("actor.pos.x matches _x", p.x == 5)
+test("actor.pos.y matches _y", p.y == 7)
+a_p.pos = Vector2(100, 200)
+test("actor.pos = v sets _x", a_p._x == 100)
+test("actor.pos = v sets _y", a_p._y == 200)
+a_p.pos = (1, 2)
+test("actor.pos = tuple", a_p._x == 1 and a_p._y == 2)
+a_p.pos += Vector2(10, 20)
+test("actor.pos += v", a_p._x == 11 and a_p._y == 22)
+
+a_v = Actor(); a_v._vx = 3; a_v._vy = 4
+test("actor.vel.x matches _vx", a_v.vel.x == 3)
+a_v.vel = Vector2(5, 6)
+test("actor.vel = v sets _vx/_vy", a_v._vx == 5 and a_v._vy == 6)
+
+
+# --- Actor anchors fall back to image dimensions when no collider ---
+
+print("\n=== Runtime: Actor anchors use image size ===")
+
+reset()
+a_img = Actor()
+a_img._x = 100
+a_img._y = 200
+a_img.image = {"done": True, "name": "hero", "width": 32, "height": 48}
+test("Actor with image: bottom.y == y + h/2", a_img.bottom.y == 200 + 24)
+test("Actor with image: top.y == y - h/2", a_img.top.y == 200 - 24)
+test("Actor with image: left.x == x - w/2", a_img.left.x == 100 - 16)
+test("Actor with image: right.x == x + w/2", a_img.right.x == 100 + 16)
+
+# Explicit collider wins over image
+reset()
+a_both = Actor()
+a_both._x = 100; a_both._y = 200
+a_both.image = {"done": True, "name": "hero", "width": 32, "height": 48}
+a_both.collider.set_rect(10, 10)
+test("Explicit collider wins over image dims", a_both.bottom.y == 200 + 5)
+
+# Image without width/height still falls back to (0, 0)
+reset()
+a_noimg = Actor(); a_noimg._x = 100; a_noimg._y = 200
+a_noimg.image = {"done": True, "name": "hero"}
+test("Image without dims → anchors at center", a_noimg.bottom.y == 200)
+
+
+# --- Tilemap tile_at accepts Vector2 / AnchorPoint ---
+
+print("\n=== Runtime: tile_at accepts Vector2/AnchorPoint ===")
+
+tl = g.TilemapLayer("ground", 32, {0: {3: "tile_stone"}}, {})
+test("tile_at(x, y) numeric still works", tl.tile_at(5, 100) == "tile_stone")
+test("tile_at(Vector2)", tl.tile_at(Vector2(5, 100)) == "tile_stone")
+test("tile_at(tuple)", tl.tile_at((5, 100)) == "tile_stone")
+test("tile_at(empty cell) is None", tl.tile_at(200, 200) is None)
+
+# An actor's bottom anchor should be usable directly
+reset()
+a_tile = Actor()
+a_tile._x = 5; a_tile._y = 80
+a_tile.image = {"done": True, "name": "hero", "width": 16, "height": 40}  # bottom.y = 100
+test("tile_at(actor.bottom) works", tl.tile_at(a_tile.bottom) == "tile_stone")
+
+
+# --- Camera ---
+
+print("\n=== Runtime: Camera ===")
+
+from graphics import Camera
+
+test("Camera in __all__", "Camera" in g.__all__)
+cam = Camera()
+test("Camera default pos", cam.x == 0 and cam.y == 0)
+cam.x = 10; cam.y = 20
+test("Camera.x/y setters update pos", cam.pos.x == 10 and cam.pos.y == 20)
+
+# follow snaps pos to actor coords (default lerp=1.0)
+reset()
+target = Actor(); target._x = 50; target._y = 60
+cam2 = Camera()
+cam2.follow(target)
+g._width = 200; g._height = 100
+reset()
+with cam2:
+    pass
+# Camera should have snapped to actor position
+test("Camera follow snaps to target", cam2.x == 50 and cam2.y == 60)
+# The context manager should emit a push + translate then pop
+kinds = [c[0] for c in g._draw_commands]
+test("Camera emits push", "push" in kinds)
+test("Camera emits translate", "translate" in kinds)
+test("Camera emits pop", "pop" in kinds)
+# translate args center the view: (width/2 - cam.x, height/2 - cam.y) = (100-50, 50-60) = (50, -10)
+trans_args = next(c[1] for c in g._draw_commands if c[0] == "translate")
+test("Camera translate centers on target",
+     trans_args == (200/2 - 50, 100/2 - 60))
+
+# lerp < 1 smooths
+reset()
+target.move_to(100, 0)
+cam3 = Camera(0, 0)
+cam3.follow(target, lerp=0.5)
+with cam3:
+    pass
+test("Camera lerp halves toward target", cam3.x == 50 and cam3.y == 0)
+
+# unfollow stops snapping
+cam3.unfollow()
+target.move_to(999, 999)
+with cam3:
+    pass
+test("Camera unfollow holds pos", cam3.x == 50 and cam3.y == 0)
+
+
 # === Summary ===
 
 print(f"\n{'='*50}")

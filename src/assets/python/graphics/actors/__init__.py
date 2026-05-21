@@ -121,6 +121,30 @@ class Actor:
         self._vy = float(value)
 
     @property
+    def pos(self):
+        from graphics import Vector2
+        return Vector2(self._x, self._y)
+
+    @pos.setter
+    def pos(self, value):
+        from graphics import Vector2
+        v = value if isinstance(value, Vector2) else Vector2(value)
+        self._x = v.x
+        self._y = v.y
+
+    @property
+    def vel(self):
+        from graphics import Vector2
+        return Vector2(self._vx, self._vy)
+
+    @vel.setter
+    def vel(self, value):
+        from graphics import Vector2
+        v = value if isinstance(value, Vector2) else Vector2(value)
+        self._vx = v.x
+        self._vy = v.y
+
+    @property
     def speed(self):
         return self._speed
 
@@ -146,8 +170,15 @@ class Actor:
         col = self.collider
         if col.shape == "circle":
             return col.radius, col.radius
-        elif col.shape == "rect":
+        if col.shape == "rect":
             return col.width / 2, col.height / 2
+        # Fall back to sprite dimensions when no explicit collider is set.
+        img = self.image
+        if isinstance(img, dict):
+            w = img.get("width")
+            h = img.get("height")
+            if w and h:
+                return w / 2, h / 2
         return 0, 0
 
     @property

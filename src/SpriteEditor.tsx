@@ -1013,7 +1013,7 @@ export default function SpriteEditor({ open, onClose, onSave, onSaveAnimation, s
     }}
     onClick={() => { setShowFillPicker(false); setShowStrokePicker(false); }}
     >
-      <div data-testid="sprite-editor-modal" onClick={e => e.stopPropagation()}
+      <div data-testid="sprite-editor-modal" role="dialog" aria-label="Sprite Editor" onClick={e => e.stopPropagation()}
         style={{
           background: theme.surfacePanel,
           border: `1px solid ${theme.panelBorder}`,
@@ -1133,7 +1133,7 @@ export default function SpriteEditor({ open, onClose, onSave, onSaveAnimation, s
             {t('spriteEditor.save')}
           </button>
 
-          <button type="button" data-testid="close-button" onClick={onClose}
+          <button type="button" data-testid="close-button" aria-label="Close" onClick={onClose}
             style={{
               all: "unset", cursor: "pointer", width: 26, height: 26, borderRadius: 4,
               display: "inline-flex", alignItems: "center", justifyContent: "center",

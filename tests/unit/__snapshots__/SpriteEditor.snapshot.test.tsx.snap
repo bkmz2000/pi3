@@ -8,7 +8,9 @@ exports[`SpriteEditor - Snapshot Tests renders correctly when open 1`] = `
     style="position: fixed; inset: 0; z-index: 70; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.5);"
   >
     <div
+      aria-label="Sprite Editor"
       data-testid="sprite-editor-modal"
+      role="dialog"
       style="background: rgb(17, 68, 75); border: 1px solid rgba(148, 210, 216, 0.14); border-radius: 8px; box-shadow: 0 30px 70px -20px rgba(0,0,0,0.6), 0 4px 18px rgba(0,0,0,0.3); width: 960px; max-width: calc(100vw - 24px); height: 780px; max-height: calc(100vh - 24px); display: flex; flex-direction: column; font-family: "Inter", system-ui, sans-serif; color: rgb(232, 242, 244);"
     >
       <div
@@ -199,6 +201,7 @@ exports[`SpriteEditor - Snapshot Tests renders correctly when open 1`] = `
           spriteEditor.save
         </button>
         <button
+          aria-label="Close"
           data-testid="close-button"
           style="all: unset; cursor: pointer; width: 26px; height: 26px; border-radius: 4px; display: inline-flex; align-items: center; justify-content: center; color: rgb(155, 179, 184);"
           type="button"
@@ -679,7 +682,9 @@ exports[`SpriteEditor - Snapshot Tests renders with custom size 128 1`] = `
     style="position: fixed; inset: 0; z-index: 70; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.5);"
   >
     <div
+      aria-label="Sprite Editor"
       data-testid="sprite-editor-modal"
+      role="dialog"
       style="background: rgb(17, 68, 75); border: 1px solid rgba(148, 210, 216, 0.14); border-radius: 8px; box-shadow: 0 30px 70px -20px rgba(0,0,0,0.6), 0 4px 18px rgba(0,0,0,0.3); width: 960px; max-width: calc(100vw - 24px); height: 780px; max-height: calc(100vh - 24px); display: flex; flex-direction: column; font-family: "Inter", system-ui, sans-serif; color: rgb(232, 242, 244);"
     >
       <div
@@ -870,6 +875,7 @@ exports[`SpriteEditor - Snapshot Tests renders with custom size 128 1`] = `
           spriteEditor.save
         </button>
         <button
+          aria-label="Close"
           data-testid="close-button"
           style="all: unset; cursor: pointer; width: 26px; height: 26px; border-radius: 4px; display: inline-flex; align-items: center; justify-content: center; color: rgb(155, 179, 184);"
           type="button"
@@ -1350,7 +1356,9 @@ exports[`SpriteEditor - Snapshot Tests renders with default props 1`] = `
     style="position: fixed; inset: 0; z-index: 70; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.5);"
   >
     <div
+      aria-label="Sprite Editor"
       data-testid="sprite-editor-modal"
+      role="dialog"
       style="background: rgb(17, 68, 75); border: 1px solid rgba(148, 210, 216, 0.14); border-radius: 8px; box-shadow: 0 30px 70px -20px rgba(0,0,0,0.6), 0 4px 18px rgba(0,0,0,0.3); width: 960px; max-width: calc(100vw - 24px); height: 780px; max-height: calc(100vh - 24px); display: flex; flex-direction: column; font-family: "Inter", system-ui, sans-serif; color: rgb(232, 242, 244);"
     >
       <div
@@ -1541,6 +1549,7 @@ exports[`SpriteEditor - Snapshot Tests renders with default props 1`] = `
           spriteEditor.save
         </button>
         <button
+          aria-label="Close"
           data-testid="close-button"
           style="all: unset; cursor: pointer; width: 26px; height: 26px; border-radius: 4px; display: inline-flex; align-items: center; justify-content: center; color: rgb(155, 179, 184);"
           type="button"
@@ -2021,7 +2030,9 @@ exports[`SpriteEditor - Snapshot Tests renders with initial name 1`] = `
     style="position: fixed; inset: 0; z-index: 70; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.5);"
   >
     <div
+      aria-label="Sprite Editor"
       data-testid="sprite-editor-modal"
+      role="dialog"
       style="background: rgb(17, 68, 75); border: 1px solid rgba(148, 210, 216, 0.14); border-radius: 8px; box-shadow: 0 30px 70px -20px rgba(0,0,0,0.6), 0 4px 18px rgba(0,0,0,0.3); width: 960px; max-width: calc(100vw - 24px); height: 780px; max-height: calc(100vh - 24px); display: flex; flex-direction: column; font-family: "Inter", system-ui, sans-serif; color: rgb(232, 242, 244);"
     >
       <div
@@ -2212,6 +2223,7 @@ exports[`SpriteEditor - Snapshot Tests renders with initial name 1`] = `
           spriteEditor.save
         </button>
         <button
+          aria-label="Close"
           data-testid="close-button"
           style="all: unset; cursor: pointer; width: 26px; height: 26px; border-radius: 4px; display: inline-flex; align-items: center; justify-content: center; color: rgb(155, 179, 184);"
           type="button"

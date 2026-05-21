@@ -370,6 +370,8 @@ export default function Rail() {
       {/* Floating side panels */}
       {activePanel && (
         <div
+          role="region"
+          aria-label={activePanel.charAt(0).toUpperCase() + activePanel.slice(1)}
           style={{
             position: "absolute",
             top: 0, bottom: 0, left: 60,

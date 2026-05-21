@@ -59,7 +59,6 @@ class Actor:
         self._angle = 0.0
         self._vx = 0.0
         self._vy = 0.0
-        self._speed = 0.0
         self._visible = True
         self._alive = True
         self.image = None
@@ -143,14 +142,6 @@ class Actor:
         v = value if isinstance(value, Vector2) else Vector2(value)
         self._vx = v.x
         self._vy = v.y
-
-    @property
-    def speed(self):
-        return self._speed
-
-    @speed.setter
-    def speed(self, value):
-        self._speed = float(value)
 
     @property
     def visible(self):
@@ -319,10 +310,6 @@ class Actor:
     def _apply_velocity(self):
         if not self._alive:
             return
-        if self._speed != 0:
-            rad = math.radians(self._angle)
-            self._x += self._speed * math.cos(rad)
-            self._y += self._speed * math.sin(rad)
         if self._vx != 0 or self._vy != 0:
             self._x += self._vx
             self._y += self._vy
@@ -421,6 +408,11 @@ class Actor:
                 return other
         return None
 
+    @property
+    def future_state(self):
+        """Snapshot at the position the actor will occupy after one velocity step."""
+        return ActorSnapshot(self)
+
     # --- static helpers ---
 
     @staticmethod
@@ -437,6 +429,47 @@ class Actor:
             w = 400
             h = 400
         return (random.randint(0, int(w)), random.randint(0, int(h)))
+
+
+class ActorSnapshot:
+    """Read-only one-frame-lookahead view of an actor.
+
+    Exposes `collides_with` and `collides_any` evaluated at the position the
+    source actor will occupy after one `_apply_velocity` step. Computation
+    mirrors `_apply_velocity` exactly so the prediction matches the next frame.
+    The source actor's state is unchanged by use of the snapshot.
+    """
+
+    def __init__(self, actor):
+        self._actor = actor
+        nx = actor._x
+        ny = actor._y
+        if actor._vx != 0 or actor._vy != 0:
+            nx += actor._vx
+            ny += actor._vy
+        self._x = nx
+        self._y = ny
+        self._alive = actor._alive
+
+    def collides_with(self, other):
+        # Temporarily reposition the actor, reuse its collision math, restore.
+        actor = self._actor
+        ox, oy = actor._x, actor._y
+        try:
+            actor._x = self._x
+            actor._y = self._y
+            return actor.collides_with(other)
+        finally:
+            actor._x = ox
+            actor._y = oy
+
+    def collides_any(self, group):
+        if not self._alive:
+            return None
+        for other in group:
+            if self.collides_with(other):
+                return other
+        return None
 
 
 def _circle_rect_hit(cx, cy, cr, rx, ry, hw, hh):

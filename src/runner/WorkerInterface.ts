@@ -24,6 +24,7 @@ export type WorkerCommand =
       entry: string;
       showHitboxes?: boolean;
       themePalette?: Record<string, [number, number, number]>;
+      themeName?: string;
     }
   | { cmd: "interrupt" }
   | { cmd: "set_interrupt_buffer"; buffer: SharedArrayBuffer }

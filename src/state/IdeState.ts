@@ -9,6 +9,8 @@ import Asteroids from "../assets/examples/asteroids/files/main.py?raw";
 import Catch from "../assets/examples/catch/catch.py?raw";
 import Robot from "../assets/examples/robot/robot.py?raw";
 import Swatches from "../assets/examples/swatches/swatches.py?raw";
+import Dungeon from "../assets/examples/dungeon/dungeon.py?raw";
+import ThemesDemo from "../assets/examples/themes/themes.py?raw";
 import ShipSvg from "../assets/examples/asteroids/assets/ship.svg?url";
 import BulletSvg from "../assets/examples/asteroids/assets/bullet.svg?url";
 import BigAsteroidSvg from "../assets/examples/asteroids/assets/big_asteroid.svg?url";
@@ -43,6 +45,7 @@ export type Project = {
   assets: Record<string, string>;
   tilemaps: Record<string, TilemapData>;
   animations: Record<string, AnimationData>;
+  theme?: string;
 };
 
 // Re-export adapter for convenience
@@ -109,6 +112,19 @@ const Examples: Record<string, Project> = {
     tilemaps: {},
     animations: {},
   },
+  dungeon: {
+    files: { "dungeon.py": Dungeon },
+    assets: {},
+    tilemaps: {},
+    animations: {},
+    theme: "dungeon",
+  },
+  themes: {
+    files: { "themes.py": ThemesDemo },
+    assets: {},
+    tilemaps: {},
+    animations: {},
+  },
 };
 
 type EditorState = {
@@ -131,6 +147,7 @@ type EditorState = {
   deleteTilemap: (name: string) => void;
   saveAnimation: (name: string, data: AnimationData) => void;
   deleteAnimation: (name: string) => void;
+  setProjectTheme: (theme: string) => void;
   markClean: () => void;
 };
 
@@ -294,6 +311,13 @@ export const useEditor = create<EditorState>((set) => ({
       return { project: { ...s.project, animations }, dirtyFiles: dirty };
     }),
 
+  setProjectTheme: (theme: string) =>
+    set((s) => {
+      const dirty = new Set(s.dirtyFiles);
+      dirty.add("*theme*");
+      return { project: { ...s.project, theme }, dirtyFiles: dirty };
+    }),
+
   markClean: () => set({ dirtyFiles: new Set() }),
 }));
 
@@ -425,6 +449,7 @@ export const useIde = create<IdeState>((set, get) => ({
       tilemaps: exampleProject.tilemaps,
       animations: exampleProject.animations,
       currentFile: exampleProject.currentFile,
+      theme: exampleProject.theme,
     });
 
     const { userProjects } = get();
@@ -443,6 +468,7 @@ export const useIde = create<IdeState>((set, get) => ({
         tilemaps: project.tilemaps,
         animations: project.animations,
         currentFile: useEditor.getState().currentFile,
+        theme: project.theme,
       });
 
       // Update the local cache

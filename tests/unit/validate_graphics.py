@@ -7,6 +7,7 @@ Pyodide or a browser, so they run fast and catch structural errors.
 
 import ast
 import glob
+import math
 import os
 import sys
 import traceback
@@ -135,11 +136,41 @@ expected_funcs = {
     "fill", "no_fill", "stroke", "no_stroke", "stroke_width",
     "background",
     "push", "pop", "translate", "rotate", "scale",
-    "image", "image_mode", "rect_mode",
+    "image",
     "run", "stop", "frame_rate",
     "random", "random_color",
     "_tick",
 }
+
+# Check that new public classes exist at module level (added by
+# graphics-lighting-collisions-themes change).
+expected_classes = {
+    "TileRef", "TilemapLayer", "TileMap",
+    "Light", "Camera",
+    "_Theme", "_Themes",
+}
+for cls in expected_classes:
+    test(f"Class '{cls}' is defined", cls in get_func_names(tree))
+
+# Tile tagging API on TilemapLayer / TileMap
+tilemap_layer_methods = get_class_body_names(tree, "TilemapLayer")
+for m in ("tag", "all_tiles"):
+    test(f"TilemapLayer.{m} exists", m in tilemap_layer_methods)
+tilemap_methods = get_class_body_names(tree, "TileMap")
+for m in ("tag", "all_tiles"):
+    test(f"TileMap.{m} exists", m in tilemap_methods)
+
+# Light API surface
+light_methods = get_class_body_names(tree, "Light")
+for m in ("__init__", "add_obstacles", "add_obst", "add_source",
+          "shade", "flicker", "radius", "style", "draw"):
+    test(f"Light.{m} exists", m in light_methods)
+
+# Themes data + active theme name
+test("THEMES_DATA assigned at module level", "THEMES_DATA" in module_names)
+test("SHADES assigned at module level", "SHADES" in module_names)
+test("Themes assigned at module level", "Themes" in module_names)
+test("_active_theme_name defined", "_active_theme_name" in module_names)
 
 func_names = get_func_names(tree)
 for fn in expected_funcs:
@@ -198,10 +229,16 @@ for m in expected_actor_methods:
     test(f"Actor.{m}() exists", m in actor_methods)
 
 # Check Actor has expected properties
-expected_actor_props = {"x", "y", "angle", "vx", "vy", "speed", "visible", "collidable"}
+expected_actor_props = {"x", "y", "angle", "vx", "vy", "visible", "collidable", "future_state"}
 # Properties look like methods with @property decorator in AST
 for prop in expected_actor_props:
     test(f"Actor.{prop} property", prop in actor_methods)
+
+# ActorSnapshot is the lookahead returned by Actor.future_state.
+test("ActorSnapshot class exists", "ActorSnapshot" in get_func_names(atree))
+snapshot_methods = get_class_body_names(atree, "ActorSnapshot")
+for m in ("collides_with", "collides_any"):
+    test(f"ActorSnapshot.{m} exists", m in snapshot_methods)
 
 # Verify old Actor methods are removed
 old_methods = {"hide", "show", "ghost", "from_cfg", "set_coords", "get_coords",
@@ -229,7 +266,7 @@ for m in {"add", "remove", "__iter__", "__len__"}:
 test("No import of config.py", "import config" not in actors_src and "from config" not in actors_src)
 test("No MethodType import", "MethodType" not in actors_src)
 test("No from_cfg reference", "from_cfg" not in actors_src)
-test("No _state dict", "_state" not in actors_src)
+test("No _state dict", "self._state" not in actors_src and "_state =" not in actors_src)
 
 
 # === 3. Config.py is gone ===
@@ -262,6 +299,8 @@ expected_examples = {
     "snake/snake.py",
     "sokoban/sokoban.py",
     "swatches/swatches.py",
+    "dungeon/dungeon.py",
+    "themes/themes.py",
 }
 
 for ex in expected_examples:
@@ -1092,6 +1131,289 @@ target.move_to(999, 999)
 with cam3:
     pass
 test("Camera unfollow holds pos", cam3.x == 50 and cam3.y == 0)
+
+
+# --- Tile tagging + all_tiles ---
+
+print("\n=== Runtime: tile tagging / all_tiles ===")
+
+from graphics import TileRef, TileMap
+
+reset()
+layer = g.TilemapLayer("ground", 32, {
+    0: {0: "brick", 1: "brick"},
+    1: {0: "brick", 1: "stone"},
+}, {})
+test("TilemapLayer.tag returns self", layer.tag("brick", "wall") is layer)
+layer.tag("stone", "wall")
+
+walls = layer.all_tiles("wall")
+test("all_tiles returns Group", isinstance(walls, Group))
+test("all_tiles count == 4 (3 brick + 1 stone)", len(walls) == 4)
+
+# Positions: brick at (0,0), (0,1), (1,0); stone at (1,1). Centers at (col*32+16, row*32+16)
+positions = sorted([(int(a._x), int(a._y)) for a in walls])
+test("all_tiles positions correct",
+     positions == [(16, 16), (16, 48), (48, 16), (48, 48)])
+
+# Returned actors are TileRefs with correct collider size
+for a in walls:
+    test("all_tiles actor is TileRef", isinstance(a, TileRef))
+    test("all_tiles actor collider shape == rect", a.collider.shape == "rect")
+    test("all_tiles actor collider size == tile_size", a.collider.width == 32 and a.collider.height == 32)
+    break  # one is enough
+
+# Idempotent tagging
+layer.tag("brick", "wall")
+test("Re-tagging idempotent", len(layer.all_tiles("wall")) == 4)
+
+# Cache invalidation on re-tag with new name
+layer2 = g.TilemapLayer("ground2", 32, {0: {0: "brick"}, 1: {0: "stone"}}, {})
+layer2.tag("brick", "wall")
+test("First all_tiles call has 1 brick", len(layer2.all_tiles("wall")) == 1)
+layer2.tag("stone", "wall")
+test("After tagging stone too, all_tiles has 2", len(layer2.all_tiles("wall")) == 2)
+
+# Empty result for unknown tag
+empty = layer.all_tiles("lava")
+test("Unknown tag returns empty Group", len(empty) == 0)
+test("Unknown tag still returns a Group", isinstance(empty, Group))
+
+# TileRefs are NOT in Actor._registry
+reg_before = len(Actor._registry)
+layer3 = g.TilemapLayer("g3", 32, {0: {0: "x"}}, {})
+layer3.tag("x", "wall")
+_ = layer3.all_tiles("wall")
+test("TileRef not in Actor._registry", len(Actor._registry) == reg_before)
+
+# collides_any works with all_tiles result
+reset()
+g._width = 400; g._height = 400
+layer4 = g.TilemapLayer("g4", 32, {2: {2: "brick"}}, {})  # tile at col=2, row=2 → center (80, 80)
+layer4.tag("brick", "wall")
+hero = Circle(80, 80, 10)
+test("collides_any works on all_tiles Group", hero.collides_any(layer4.all_tiles("wall")) is not None)
+hero._x = 200; hero._y = 200
+test("collides_any returns None when far", hero.collides_any(layer4.all_tiles("wall")) is None)
+
+# TileMap.tag propagates to layers, all_tiles aggregates
+reset()
+la = g.TilemapLayer("ground", 32, {0: {0: "brick"}}, {})
+lb = g.TilemapLayer("walls", 32, {1: {1: "brick"}}, {})
+tm = TileMap([la, lb], {"ground": la, "walls": lb})
+tm.tag("brick", "wall")
+test("TileMap.tag propagates: ground has wall", "wall" in la._tags.get("brick", set()))
+test("TileMap.tag propagates: walls has wall", "wall" in lb._tags.get("brick", set()))
+agg = tm.all_tiles("wall")
+test("TileMap.all_tiles aggregates across layers", len(agg) == 2)
+
+
+# --- Actor.future_state ---
+
+print("\n=== Runtime: Actor.future_state ===")
+
+reset()
+wall_actor = Rect(20, 0, 10, 10)   # center (20, 0), half=5 → spans x=15..25
+mover = Circle(0, 0, 5)
+mover._vx = 20  # snapshot x=20, inside wall
+test("Current collides_any: None", mover.collides_any([wall_actor]) is None)
+fs = mover.future_state
+test("future_state.collides_any returns the wall", fs.collides_any([wall_actor]) is wall_actor)
+test("future_state.collides_with works", fs.collides_with(wall_actor))
+
+# Actor state unchanged after snapshot use
+saved_x, saved_y = mover._x, mover._y
+_ = mover.future_state.collides_any([wall_actor])
+test("Actor.x unchanged after snapshot use", mover._x == saved_x)
+test("Actor.y unchanged after snapshot use", mover._y == saved_y)
+
+# Snapshot pos equals next-frame actual pos after _apply_velocity
+reset()
+runner = Rect(10, 20, 8, 8)
+runner._vx = 3
+runner._vy = -2
+pre_snap = runner.future_state
+runner._apply_velocity()
+test("Snapshot x matches post-_apply_velocity x", abs(pre_snap._x - runner._x) < 1e-9)
+test("Snapshot y matches post-_apply_velocity y", abs(pre_snap._y - runner._y) < 1e-9)
+
+# Polar(magnitude, angle_degrees) returns a Vector2 in screen coords:
+# 0° = east, 90° = south (y-down), 180° = west, 270° = north.
+print("\n=== Runtime: Polar(magnitude, angle_degrees) ===")
+from graphics import Polar
+test("Polar in __all__", "Polar" in g.__all__)
+e = Polar(10, 0)
+test("Polar(10, 0) points east", abs(e.x - 10) < 1e-9 and abs(e.y) < 1e-9)
+s = Polar(10, 90)
+test("Polar(10, 90) points south (y-down)", abs(s.x) < 1e-9 and abs(s.y - 10) < 1e-9)
+w = Polar(10, 180)
+test("Polar(10, 180) points west", abs(w.x + 10) < 1e-9 and abs(w.y) < 1e-9)
+test("Polar returns a Vector2", isinstance(Polar(1, 0), Vector2))
+test("Polar magnitude is preserved", abs(Polar(7, 33).length - 7) < 1e-9)
+# Setting actor.vel = Polar(...) drives motion via _apply_velocity.
+reset()
+mover = Rect(0, 0, 4, 4)
+mover.vel = Polar(5, 0)
+mover._apply_velocity()
+test("actor.vel = Polar then apply moves east", abs(mover._x - 5) < 1e-9 and abs(mover._y) < 1e-9)
+
+
+# --- Themes ---
+
+print("\n=== Runtime: Themes ===")
+
+from graphics import Themes, THEMES_DATA
+
+test("Themes in __all__", "Themes" in g.__all__)
+test("Themes.default exists", Themes.default is not None)
+test("Themes.summer exists", Themes.summer is not None)
+test("Themes.dungeon exists", Themes.dungeon is not None)
+test("Themes.moonlit exists", Themes.moonlit is not None)
+test("Themes.summer.green is 3-tuple", isinstance(Themes.summer.green, tuple) and len(Themes.summer.green) == 3)
+test("Themes.summer.green differs from Themes.dungeon.green", Themes.summer.green != Themes.dungeon.green)
+test("Themes.summer.green differs from Colors.green", Themes.summer.green != g.Colors.green)
+test("fill(Themes.summer.green) works", (lambda: (reset(), g.fill(Themes.summer.green), g._draw_commands[-1][0] == "fill")[-1])())
+test("Themes.dungeon.ambient", Themes.dungeon.ambient == (35, 30, 50))
+test("Themes.dungeon.light_shade", Themes.dungeon.light_shade == (255, 180, 110))
+
+try:
+    _ = Themes.no_such_theme
+    test("Unknown theme raises", False)
+except AttributeError as e:
+    test("Unknown theme raises AttributeError naming it", "no_such_theme" in str(e))
+
+try:
+    _ = Themes.summer.notacolor
+    test("Unknown color on theme raises", False)
+except AttributeError as e:
+    msg = str(e)
+    test("Unknown color on theme raises AttributeError naming theme + color",
+         "summer" in msg and "notacolor" in msg)
+
+# Theme palette parity
+base_color_names = {n for n in dir(g.Colors) if not n.startswith("_") and isinstance(getattr(g.Colors, n), tuple)}
+for tname, tdata in THEMES_DATA.items():
+    theme_names = set(tdata["palette"].keys())
+    test(f"Theme '{tname}' palette equals base Colors names",
+         theme_names == base_color_names)
+
+# Base Colors RGB unchanged
+test("Colors.red unchanged", g.Colors.red == (220, 60, 60))
+test("Colors.green unchanged", g.Colors.green == (50, 200, 80))
+test("Colors.blue unchanged", g.Colors.blue == (60, 120, 255))
+test("Colors.black unchanged", g.Colors.black == (0, 0, 0))
+
+
+# --- Light ---
+
+print("\n=== Runtime: Light ===")
+
+from graphics import Light, SHADES
+
+test("Light in __all__", "Light" in g.__all__)
+
+reset()
+torch = Circle(50, 50, 4)
+tl = Light(ambient=(30, 30, 50), radius=120)
+test("Light chain: add_source returns self", tl.add_source(torch) is tl)
+test("Light chain: shade returns self", tl.shade("warm") is tl)
+test("Light chain: flicker returns self", tl.flicker(True) is tl)
+test("Light chain: radius returns self", tl.radius(100) is tl)
+test("Light shade('warm') sets warm RGB", tl._shade_rgb == SHADES["warm"])
+
+try:
+    tl.shade("rainbow")
+    test("Unknown shade raises", False)
+except ValueError as e:
+    test("Unknown shade raises ValueError naming it", "rainbow" in str(e))
+
+# Light.style accepts theme object
+tl2 = Light()
+tl2.style(Themes.dungeon)
+test("Light.style(Themes.dungeon) sets ambient", tl2._ambient == Themes.dungeon.ambient)
+test("Light.style(Themes.dungeon) sets shade_rgb", tl2._shade_rgb == Themes.dungeon.light_shade)
+
+# Light.style accepts theme name string
+tl3 = Light()
+tl3.style("dungeon")
+test("Light.style('dungeon') == Light.style(Themes.dungeon) ambient", tl3._ambient == tl2._ambient)
+test("Light.style('dungeon') == Light.style(Themes.dungeon) shade", tl3._shade_rgb == tl2._shade_rgb)
+
+try:
+    Light().style("no_such_theme")
+    test("Light.style with unknown theme raises", False)
+except ValueError as e:
+    test("Light.style with unknown theme raises", "no_such_theme" in str(e))
+
+# Flicker is deterministic in [0.85, 1.0] range
+from graphics import _flicker_value
+vals = [_flicker_value(42, f) for f in range(50)]
+test("Flicker values in [0.85, 1.0]", all(0.85 <= v <= 1.0 for v in vals))
+test("Flicker varies across frames", len(set(vals)) > 1)
+test("Flicker deterministic (same input → same value)",
+     _flicker_value(42, 7) == _flicker_value(42, 7))
+
+# Position-only source via add_source
+tl4 = Light()
+tl4.add_source((100, 200))
+test("add_source(tuple) registers a pos source", tl4._sources == [("pos", (100.0, 200.0))])
+tl4.add_source(g.Vector2(5, 6))
+test("add_source(Vector2) registers a pos source", tl4._sources[-1] == ("pos", (5.0, 6.0)))
+
+# Single Actor as obstacle
+reset()
+wall1 = Rect(50, 50, 20, 20)
+tlw = Light()
+tlw.add_obst(wall1)
+test("add_obst(actor) registers obstacle", tlw._obstacles == [wall1])
+group = Group(); group.add(wall1)
+tlw2 = Light()
+tlw2.add_obstacles(group)
+test("add_obstacles(group) registers from iterable", tlw2._obstacles == [wall1])
+
+# Light.draw emits begin/poly/end
+reset()
+g._width = 400; g._height = 400
+src_actor = Circle(100, 100, 4)
+tld = Light(ambient=(20, 20, 40), radius=80).add_source(src_actor).shade("warm")
+tld.draw()
+kinds = [c[0] for c in g._draw_commands]
+test("Light.draw emits light_begin first", kinds[0] == "light_begin")
+test("Light.draw emits exactly one light_poly per source", kinds.count("light_poly") == 1)
+test("Light.draw emits light_end last", kinds[-1] == "light_end")
+# light_begin payload is the ambient
+begin_cmd = g._draw_commands[0]
+test("light_begin payload == ambient", begin_cmd[1] == (20, 20, 40))
+poly_cmd = next(c for c in g._draw_commands if c[0] == "light_poly")
+poly_flat, sx, sy, radius_val, shade_rgb, intensity = poly_cmd[1]
+test("light_poly sx/sy match source pos", sx == 100.0 and sy == 100.0)
+test("light_poly radius matches Light.radius", radius_val == 80.0)
+test("light_poly shade_rgb is warm", shade_rgb == SHADES["warm"])
+test("light_poly intensity is 1.0 (no flicker)", intensity == 1.0)
+test("light_poly polygon has even-length flat coords", len(poly_flat) > 0 and len(poly_flat) % 2 == 0)
+
+# Shadow notch: with a wall between source and far points, polygon should
+# contain at least one vertex much closer than full radius behind the wall.
+reset()
+g._width = 400; g._height = 400
+wall_block = Rect(60, 50, 20, 20)  # center 60,50, half=10 → spans 50..70, 40..60
+notch_light = Light(ambient=(0,0,0), radius=300).add_source((50, 50)).add_obstacles([wall_block])
+notch_light.draw()
+poly_cmd2 = next(c for c in g._draw_commands if c[0] == "light_poly")
+poly_flat2 = poly_cmd2[1][0]
+# Distance from source (50,50) to each polygon vertex
+dists = []
+for i in range(0, len(poly_flat2), 2):
+    px, py = poly_flat2[i], poly_flat2[i+1]
+    dists.append(((px - 50) ** 2 + (py - 50) ** 2) ** 0.5)
+test("Shadow notch present (min vertex dist << radius)", min(dists) < 100)
+
+# Light.draw with flicker uses [0.85, 1.0] intensity
+reset()
+fl_light = Light(radius=50).add_source((10, 10)).flicker(True)
+fl_light.draw()
+poly_intensity = next(c[1][5] for c in g._draw_commands if c[0] == "light_poly")
+test("Flicker intensity in range", 0.85 <= poly_intensity <= 1.0)
 
 
 # === Summary ===

@@ -238,6 +238,22 @@ def _vec_pair(other):
 Point = Vector2
 
 
+def Polar(magnitude, angle_degrees):
+    """Vector2 from a magnitude and angle in degrees.
+
+    Angle convention matches actor.angle and actor.move(): 0° = east (+x),
+    90° = south (+y) — counterclockwise increases in math but clockwise on
+    screen because the y axis points down.
+
+    Common uses:
+        player.vel = Polar(120, 60)         # 120 px/frame at 60°
+        bullet.vel = Polar(8, ship.angle)   # match the ship's facing
+        wind = Polar(2, 0)                  # blow east
+    """
+    rad = math.radians(float(angle_degrees))
+    return Vector2(float(magnitude) * math.cos(rad), float(magnitude) * math.sin(rad))
+
+
 from graphics.actors import Actor, Rect, Circle, Group, Collider  # noqa: E402
 
 
@@ -819,6 +835,24 @@ def _clear():
     Actor._id_counter = 0
 
 
+class TileRef(Rect):
+    """Lightweight tile collider returned by `all_tiles`.
+
+    Subclass of Rect that removes itself from the global Actor registry so the
+    game loop does not tick or auto-draw it. The TilemapLayer renders its tiles
+    via `tilemap_layer` draw commands; TileRefs exist purely as colliders.
+    """
+
+    def __init__(self, x, y, size):
+        super().__init__(x=x, y=y, width=size, height=size, color="white")
+        if self in Actor._registry:
+            Actor._registry.remove(self)
+
+    def draw(self):
+        # No-op: actual tile pixels are drawn by TilemapLayer.draw.
+        pass
+
+
 class TilemapLayer:
     """A single named layer in a tilemap. Cells addressed by (col, row) integers."""
 
@@ -826,6 +860,41 @@ class TilemapLayer:
         self.name = name
         self.tile_size = tile_size
         self._cells = cells    # dict[int, dict[int, str]]
+        self._tags = {}        # dict[str, set[str]]  — tile_name → set of tag strings
+        self._tag_group_cache = {}  # dict[str, Group]
+
+    def tag(self, name, *tags):
+        """Associate one or more tags with a tile name. Idempotent (set semantics)."""
+        existing = self._tags.setdefault(name, set())
+        for t in tags:
+            existing.add(t)
+        self._tag_group_cache.clear()
+        return self
+
+    def all_tiles(self, tag):
+        """Return a Group of TileRef colliders for every cell whose tile-name has `tag`."""
+        cached = self._tag_group_cache.get(tag)
+        if cached is not None:
+            return cached
+        result = Group()
+        matching = {n for n, ts in self._tags.items() if tag in ts}
+        if matching:
+            half = self.tile_size / 2
+            for col, rows in self._cells.items():
+                for row, name in rows.items():
+                    if name in matching:
+                        cx = col * self.tile_size + half
+                        cy = row * self.tile_size + half
+                        result.add(TileRef(cx, cy, self.tile_size))
+        self._tag_group_cache[tag] = result
+        return result
+
+    def _has_tile_name(self, name):
+        for rows in self._cells.values():
+            for n in rows.values():
+                if n == name:
+                    return True
+        return False
 
     def draw(self, x=0, y=0):
         cells_flat = [[col, row, name] for col, rows in self._cells.items() for row, name in rows.items()]
@@ -869,6 +938,21 @@ class TileMap:
     def draw(self, x=0, y=0):
         for layer in self._layers:
             layer.draw(x, y)
+
+    def tag(self, name, *tags):
+        """Apply tags to every layer that contains the given tile name."""
+        for layer in self._layers:
+            if layer._has_tile_name(name):
+                layer.tag(name, *tags)
+        return self
+
+    def all_tiles(self, tag):
+        """Aggregate `all_tiles(tag)` across every layer in this tilemap."""
+        result = Group()
+        for layer in self._layers:
+            for actor in layer.all_tiles(tag):
+                result.add(actor)
+        return result
 
 
 from graphics.animation import Animation  # noqa: E402
@@ -946,6 +1030,376 @@ class Camera:
         return False
 
 
+# === THEMES ===
+
+
+THEMES_DATA = {
+    "default": {
+        "palette": {
+            "red":    (220,  60,  60),
+            "green":  ( 50, 200,  80),
+            "blue":   ( 60, 120, 255),
+            "yellow": (255, 220,  40),
+            "orange": (255, 140,  40),
+            "purple": (180,  80, 220),
+            "pink":   (255, 130, 180),
+            "cyan":   ( 40, 210, 220),
+            "white":  (255, 255, 255),
+            "black":  (  0,   0,   0),
+            "gray":   (150, 150, 150),
+            "brown":  (160,  90,  40),
+        },
+        "ambient": (255, 255, 255),
+        "light_shade": (255, 255, 255),
+    },
+    "summer": {
+        "palette": {
+            "red":    (255,  95,  60),
+            "green":  (120, 220,  80),
+            "blue":   ( 90, 170, 255),
+            "yellow": (255, 230,  80),
+            "orange": (255, 165,  60),
+            "purple": (200, 120, 230),
+            "pink":   (255, 165, 200),
+            "cyan":   ( 80, 230, 230),
+            "white":  (255, 250, 230),
+            "black":  ( 40,  30,  20),
+            "gray":   (180, 170, 140),
+            "brown":  (180, 110,  60),
+        },
+        "ambient": (220, 210, 180),
+        "light_shade": (255, 230, 180),
+    },
+    "dungeon": {
+        "palette": {
+            "red":    (180,  40,  40),
+            "green":  ( 60, 140,  60),
+            "blue":   ( 40,  80, 160),
+            "yellow": (200, 170,  40),
+            "orange": (200, 100,  40),
+            "purple": (120,  60, 160),
+            "pink":   (180,  90, 130),
+            "cyan":   ( 40, 160, 170),
+            "white":  (200, 200, 210),
+            "black":  ( 10,  10,  15),
+            "gray":   ( 90,  90, 100),
+            "brown":  (110,  70,  40),
+        },
+        "ambient": (35, 30, 50),
+        "light_shade": (255, 180, 110),
+    },
+    "moonlit": {
+        "palette": {
+            "red":    (200,  80,  90),
+            "green":  (100, 180, 140),
+            "blue":   (110, 150, 220),
+            "yellow": (230, 220, 160),
+            "orange": (220, 160, 100),
+            "purple": (180, 140, 220),
+            "pink":   (220, 170, 200),
+            "cyan":   (140, 200, 220),
+            "white":  (220, 230, 255),
+            "black":  ( 10,  15,  30),
+            "gray":   (120, 130, 160),
+            "brown":  (120,  90,  80),
+        },
+        "ambient": (60, 70, 110),
+        "light_shade": (190, 210, 255),
+    },
+}
+
+
+class _Theme:
+    """A named color theme. Access palette colors via attribute (`theme.green`)."""
+
+    def __init__(self, name, data):
+        # Use object.__setattr__ to avoid triggering __getattr__ during init.
+        object.__setattr__(self, "name", name)
+        object.__setattr__(self, "_palette", dict(data["palette"]))
+        object.__setattr__(self, "ambient", tuple(data["ambient"]))
+        object.__setattr__(self, "light_shade", tuple(data["light_shade"]))
+
+    def __getattr__(self, name):
+        # Called only when normal lookup fails.
+        palette = object.__getattribute__(self, "_palette")
+        if name in palette:
+            return palette[name]
+        raise AttributeError(
+            f"Theme '{self.name}' has no color '{name}'. "
+            f"Available: {sorted(palette.keys())}"
+        )
+
+    def __repr__(self):
+        return f"_Theme({self.name!r})"
+
+
+# Active theme name, set by the worker on each run via
+# `graphics._active_theme_name = "<name>"`. Resolved dynamically by
+# `Themes.current` so user code can do `Light.style(Themes.current)` without
+# threading the name through itself.
+_active_theme_name = "default"
+
+
+class _Themes:
+    """Top-level themes container; expose as module-level `Themes`.
+
+    Attribute access returns a `_Theme` (e.g. `Themes.dungeon`). The special
+    name `Themes.current` resolves to the active project theme at access time;
+    holding it in a variable captures a snapshot of whichever theme was active
+    at that moment.
+    """
+
+    def __init__(self):
+        object.__setattr__(
+            self, "_themes",
+            {name: _Theme(name, data) for name, data in THEMES_DATA.items()},
+        )
+
+    def __getattr__(self, name):
+        themes = object.__getattribute__(self, "_themes")
+        if name == "current":
+            # Resolve dynamically from the module-level active name; fall back
+            # to "default" if a stale name slipped through.
+            active = globals().get("_active_theme_name", "default")
+            return themes.get(active, themes["default"])
+        if name in themes:
+            return themes[name]
+        raise AttributeError(
+            f"Unknown theme '{name}'. Available: {sorted(themes.keys())}"
+        )
+
+    def __contains__(self, name):
+        return name in object.__getattribute__(self, "_themes")
+
+
+Themes = _Themes()
+
+
+# === LIGHTING ===
+
+
+SHADES = {
+    "neutral":   (255, 255, 255),
+    "warm":      (255, 200, 140),
+    "cool":      (180, 200, 255),
+    "moonlight": (200, 220, 255),
+    "candle":    (255, 180, 100),
+}
+
+
+def _flicker_value(seed, frame):
+    """Deterministic noise in [0.85, 1.0] from (seed, frame_count)."""
+    h = (seed * 2654435761 + frame * 40503) & 0xFFFFFFFF
+    h = ((h >> 16) ^ h) * 0x45D9F3B & 0xFFFFFFFF
+    h = ((h >> 16) ^ h) & 0xFFFFFFFF
+    return 0.85 + (h / 0xFFFFFFFF) * 0.15
+
+
+def _ray_rect(ox, oy, dx, dy, xmin, ymin, xmax, ymax):
+    """Slab ray-AABB intersection; returns smallest non-negative t or None."""
+    tmin = -math.inf
+    tmax = math.inf
+    if abs(dx) < 1e-9:
+        if ox < xmin or ox > xmax:
+            return None
+    else:
+        tx1 = (xmin - ox) / dx
+        tx2 = (xmax - ox) / dx
+        tmin = max(tmin, min(tx1, tx2))
+        tmax = min(tmax, max(tx1, tx2))
+    if abs(dy) < 1e-9:
+        if oy < ymin or oy > ymax:
+            return None
+    else:
+        ty1 = (ymin - oy) / dy
+        ty2 = (ymax - oy) / dy
+        tmin = max(tmin, min(ty1, ty2))
+        tmax = min(tmax, max(ty1, ty2))
+    if tmax < tmin or tmax < 0:
+        return None
+    return tmin if tmin >= 0 else tmax
+
+
+def _ray_circle(ox, oy, dx, dy, cx, cy, r):
+    fx, fy = ox - cx, oy - cy
+    a = dx * dx + dy * dy
+    b = 2 * (fx * dx + fy * dy)
+    c = fx * fx + fy * fy - r * r
+    disc = b * b - 4 * a * c
+    if disc < 0:
+        return None
+    sq = math.sqrt(disc)
+    t1 = (-b - sq) / (2 * a)
+    t2 = (-b + sq) / (2 * a)
+    if t1 >= 0:
+        return t1
+    if t2 >= 0:
+        return t2
+    return None
+
+
+def _obstacle_rect(obs):
+    """Return (xmin, ymin, xmax, ymax) bounding rect for an obstacle, or None."""
+    col = getattr(obs, "collider", None)
+    if col is None or col.shape is None:
+        return None
+    cx, cy = col.active_x, col.active_y
+    if col.shape == "rect":
+        hw, hh = col.width / 2, col.height / 2
+        return (cx - hw, cy - hh, cx + hw, cy + hh)
+    if col.shape == "circle":
+        r = col.radius
+        return (cx - r, cy - r, cx + r, cy + r)
+    return None
+
+
+def _compute_visibility_polygon(sx, sy, radius, obstacles):
+    """Cast rays to obstacle bbox corners ± epsilon; return ordered polygon."""
+    EPS = 1e-4
+    angles = []
+    rects = [r for r in (_obstacle_rect(o) for o in obstacles) if r is not None]
+
+    for (xmin, ymin, xmax, ymax) in rects:
+        for (px, py) in ((xmin, ymin), (xmax, ymin), (xmax, ymax), (xmin, ymax)):
+            base = math.atan2(py - sy, px - sx)
+            angles.append(base - EPS)
+            angles.append(base)
+            angles.append(base + EPS)
+
+    if not angles:
+        # No obstacles → emit a regular polygon approximating the radius circle.
+        N = 24
+        angles = [2 * math.pi * i / N for i in range(N)]
+
+    angles.sort()
+
+    poly = []
+    for ang in angles:
+        dx = math.cos(ang)
+        dy = math.sin(ang)
+        t_min = radius
+        for (xmin, ymin, xmax, ymax) in rects:
+            t = _ray_rect(sx, sy, dx, dy, xmin, ymin, xmax, ymax)
+            if t is not None and 0 <= t < t_min:
+                t_min = t
+        poly.append((sx + dx * t_min, sy + dy * t_min))
+    return poly
+
+
+class Light:
+    """A multiply-blended lighting overlay with optional shadow-casting sources.
+
+    Usage:
+        tlight = Light(ambient=(40, 40, 60), radius=180)
+        tlight.add_obstacles(level.all_tiles("wall"))
+        tlight.add_source(torch)
+        tlight.shade("warm").flicker(True)
+        # In main(): call tlight.draw() last so it composites over all drawing.
+    """
+
+    _seed_counter = 0
+
+    def __init__(self, ambient=(40, 40, 60), radius=200):
+        self._ambient = tuple(int(c) for c in ambient)
+        self._radius = float(radius)
+        self._shade_rgb = (255, 255, 255)
+        self._obstacles = []
+        self._sources = []   # list of ("actor", Actor) | ("pos", (x, y))
+        self._flicker = False
+        Light._seed_counter += 1
+        self._seed = Light._seed_counter
+
+    def _add_one_obstacle(self, obs):
+        if obs is not None:
+            self._obstacles.append(obs)
+
+    def add_obstacles(self, src):
+        """Add an iterable (Group, list, all_tiles result) or a single Actor."""
+        if isinstance(src, Actor):
+            self._add_one_obstacle(src)
+        elif hasattr(src, "__iter__"):
+            for a in src:
+                self._add_one_obstacle(a)
+        else:
+            self._add_one_obstacle(src)
+        return self
+
+    # Alias matching the spec naming.
+    def add_obst(self, src):
+        return self.add_obstacles(src)
+
+    def add_source(self, src):
+        """Add an Actor, Group, position tuple, or Vector2 as a light source."""
+        if isinstance(src, Vector2):
+            self._sources.append(("pos", (float(src.x), float(src.y))))
+        elif isinstance(src, (tuple, list)) and len(src) == 2 and not isinstance(src, Actor):
+            self._sources.append(("pos", (float(src[0]), float(src[1]))))
+        elif isinstance(src, Actor):
+            self._sources.append(("actor", src))
+        elif hasattr(src, "__iter__"):
+            for a in src:
+                if isinstance(a, Actor):
+                    self._sources.append(("actor", a))
+        else:
+            self._sources.append(("actor", src))
+        return self
+
+    def shade(self, name):
+        if name not in SHADES:
+            raise ValueError(
+                f"Unknown shade '{name}'. Available: {sorted(SHADES.keys())}"
+            )
+        self._shade_rgb = SHADES[name]
+        return self
+
+    def flicker(self, enabled=True):
+        self._flicker = bool(enabled)
+        return self
+
+    def radius(self, r):
+        self._radius = float(r)
+        return self
+
+    def style(self, theme):
+        """Set ambient + shade RGB from a theme (object or name string)."""
+        if isinstance(theme, str):
+            if theme not in THEMES_DATA:
+                raise ValueError(
+                    f"Unknown theme '{theme}'. Available: {sorted(THEMES_DATA.keys())}"
+                )
+            theme = getattr(Themes, theme)
+        self._ambient = tuple(int(c) for c in theme.ambient)
+        self._shade_rgb = tuple(int(c) for c in theme.light_shade)
+        return self
+
+    def _source_position(self, src):
+        kind, val = src
+        if kind == "actor":
+            return (float(val._x), float(val._y))
+        return val  # already (x, y)
+
+    def _intensity(self):
+        if self._flicker:
+            return _flicker_value(self._seed, frame_count)
+        return 1.0
+
+    def draw(self):
+        """Emit light_begin / light_poly* / light_end into the draw stream."""
+        _draw_commands.append(("light_begin", self._ambient, {}))
+        for src in self._sources:
+            sx, sy = self._source_position(src)
+            poly = _compute_visibility_polygon(sx, sy, self._radius, self._obstacles)
+            poly_flat = [float(c) for p in poly for c in p]
+            intensity = self._intensity()
+            _draw_commands.append((
+                "light_poly",
+                (poly_flat, float(sx), float(sy), float(self._radius),
+                 tuple(self._shade_rgb), float(intensity)),
+                {},
+            ))
+        _draw_commands.append(("light_end", (), {}))
+
+
 __all__ = [
     "_version",
     "size", "width", "height",
@@ -959,11 +1413,12 @@ __all__ = [
     "frame_rate", "frame_count",
     "random", "random_color",
     "Colors", "AnchorPoint",
-    "Vector2", "Point",
+    "Vector2", "Point", "Polar",
     "Mouse", "Keyboard", "Window",
     "Actor", "Rect", "Circle", "Group", "Collider",
     "Camera",
-    "TilemapLayer", "TileMap",
+    "TilemapLayer", "TileMap", "TileRef",
+    "Themes", "Light",
     "Animation",
     "run", "stop",
     "assets",

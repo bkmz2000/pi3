@@ -10,6 +10,7 @@ import {
 import type { KonvaEventObject } from "konva/lib/Node";
 import type Konva from "konva";
 import { useThemeStore, type Theme } from "./state/useTheme";
+import { GRAPHICS_THEMES, DEFAULT_THEME, themedSwatchHex } from "./state/themes";
 import { Icon } from "./components/Icons";
 import { ThemedDialog } from "./components/ThemedDialog";
 
@@ -65,10 +66,12 @@ function Swatch({ color, name, active, onClick, theme }: { color: string; name?:
 }
 
 function ColorPopover({ open: popOpen, value, onPick, anchor = "bottom-left", testId, theme,
-  opacity, onOpacityChange }: {
+  opacity, onOpacityChange, colors }: {
   open: boolean; value: string; onPick: (c: string) => void; anchor?: string; testId?: string; theme: Theme;
   opacity?: number; onOpacityChange?: (o: number) => void;
+  colors?: { name: string; hex: string }[];
 }) {
+  const swatchList = colors ?? COLORS;
   const [hexInput, setHexInput] = useState(() => value?.startsWith('#') ? value : '#ff0000');
   useEffect(() => { if (value?.startsWith('#') && /^#[0-9a-fA-F]{6}$/.test(value)) setHexInput(value); }, [value]);
   if (!popOpen) return null;
@@ -88,7 +91,7 @@ function ColorPopover({ open: popOpen, value, onPick, anchor = "bottom-left", te
     }}>
       {/* 24 color swatches in 6×4 grid */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 26px)", gap: 4 }}>
-        {COLORS.map(c => <Swatch key={c.name} color={c.hex} name={c.name} active={c.hex === value} onClick={() => onPick(c.hex)} theme={theme} />)}
+        {swatchList.map(c => <Swatch key={c.name} color={c.hex} name={c.name} active={c.hex === value} onClick={() => onPick(c.hex)} theme={theme} />)}
       </div>
       {/* None / transparent swatch */}
       <div style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 6 }}>
@@ -159,11 +162,28 @@ type SpriteEditorProps = {
   initialName?: string;
   initialDataUrl?: string;
   initialAnimation?: AnimationData;
+  // Active graphics theme + change handler. The caller reads/writes from the
+  // project metadata; SpriteEditor stays decoupled from IdeState so jest can
+  // mount it without pulling in import.meta-using modules.
+  theme?: string;
+  onThemeChange?: (name: string) => void;
 };
 
-export default function SpriteEditor({ open, onClose, onSave, onSaveAnimation, size = 64, initialName, initialDataUrl, initialAnimation }: SpriteEditorProps) {
+export default function SpriteEditor({ open, onClose, onSave, onSaveAnimation, size = 64, initialName, initialDataUrl, initialAnimation, theme: graphicsTheme, onThemeChange }: SpriteEditorProps) {
   const theme = useThemeStore((s) => s.theme);
   const { t } = useTranslation();
+
+  // Active graphics theme name, supplied by the caller from project metadata.
+  // Falls back to "default" and warns once if the saved name is missing.
+  const projectTheme = graphicsTheme && GRAPHICS_THEMES[graphicsTheme]
+    ? graphicsTheme
+    : DEFAULT_THEME;
+  useEffect(() => {
+    if (graphicsTheme && !GRAPHICS_THEMES[graphicsTheme]) {
+      console.warn(`Unknown saved graphics theme "${graphicsTheme}"; falling back to "${DEFAULT_THEME}".`);
+    }
+  }, [graphicsTheme]);
+  const themedColors = COLORS.map((c) => ({ name: c.name, hex: themedSwatchHex(projectTheme, c.name, c.hex) }));
   const [scale, setScale] = useState(10);
   const SCALE = scale;
   const W = size * SCALE;
@@ -1029,7 +1049,7 @@ export default function SpriteEditor({ open, onClose, onSave, onSaveAnimation, s
                 background: isTransparent(fill) ? "repeating-conic-gradient(#cbd5e1 0% 25%, #fff 0% 50%) 50% / 6px 6px" : fill,
                 boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.2)" }} />
             </button>
-            <ColorPopover open={showFillPicker} value={fill} onPick={onFillPick} testId="fill-color-popover" theme={theme}
+            <ColorPopover open={showFillPicker} value={fill} onPick={onFillPick} testId="fill-color-popover" theme={theme} colors={themedColors}
             opacity={opacity} onOpacityChange={o => {
               setOpacity(o);
               if (selectedIds.length > 0) commit(shapes.map(s => selectedIds.includes(s.id) ? { ...s, opacity: o } : s));
@@ -1052,7 +1072,7 @@ export default function SpriteEditor({ open, onClose, onSave, onSaveAnimation, s
                 background: isTransparent(stroke) ? "repeating-conic-gradient(#cbd5e1 0% 25%, #fff 0% 50%) 50% / 6px 6px" : stroke,
                 boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.2)" }} />
             </button>
-            <ColorPopover open={showStrokePicker} value={stroke} onPick={onStrokePick} anchor="bottom-right" testId="stroke-color-popover" theme={theme} />
+            <ColorPopover open={showStrokePicker} value={stroke} onPick={onStrokePick} anchor="bottom-right" testId="stroke-color-popover" theme={theme} colors={themedColors} />
           </div>
 
           <div style={{ width: 1, height: 20, background: theme.panelBorder, margin: "0 2px" }} />
@@ -1065,6 +1085,27 @@ export default function SpriteEditor({ open, onClose, onSave, onSaveAnimation, s
             }} />
           <div style={{ width: 1, height: 20, background: theme.panelBorder, margin: "0 2px" }} />
           <Stepper label={t('spriteEditor.scale')} value={scale} min={1} max={10} onChange={setScale} format={v => `${v}×`} theme={theme} />
+
+          <div style={{ width: 1, height: 20, background: theme.panelBorder, margin: "0 2px" }} />
+
+          {/* Graphics theme picker — swaps swatch palette; does not modify pixels. */}
+          <label style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11, color: theme.panelTxtMute, textTransform: "uppercase", letterSpacing: 0.5 }}>
+            {t('spriteEditor.theme', { defaultValue: 'Theme' })}
+            <select
+              data-testid="sprite-theme-select"
+              value={projectTheme}
+              disabled={!onThemeChange}
+              onChange={(e) => onThemeChange?.(e.target.value)}
+              style={{
+                fontFamily: theme.fontUI, fontSize: 11, color: theme.panelTxt,
+                background: theme.surfacePanel, border: `1px solid ${theme.panelBorder}`,
+                borderRadius: 3, padding: "2px 4px", outline: "none",
+              }}>
+              {Object.keys(GRAPHICS_THEMES).map((name) => (
+                <option key={name} value={name}>{name}</option>
+              ))}
+            </select>
+          </label>
 
           <div style={{ flex: 1 }} />
 

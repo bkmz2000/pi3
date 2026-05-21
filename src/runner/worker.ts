@@ -1,5 +1,6 @@
 import type { PyodideInterface } from "pyodide";
 import { WorkerCommand, WorkerEvent, LintDiagnostic } from "./WorkerInterface";
+import { executeDrawCommands } from "./canvasRenderer";
 
 let pyodide: PyodideInterface | null = null;
 let offscreen: OffscreenCanvas | null = null;
@@ -82,279 +83,6 @@ function rewriteInputCalls(code: string): string {
   return result;
 }
 
-// --- JS-side canvas renderer ---
-
-function lookupAsset(assets: Record<string, ImageBitmap>, name: string): ImageBitmap | undefined {
-  return assets[name] ?? assets[name + ".png"] ?? assets[name + ".svg"];
-}
-
-function drawSay(
-  ctx: OffscreenCanvasRenderingContext2D,
-  s: string,
-  ax: number,
-  ay: number,
-  hAlign: string,
-  vAlign: string,
-  padding: number,
-) {
-  let metrics: TextMetrics;
-  try {
-    metrics = ctx.measureText(s);
-  } catch {
-    metrics = { width: s.length * 9 } as TextMetrics;
-  }
-  const textW = metrics.width;
-
-  let fontSize = 16;
-  try {
-    const fontPart = ctx.font.trim().split("px")[0].trim().split(/\s+/).pop()!;
-    fontSize = parseFloat(fontPart) || 16;
-  } catch {
-    /* use default */
-  }
-
-  const textH = fontSize;
-  const bubbleW = textW + 2 * padding;
-  const bubbleH = textH + 2 * padding;
-  const tail = Math.min(10, padding + 2);
-  const cornerR = 6;
-
-  let bx: number;
-  if (hAlign === "left") bx = ax;
-  else if (hAlign === "right") bx = ax - bubbleW;
-  else bx = ax - bubbleW / 2;
-
-  let by: number;
-  let tailPts: [number, number][];
-  if (vAlign === "bottom") {
-    by = ay - bubbleH - tail;
-    const mid = bx + bubbleW / 2;
-    tailPts = [[mid, ay], [mid - tail / 2, by + bubbleH], [mid + tail / 2, by + bubbleH]];
-  } else if (vAlign === "top") {
-    by = ay + tail;
-    const mid = bx + bubbleW / 2;
-    tailPts = [[mid, ay], [mid - tail / 2, by], [mid + tail / 2, by]];
-  } else {
-    by = ay - bubbleH / 2;
-    if (hAlign === "left") {
-      bx = ax + tail;
-      tailPts = [[ax, ay], [bx, ay - tail / 2], [bx, ay + tail / 2]];
-    } else {
-      bx = ax - bubbleW - tail;
-      tailPts = [[ax, ay], [ax - tail, ay - tail / 2], [ax - tail, ay + tail / 2]];
-    }
-  }
-
-  ctx.save();
-  ctx.fillStyle = "rgba(0,0,0,0.78)";
-  ctx.strokeStyle = "rgba(0,0,0,0)";
-
-  ctx.beginPath();
-  ctx.moveTo(tailPts[0][0], tailPts[0][1]);
-  ctx.lineTo(tailPts[1][0], tailPts[1][1]);
-  ctx.lineTo(tailPts[2][0], tailPts[2][1]);
-  ctx.closePath();
-  ctx.fill();
-
-  ctx.beginPath();
-  const ctxExt = ctx as OffscreenCanvasRenderingContext2D & { roundRect?: (x: number, y: number, w: number, h: number, r: number) => void };
-  if (ctxExt.roundRect) {
-    ctxExt.roundRect(bx, by, bubbleW, bubbleH, cornerR);
-  } else {
-    ctx.rect(bx, by, bubbleW, bubbleH);
-  }
-  ctx.fill();
-
-  ctx.fillStyle = "white";
-  ctx.textAlign = "left";
-  ctx.textBaseline = "middle";
-  ctx.fillText(s, bx + padding, by + bubbleH / 2);
-  ctx.restore();
-}
-
-function executeDrawCommands(
-  ctx: OffscreenCanvasRenderingContext2D,
-  commands: unknown[],
-  assets: Record<string, ImageBitmap>,
-  animations: Record<string, { frames: ImageBitmap[]; fps: number }>,
-  canvasW: number,
-  canvasH: number,
-) {
-  for (const entry of commands) {
-    const [cmd, args] = entry as [string, unknown[]];
-    switch (cmd) {
-      case "background": {
-        const [r, g, b] = args as [number, number, number];
-        ctx.fillStyle = `rgb(${r},${g},${b})`;
-        ctx.fillRect(0, 0, canvasW, canvasH);
-        break;
-      }
-      case "circle": {
-        const [x, y, r] = args as [number, number, number];
-        ctx.beginPath();
-        ctx.arc(x, y, r, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-        break;
-      }
-      case "ellipse": {
-        const [x, y, w, h] = args as [number, number, number, number];
-        ctx.beginPath();
-        ctx.ellipse(x, y, w / 2, h / 2, 0, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-        break;
-      }
-      case "rect": {
-        const [x, y, w, h] = args as [number, number, number, number];
-        ctx.beginPath();
-        ctx.rect(x, y, w, h);
-        ctx.fill();
-        ctx.stroke();
-        break;
-      }
-      case "line": {
-        const [x1, y1, x2, y2] = args as [number, number, number, number];
-        ctx.beginPath();
-        ctx.moveTo(x1, y1);
-        ctx.lineTo(x2, y2);
-        ctx.stroke();
-        break;
-      }
-      case "point": {
-        const [x, y] = args as [number, number];
-        ctx.beginPath();
-        ctx.arc(x, y, Math.max(ctx.lineWidth / 2, 1), 0, Math.PI * 2);
-        ctx.fill();
-        break;
-      }
-      case "text": {
-        const [s, x, y] = args as [string, number, number];
-        ctx.fillText(String(s), x, y);
-        break;
-      }
-      case "text_size": {
-        const [n] = args as [number];
-        ctx.font = `${n}px sans-serif`;
-        break;
-      }
-      case "text_align": {
-        const [h, v] = args as [CanvasTextAlign, CanvasTextBaseline | null];
-        ctx.textAlign = h;
-        if (v) ctx.textBaseline = v;
-        break;
-      }
-      case "fill": {
-        const [r, g, b] = args as [number, number, number];
-        ctx.fillStyle = `rgb(${r},${g},${b})`;
-        break;
-      }
-      case "no_fill": {
-        ctx.fillStyle = "rgba(0,0,0,0)";
-        break;
-      }
-      case "stroke": {
-        const [r, g, b] = args as [number, number, number];
-        ctx.strokeStyle = `rgb(${r},${g},${b})`;
-        break;
-      }
-      case "no_stroke": {
-        ctx.strokeStyle = "rgba(0,0,0,0)";
-        break;
-      }
-      case "stroke_width": {
-        const [w] = args as [number];
-        ctx.lineWidth = w;
-        break;
-      }
-      case "push": {
-        ctx.save();
-        break;
-      }
-      case "pop": {
-        ctx.restore();
-        break;
-      }
-      case "translate": {
-        const [x, y] = args as [number, number];
-        ctx.translate(x, y);
-        break;
-      }
-      case "rotate": {
-        const [deg] = args as [number];
-        ctx.rotate((deg * Math.PI) / 180);
-        break;
-      }
-      case "scale": {
-        const [sx, sy] = args as [number, number];
-        ctx.scale(sx, sy);
-        break;
-      }
-      case "image": {
-        const [name, x, y, w, h] = args as [string, number, number, number | null, number | null];
-        const bm = lookupAsset(assets, name);
-        if (!bm) break;
-        if (w != null) ctx.drawImage(bm, x, y, w, h ?? w);
-        else ctx.drawImage(bm, x, y);
-        break;
-      }
-      case "image_centered": {
-        const [name, x, y, w, h] = args as [string, number, number, number | null, number | null];
-        const bm = lookupAsset(assets, name);
-        if (!bm) break;
-        const dw = w ?? bm.width;
-        const dh = h ?? bm.height;
-        ctx.drawImage(bm, x - dw / 2, y - dh / 2, dw, dh);
-        break;
-      }
-      case "animation_frame": {
-        const [animName, frameIdx, x, y, w, h] = args as [string, number, number, number, number | null, number | null];
-        const anim = animations[animName];
-        if (!anim) break;
-        const bm = anim.frames[frameIdx % anim.frames.length];
-        if (!bm) break;
-        if (w != null) ctx.drawImage(bm, x, y, w, h ?? w);
-        else ctx.drawImage(bm, x, y);
-        break;
-      }
-      case "animation_frame_centered": {
-        const [animName, frameIdx, x, y, w, h] = args as [string, number, number, number, number | null, number | null];
-        const anim = animations[animName];
-        if (!anim) break;
-        const bm = anim.frames[frameIdx % anim.frames.length];
-        if (!bm) break;
-        const dw = w ?? bm.width;
-        const dh = h ?? bm.height;
-        ctx.drawImage(bm, x - dw / 2, y - dh / 2, dw, dh);
-        break;
-      }
-      case "tilemap_layer": {
-        const [cellsFlat, tileSize, ox, oy] = args as [Array<[number, number, string]>, number, number, number];
-        // Cull against the current transform's visible world rect (handles Camera translate/scale).
-        const t = ctx.getTransform();
-        const sx0 = t.a !== 0 ? -t.e / t.a : 0;
-        const sy0 = t.d !== 0 ? -t.f / t.d : 0;
-        const viewLeft = sx0 - ox;
-        const viewTop = sy0 - oy;
-        const viewRight = viewLeft + (t.a !== 0 ? canvasW / t.a : canvasW);
-        const viewBottom = viewTop + (t.d !== 0 ? canvasH / t.d : canvasH);
-        for (const [col, row, name] of cellsFlat) {
-          const wx = col * tileSize;
-          const wy = row * tileSize;
-          if (wx + tileSize <= viewLeft || wx >= viewRight || wy + tileSize <= viewTop || wy >= viewBottom) continue;
-          const bm = lookupAsset(assets, name);
-          if (bm) ctx.drawImage(bm, ox + wx, oy + wy, tileSize, tileSize);
-        }
-        break;
-      }
-      case "say": {
-        const [s, ax, ay, hAlign, vAlign, padding] = args as [string, number, number, string, string, number];
-        drawSay(ctx, s, ax, ay, hAlign, vAlign, padding);
-        break;
-      }
-    }
-  }
-}
 
 async function initPyodide(
   p: PyodideInterface,
@@ -509,6 +237,7 @@ async function runGraphicsScript(
   entry: string,
   showHitboxes: boolean = false,
   themePalette?: Record<string, [number, number, number]>,
+  themeName?: string,
 ) {
   prepareFiles(p, files);
 
@@ -543,6 +272,18 @@ async function runGraphicsScript(
       `import graphics; graphics.Colors._update_theme(dict(_theme_palette.to_py()))`,
     );
   }
+
+  // Active graphics theme name, used by `Themes.current` in Python.
+  const activeTheme = themeName || "default";
+  p.globals.set("_active_theme_name", activeTheme);
+  await p.runPythonAsync(
+    `import graphics
+if _active_theme_name in graphics.THEMES_DATA:
+    graphics._active_theme_name = _active_theme_name
+else:
+    print(f"warning: unknown graphics theme '{_active_theme_name}', using 'default'")
+    graphics._active_theme_name = "default"`,
+  );
 
   await p.runPythonAsync(`
 import graphics
@@ -627,13 +368,14 @@ async function runScript(
   entry: string,
   showHitboxes: boolean = false,
   themePalette?: Record<string, [number, number, number]>,
+  themeName?: string,
 ) {
   const code = files[entry] ?? "";
 
   p.globals.set("_using_graphics", false);
 
   if (usesNewGraphics(code)) {
-    await runGraphicsScript(p, files, assets, tilemaps, animations, entry, showHitboxes, themePalette);
+    await runGraphicsScript(p, files, assets, tilemaps, animations, entry, showHitboxes, themePalette, themeName);
     return;
   }
 
@@ -677,7 +419,7 @@ self.onmessage = async (e: MessageEvent<WorkerCommand>) => {
   } else if (msg.cmd === "run") {
     try {
       const p = await ensurePyodide();
-      await runScript(p, msg.files, msg.assets, msg.tilemaps, msg.animations, msg.entry, msg.showHitboxes, msg.themePalette);
+      await runScript(p, msg.files, msg.assets, msg.tilemaps, msg.animations, msg.entry, msg.showHitboxes, msg.themePalette, msg.themeName);
     } catch (err: unknown) {
       post({ type: "error", error: String(err) });
       post({ type: "result" });

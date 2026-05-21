@@ -343,7 +343,7 @@ export function useRunner() {
       const { animBitmaps, animTransferables } = await loadAnimations(animations ?? {});
       const showHitboxes = useIde.getState().showHitboxes;
       const themePalette = useThemeStore.getState().theme.colorPalette;
-      const { tilemaps } = useEditor.getState().project;
+      const { tilemaps, theme: projectTheme } = useEditor.getState().project;
       getWorker().postMessage(
         {
           cmd: "run",
@@ -354,6 +354,7 @@ export function useRunner() {
           animations: animBitmaps,
           showHitboxes,
           themePalette,
+          themeName: projectTheme,
         } satisfies WorkerCommand,
         [...transferables, ...animTransferables],
       );

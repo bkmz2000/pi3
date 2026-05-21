@@ -47,13 +47,17 @@ describe('graphicsDocs — new API entries from graphics-lighting-collisions-the
     expect(themes.params!.map((p) => p.name)).toContain('Themes.current');
   });
 
-  it('documents tile-tag API on both TilemapLayer and TileMap', () => {
+  it('documents the tile-tag workflow as a dedicated entry', () => {
     const tilemap = DOCS.find((c) => c.id === 'tilemap')!;
-    for (const id of ['tilemap_layer_class', 'tilemap_class']) {
-      const entry = tilemap.entries.find((e) => e.id === id)!;
-      expect(entry.params!.some((p) => p.name.startsWith('tag('))).toBe(true);
-      expect(entry.params!.some((p) => p.name.startsWith('all_tiles'))).toBe(true);
-    }
+    const tagsEntry = tilemap.entries.find((e) => e.id === 'tilemap_tags');
+    expect(tagsEntry).toBeDefined();
+    expect(tagsEntry!.signature).toMatch(/\.tag\(.*\)/);
+    expect(tagsEntry!.signature).toMatch(/\.all_tiles\(/);
+    // The body should cover both TileMap-level and TilemapLayer-level usage.
+    const paramNames = tagsEntry!.params!.map((p) => p.name).join(' | ');
+    expect(paramNames).toMatch(/level\.tag/);
+    expect(paramNames).toMatch(/all_tiles/);
+    expect(paramNames).toMatch(/layer\.tag/);
   });
 
   it('documents Actor.future_state with the wall-stop example', () => {

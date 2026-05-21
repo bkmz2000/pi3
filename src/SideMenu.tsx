@@ -375,7 +375,9 @@ export default function Rail() {
           style={{
             position: "absolute",
             top: 0, bottom: 0, left: 60,
-            width: 320,
+            // Docs needs more horizontal room for signatures + param tables;
+            // other panels are mostly vertical lists.
+            width: activePanel === "docs" ? 520 : 320,
             background: theme.surfacePanel,
             display: "flex",
             flexDirection: "column",

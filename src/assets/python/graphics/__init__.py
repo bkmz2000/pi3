@@ -841,16 +841,59 @@ class TileRef(Rect):
     Subclass of Rect that removes itself from the global Actor registry so the
     game loop does not tick or auto-draw it. The TilemapLayer renders its tiles
     via `tilemap_layer` draw commands; TileRefs exist purely as colliders.
+
+    `size` is a shortcut for square cells (the default `all_tiles` behavior);
+    pass `width`/`height` instead for merged multi-cell rectangles produced by
+    `all_tiles(tag, merge=True)`.
     """
 
-    def __init__(self, x, y, size):
-        super().__init__(x=x, y=y, width=size, height=size, color="white")
+    def __init__(self, x, y, size=None, *, width=None, height=None):
+        if size is not None:
+            width = height = size
+        super().__init__(x=x, y=y, width=width, height=height, color="white")
         if self in Actor._registry:
             Actor._registry.remove(self)
 
     def draw(self):
         # No-op: actual tile pixels are drawn by TilemapLayer.draw.
         pass
+
+
+def _merge_tile_rects(cells_set, tile_size):
+    """Greedy 2D rectangle merger over a set of (col, row) tile coordinates.
+
+    Returns a list of (cx, cy, w, h) tuples covering exactly the input cells
+    with the fewest axis-aligned rectangles found by a one-pass greedy:
+    pick the lowest (col, row) cell remaining, grow the strip right until it
+    breaks, then grow it down as long as every column in the strip stays
+    filled. Repeat. Strictly worse than minimum-rect-cover in pathological
+    cases but optimal for typical level layouts (long walls, blocks).
+    """
+    remaining = set(cells_set)
+    rects = []
+    while remaining:
+        # Lowest-(col, row) for deterministic output.
+        c0, r0 = min(remaining)
+        # Grow east.
+        c1 = c0
+        while (c1 + 1, r0) in remaining:
+            c1 += 1
+        # Grow south while every column in [c0..c1] of the next row is filled.
+        r1 = r0
+        while True:
+            next_row = r1 + 1
+            if any((c, next_row) not in remaining for c in range(c0, c1 + 1)):
+                break
+            r1 = next_row
+        for c in range(c0, c1 + 1):
+            for r in range(r0, r1 + 1):
+                remaining.discard((c, r))
+        w = (c1 - c0 + 1) * tile_size
+        h = (r1 - r0 + 1) * tile_size
+        cx = c0 * tile_size + w / 2
+        cy = r0 * tile_size + h / 2
+        rects.append((cx, cy, w, h))
+    return rects
 
 
 class TilemapLayer:
@@ -871,22 +914,40 @@ class TilemapLayer:
         self._tag_group_cache.clear()
         return self
 
-    def all_tiles(self, tag):
-        """Return a Group of TileRef colliders for every cell whose tile-name has `tag`."""
-        cached = self._tag_group_cache.get(tag)
+    def all_tiles(self, tag, merge=False):
+        """Return a Group of TileRef colliders for every cell whose tile-name has `tag`.
+
+        With `merge=True`, run a greedy 2D rectangle merger so adjacent tagged
+        cells collapse into larger rectangles. Identical collision behavior,
+        but obstacle count drops dramatically — critical when feeding the
+        result to `Light.add_obstacles` since the raycaster is O(N^2) per
+        source. A wall stripe of 30 tiles becomes 1 rectangle.
+        """
+        cache_key = (tag, bool(merge))
+        cached = self._tag_group_cache.get(cache_key)
         if cached is not None:
             return cached
         result = Group()
         matching = {n for n, ts in self._tags.items() if tag in ts}
         if matching:
-            half = self.tile_size / 2
-            for col, rows in self._cells.items():
-                for row, name in rows.items():
-                    if name in matching:
-                        cx = col * self.tile_size + half
-                        cy = row * self.tile_size + half
-                        result.add(TileRef(cx, cy, self.tile_size))
-        self._tag_group_cache[tag] = result
+            if merge:
+                tagged_cells = {
+                    (col, row)
+                    for col, rows in self._cells.items()
+                    for row, name in rows.items()
+                    if name in matching
+                }
+                for cx, cy, w, h in _merge_tile_rects(tagged_cells, self.tile_size):
+                    result.add(TileRef(cx, cy, width=w, height=h))
+            else:
+                half = self.tile_size / 2
+                for col, rows in self._cells.items():
+                    for row, name in rows.items():
+                        if name in matching:
+                            cx = col * self.tile_size + half
+                            cy = row * self.tile_size + half
+                            result.add(TileRef(cx, cy, self.tile_size))
+        self._tag_group_cache[cache_key] = result
         return result
 
     def _has_tile_name(self, name):
@@ -946,11 +1007,16 @@ class TileMap:
                 layer.tag(name, *tags)
         return self
 
-    def all_tiles(self, tag):
-        """Aggregate `all_tiles(tag)` across every layer in this tilemap."""
+    def all_tiles(self, tag, merge=False):
+        """Aggregate `all_tiles(tag)` across every layer in this tilemap.
+
+        `merge` is applied per layer — adjacent cells inside one layer collapse
+        into rectangles, but cells in different layers are not merged across
+        layer boundaries.
+        """
         result = Group()
         for layer in self._layers:
-            for actor in layer.all_tiles(tag):
+            for actor in layer.all_tiles(tag, merge=merge):
                 result.add(actor)
         return result
 

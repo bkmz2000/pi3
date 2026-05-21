@@ -1207,6 +1207,56 @@ test("TileMap.tag propagates: walls has wall", "wall" in lb._tags.get("brick", s
 agg = tm.all_tiles("wall")
 test("TileMap.all_tiles aggregates across layers", len(agg) == 2)
 
+# all_tiles(tag, merge=True) — greedy rectangle merger.
+print("\n=== Runtime: all_tiles(tag, merge=True) ===")
+reset()
+# 5-tile horizontal stripe at row 0 + 2x2 block at (10..11, 5..6)
+merge_cells = {c: {0: "wall"} for c in range(5)}
+for c in range(2):
+    merge_cells.setdefault(c + 10, {})[5] = "wall"
+    merge_cells.setdefault(c + 10, {})[6] = "wall"
+merge_layer = g.TilemapLayer("merge", 32, merge_cells, {})
+merge_layer.tag("wall", "wall")
+
+unmerged = merge_layer.all_tiles("wall", merge=False)
+merged = merge_layer.all_tiles("wall", merge=True)
+test("merge=False keeps one collider per cell", len(unmerged) == 9)
+test("merge=True collapses to 2 rectangles (stripe + block)", len(merged) == 2)
+
+def _covered_area(grp):
+    return sum(a.collider.width * a.collider.height for a in grp)
+test("merged rectangles cover identical area", _covered_area(unmerged) == _covered_area(merged))
+
+# Merged rectangles are still TileRefs with rect colliders.
+for a in merged:
+    test("merged actor is TileRef", isinstance(a, TileRef))
+    test("merged actor has rect collider", a.collider.shape == "rect")
+    break
+
+# Collision behavior is preserved on the stripe and on the block.
+stripe_probe = Circle(2 * 32 + 16, 0 * 32 + 16, 4)
+test("collides on stripe (unmerged)", stripe_probe.collides_any(unmerged) is not None)
+test("collides on stripe (merged)",   stripe_probe.collides_any(merged)   is not None)
+block_probe = Circle(10 * 32 + 16, 6 * 32 + 16, 4)
+test("collides on block (unmerged)",  block_probe.collides_any(unmerged) is not None)
+test("collides on block (merged)",    block_probe.collides_any(merged)   is not None)
+gap_probe = Circle(7 * 32 + 16, 3 * 32 + 16, 4)
+test("misses empty space (unmerged)", gap_probe.collides_any(unmerged) is None)
+test("misses empty space (merged)",   gap_probe.collides_any(merged)   is None)
+
+# Separate cache entries for merged vs unmerged on the same tag.
+test("merge=False and merge=True cached independently",
+     merge_layer.all_tiles("wall", merge=False) is unmerged and
+     merge_layer.all_tiles("wall", merge=True)  is merged)
+
+# TileMap.all_tiles propagates merge=True per layer.
+la2 = g.TilemapLayer("a", 32, {c: {0: "wall"} for c in range(3)}, {})
+lb2 = g.TilemapLayer("b", 32, {c: {0: "wall"} for c in range(4)}, {})
+la2.tag("wall", "wall"); lb2.tag("wall", "wall")
+tm2 = g.TileMap([la2, lb2], {"a": la2, "b": lb2})
+test("TileMap.all_tiles(merge=True) merges within each layer",
+     len(tm2.all_tiles("wall", merge=True)) == 2)
+
 
 # --- Actor.future_state ---
 

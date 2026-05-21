@@ -58,6 +58,10 @@ describe('graphicsDocs — new API entries from graphics-lighting-collisions-the
     expect(paramNames).toMatch(/level\.tag/);
     expect(paramNames).toMatch(/all_tiles/);
     expect(paramNames).toMatch(/layer\.tag/);
+    // The merge=True option must be explicitly documented (it's the
+    // performance escape hatch for tile-map lighting).
+    expect(tagsEntry!.en).toMatch(/merge=True/);
+    expect(paramNames).toMatch(/merge=True/);
   });
 
   it('documents Actor.future_state with the wall-stop example', () => {

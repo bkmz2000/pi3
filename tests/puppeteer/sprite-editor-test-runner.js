@@ -206,18 +206,11 @@ async function runTests() {
       
       await waitForFn(
         page,
-        () => page.evaluate(() => document.querySelector('[aria-label="Assets"]')),
+        () => page.evaluate((s) => !!document.querySelector(s), '[aria-label="Assets"]'),
         { timeout: 5000, errorMessage: 'Assets panel did not open' }
       );
       
-      const newSpriteButton = await page.evaluate(() => {
-        const buttons = document.querySelectorAll('button');
-        for (const btn of buttons) {
-          if (btn.textContent?.includes('New sprite')) return btn;
-        }
-        return null;
-      });
-      
+      const newSpriteButton = await findButton(page, 'New sprite');
       if (!newSpriteButton) throw new Error('New sprite button not found');
       await newSpriteButton.click();
       
@@ -306,17 +299,12 @@ async function runTests() {
       
       await waitForFn(
         page,
-        () => page.evaluate(() => document.querySelector('[aria-label="Assets"]')),
+        () => page.evaluate((s) => !!document.querySelector(s), '[aria-label="Assets"]'),
         { timeout: 5000, errorMessage: 'Assets panel did not open' }
       );
       
-      const newSpriteButton = await page.evaluate(() => {
-        const buttons = document.querySelectorAll('button');
-        for (const btn of buttons) {
-          if (btn.textContent?.includes('New sprite')) return btn;
-        }
-        return null;
-      });
+      const newSpriteButton = await findButton(page, 'New sprite');
+      if (!newSpriteButton) throw new Error('New sprite button not found');
       
       await newSpriteButton.click();
       await waitForElement(page, '[aria-label="Sprite Editor"]', { timeout: 5000 });
@@ -365,17 +353,12 @@ async function runTests() {
       
       await waitForFn(
         page,
-        () => page.evaluate(() => document.querySelector('[aria-label="Assets"]')),
+        () => page.evaluate((s) => !!document.querySelector(s), '[aria-label="Assets"]'),
         { timeout: 5000, errorMessage: 'Assets panel did not open' }
       );
       
-      const newSpriteButton = await page.evaluate(() => {
-        const buttons = document.querySelectorAll('button');
-        for (const btn of buttons) {
-          if (btn.textContent?.includes('New sprite')) return btn;
-        }
-        return null;
-      });
+      const newSpriteButton = await findButton(page, 'New sprite');
+      if (!newSpriteButton) throw new Error('New sprite button not found');
       
       await newSpriteButton.click();
       await waitForElement(page, '[aria-label="Sprite Editor"]', { timeout: 5000 });

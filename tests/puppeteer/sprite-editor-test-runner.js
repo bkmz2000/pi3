@@ -385,18 +385,14 @@ async function runTests() {
       
       console.log('   📝 Sprite name set');
       
-      // Save as PNG
-      const savePngButton = await page.evaluate(() => {
-        const buttons = document.querySelectorAll('[aria-label="Sprite Editor"] button');
-        for (const btn of buttons) {
-          if (btn.textContent?.includes('Save as PNG') || btn.textContent?.includes('Save')) {
-            return btn;
-          }
-        }
-        return null;
-      });
-      if (!savePngButton) throw new Error('Save as PNG button not found');
-      await page.evaluate(btn => btn.click(), savePngButton);
+      // Save the sprite — the current editor uses data-testid="save-svg-button"
+      // (saves as SVG, not PNG; PR-era name kept for the test description).
+      const saveButton = await waitForElement(
+        page,
+        '[aria-label="Sprite Editor"] [data-testid="save-svg-button"]',
+        { timeout: 5000 },
+      );
+      await saveButton.click();
       
       // Wait for sprite editor to close (indicates save was successful)
       await waitForFn(

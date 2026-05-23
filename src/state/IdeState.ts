@@ -21,6 +21,7 @@ import { projectStorage } from "../utils/storage";
 import { importProjectFromFile as importZipFile } from "../utils/zip";
 import { getProjects, createProject as apiCreateProject, updateProject as apiUpdateProject, deleteProject as apiDeleteProject, saveProjectContent, Project as ApiProject } from "./api";
 import { toEditorProject } from "./projectNormalization";
+import { writeAnonStash, clearAnonStash } from "../utils/anonStash";
 
 export type PanelId = "projects" | "assets" | "tilemaps" | "animations" | "settings" | "docs" | null;
 
@@ -38,6 +39,19 @@ export type AnimationData = {
   frames: string[];
   fps: number;
 };
+
+// Sentinel id used while a built-in example is being edited but has not
+// yet been forked into a real project. Persists across reloads via the
+// anonymous stash (see utils/anonStash.ts).
+export const EXAMPLE_SESSION_PREFIX = "__example_session_";
+
+export function isExampleSessionId(id: string | null | undefined): boolean {
+  return typeof id === "string" && id.startsWith(EXAMPLE_SESSION_PREFIX);
+}
+
+export function exampleNameFromSessionId(id: string): string {
+  return id.slice(EXAMPLE_SESSION_PREFIX.length);
+}
 
 export type Project = {
   name?: string;
@@ -184,7 +198,7 @@ export const useEditor = create<EditorState>((set) => ({
           dirty.add(name);
 
           // Mark as cloned session so re-opens show fresh example
-          return { project, dirtyFiles: dirty, currentProjectId: `__example_session_${exampleName}` };
+          return { project, dirtyFiles: dirty, currentProjectId: `${EXAMPLE_SESSION_PREFIX}${exampleName}` };
         }
       }
 
@@ -357,6 +371,9 @@ export const useEditor = create<EditorState>((set) => ({
   markClean: () => set({ dirtyFiles: new Set() }),
 }));
 
+export type SaveErrorKind = 'auth' | 'network';
+export type SaveError = { kind: SaveErrorKind; message: string };
+
 type IdeState = {
   activePanel: PanelId;
   projects: Record<string, Project>;
@@ -368,7 +385,8 @@ type IdeState = {
   enableAutocomplete: boolean;
   consoleOnRight: boolean;
   loadingProjectContent: boolean;
-  saveError: string | null;
+  saveError: SaveError | null;
+  fromCache: boolean;
 
   setActivePanel: (panel: PanelId) => void;
   togglePanel: (panel: Exclude<PanelId, null>) => void;
@@ -381,7 +399,7 @@ type IdeState = {
   saveCurrentProject: () => Promise<boolean>;
   downloadProject: (id: string) => Promise<void>;
   importProjectFromFile: (file: File) => Promise<ApiProject>;
-  setSaveError: (error: string | null) => void;
+  setSaveError: (error: SaveError | null) => void;
   setShowHitboxes: (show: boolean) => void;
   setShowConsoleOnRun: (show: boolean) => void;
   setEnableLinting: (enable: boolean) => void;
@@ -401,6 +419,7 @@ export const useIde = create<IdeState>((set, get) => ({
   consoleOnRight: localStorage.getItem("pi3_consoleOnRight") === "true",
   loadingProjectContent: false,
   saveError: null,
+  fromCache: false,
 
   setActivePanel: (panel) => set({ activePanel: panel }),
   togglePanel: (panel) =>
@@ -431,7 +450,7 @@ export const useIde = create<IdeState>((set, get) => ({
     set({ loading: true });
     try {
       const userProjects = await getProjects();
-      set({ userProjects, loading: false });
+      set({ userProjects, loading: false, fromCache: false });
       // Cache in IndexedDB for offline fallback
       projectStorage.cacheProjects(userProjects as unknown as Record<string, unknown>[]).catch(() => {});
     } catch (error) {
@@ -439,9 +458,9 @@ export const useIde = create<IdeState>((set, get) => ({
       // Fall back to IndexedDB cache
       try {
         const cached = await projectStorage.getUserProjects();
-        set({ userProjects: cached as unknown as ApiProject[], loading: false });
+        set({ userProjects: cached as unknown as ApiProject[], loading: false, fromCache: true });
       } catch {
-        set({ loading: false });
+        set({ loading: false, fromCache: false });
       }
     }
   },
@@ -498,6 +517,17 @@ export const useIde = create<IdeState>((set, get) => ({
     const { currentProjectId, project } = useEditor.getState();
     if (!currentProjectId) return false;
 
+    // Example-session: persist to the anonymous stash. No API call, no
+    // auth dependency. The user gets a chance to fork-and-claim on sign-in.
+    if (isExampleSessionId(currentProjectId)) {
+      writeAnonStash({
+        exampleName: exampleNameFromSessionId(currentProjectId),
+        project,
+      });
+      set({ saveError: null });
+      return true;
+    }
+
     try {
       await saveProjectContent(currentProjectId, {
         files: project.files,
@@ -522,7 +552,8 @@ export const useIde = create<IdeState>((set, get) => ({
       return true;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Failed to save project";
-      set({ saveError: errorMessage });
+      const kind: SaveErrorKind = errorMessage === 'Unauthorized' ? 'auth' : 'network';
+      set({ saveError: { kind, message: errorMessage } });
       return false;
     }
   },

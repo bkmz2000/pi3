@@ -95,7 +95,7 @@ export function createProjectsRouter(): Router {
     const projects = db.prepare(`
       SELECT
         p.id, p.name, p.description, p.updated_at,
-        u.id as student_id, u.name as student_name,
+        u.id as student_id, u.name as student_name, u.handle as student_handle,
         hr.id as help_request_id, hr.status as help_request_status, hr.created_at as help_request_created_at,
         g.name as group_name
       FROM project_shares ps
@@ -124,10 +124,10 @@ export function createProjectsRouter(): Router {
       return;
     }
     const teachers = db.prepare(`
-      SELECT u.id, u.name FROM project_shares ps
+      SELECT u.id, u.name, u.handle FROM project_shares ps
       JOIN users u ON u.id = ps.user_id
       WHERE ps.project_id = ? AND u.role = 'teacher'
-    `).all(id) as { id: string; name: string }[];
+    `).all(id) as { id: string; name: string; handle: string | null }[];
     const helpRequest = db.prepare(`
       SELECT id, status FROM help_requests
       WHERE project_id = ? AND student_id = ? AND status = 'pending'

@@ -1,6 +1,7 @@
 import Database from 'better-sqlite3';
 import { readFileSync } from 'fs';
 import { join } from 'path';
+import { backfillHandles } from './handle.js';
 
 let db: Database.Database | undefined;
 let testDb: Database.Database | undefined;
@@ -47,6 +48,13 @@ export function initDb(): void {
     `ALTER TABLE projects ADD COLUMN tilemaps TEXT NOT NULL DEFAULT '{}'`,
     `ALTER TABLE projects ADD COLUMN animations TEXT NOT NULL DEFAULT '{}'`,
     `ALTER TABLE projects ADD COLUMN sounds TEXT NOT NULL DEFAULT '{}'`,
+    `ALTER TABLE users ADD COLUMN handle TEXT`,
+    `ALTER TABLE users ADD COLUMN handle_seq INTEGER`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS idx_users_handle_lower ON users(lower(handle)) WHERE handle IS NOT NULL`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS idx_users_handle_seq ON users(handle_seq) WHERE handle_seq IS NOT NULL`,
+    `ALTER TABLE groups ADD COLUMN invite_code TEXT`,
+    `ALTER TABLE groups ADD COLUMN archived_at INTEGER`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS idx_groups_invite_code ON groups(invite_code) WHERE invite_code IS NOT NULL`,
   ];
   for (const stmt of migrations) {
     try {
@@ -59,6 +67,13 @@ export function initDb(): void {
         throw err;
       }
     }
+  }
+  // Backfill handles for any users created before the handle column existed.
+  // Idempotent: rows with non-null handle are skipped.
+  try {
+    backfillHandles(database);
+  } catch (err) {
+    console.error('Handle backfill failed:', err);
   }
 }
 

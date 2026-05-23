@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { useThemeStore } from '../../state/useTheme';
 import { useNotifications } from '../../state/useNotifications';
+import { userLabel } from '../../utils/userDisplay';
 
 export function HelpRequestsSection() {
   const theme = useThemeStore((s) => s.theme);
@@ -35,7 +36,7 @@ export function HelpRequestsSection() {
           {helpRequests.map(hr => (
             <div key={hr.id} style={{ border: `1px solid ${theme.panelBorder}`, borderRadius: 8, padding: '12px 14px', background: theme.surfacePanel, display: 'flex', alignItems: 'center', gap: 12 }}>
               <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 600, fontSize: 13, color: theme.panelTxt }}>{hr.student_name}</div>
+                <div style={{ fontWeight: 600, fontSize: 13, color: theme.panelTxt }}>{userLabel(hr.student_name, hr.student_handle)}</div>
                 <div style={{ fontSize: 12, color: theme.panelTxtMute }}>{hr.project_name}</div>
                 <div style={{ fontSize: 11, color: theme.panelTxtMute }}>{new Date(hr.created_at).toLocaleTimeString()}</div>
               </div>

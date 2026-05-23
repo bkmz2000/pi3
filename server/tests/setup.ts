@@ -13,9 +13,15 @@ export function createTestDb(): Database.Database {
       name TEXT NOT NULL,
       role TEXT NOT NULL DEFAULT 'student' CHECK (role IN ('student', 'teacher')),
       password_hash TEXT,
+      handle TEXT,
+      handle_seq INTEGER,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
     );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_users_handle_lower
+      ON users(lower(handle)) WHERE handle IS NOT NULL;
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_users_handle_seq
+      ON users(handle_seq) WHERE handle_seq IS NOT NULL;
 
     CREATE TABLE IF NOT EXISTS projects (
       id TEXT PRIMARY KEY,
@@ -55,9 +61,13 @@ export function createTestDb(): Database.Database {
       id TEXT PRIMARY KEY,
       teacher_id TEXT NOT NULL REFERENCES users(id),
       name TEXT NOT NULL,
+      invite_code TEXT,
+      archived_at INTEGER,
       created_at INTEGER NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_groups_teacher ON groups(teacher_id);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_groups_invite_code
+      ON groups(invite_code) WHERE invite_code IS NOT NULL;
 
     CREATE TABLE IF NOT EXISTS group_members (
       id TEXT PRIMARY KEY,

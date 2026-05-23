@@ -12,6 +12,7 @@ export interface Comment {
   text: string;
   author_id: string;
   author_name: string;
+  author_handle?: string | null;
   created_at: number;
 }
 
@@ -89,8 +90,9 @@ class CommentInlineWidget extends WidgetType {
     el.dataset.lineNum = String(this.lineNum);
     const c0 = this.comments[0];
     const suffix = this.comments.length > 1 ? `  (+${this.comments.length - 1})` : "";
-    el.textContent = `# ${c0.author_name}: ${c0.text}${suffix}`;
-    el.title = this.comments.map(c => `${c.author_name}: ${c.text}`).join("\n");
+    const label = (c: Comment) => c.author_handle ? `@${c.author_handle}` : c.author_name;
+    el.textContent = `# ${label(c0)}: ${c0.text}${suffix}`;
+    el.title = this.comments.map(c => `${label(c)}: ${c.text}`).join("\n");
     return el;
   }
 

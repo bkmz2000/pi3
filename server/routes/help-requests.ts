@@ -19,7 +19,7 @@ export function createHelpRequestsRouter(): Router {
       const requests = db.prepare(`
         SELECT hr.id, hr.status, hr.created_at,
                p.id as project_id, p.name as project_name,
-               u.id as student_id, u.name as student_name
+               u.id as student_id, u.name as student_name, u.handle as student_handle
         FROM help_requests hr
         JOIN project_shares ps ON ps.project_id = hr.project_id AND ps.user_id = ?
         JOIN projects p ON p.id = hr.project_id
@@ -34,7 +34,7 @@ export function createHelpRequestsRouter(): Router {
       const requests = db.prepare(`
         SELECT hr.id, hr.status, hr.created_at,
                p.id as project_id, p.name as project_name,
-               u.id as student_id, u.name as student_name
+               u.id as student_id, u.name as student_name, u.handle as student_handle
         FROM help_requests hr
         JOIN project_shares ps ON ps.project_id = hr.project_id AND ps.user_id = ?
         JOIN projects p ON p.id = hr.project_id

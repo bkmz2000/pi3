@@ -42,14 +42,14 @@ export function createProjectCommentsRouter(): Router {
     let rows;
     if (file && typeof file === 'string') {
       rows = db.prepare(`
-        SELECT c.*, u.name as author_name
+        SELECT c.*, u.name as author_name, u.handle as author_handle
         FROM comments c JOIN users u ON u.id = c.author_id
         WHERE c.project_id = ? AND c.file_path = ?
         ORDER BY c.line_number ASC, c.created_at ASC
       `).all(projectId, file);
     } else {
       rows = db.prepare(`
-        SELECT c.*, u.name as author_name
+        SELECT c.*, u.name as author_name, u.handle as author_handle
         FROM comments c JOIN users u ON u.id = c.author_id
         WHERE c.project_id = ?
         ORDER BY c.file_path ASC, c.line_number ASC, c.created_at ASC
@@ -88,7 +88,7 @@ export function createProjectCommentsRouter(): Router {
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `).run(id, projectId, file_path, line_number, anchor_text ?? '', text.trim(), req.user!.id, now);
     const row = db.prepare(`
-      SELECT c.*, u.name as author_name FROM comments c JOIN users u ON u.id = c.author_id WHERE c.id = ?
+      SELECT c.*, u.name as author_name, u.handle as author_handle FROM comments c JOIN users u ON u.id = c.author_id WHERE c.id = ?
     `).get(id);
     res.status(201).json(row);
   });

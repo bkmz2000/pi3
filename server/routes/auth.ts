@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { randomBytes, createHmac, timingSafeEqual } from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import { getDb } from '../db/index.js';
+import { assignHandle } from '../db/handle.js';
 import { authMiddleware, regenerateSession } from '../middleware/auth.js';
 
 const router = Router();
@@ -246,10 +247,11 @@ router.get('/callback', async (req: Request, res: Response): Promise<void> => {
   } else {
     userId = uuidv4();
     const api_token = uuidv4().replace(/-/g, '') + uuidv4().replace(/-/g, '');
+    const { seq, handle } = assignHandle(db);
     db.prepare(`
-      INSERT INTO users (id, api_token, name, role, oauth_provider_id, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(userId, api_token, name, role, userinfo.id, now, now);
+      INSERT INTO users (id, api_token, name, role, oauth_provider_id, handle, handle_seq, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(userId, api_token, name, role, userinfo.id, handle, seq, now, now);
   }
 
   try {

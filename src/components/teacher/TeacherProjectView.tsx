@@ -14,6 +14,7 @@ import { getProject, getComments, addComment, deleteComment, type Project } from
 import { indentationGuideField, indentationGuides } from '../../editor/theme';
 import { commentExtension, setCommentsEffect, type ResolvedComment } from '../../editor/comments';
 import { Icon } from '../Icons';
+import { userLabel } from '../../utils/userDisplay';
 
 function CommentPopover({
   comments, selectedLine, anchorY, onAdd, onDelete, canAdd, theme,
@@ -68,7 +69,7 @@ function CommentPopover({
           border: `1px solid ${theme.panelBorder}`,
         }}>
           <div style={{ display: 'flex', alignItems: 'center', marginBottom: 4 }}>
-            <span style={{ flex: 1, fontSize: 11.5, fontWeight: 600, color: theme.panelTxt }}>{c.author_name}</span>
+            <span style={{ flex: 1, fontSize: 11.5, fontWeight: 600, color: theme.panelTxt }}>{userLabel(c.author_name, c.author_handle)}</span>
             <span style={{ fontSize: 10.5, color: theme.panelTxtMute }}>
               {new Date(c.created_at).toLocaleDateString()}
             </span>

@@ -131,7 +131,7 @@ export function createSharesRouter(): Router {
     if (!requireOwner(projectId, req.user!.id, res)) return;
 
     const shares = db.prepare(`
-      SELECT ps.id, ps.user_id, ps.role, ps.created_at, u.name as user_name
+      SELECT ps.id, ps.user_id, ps.role, ps.created_at, u.name as user_name, u.handle as user_handle
       FROM project_shares ps
       JOIN users u ON ps.user_id = u.id
       WHERE ps.project_id = ?

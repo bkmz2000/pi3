@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useThemeStore } from '../../state/useTheme';
 import { getSharedProjects, type SharedProject } from '../../state/api';
+import { userLabel } from '../../utils/userDisplay';
 
 export function StudentProjectsSection() {
   const theme = useThemeStore((s) => s.theme);
@@ -38,7 +39,7 @@ export function StudentProjectsSection() {
                     <div style={{ fontSize: 11, fontWeight: 700, color: theme.tabDirty, marginBottom: 4 }}>✋ {t('teacher.needsHelp')}</div>
                   )}
                   <div style={{ fontWeight: 600, fontSize: 13, color: theme.panelTxt, marginBottom: 2 }}>{p.name}</div>
-                  <div style={{ fontSize: 12, color: theme.panelTxtMute }}>{p.student_name}</div>
+                  <div style={{ fontSize: 12, color: theme.panelTxtMute }}>{userLabel(p.student_name, p.student_handle)}</div>
                   <a href={`/teacher/projects/${p.id}`} style={{ display: 'inline-block', marginTop: 10, fontSize: 12, color: theme.railIconActive, textDecoration: 'none', fontWeight: 500 }}>
                     {t('teacher.review')} →
                   </a>

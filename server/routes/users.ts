@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import bcrypt from 'bcryptjs';
 import { getDb } from '../db/index.js';
+import { assignHandle } from '../db/handle.js';
 import { authMiddleware, regenerateSession } from '../middleware/auth.js';
 
 export function createUsersRouter(allowPasswordAuth: boolean = false) {
@@ -13,6 +14,7 @@ interface User {
   name: string;
   role: string;
   password_hash: string | null;
+  handle: string | null;
   created_at: number;
   updated_at: number;
 }
@@ -51,15 +53,17 @@ router.post('/outsider', async (req: Request, res: Response): Promise<void> => {
     name: name.trim(),
     role: 'student',
     password_hash,
+    handle: null,
     created_at: now,
     updated_at: now,
   };
 
   try {
+    const { seq, handle } = assignHandle(db);
     db.prepare(`
-      INSERT INTO users (id, api_token, name, role, password_hash, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(user.id, user.api_token, user.name, user.role, user.password_hash, user.created_at, user.updated_at);
+      INSERT INTO users (id, api_token, name, role, password_hash, handle, handle_seq, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(user.id, user.api_token, user.name, user.role, user.password_hash, handle, seq, user.created_at, user.updated_at);
 
     await regenerateSession(req);
     req.session.userId = user.id;
@@ -67,6 +71,7 @@ router.post('/outsider', async (req: Request, res: Response): Promise<void> => {
     res.status(201).json({
       id: user.id,
       name: user.name,
+      handle,
       role: user.role,
       created_at: user.created_at,
     });
@@ -114,6 +119,7 @@ router.post('/outsider/login', async (req: Request, res: Response): Promise<void
     res.json({
       id: user.id,
       name: user.name,
+      handle: user.handle,
       role: user.role,
       created_at: user.created_at,
     });
@@ -127,8 +133,8 @@ router.post('/outsider/login', async (req: Request, res: Response): Promise<void
 router.get('/me', authMiddleware, (req: Request, res: Response): void => {
   const db = getDb();
   const user = db
-    .prepare('SELECT id, name, role, created_at FROM users WHERE id = ?')
-    .get(req.user!.id) as Pick<User, 'id' | 'name' | 'role' | 'created_at'> | undefined;
+    .prepare('SELECT id, name, handle, role, created_at FROM users WHERE id = ?')
+    .get(req.user!.id) as Pick<User, 'id' | 'name' | 'handle' | 'role' | 'created_at'> | undefined;
 
   if (!user) {
     res.status(404).json({ error: 'Not Found', message: 'User not found' });

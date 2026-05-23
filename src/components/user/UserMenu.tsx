@@ -198,7 +198,7 @@ export function UserMenu() {
                 fontSize: 10.5, color: theme.panelTxtMute, fontFamily: theme.fontMono,
                 marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
               }}>
-                @{user.name}
+                @{user.handle ?? user.name}
               </div>
             </div>
             <RoleTag role={user.role} />

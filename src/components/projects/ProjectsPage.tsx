@@ -7,13 +7,19 @@ import { ProjectCard } from './ProjectCard';
 import { NewProjectDialog } from './NewProjectDialog';
 import { useNavigate } from 'react-router-dom';
 import { Icon } from '../Icons';
+import { ThemedDialog } from '../ThemedDialog';
+import { joinGroupByCode } from '../../state/api';
 
 export function ProjectsPage() {
   const { t } = useTranslation();
   const theme = useThemeStore((s) => s.theme);
   const { apiProjects, apiLoading, apiError, fetchProjects, addProject } = useProjects();
-  const { authState } = useUser();
+  const { authState, user } = useUser();
   const [showNewProject, setShowNewProject] = useState(false);
+  const [showJoin, setShowJoin] = useState(false);
+  const [joinCode, setJoinCode] = useState('');
+  const [joinFeedback, setJoinFeedback] = useState<{ kind: 'success' | 'error'; text: string } | null>(null);
+  const [joining, setJoining] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -30,6 +36,28 @@ export function ProjectsPage() {
     await addProject(name);
     setShowNewProject(false);
   };
+
+  const handleJoin = async () => {
+    const code = joinCode.trim();
+    if (!code) return;
+    setJoining(true);
+    setJoinFeedback(null);
+    try {
+      const result = await joinGroupByCode(code);
+      setJoinFeedback({
+        kind: 'success',
+        text: result.already_member
+          ? t('teacher.alreadyInGroup', { name: result.name })
+          : t('teacher.joinedGroup', { name: result.name }),
+      });
+      setJoinCode('');
+    } catch (e) {
+      setJoinFeedback({ kind: 'error', text: e instanceof Error ? e.message : t('teacher.joinFailed') });
+    }
+    setJoining(false);
+  };
+
+  const isStudent = user?.role !== 'teacher';
 
   const fullPage = (
     <div style={{
@@ -113,19 +141,37 @@ export function ProjectsPage() {
               <div style={{ fontSize: 20, fontWeight: 700, color: theme.panelTxt }}>
                 {t('auth.myProjects')}
               </div>
-              <button
-                onClick={() => setShowNewProject(true)}
-                style={{
-                  all: "unset", cursor: "pointer",
-                  padding: "8px 16px", borderRadius: 6,
-                  background: theme.runBg, color: theme.runTxt,
-                  fontSize: 12.5, fontWeight: 600,
-                  display: "inline-flex", alignItems: "center", gap: 6,
-                }}
-              >
-                <Icon name="plus" size={14} color="currentColor" />
-                {t('sideMenu.newProject')}
-              </button>
+              <div style={{ display: 'inline-flex', gap: 8 }}>
+                {isStudent && (
+                  <button
+                    onClick={() => { setShowJoin(true); setJoinFeedback(null); }}
+                    style={{
+                      all: "unset", cursor: "pointer",
+                      padding: "8px 16px", borderRadius: 6,
+                      background: theme.chip, color: theme.panelTxt,
+                      border: `1px solid ${theme.panelBorder}`,
+                      fontSize: 12.5, fontWeight: 600,
+                      display: "inline-flex", alignItems: "center", gap: 6,
+                    }}
+                  >
+                    <Icon name="users" size={14} color="currentColor" />
+                    {t('teacher.joinGroup')}
+                  </button>
+                )}
+                <button
+                  onClick={() => setShowNewProject(true)}
+                  style={{
+                    all: "unset", cursor: "pointer",
+                    padding: "8px 16px", borderRadius: 6,
+                    background: theme.runBg, color: theme.runTxt,
+                    fontSize: 12.5, fontWeight: 600,
+                    display: "inline-flex", alignItems: "center", gap: 6,
+                  }}
+                >
+                  <Icon name="plus" size={14} color="currentColor" />
+                  {t('sideMenu.newProject')}
+                </button>
+              </div>
             </div>
 
             {apiError && (
@@ -194,6 +240,68 @@ export function ProjectsPage() {
       </div>
 
       <NewProjectDialog open={showNewProject} onClose={() => setShowNewProject(false)} onCreate={handleCreateProject} />
+
+      {showJoin && (
+        <ThemedDialog
+          title={t('teacher.joinGroup')}
+          onClose={() => { setShowJoin(false); setJoinCode(''); setJoinFeedback(null); }}
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div style={{ fontSize: 12, color: theme.panelTxtMute }}>{t('teacher.joinGroupHint')}</div>
+            <input
+              autoFocus
+              value={joinCode}
+              onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleJoin(); }}
+              placeholder={t('teacher.joinCodePlaceholder')}
+              style={{
+                all: 'unset',
+                padding: '10px 12px',
+                background: theme.chip,
+                border: `1px solid ${theme.panelBorder}`,
+                borderRadius: 6,
+                fontFamily: theme.fontMono,
+                fontSize: 18,
+                fontWeight: 700,
+                letterSpacing: 3,
+                color: theme.panelTxt,
+                textAlign: 'center',
+              }}
+            />
+            {joinFeedback && (
+              <div role="status" aria-live="polite" style={{
+                fontSize: 12,
+                color: joinFeedback.kind === 'success' ? theme.runBg : theme.stopBg,
+              }}>
+                {joinFeedback.text}
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button
+                type="button"
+                onClick={() => { setShowJoin(false); setJoinCode(''); setJoinFeedback(null); }}
+                style={{ all: 'unset', cursor: 'pointer', padding: '8px 14px', borderRadius: 6, color: theme.panelTxtMute, fontSize: 12.5, fontWeight: 600 }}
+              >
+                {t('teacher.cancel')}
+              </button>
+              <button
+                type="button"
+                onClick={handleJoin}
+                disabled={joining || !joinCode.trim()}
+                style={{
+                  all: 'unset', cursor: joining ? 'default' : 'pointer',
+                  padding: '8px 16px', borderRadius: 6,
+                  background: theme.runBg, color: theme.runTxt,
+                  fontSize: 12.5, fontWeight: 600,
+                  opacity: joining || !joinCode.trim() ? 0.5 : 1,
+                }}
+              >
+                {t('teacher.join')}
+              </button>
+            </div>
+          </div>
+        </ThemedDialog>
+      )}
     </div>
   );
 

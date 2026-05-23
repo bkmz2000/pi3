@@ -82,6 +82,7 @@ export const api = new ApiClient();
 export interface User {
   id: string;
   name: string;
+  handle: string | null;
   role: 'student' | 'teacher';
   created_at: number;
 }
@@ -146,7 +147,7 @@ export async function shareProject(id: string, username: string, role: 'editor' 
 
 export interface TeacherShareStatus {
   shared: boolean;
-  teachers: { id: string; name: string }[];
+  teachers: { id: string; name: string; handle: string | null }[];
   help_request: { id: string; status: string } | null;
 }
 
@@ -157,6 +158,7 @@ export interface SharedProject {
   updated_at: number;
   student_id: string;
   student_name: string;
+  student_handle: string | null;
   help_request_id: string | null;
   help_request_status: string | null;
   help_request_created_at: number | null;
@@ -171,6 +173,7 @@ export interface HelpRequest {
   project_name: string;
   student_id: string;
   student_name: string;
+  student_handle: string | null;
 }
 
 export async function getTeacherShare(projectId: string): Promise<TeacherShareStatus> {
@@ -209,6 +212,8 @@ export interface Group {
   id: string;
   name: string;
   teacher_id: string;
+  invite_code: string | null;
+  archived_at: number | null;
   created_at: number;
   member_count: number;
 }
@@ -218,11 +223,13 @@ export interface GroupMember {
   group_id: string;
   student_id: string;
   student_name: string;
+  student_handle: string | null;
   joined_at: number;
 }
 
 export interface GroupDetail extends Group {
   members: GroupMember[];
+  teacher_handle?: string | null;
 }
 
 export interface ApiComment {
@@ -234,6 +241,7 @@ export interface ApiComment {
   text: string;
   author_id: string;
   author_name: string;
+  author_handle: string | null;
   created_at: number;
 }
 
@@ -255,11 +263,23 @@ export async function deleteComment(projectId: string, commentId: string): Promi
   return api.delete<void>(`/api/projects/${projectId}/comments/${commentId}`);
 }
 
-export async function getGroups(): Promise<Group[]> {
-  return api.get<Group[]>('/api/groups');
+export async function getGroups(includeArchived = false): Promise<Group[]> {
+  return api.get<Group[]>(`/api/groups${includeArchived ? '?include_archived=1' : ''}`);
 }
 
-export async function getMyGroups(): Promise<(Group & { teacher_name: string })[]> {
+export async function updateGroup(id: string, patch: { name?: string; archived?: boolean }): Promise<Group> {
+  return api.patch<Group>(`/api/groups/${id}`, patch);
+}
+
+export async function regenerateInviteCode(id: string): Promise<{ invite_code: string }> {
+  return api.post<{ invite_code: string }>(`/api/groups/${id}/invite-code/regenerate`);
+}
+
+export async function joinGroupByCode(code: string): Promise<{ id: string; name: string; already_member?: boolean }> {
+  return api.post(`/api/groups/join`, { code });
+}
+
+export async function getMyGroups(): Promise<(Group & { teacher_name: string; teacher_handle: string | null })[]> {
   return api.get('/api/groups/my');
 }
 

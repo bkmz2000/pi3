@@ -4,6 +4,7 @@ import { useThemeStore } from '../../state/useTheme';
 import { getGroupHelpRequests, addressHelpRequest, markHelpRequestInProgress, type HelpRequest } from '../../state/api';
 import { asyncAction } from '../../state/asyncAction';
 import { btnPrimary, btnSecondary } from './styles';
+import { userLabel } from '../../utils/userDisplay';
 
 export function GroupQueueView({
   groupId, groupName, onBack,
@@ -116,7 +117,7 @@ export function GroupQueueView({
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-                  <span style={{ flex: 1, fontWeight: 600, fontSize: 13, color: theme.panelTxt }}>{r.student_name}</span>
+                  <span style={{ flex: 1, fontWeight: 600, fontSize: 13, color: theme.panelTxt }}>{userLabel(r.student_name, r.student_handle)}</span>
                   {r.status === 'in_progress' && (
                     <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 99, background: 'rgba(0,120,255,0.15)', color: theme.railIconActive }}>
                       {t('teacher.inProgress')}
@@ -137,7 +138,7 @@ export function GroupQueueView({
       <div style={{ flex: 1, overflow: 'auto', padding: 28 }}>
         {selected ? (
           <div>
-            <div style={{ fontWeight: 700, fontSize: 18, color: theme.panelTxt, marginBottom: 6 }}>{selected.student_name}</div>
+            <div style={{ fontWeight: 700, fontSize: 18, color: theme.panelTxt, marginBottom: 6 }}>{userLabel(selected.student_name, selected.student_handle)}</div>
             <div style={{ fontSize: 14, color: theme.panelTxtMute, marginBottom: 4 }}>{selected.project_name}</div>
             <div style={{ fontSize: 12, color: theme.panelTxtMute, marginBottom: 20 }}>{new Date(selected.created_at).toLocaleString()}</div>
             {selected.status === 'in_progress' && (

@@ -21,7 +21,7 @@ import { projectStorage } from "../utils/storage";
 import { importProjectFromFile as importZipFile } from "../utils/zip";
 import { getProjects, createProject as apiCreateProject, updateProject as apiUpdateProject, deleteProject as apiDeleteProject, saveProjectContent, Project as ApiProject } from "./api";
 import { toEditorProject } from "./projectNormalization";
-import { writeAnonStash, clearAnonStash } from "../utils/anonStash";
+import { writeAnonStash } from "../utils/anonStash";
 
 export type PanelId = "projects" | "assets" | "tilemaps" | "animations" | "settings" | "docs" | null;
 

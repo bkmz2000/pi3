@@ -43,7 +43,7 @@ export function handleFromSeq(seq: number): string {
   const idxInGen = (seq - 1) % N;
   const idx = (idxInGen * STRIDE) % N;
   const a = idx % A;
-  let rest = Math.floor(idx / A);
+  const rest = Math.floor(idx / A);
   const t = rest % B;
   const n = Math.floor(rest / B);
   const base = `${ADJ_COLOR[a]}${ADJ_TRAIT[t]}${ANIMAL[n]}`;

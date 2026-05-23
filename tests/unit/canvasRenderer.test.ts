@@ -1,0 +1,221 @@
+import { executeDrawCommands } from '../../src/runner/canvasRenderer';
+
+function makeCtx() {
+  return {
+    save: jest.fn(),
+    restore: jest.fn(),
+    setTransform: jest.fn(),
+    translate: jest.fn(),
+    rotate: jest.fn(),
+    scale: jest.fn(),
+    beginPath: jest.fn(),
+    arc: jest.fn(),
+    ellipse: jest.fn(),
+    rect: jest.fn(),
+    moveTo: jest.fn(),
+    lineTo: jest.fn(),
+    fill: jest.fn(),
+    stroke: jest.fn(),
+    fillRect: jest.fn(),
+    fillText: jest.fn(),
+    drawImage: jest.fn(),
+    measureText: jest.fn(() => ({ width: 50 })),
+    fillStyle: '',
+    strokeStyle: '',
+    lineWidth: 1,
+    font: '16px sans-serif',
+    textAlign: 'start' as CanvasTextAlign,
+    textBaseline: 'alphabetic' as CanvasTextBaseline,
+  } as unknown as OffscreenCanvasRenderingContext2D & { [k: string]: jest.Mock | unknown };
+}
+
+const fakeBitmap = (w = 32, h = 32) =>
+  ({ width: w, height: h, close: () => {} }) as unknown as ImageBitmap;
+
+describe('executeDrawCommands', () => {
+  it('background fills canvas with color reset to identity transform', () => {
+    const ctx = makeCtx();
+    executeDrawCommands(ctx, [['background', [10, 20, 30]]], {}, {}, 100, 80);
+    expect(ctx.save).toHaveBeenCalled();
+    expect(ctx.setTransform).toHaveBeenCalledWith(1, 0, 0, 1, 0, 0);
+    expect(ctx.fillRect).toHaveBeenCalledWith(0, 0, 100, 80);
+    expect(ctx.restore).toHaveBeenCalled();
+    expect((ctx as unknown as { fillStyle: string }).fillStyle).toBe('rgb(10,20,30)');
+  });
+
+  it('background_image stretches asset to canvas when found', () => {
+    const ctx = makeCtx();
+    const bm = fakeBitmap();
+    executeDrawCommands(
+      ctx,
+      [['background_image', ['sky']]],
+      { sky: bm },
+      {},
+      200,
+      150,
+    );
+    expect(ctx.drawImage).toHaveBeenCalledWith(bm, 0, 0, 200, 150);
+  });
+
+  it('background_image no-ops when asset is missing', () => {
+    const ctx = makeCtx();
+    executeDrawCommands(ctx, [['background_image', ['missing']]], {}, {}, 100, 80);
+    expect(ctx.drawImage).not.toHaveBeenCalled();
+  });
+
+  it('image looks up by name and .png/.svg fallback', () => {
+    const ctx = makeCtx();
+    const bm = fakeBitmap();
+    executeDrawCommands(
+      ctx,
+      [['image', ['ship', 10, 20, 30, 40]]],
+      { 'ship.svg': bm },
+      {},
+      100,
+      80,
+    );
+    expect(ctx.drawImage).toHaveBeenCalledWith(bm, 10, 20, 30, 40);
+  });
+
+  it('image without w/h uses 2-arg drawImage', () => {
+    const ctx = makeCtx();
+    const bm = fakeBitmap();
+    executeDrawCommands(
+      ctx,
+      [['image', ['ship', 5, 6, null, null]]],
+      { ship: bm },
+      {},
+      100,
+      80,
+    );
+    expect(ctx.drawImage).toHaveBeenCalledWith(bm, 5, 6);
+  });
+
+  it('image_centered centers on x,y with default size from bitmap', () => {
+    const ctx = makeCtx();
+    const bm = fakeBitmap(40, 20);
+    executeDrawCommands(
+      ctx,
+      [['image_centered', ['s', 100, 50, null, null]]],
+      { s: bm },
+      {},
+      200,
+      200,
+    );
+    expect(ctx.drawImage).toHaveBeenCalledWith(bm, 80, 40, 40, 20);
+  });
+
+  it('animation_frame draws frame from animation by index (modulo)', () => {
+    const ctx = makeCtx();
+    const f0 = fakeBitmap();
+    const f1 = fakeBitmap();
+    executeDrawCommands(
+      ctx,
+      [['animation_frame', ['run', 3, 10, 20, null, null]]],
+      {},
+      { run: { frames: [f0, f1], fps: 8 } },
+      100,
+      80,
+    );
+    expect(ctx.drawImage).toHaveBeenCalledWith(f1, 10, 20);
+  });
+
+  it('animation_frame no-ops on unknown animation', () => {
+    const ctx = makeCtx();
+    executeDrawCommands(
+      ctx,
+      [['animation_frame', ['nope', 0, 0, 0, null, null]]],
+      {},
+      {},
+      100,
+      80,
+    );
+    expect(ctx.drawImage).not.toHaveBeenCalled();
+  });
+
+  it('shape primitives dispatch beginPath + fill/stroke', () => {
+    const ctx = makeCtx();
+    executeDrawCommands(
+      ctx,
+      [
+        ['circle', [10, 20, 5]],
+        ['rect', [0, 0, 30, 40]],
+        ['line', [0, 0, 10, 10]],
+        ['ellipse', [50, 50, 20, 10]],
+        ['point', [3, 3]],
+      ],
+      {},
+      {},
+      100,
+      80,
+    );
+    expect(ctx.arc).toHaveBeenCalled();
+    expect(ctx.rect).toHaveBeenCalledWith(0, 0, 30, 40);
+    expect(ctx.lineTo).toHaveBeenCalledWith(10, 10);
+    expect(ctx.ellipse).toHaveBeenCalled();
+    expect(ctx.beginPath).toHaveBeenCalledTimes(5);
+  });
+
+  it('fill / no_fill / stroke / no_stroke / stroke_width set state', () => {
+    const ctx = makeCtx();
+    executeDrawCommands(
+      ctx,
+      [
+        ['fill', [1, 2, 3]],
+        ['stroke', [4, 5, 6]],
+        ['stroke_width', [7]],
+        ['no_fill', []],
+        ['no_stroke', []],
+      ],
+      {},
+      {},
+      100,
+      80,
+    );
+    expect((ctx as unknown as { lineWidth: number }).lineWidth).toBe(7);
+    expect((ctx as unknown as { fillStyle: string }).fillStyle).toBe('rgba(0,0,0,0)');
+    expect((ctx as unknown as { strokeStyle: string }).strokeStyle).toBe('rgba(0,0,0,0)');
+  });
+
+  it('push/pop/translate/rotate/scale forward to ctx', () => {
+    const ctx = makeCtx();
+    executeDrawCommands(
+      ctx,
+      [
+        ['push', []],
+        ['translate', [10, 20]],
+        ['rotate', [180]],
+        ['scale', [2, 3]],
+        ['pop', []],
+      ],
+      {},
+      {},
+      100,
+      80,
+    );
+    expect(ctx.save).toHaveBeenCalled();
+    expect(ctx.translate).toHaveBeenCalledWith(10, 20);
+    expect(ctx.rotate).toHaveBeenCalledWith(Math.PI);
+    expect(ctx.scale).toHaveBeenCalledWith(2, 3);
+    expect(ctx.restore).toHaveBeenCalled();
+  });
+
+  it('text + text_size + text_align', () => {
+    const ctx = makeCtx();
+    executeDrawCommands(
+      ctx,
+      [
+        ['text_size', [24]],
+        ['text_align', ['center', 'middle']],
+        ['text', ['hi', 50, 50]],
+      ],
+      {},
+      {},
+      100,
+      80,
+    );
+    expect((ctx as unknown as { font: string }).font).toBe('24px sans-serif');
+    expect((ctx as unknown as { textAlign: string }).textAlign).toBe('center');
+    expect(ctx.fillText).toHaveBeenCalledWith('hi', 50, 50);
+  });
+});

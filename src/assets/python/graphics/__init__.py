@@ -579,6 +579,10 @@ def stroke_width(w) -> None:
 
 
 def background(r, g=None, b=None) -> None:
+    # Accept an asset dict (sprite reference) → draw stretched to fill canvas.
+    if isinstance(r, dict) and r.get("done") and "name" in r:
+        _draw_commands.append(("background_image", (r["name"],), {}))
+        return
     color = _resolve_color(r, g, b)
     _draw_commands.append(("background", color, {}))
 
@@ -647,6 +651,79 @@ def random_color() -> tuple:
 def frame_rate(fps) -> None:
     global _target_fps
     _target_fps = int(fps)
+
+
+import time as _time
+
+
+class Sound:
+    """Audio clip controlled from Python. Audio playback lives on the main
+    thread; this class just sends messages.
+
+    Usage:
+        assets.sounds.pop.play()
+        assets.sounds.music.loop()
+        assets.sounds.music.stop()
+    """
+
+    def __init__(self, name):
+        self.name = name
+
+    def _post(self, action):
+        try:
+            import js
+            js._ide_post_sound(action, self.name)
+        except Exception:
+            pass
+
+    def play(self):
+        self._post("play")
+
+    def loop(self):
+        self._post("loop")
+
+    def pause(self):
+        self._post("pause")
+
+    def stop(self):
+        self._post("stop")
+
+
+class Timer:
+    """Poll-based countdown timer in seconds.
+
+    Usage:
+        t = Timer(s=2)
+        # in update():
+        if t.done():
+            spawn_enemy()
+            t.restart()
+    """
+
+    def __init__(self, s=None, ms=None):
+        if s is None and ms is None:
+            self._duration = 0.0
+        elif s is not None:
+            self._duration = float(s)
+        else:
+            self._duration = float(ms) / 1000.0
+        self._start = _time.monotonic()
+
+    def left(self) -> float:
+        return self._duration - (_time.monotonic() - self._start)
+
+    def elapsed(self) -> float:
+        return _time.monotonic() - self._start
+
+    def done(self) -> bool:
+        return self.left() <= 0
+
+    def restart(self, s=None, ms=None) -> None:
+        if s is not None:
+            self._duration = float(s)
+        elif ms is not None:
+            self._duration = float(ms) / 1000.0
+        self._start = _time.monotonic()
 
 
 # === RUN ===
@@ -1041,10 +1118,17 @@ class Camera:
     position is at the center of the canvas. On __exit__ it restores.
     """
 
-    def __init__(self, x=0.0, y=0.0):
-        self.pos = Vector2(x, y)
-        self._target = None
-        self._lerp = 1.0
+    def __init__(self, target=None, x=0.0, y=0.0):
+        # Camera(actor)  → follow that actor from the start
+        # Camera(x, y)   → fixed position (legacy)
+        if isinstance(target, Actor):
+            self.pos = Vector2(float(target.x), float(target.y))
+            self._target = target
+            self._lerp = 1.0
+        else:
+            self.pos = Vector2(x if target is None else target, y)
+            self._target = None
+            self._lerp = 1.0
 
     @property
     def x(self):

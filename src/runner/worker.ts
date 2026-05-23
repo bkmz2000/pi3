@@ -127,6 +127,12 @@ async function initPyodide(
     }
     post({ type: "canvas_resize", width, height });
   });
+  p.globals.set(
+    "_ide_post_sound",
+    (action: "play" | "pause" | "loop" | "stop", name: string) => {
+      post({ type: "sound", action, name });
+    },
+  );
 
   // _ide_resolve_input: called from JS when input_response arrives
   // Stores a reference so the Python future can be resolved
@@ -156,6 +162,7 @@ js._ide_post_input_request = _ide_post_input_request
 js._ide_canvas_resize = _ide_canvas_resize
 js._ide_resolve_input = _ide_resolve_input
 js._ide_flush_draw_commands = _ide_flush_draw_commands
+js._ide_post_sound = _ide_post_sound
 
 class _Writer:
     def __init__(self, kind):
@@ -234,6 +241,7 @@ async function runGraphicsScript(
   assets: Record<string, ImageBitmap>,
   tilemaps: Record<string, unknown> | undefined,
   animations: Record<string, { frames: ImageBitmap[]; fps: number }> | undefined,
+  soundNames: string[] | undefined,
   entry: string,
   showHitboxes: boolean = false,
   themePalette?: Record<string, [number, number, number]>,
@@ -263,6 +271,7 @@ async function runGraphicsScript(
     Object.entries(animations ?? {}).map(([n, a]) => [n, a.frames.length, a.fps]),
   );
   p.globals.set("_tilemap_data", JSON.stringify(tilemaps ?? {}));
+  p.globals.set("_sound_names", soundNames ?? []);
   p.globals.set("_using_graphics", true);
 
   if (themePalette && Object.keys(themePalette).length > 0) {
@@ -297,12 +306,26 @@ Actor._id_counter = 0
 graphics._loop_generation = graphics._loop_generation + 1
 graphics._show_hitboxes = ${showHitboxes ? "True" : "False"}
 
-# Build sprites namespace from asset names + dimensions (no bitmaps)
+# Build sprites namespace from asset names + dimensions (no bitmaps).
+# Names starting with lib_<pack>_ go into per-pack namespaces
+# (assets.<pack>.<name>); other names go into the flat sprites
+# namespace (assets.sprites.<name>) used by user project assets.
 _sprites_dict = {}
+_lib_packs = {}
 for _name, _w, _h in _asset_meta.to_py():
     _key = _name.rsplit(".", 1)[0] if "." in _name else _name
-    _sprites_dict[_key] = {"done": True, "name": _name, "width": int(_w), "height": int(_h)}
+    _entry = {"done": True, "name": _name, "width": int(_w), "height": int(_h)}
+    if _key.startswith("lib_"):
+        _rest = _key[4:]
+        _us = _rest.find("_")
+        if _us > 0:
+            _pack = _rest[:_us]
+            _aname = _rest[_us + 1:]
+            _lib_packs.setdefault(_pack, {})[_aname] = _entry
+            continue
+    _sprites_dict[_key] = _entry
 _sprites = SimpleNamespace(**_sprites_dict)
+_lib_namespaces = {p: SimpleNamespace(**d) for p, d in _lib_packs.items()}
 
 # Build animations namespace from metadata
 _anim_ns = {}
@@ -338,7 +361,18 @@ for _tm_name, _tm_data in _raw_tm.items():
         _layer_by_name[_lname] = _layer
     _tilemaps_dict[_tm_name] = graphics.TileMap(_layers, _layer_by_name)
 
-graphics.assets = SimpleNamespace(sprites=_sprites, tilemaps=SimpleNamespace(**_tilemaps_dict), animations=SimpleNamespace(**_anim_ns))
+# Build sounds namespace from name list (URLs live on main thread).
+_sounds_ns = {}
+for _sname in _sound_names.to_py():
+    _sounds_ns[_sname] = graphics.Sound(_sname)
+
+graphics.assets = SimpleNamespace(
+    sprites=_sprites,
+    tilemaps=SimpleNamespace(**_tilemaps_dict),
+    animations=SimpleNamespace(**_anim_ns),
+    sounds=SimpleNamespace(**_sounds_ns),
+    **_lib_namespaces,
+)
   `);
 
   await p.runPythonAsync(`
@@ -365,6 +399,7 @@ async function runScript(
   assets: Record<string, ImageBitmap>,
   tilemaps: Record<string, unknown> | undefined,
   animations: Record<string, { frames: ImageBitmap[]; fps: number }> | undefined,
+  soundNames: string[] | undefined,
   entry: string,
   showHitboxes: boolean = false,
   themePalette?: Record<string, [number, number, number]>,
@@ -375,7 +410,7 @@ async function runScript(
   p.globals.set("_using_graphics", false);
 
   if (usesNewGraphics(code)) {
-    await runGraphicsScript(p, files, assets, tilemaps, animations, entry, showHitboxes, themePalette, themeName);
+    await runGraphicsScript(p, files, assets, tilemaps, animations, soundNames, entry, showHitboxes, themePalette, themeName);
     return;
   }
 
@@ -419,7 +454,7 @@ self.onmessage = async (e: MessageEvent<WorkerCommand>) => {
   } else if (msg.cmd === "run") {
     try {
       const p = await ensurePyodide();
-      await runScript(p, msg.files, msg.assets, msg.tilemaps, msg.animations, msg.entry, msg.showHitboxes, msg.themePalette, msg.themeName);
+      await runScript(p, msg.files, msg.assets, msg.tilemaps, msg.animations, msg.soundNames, msg.entry, msg.showHitboxes, msg.themePalette, msg.themeName);
     } catch (err: unknown) {
       post({ type: "error", error: String(err) });
       post({ type: "result" });

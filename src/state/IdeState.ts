@@ -11,6 +11,7 @@ import Robot from "../assets/examples/robot/robot.py?raw";
 import Swatches from "../assets/examples/swatches/swatches.py?raw";
 import Dungeon from "../assets/examples/dungeon/dungeon.py?raw";
 import ThemesDemo from "../assets/examples/themes/themes.py?raw";
+import Platformer from "../assets/examples/platformer/platformer.py?raw";
 import ShipSvg from "../assets/examples/asteroids/assets/ship.svg?url";
 import BulletSvg from "../assets/examples/asteroids/assets/bullet.svg?url";
 import BigAsteroidSvg from "../assets/examples/asteroids/assets/big_asteroid.svg?url";
@@ -45,6 +46,7 @@ export type Project = {
   assets: Record<string, string>;
   tilemaps: Record<string, TilemapData>;
   animations: Record<string, AnimationData>;
+  sounds?: Record<string, string>;
   theme?: string;
 };
 
@@ -125,6 +127,12 @@ const Examples: Record<string, Project> = {
     tilemaps: {},
     animations: {},
   },
+  platformer: {
+    files: { "platformer.py": Platformer },
+    assets: {},
+    tilemaps: {},
+    animations: {},
+  },
 };
 
 type EditorState = {
@@ -147,6 +155,8 @@ type EditorState = {
   deleteTilemap: (name: string) => void;
   saveAnimation: (name: string, data: AnimationData) => void;
   deleteAnimation: (name: string) => void;
+  addSound: (name: string, url: string) => void;
+  removeSound: (name: string) => void;
   setProjectTheme: (theme: string) => void;
   markClean: () => void;
 };
@@ -311,6 +321,32 @@ export const useEditor = create<EditorState>((set) => ({
       return { project: { ...s.project, animations }, dirtyFiles: dirty };
     }),
 
+  addSound: (name, url) =>
+    set((s) => {
+      const sounds = { ...(s.project.sounds ?? {}) };
+      let key = name;
+      if (sounds[key] !== undefined) {
+        const base = name.replace(/\.[^.]+$/, "");
+        const ext = name.slice(base.length);
+        let n = 1;
+        while (sounds[`${base}_${n}${ext}`] !== undefined) n++;
+        key = `${base}_${n}${ext}`;
+      }
+      sounds[key] = url;
+      const dirty = new Set(s.dirtyFiles);
+      dirty.add("*sounds*");
+      return { project: { ...s.project, sounds }, dirtyFiles: dirty };
+    }),
+
+  removeSound: (name) =>
+    set((s) => {
+      const sounds = { ...(s.project.sounds ?? {}) };
+      delete sounds[name];
+      const dirty = new Set(s.dirtyFiles);
+      dirty.add("*sounds*");
+      return { project: { ...s.project, sounds }, dirtyFiles: dirty };
+    }),
+
   setProjectTheme: (theme: string) =>
     set((s) => {
       const dirty = new Set(s.dirtyFiles);
@@ -448,6 +484,7 @@ export const useIde = create<IdeState>((set, get) => ({
       assets: exampleProject.assets,
       tilemaps: exampleProject.tilemaps,
       animations: exampleProject.animations,
+      sounds: exampleProject.sounds,
       currentFile: exampleProject.currentFile,
       theme: exampleProject.theme,
     });
@@ -467,6 +504,7 @@ export const useIde = create<IdeState>((set, get) => ({
         assets: project.assets,
         tilemaps: project.tilemaps,
         animations: project.animations,
+        sounds: project.sounds,
         currentFile: useEditor.getState().currentFile,
         theme: project.theme,
       });

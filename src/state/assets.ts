@@ -146,3 +146,63 @@ export function packAssetsByMeta(
     return true;
   }).sort((a, b) => a.name.localeCompare(b.name));
 }
+
+// === LIBRARY PACKS ===
+// Asset packs exposed to Python as `assets.<packName>.<assetName>`. Always
+// available, no per-project copy required. The runtime prefixes each loaded
+// bitmap with `lib_<packName>_` so the worker can rebuild the namespace.
+
+export type LibraryPack = {
+  name: string;
+  assets: { name: string; url: string }[];
+};
+
+export const LIBRARY_PACKS: LibraryPack[] = [
+  {
+    name: "platformer",
+    assets: PACK_ASSET_LIST.filter(({ name }) => {
+      const meta = SPRITE_META[name];
+      if (!meta) return false;
+      return meta.perspective === "side" || meta.perspective === "any";
+    }).sort((a, b) => a.name.localeCompare(b.name)),
+  },
+];
+
+export const LIBRARY_KEY_PREFIX = "lib_";
+
+export function libraryKey(pack: string, name: string): string {
+  return `${LIBRARY_KEY_PREFIX}${pack}_${name}`;
+}
+
+export function libraryUrlMap(): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const pack of LIBRARY_PACKS) {
+    for (const { name, url } of pack.assets) {
+      out[libraryKey(pack.name, name)] = url;
+    }
+  }
+  return out;
+}
+
+// === SOUND LIBRARY PACK ===
+// Built-in sounds exposed to Python as `assets.sounds.<name>`.
+// Drop royalty-free clips anywhere under ../assets/sounds/ —
+// they are picked up by basename (subdirectories are searched recursively).
+
+const PACK_SOUND_FILES = import.meta.glob(
+  "../assets/sounds/**/*.{mp3,ogg,wav}",
+  { query: "?url", import: "default", eager: true },
+) as Record<string, string>;
+
+export const PACK_SOUND_LIST: { name: string; url: string }[] = Object.entries(
+  PACK_SOUND_FILES,
+).map(([path, url]) => ({
+  name: path.split("/").pop()!.replace(/\.[^.]+$/, ""),
+  url,
+})).sort((a, b) => a.name.localeCompare(b.name));
+
+export function librarySoundUrlMap(): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const { name, url } of PACK_SOUND_LIST) out[name] = url;
+  return out;
+}

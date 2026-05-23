@@ -113,8 +113,21 @@ export function executeDrawCommands(
     switch (cmd) {
       case "background": {
         const [r, g, b] = args as [number, number, number];
+        ctx.save();
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
         ctx.fillStyle = `rgb(${r},${g},${b})`;
         ctx.fillRect(0, 0, canvasW, canvasH);
+        ctx.restore();
+        break;
+      }
+      case "background_image": {
+        const [name] = args as [string];
+        const bm = assets[name];
+        if (!bm) break;
+        ctx.save();
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.drawImage(bm, 0, 0, canvasW, canvasH);
+        ctx.restore();
         break;
       }
       case "circle": {

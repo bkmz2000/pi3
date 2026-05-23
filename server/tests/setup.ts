@@ -27,6 +27,7 @@ export function createTestDb(): Database.Database {
       assets TEXT NOT NULL DEFAULT '{}',
       tilemaps TEXT NOT NULL DEFAULT '{}',
       animations TEXT NOT NULL DEFAULT '{}',
+      sounds TEXT NOT NULL DEFAULT '{}',
       current_file TEXT NOT NULL DEFAULT 'main.py',
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL,

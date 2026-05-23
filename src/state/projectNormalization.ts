@@ -8,6 +8,7 @@ export type EditorProject = {
   assets: Record<string, string>;
   tilemaps: Record<string, TilemapData>;
   animations: Record<string, AnimationData>;
+  sounds?: Record<string, string>;
   theme?: string;
 };
 
@@ -20,6 +21,7 @@ export function toEditorProject(api: ApiProject): EditorProject {
     assets: api.assets,
     tilemaps: api.tilemaps ?? {},
     animations: api.animations ?? {},
+    sounds: api.sounds ?? {},
     theme: api.theme,
   };
 }

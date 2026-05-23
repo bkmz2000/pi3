@@ -21,6 +21,7 @@ export type WorkerCommand =
       assets: Record<string, ImageBitmap>;
       tilemaps?: Record<string, unknown>;
       animations?: Record<string, { frames: ImageBitmap[]; fps: number }>;
+      soundNames?: string[];
       entry: string;
       showHitboxes?: boolean;
       themePalette?: Record<string, [number, number, number]>;
@@ -54,4 +55,5 @@ export type WorkerEvent =
   | { type: "input_request"; prompt: string }
   | { type: "lint"; diagnostics: LintDiagnostic[]; reqId: number }
   | { type: "interrupt_ack" }
-  | { type: "canvas_resize"; width: number; height: number };
+  | { type: "canvas_resize"; width: number; height: number }
+  | { type: "sound"; action: "play" | "pause" | "loop" | "stop"; name: string };

@@ -97,6 +97,7 @@ export interface Project {
   assets: Record<string, string>;
   tilemaps: Record<string, import('./IdeState').TilemapData>;
   animations: Record<string, import('./IdeState').AnimationData>;
+  sounds: Record<string, string>;
   current_file: string;
   theme?: string;
   created_at: number;
@@ -119,7 +120,7 @@ export async function getProjects(): Promise<Project[]> {
   return api.get<Project[]>('/api/projects');
 }
 
-export async function createProject(body: { name: string; description?: string; files?: Record<string, string>; assets?: Record<string, string>; tilemaps?: Record<string, import('./IdeState').TilemapData>; animations?: Record<string, import('./IdeState').AnimationData>; currentFile?: string; theme?: string }): Promise<Project> {
+export async function createProject(body: { name: string; description?: string; files?: Record<string, string>; assets?: Record<string, string>; tilemaps?: Record<string, import('./IdeState').TilemapData>; animations?: Record<string, import('./IdeState').AnimationData>; sounds?: Record<string, string>; currentFile?: string; theme?: string }): Promise<Project> {
   return api.post<Project>('/api/projects', body);
 }
 
@@ -131,7 +132,7 @@ export async function updateProject(id: string, data: { name?: string; descripti
   return api.put<Project>(`/api/projects/${id}`, data);
 }
 
-export async function saveProjectContent(id: string, data: { files?: Record<string, string>; assets?: Record<string, string>; tilemaps?: Record<string, import('./IdeState').TilemapData>; animations?: Record<string, import('./IdeState').AnimationData>; currentFile?: string; theme?: string }): Promise<Project> {
+export async function saveProjectContent(id: string, data: { files?: Record<string, string>; assets?: Record<string, string>; tilemaps?: Record<string, import('./IdeState').TilemapData>; animations?: Record<string, import('./IdeState').AnimationData>; sounds?: Record<string, string>; currentFile?: string; theme?: string }): Promise<Project> {
   return api.put<Project>(`/api/projects/${id}/save`, data);
 }
 

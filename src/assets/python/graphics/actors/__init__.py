@@ -50,7 +50,7 @@ class Actor:
     _registry = []
     _id_counter = 0
 
-    def __init__(self, **kwargs):
+    def __init__(self, asset=None, **kwargs):
         Actor._id_counter += 1
         self._id = Actor._id_counter
 
@@ -62,7 +62,19 @@ class Actor:
         self._visible = True
         self._alive = True
         self.image = None
+        self.scale = 1.0
+        self.flip_x = False
+        self.flip_y = False
         self.collider = Collider(self)
+
+        # First positional arg can be an asset dict (sprite/animation result)
+        if asset is not None:
+            self.image = asset
+            if isinstance(asset, dict):
+                w = asset.get("width")
+                h = asset.get("height")
+                if w and h:
+                    self.collider.set_rect(float(w), float(h))
 
         for key, value in kwargs.items():
             if hasattr(self.__class__, key) and isinstance(
@@ -327,6 +339,10 @@ class Actor:
             g.push()
             g.translate(self._x, self._y)
             g.rotate(self._angle)
+            sx = self.scale * (-1.0 if self.flip_x else 1.0)
+            sy = self.scale * (-1.0 if self.flip_y else 1.0)
+            if sx != 1.0 or sy != 1.0:
+                g.scale(sx, sy)
             img = self.image
             if isinstance(img, dict) and img.get("done"):
                 if "anim_name" in img:

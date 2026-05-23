@@ -1,0 +1,1 @@
+ALTER TABLE projects ADD COLUMN sounds TEXT NOT NULL DEFAULT '{}';

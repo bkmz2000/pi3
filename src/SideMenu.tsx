@@ -1,4 +1,4 @@
-import { useEffect, useState, lazy, Suspense } from "react";
+import { useEffect, useRef, useState, lazy, Suspense } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { packAssetsByMeta, type Category, type Perspective } from "./state/assets";
@@ -231,6 +231,9 @@ export default function Rail() {
   const deleteTilemap = useEditor((s) => s.deleteTilemap);
   const saveAnimation = useEditor((s) => s.saveAnimation);
   const deleteAnimation = useEditor((s) => s.deleteAnimation);
+  const projectSounds = useEditor((s) => s.project.sounds);
+  const addSound = useEditor((s) => s.addSound);
+  const removeSound = useEditor((s) => s.removeSound);
   const projectTheme = useEditor((s) => s.project.theme);
   const setProjectTheme = useEditor((s) => s.setProjectTheme);
 
@@ -408,8 +411,11 @@ export default function Rail() {
             <AssetsPanel
               theme={theme}
               projectAssets={projectAssets}
+              projectSounds={projectSounds ?? {}}
               onAddAsset={addAssetInstance}
               onRemoveAsset={removeAsset}
+              onAddSound={addSound}
+              onRemoveSound={removeSound}
               onNewSprite={() => { setEditingAsset(null); setEditorOpen(true); }}
               onEditAsset={(name, url) => {
                 setEditingAsset({ name, url });
@@ -1323,8 +1329,11 @@ function AnimationsPanel({
 type AssetsPanelProps = {
   theme: Theme;
   projectAssets: Record<string, string>;
+  projectSounds: Record<string, string>;
   onAddAsset: (baseName: string, url: string) => void;
   onRemoveAsset: (instanceName: string) => void;
+  onAddSound: (name: string, url: string) => void;
+  onRemoveSound: (name: string) => void;
   onNewSprite: () => void;
   onEditAsset: (name: string, url: string) => void;
   onClose: () => void;
@@ -1333,13 +1342,17 @@ type AssetsPanelProps = {
 function AssetsPanel({
   theme,
   projectAssets,
+  projectSounds,
   onAddAsset,
   onRemoveAsset,
+  onAddSound,
+  onRemoveSound,
   onNewSprite,
   onEditAsset,
   onClose,
 }: AssetsPanelProps) {
   const { t } = useTranslation();
+  const [tab, setTab] = useState<"sprites" | "sounds">("sprites");
   const [query, setQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState<Category | null>(null);
   const [activePerspective, setActivePerspective] = useState<Perspective | null>(null);
@@ -1370,6 +1383,34 @@ function AssetsPanel({
   return (
     <>
       <PanelHeader title={t('sideMenu.assets')} theme={theme} onClose={onClose} />
+      {/* Sprites / Sounds tabs */}
+      <div style={{ display: "flex", gap: 4, padding: "8px 14px 0" }}>
+        {(["sprites", "sounds"] as const).map((id) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => setTab(id)}
+            style={{
+              all: "unset", cursor: "pointer",
+              padding: "5px 12px", borderRadius: 6, fontSize: 12, fontWeight: 600,
+              fontFamily: theme.fontUI,
+              background: tab === id ? theme.accent : "transparent",
+              color: tab === id ? "#fff" : theme.panelTxtMute,
+            }}
+          >
+            {id === "sprites" ? t('sideMenu.tabSprites') : t('sideMenu.tabSounds')}
+          </button>
+        ))}
+      </div>
+      {tab === "sounds" && (
+        <SoundsSubPanel
+          theme={theme}
+          projectSounds={projectSounds}
+          onAddSound={onAddSound}
+          onRemoveSound={onRemoveSound}
+        />
+      )}
+      {tab === "sprites" && (
       <div style={{ display: "flex", flexDirection: "column", flex: 1, overflow: "hidden" }}>
         {/* Used section */}
         <div style={{ padding: "12px 14px 0" }}>
@@ -1546,7 +1587,126 @@ function AssetsPanel({
           )}
         </div>
       </div>
+      )}
     </>
+  );
+}
+
+// ── Sounds Sub-Panel ───────────────────────
+function SoundsSubPanel({
+  theme,
+  projectSounds,
+  onAddSound,
+  onRemoveSound,
+}: {
+  theme: Theme;
+  projectSounds: Record<string, string>;
+  onAddSound: (name: string, url: string) => void;
+  onRemoveSound: (name: string) => void;
+}) {
+  const { t } = useTranslation();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const entries = Object.entries(projectSounds);
+
+  const handleFiles = (files: FileList | null) => {
+    if (!files) return;
+    for (const file of Array.from(files)) {
+      if (!/\.(mp3|ogg|wav)$/i.test(file.name)) continue;
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        onAddSound(file.name.replace(/\.[^.]+$/, ""), reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const play = (url: string) => {
+    const audio = new Audio(url);
+    audio.play().catch(() => {});
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", flex: 1, overflow: "hidden" }}>
+      <div style={{ padding: "10px 14px 0" }}>
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          style={{
+            all: "unset", cursor: "pointer",
+            display: "inline-flex", alignItems: "center", gap: 6,
+            padding: "7px 12px", borderRadius: 8,
+            background: theme.accent, color: "#fff",
+            fontSize: 12, fontWeight: 600, fontFamily: theme.fontUI,
+          }}
+        >
+          <Icon name="plus" size={13} color="currentColor" />
+          {t('sideMenu.uploadSound')}
+        </button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".mp3,.ogg,.wav,audio/mpeg,audio/ogg,audio/wav"
+          multiple
+          style={{ display: "none" }}
+          onChange={(e) => {
+            handleFiles(e.target.files);
+            e.target.value = "";
+          }}
+        />
+        <div style={{ fontSize: 11, color: theme.panelTxtMute, marginTop: 6 }}>
+          {t('sideMenu.soundsHint')}
+        </div>
+      </div>
+      <div style={{ flex: 1, overflowY: "auto", padding: "12px 14px 14px" }}>
+        {entries.length === 0 ? (
+          <div style={{ fontSize: 12, color: theme.panelTxtMute, textAlign: "center", padding: "20px 0" }}>
+            {t('sideMenu.noSounds')}
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            {entries.map(([name, url]) => (
+              <div key={name} style={{
+                display: "flex", alignItems: "center", gap: 6,
+                padding: "6px 8px", borderRadius: 6, background: theme.chip,
+              }}>
+                <button
+                  type="button"
+                  onClick={() => play(url)}
+                  title={t('sideMenu.soundPlay')}
+                  style={{
+                    all: "unset", cursor: "pointer", flexShrink: 0,
+                    width: 24, height: 24, borderRadius: 4,
+                    display: "inline-flex", alignItems: "center", justifyContent: "center",
+                    color: theme.accent,
+                  }}
+                >
+                  <Icon name="play" size={14} color="currentColor" />
+                </button>
+                <span style={{
+                  flex: 1, fontFamily: theme.fontMono, fontSize: 12,
+                  color: theme.panelTxt, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                }}>
+                  {name}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => onRemoveSound(name)}
+                  title={t('sideMenu.soundRemove')}
+                  style={{
+                    all: "unset", cursor: "pointer", flexShrink: 0,
+                    width: 24, height: 24, borderRadius: 4,
+                    display: "inline-flex", alignItems: "center", justifyContent: "center",
+                    color: theme.panelTxtMute,
+                  }}
+                >
+                  <Icon name="trash" size={14} color="currentColor" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 

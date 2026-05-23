@@ -7,6 +7,7 @@ import GraphicsInit from "../assets/python/graphics/__init__.py?raw";
 import GraphicsActors from "../assets/python/graphics/actors/__init__.py?raw";
 import GraphicsAnimation from "../assets/python/graphics/animation.py?raw";
 import Linter from "../assets/python/linter.py?raw";
+import { libraryUrlMap, librarySoundUrlMap } from "../state/assets";
 
 type OutputLine = {
   kind: "stdout" | "stderr";
@@ -64,6 +65,7 @@ export const useRunnerStore = create<RunnerState>((set) => ({
         break;
       }
       case "result": {
+        stopAllSounds();
         set({ running: false, inputPrompt: null, canvasActive: false });
         break;
       }
@@ -98,6 +100,10 @@ export const useRunnerStore = create<RunnerState>((set) => ({
         set({ lintErrors: msg.diagnostics });
         break;
       }
+      case "sound": {
+        handleSoundEvent(msg.action, msg.name);
+        break;
+      }
       default: {
         const missing: never = msg;
         throw new Error(`missing ${missing}`);
@@ -106,10 +112,14 @@ export const useRunnerStore = create<RunnerState>((set) => ({
   },
 
   setRunning: (running) => set({ running }),
-  clear: () =>
-    set({ output: [], inputPrompt: null, running: false, canvasActive: false, lintErrors: [], canvasWidth: 0, canvasHeight: 0, canvasScale: 1 }),
-  stop: () =>
-    set({ inputPrompt: null, running: false, canvasActive: false }),
+  clear: () => {
+    stopAllSounds();
+    set({ output: [], inputPrompt: null, running: false, canvasActive: false, lintErrors: [], canvasWidth: 0, canvasHeight: 0, canvasScale: 1 });
+  },
+  stop: () => {
+    stopAllSounds();
+    set({ inputPrompt: null, running: false, canvasActive: false });
+  },
 
   respondToInput: (value) => {
     set({ inputPrompt: null });
@@ -119,6 +129,45 @@ export const useRunnerStore = create<RunnerState>((set) => ({
     } satisfies WorkerCommand);
   },
 }));
+
+// --- Audio (main thread) ---
+// URL map (sound name -> src) reset on each run. Each "play" allocates a fresh
+// element so overlapping plays work; we also keep the latest element per name
+// so pause/stop can target the most recent invocation.
+let soundUrlMap: Record<string, string> = {};
+const activeByName: Map<string, Set<HTMLAudioElement>> = new Map();
+
+function handleSoundEvent(action: "play" | "pause" | "loop" | "stop", name: string) {
+  if (action === "play" || action === "loop") {
+    const url = soundUrlMap[name];
+    if (!url) {
+      console.warn(`[RunnerProvider] unknown sound: ${name}`);
+      return;
+    }
+    const audio = new Audio(url);
+    audio.loop = action === "loop";
+    let bucket = activeByName.get(name);
+    if (!bucket) { bucket = new Set(); activeByName.set(name, bucket); }
+    bucket.add(audio);
+    audio.addEventListener("ended", () => bucket!.delete(audio));
+    audio.play().catch((err) => console.warn(`[RunnerProvider] sound play failed:`, err));
+    return;
+  }
+  const bucket = activeByName.get(name);
+  if (!bucket) return;
+  for (const a of bucket) {
+    a.pause();
+    if (action === "stop") a.currentTime = 0;
+  }
+  if (action === "stop") bucket.clear();
+}
+
+function stopAllSounds() {
+  for (const bucket of activeByName.values()) {
+    for (const a of bucket) { a.pause(); a.currentTime = 0; }
+  }
+  activeByName.clear();
+}
 
 // --- Worker singleton ---
 
@@ -338,12 +387,19 @@ export function useRunner() {
       useRunnerStore.getState().clear();
       useRunnerStore.getState().setRunning(true);
       outputQueue = [];
-      const { bitmaps, transferables } = await loadAssets(nameToUrl);
+      // Merge library packs into asset map (project names take precedence on conflict).
+      const mergedUrls = { ...libraryUrlMap(), ...nameToUrl };
+      const { bitmaps, transferables } = await loadAssets(mergedUrls);
       const { animations } = useEditor.getState().project;
       const { animBitmaps, animTransferables } = await loadAnimations(animations ?? {});
       const showHitboxes = useIde.getState().showHitboxes;
       const themePalette = useThemeStore.getState().theme.colorPalette;
-      const { tilemaps, theme: projectTheme } = useEditor.getState().project;
+      const { tilemaps, theme: projectTheme, sounds: projectSounds } = useEditor.getState().project;
+      // Reset audio state for this run and build the URL map
+      // (library sounds + project sounds; project takes precedence).
+      stopAllSounds();
+      soundUrlMap = { ...librarySoundUrlMap(), ...(projectSounds ?? {}) };
+      const soundNames = Object.keys(soundUrlMap);
       getWorker().postMessage(
         {
           cmd: "run",
@@ -352,6 +408,7 @@ export function useRunner() {
           assets: bitmaps,
           tilemaps,
           animations: animBitmaps,
+          soundNames,
           showHitboxes,
           themePalette,
           themeName: projectTheme,

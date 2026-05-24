@@ -6,30 +6,8 @@ import { useThemeStore } from '../../state/useTheme';
 import { Icon } from '../Icons';
 import { HandleAvatar } from './HandleAvatar';
 
-function Avatar({ seed, size = 28 }: { seed: string; size?: number }) {
-  return <HandleAvatar seed={seed} size={size} />;
-}
-
-function RoleTag({ role }: { role: string }) {
-  const { t } = useTranslation();
-  const theme = useThemeStore((s) => s.theme);
-  const isTeacher = role === 'teacher';
-  const color = isTeacher ? theme.runBg : theme.accent;
-  return (
-    <span style={{
-      display: 'inline-flex', alignItems: 'center', gap: 5,
-      padding: '2px 7px 2px 5px',
-      borderRadius: 999,
-      background: `${color}20`,
-      color: theme.panelTxt,
-      fontFamily: theme.fontUI, fontSize: 10, fontWeight: 700,
-      letterSpacing: 0.4, textTransform: 'uppercase',
-      flexShrink: 0,
-    }}>
-      <span style={{ width: 6, height: 6, borderRadius: 999, background: color, flexShrink: 0 }} />
-      {isTeacher ? t('auth.roleTeacher') : t('auth.roleStudent')}
-    </span>
-  );
+function Avatar({ seed, size = 28, role }: { seed: string; size?: number; role?: 'student' | 'teacher' }) {
+  return <HandleAvatar seed={seed} size={size} role={role} />;
 }
 
 // Inline chevron-down — not in Icons.tsx
@@ -71,7 +49,7 @@ function IdentityBlock({ user }: { user: { name: string; handle?: string | null;
       display: 'flex', alignItems: 'center', gap: 10,
       padding: '10px',
     }}>
-      <Avatar seed={user.handle ?? user.name} size={40} />
+      <Avatar seed={user.handle ?? user.name} size={40} role={user.role as 'student' | 'teacher'} />
       <div style={{ flex: 1, minWidth: 0 }}>
         <button
           type="button"
@@ -86,7 +64,7 @@ function IdentityBlock({ user }: { user: { name: string; handle?: string | null;
             maxWidth: '100%',
           }}
         >
-          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <span style={{ whiteSpace: 'nowrap' }}>
             @{handle || '—'}
           </span>
           {canCopy && (
@@ -109,7 +87,6 @@ function IdentityBlock({ user }: { user: { name: string; handle?: string | null;
           {user.name}
         </div>
       </div>
-      <RoleTag role={user.role} />
     </div>
   );
 }
@@ -206,7 +183,7 @@ export function UserMenu() {
           maxWidth: 280,
         }}
       >
-        <Avatar seed={user.handle ?? user.name} size={26} />
+        <Avatar seed={user.handle ?? user.name} size={26} role={user.role as 'student' | 'teacher'} />
         <span style={{
           fontSize: 13, fontWeight: 600,
           overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
@@ -214,7 +191,6 @@ export function UserMenu() {
         }}>
           {user.name}
         </span>
-        <RoleTag role={user.role} />
         <ChevronIcon color={theme.panelTxtMute} />
       </button>
 
@@ -222,7 +198,7 @@ export function UserMenu() {
       {open && (
         <div style={{
           position: 'absolute', right: 0, top: 'calc(100% + 7px)',
-          width: 250, zIndex: 50,
+          minWidth: 280, maxWidth: 360, width: 'max-content', zIndex: 50,
           background: theme.surfacePanel,
           border: `1px solid ${theme.panelBorder}`,
           borderRadius: theme.radiusCard + 6,

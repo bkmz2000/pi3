@@ -222,8 +222,8 @@ export function ProjectsPage() {
               </div>
             ) : (
               <div style={{
-                display: 'flex', flexDirection: 'column', gap: 8,
-                maxWidth: 760, margin: '0 auto',
+                display: 'flex', flexDirection: 'column', gap: 10,
+                maxWidth: 900, margin: '0 auto',
               }}>
                 {apiProjects.map((project) => (
                   <ProjectRow

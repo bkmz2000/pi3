@@ -131,7 +131,7 @@ export function ShareDialog({ open, onClose, projectId, projectName }: ShareDial
                 border: `1px solid ${theme.panelBorder}`,
                 borderRadius: 6,
               }}>
-                <HandleAvatar seed={picked.handle ?? picked.name} size={28} />
+                <HandleAvatar seed={picked.handle ?? picked.name} size={28} role={picked.role as 'student' | 'teacher'} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {picked.name}
@@ -204,7 +204,7 @@ export function ShareDialog({ open, onClose, projectId, projectName }: ShareDial
                           borderBottom: `1px solid ${theme.panelBorder}`,
                         }}
                       >
-                        <HandleAvatar seed={u.handle ?? u.name} size={24} />
+                        <HandleAvatar seed={u.handle ?? u.name} size={24} role={u.role as 'student' | 'teacher'} />
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontSize: 12.5, fontWeight: 600, color: theme.panelTxt, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             {u.name}

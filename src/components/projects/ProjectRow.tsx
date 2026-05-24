@@ -23,7 +23,7 @@ function hashStr(s: string): number {
 }
 
 // Build a gradient thumbnail seeded by project id, using two distinct hues + a simple geometric overlay
-function GradientThumb({ id, size }: { id: string; size: number }) {
+function GradientThumb({ id, width, height }: { id: string; width: number; height: number }) {
   const h = hashStr(id);
   const hue1 = h % 360;
   const hue2 = (hue1 + 60 + ((h >> 8) % 180)) % 360;
@@ -31,7 +31,7 @@ function GradientThumb({ id, size }: { id: string; size: number }) {
   const c1 = `hsl(${hue1} 70% 55%)`;
   const c2 = `hsl(${hue2} 70% 35%)`;
   return (
-    <svg width={size} height={size} viewBox="0 0 64 64" style={{ display: 'block', borderRadius: 6, flexShrink: 0 }}>
+    <svg width={width} height={height} viewBox="0 0 64 64" preserveAspectRatio="none" style={{ display: 'block', borderRadius: 6, flexShrink: 0 }}>
       <defs>
         <linearGradient id={`g-${id}`} x1="0" y1="0" x2="1" y2="1">
           <stop offset="0%" stopColor={c1} />
@@ -52,24 +52,24 @@ function GradientThumb({ id, size }: { id: string; size: number }) {
   );
 }
 
-function ProjectThumb({ project, size }: { project: Project; size: number }) {
+function ProjectThumb({ project, width, height }: { project: Project; width: number; height: number }) {
   const [failed, setFailed] = useState(false);
   if (project.thumbnail_updated_at && !failed) {
     return (
       <img
         src={`/api/projects/${project.id}/thumbnail?v=${project.thumbnail_updated_at}`}
-        width={size}
-        height={size}
+        width={width}
+        height={height}
         onError={() => setFailed(true)}
         style={{
-          width: size, height: size, borderRadius: 6, flexShrink: 0,
+          width, height, borderRadius: 6, flexShrink: 0,
           objectFit: 'cover', background: '#000', imageRendering: 'pixelated',
         }}
         alt=""
       />
     );
   }
-  return <GradientThumb id={project.id} size={size} />;
+  return <GradientThumb id={project.id} width={width} height={height} />;
 }
 
 function timeAgo(ts: number, lang: string): string {
@@ -110,8 +110,8 @@ export function ProjectRow({ project, onSelect, showManagement }: ProjectRowProp
         onMouseEnter={() => setHover(true)}
         onMouseLeave={() => setHover(false)}
         style={{
-          display: 'flex', alignItems: 'center', gap: 14,
-          padding: 12,
+          display: 'flex', alignItems: 'center', gap: 16,
+          padding: 14,
           background: hover ? theme.panelHeader : theme.surfacePanel,
           border: `1px solid ${hover ? theme.accent : theme.panelBorder}`,
           borderRadius: 7,
@@ -119,12 +119,12 @@ export function ProjectRow({ project, onSelect, showManagement }: ProjectRowProp
           transition: 'background 0.12s, border-color 0.12s',
         }}
       >
-        <ProjectThumb project={project} size={56} />
+        <ProjectThumb project={project} width={192} height={108} />
 
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{
-              fontWeight: 600, fontSize: 14, color: theme.panelTxt,
+              fontWeight: 700, fontSize: 16, color: theme.panelTxt,
               overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
             }}>
               {project.name}
@@ -140,14 +140,14 @@ export function ProjectRow({ project, onSelect, showManagement }: ProjectRowProp
           </div>
           {project.description ? (
             <div style={{
-              marginTop: 3, fontSize: 12, color: theme.panelTxtMute,
+              marginTop: 4, fontSize: 13, color: theme.panelTxtMute,
               overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
             }}>
               {project.description}
             </div>
           ) : null}
           <div style={{
-            marginTop: 3, fontSize: 11, color: theme.panelTxtMute,
+            marginTop: 6, fontSize: 12, color: theme.panelTxtMute,
           }}>
             {timeAgo(project.updated_at, i18n.language)}
           </div>

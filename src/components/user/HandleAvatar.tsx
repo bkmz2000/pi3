@@ -12,6 +12,9 @@ interface HandleAvatarProps {
   /** Right-half darkening overlay. Defaults to off for a flatter sticker look. */
   blackout?: boolean;
   round?: boolean;
+  /** When set, the background disc gets a fixed role-specific color so the avatar
+   *  doubles as a role indicator (teacher = teal, student = warm orange). */
+  role?: 'student' | 'teacher';
 }
 
 /**
@@ -25,13 +28,15 @@ export function HandleAvatar({
   backgroundColors,
   blackout = false,
   round = true,
+  role,
 }: HandleAvatarProps) {
   const theme = useThemeStore((s) => s.theme);
 
   // Library's playful pastels for the creature; app-themed darker discs so the
   // avatars sit against the UI without looking like a third-party widget.
   const palette = avatarColors ?? ['#d7b89c', '#b18272', '#ec8a90', '#a1Ac88', '#99c9bd', '#50c8c6', '#e7c382'];
-  const bgPalette = backgroundColors ?? [theme.chip, theme.surfacePanel, theme.panelHeader];
+  const roleBg = role === 'teacher' ? theme.runBg : role === 'student' ? theme.accent : null;
+  const bgPalette = backgroundColors ?? (roleBg ? [roleBg] : [theme.chip, theme.surfacePanel, theme.panelHeader]);
   const paletteKey = palette.join('|');
   const bgPaletteKey = bgPalette.join('|');
 

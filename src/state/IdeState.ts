@@ -10,7 +10,6 @@ import Catch from "../assets/examples/catch/catch.py?raw";
 import Robot from "../assets/examples/robot/robot.py?raw";
 import Swatches from "../assets/examples/swatches/swatches.py?raw";
 import Dungeon from "../assets/examples/dungeon/dungeon.py?raw";
-import ThemesDemo from "../assets/examples/themes/themes.py?raw";
 import Platformer from "../assets/examples/platformer/platformer.py?raw";
 import ShipSvg from "../assets/examples/asteroids/assets/ship.svg?url";
 import BulletSvg from "../assets/examples/asteroids/assets/bullet.svg?url";
@@ -31,8 +30,18 @@ export type TilemapLayer = {
   cells: Record<number, Record<number, string>>;
 };
 
+// Named cell-set zones brushed in the Tile Editor, used as collision/test
+// regions in Python. Stored as a flat list of [col, row] cells. Areas span
+// the whole tilemap and are not tied to a specific layer.
+export type TilemapArea = {
+  cells: Array<[number, number]>;
+};
+
 export type TilemapData = {
   layers: TilemapLayer[];
+  // Area name → cell-set. Names are validated as /^[a-z][a-z0-9_]*$/ in the
+  // editor so they map cleanly to Python attribute access (`level.areas.X`).
+  areas?: Record<string, TilemapArea>;
 };
 
 export type AnimationData = {
@@ -61,7 +70,6 @@ export type Project = {
   tilemaps: Record<string, TilemapData>;
   animations: Record<string, AnimationData>;
   sounds?: Record<string, string>;
-  theme?: string;
 };
 
 // Re-export adapter for convenience
@@ -133,13 +141,6 @@ const Examples: Record<string, Project> = {
     assets: {},
     tilemaps: {},
     animations: {},
-    theme: "dungeon",
-  },
-  themes: {
-    files: { "themes.py": ThemesDemo },
-    assets: {},
-    tilemaps: {},
-    animations: {},
   },
   platformer: {
     files: { "platformer.py": Platformer },
@@ -171,7 +172,6 @@ type EditorState = {
   deleteAnimation: (name: string) => void;
   addSound: (name: string, url: string) => void;
   removeSound: (name: string) => void;
-  setProjectTheme: (theme: string) => void;
   markClean: () => void;
 };
 
@@ -361,13 +361,6 @@ export const useEditor = create<EditorState>((set) => ({
       return { project: { ...s.project, sounds }, dirtyFiles: dirty };
     }),
 
-  setProjectTheme: (theme: string) =>
-    set((s) => {
-      const dirty = new Set(s.dirtyFiles);
-      dirty.add("*theme*");
-      return { project: { ...s.project, theme }, dirtyFiles: dirty };
-    }),
-
   markClean: () => set({ dirtyFiles: new Set() }),
 }));
 
@@ -505,7 +498,6 @@ export const useIde = create<IdeState>((set, get) => ({
       animations: exampleProject.animations,
       sounds: exampleProject.sounds,
       currentFile: exampleProject.currentFile,
-      theme: exampleProject.theme,
     });
 
     const { userProjects } = get();
@@ -536,7 +528,6 @@ export const useIde = create<IdeState>((set, get) => ({
         animations: project.animations,
         sounds: project.sounds,
         currentFile: useEditor.getState().currentFile,
-        theme: project.theme,
       });
 
       // Update the local cache

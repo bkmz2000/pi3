@@ -241,7 +241,10 @@
     "description": "Описание",
     "optional": "необязательно",
     "returns": "Возвращает",
-    "advanced": "Подробнее"
+    "advanced": "Подробнее",
+    "tabConcepts": "Понятия",
+    "tabRecipes": "Рецепты",
+    "tabReference": "Справочник"
   },
   "teacher": {
     "dashboard": "Панель учителя",

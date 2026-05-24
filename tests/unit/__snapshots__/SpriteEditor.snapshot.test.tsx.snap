@@ -124,40 +124,6 @@ exports[`SpriteEditor - Snapshot Tests renders correctly when open 1`] = `
           </div>
         </div>
         <div
-          style="width: 1px; height: 20px; background: rgba(148, 210, 216, 0.14); margin: 0px 2px;"
-        />
-        <label
-          style="display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: rgb(155, 179, 184); text-transform: uppercase; letter-spacing: 0.5px;"
-        >
-          Theme
-          <select
-            data-testid="sprite-theme-select"
-            disabled=""
-            style="font-family: "Inter", system-ui, sans-serif; font-size: 11px; color: rgb(232, 242, 244); background: rgb(17, 68, 75); border: 1px solid rgba(148, 210, 216, 0.14); border-radius: 3px; padding: 2px 4px; outline: none;"
-          >
-            <option
-              value="default"
-            >
-              default
-            </option>
-            <option
-              value="summer"
-            >
-              summer
-            </option>
-            <option
-              value="dungeon"
-            >
-              dungeon
-            </option>
-            <option
-              value="moonlit"
-            >
-              moonlit
-            </option>
-          </select>
-        </label>
-        <div
           style="flex: 1 1 0%;"
         />
         <div
@@ -797,40 +763,6 @@ exports[`SpriteEditor - Snapshot Tests renders with custom size 128 1`] = `
             </button>
           </div>
         </div>
-        <div
-          style="width: 1px; height: 20px; background: rgba(148, 210, 216, 0.14); margin: 0px 2px;"
-        />
-        <label
-          style="display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: rgb(155, 179, 184); text-transform: uppercase; letter-spacing: 0.5px;"
-        >
-          Theme
-          <select
-            data-testid="sprite-theme-select"
-            disabled=""
-            style="font-family: "Inter", system-ui, sans-serif; font-size: 11px; color: rgb(232, 242, 244); background: rgb(17, 68, 75); border: 1px solid rgba(148, 210, 216, 0.14); border-radius: 3px; padding: 2px 4px; outline: none;"
-          >
-            <option
-              value="default"
-            >
-              default
-            </option>
-            <option
-              value="summer"
-            >
-              summer
-            </option>
-            <option
-              value="dungeon"
-            >
-              dungeon
-            </option>
-            <option
-              value="moonlit"
-            >
-              moonlit
-            </option>
-          </select>
-        </label>
         <div
           style="flex: 1 1 0%;"
         />
@@ -1472,40 +1404,6 @@ exports[`SpriteEditor - Snapshot Tests renders with default props 1`] = `
           </div>
         </div>
         <div
-          style="width: 1px; height: 20px; background: rgba(148, 210, 216, 0.14); margin: 0px 2px;"
-        />
-        <label
-          style="display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: rgb(155, 179, 184); text-transform: uppercase; letter-spacing: 0.5px;"
-        >
-          Theme
-          <select
-            data-testid="sprite-theme-select"
-            disabled=""
-            style="font-family: "Inter", system-ui, sans-serif; font-size: 11px; color: rgb(232, 242, 244); background: rgb(17, 68, 75); border: 1px solid rgba(148, 210, 216, 0.14); border-radius: 3px; padding: 2px 4px; outline: none;"
-          >
-            <option
-              value="default"
-            >
-              default
-            </option>
-            <option
-              value="summer"
-            >
-              summer
-            </option>
-            <option
-              value="dungeon"
-            >
-              dungeon
-            </option>
-            <option
-              value="moonlit"
-            >
-              moonlit
-            </option>
-          </select>
-        </label>
-        <div
           style="flex: 1 1 0%;"
         />
         <div
@@ -2145,40 +2043,6 @@ exports[`SpriteEditor - Snapshot Tests renders with initial name 1`] = `
             </button>
           </div>
         </div>
-        <div
-          style="width: 1px; height: 20px; background: rgba(148, 210, 216, 0.14); margin: 0px 2px;"
-        />
-        <label
-          style="display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: rgb(155, 179, 184); text-transform: uppercase; letter-spacing: 0.5px;"
-        >
-          Theme
-          <select
-            data-testid="sprite-theme-select"
-            disabled=""
-            style="font-family: "Inter", system-ui, sans-serif; font-size: 11px; color: rgb(232, 242, 244); background: rgb(17, 68, 75); border: 1px solid rgba(148, 210, 216, 0.14); border-radius: 3px; padding: 2px 4px; outline: none;"
-          >
-            <option
-              value="default"
-            >
-              default
-            </option>
-            <option
-              value="summer"
-            >
-              summer
-            </option>
-            <option
-              value="dungeon"
-            >
-              dungeon
-            </option>
-            <option
-              value="moonlit"
-            >
-              moonlit
-            </option>
-          </select>
-        </label>
         <div
           style="flex: 1 1 0%;"
         />

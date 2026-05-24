@@ -3,14 +3,46 @@ import { Stage, Layer, Rect as KRect, Image as KImage, Line as KLine } from "rea
 import type Konva from "konva";
 import type { KonvaEventObject } from "konva/lib/Node";
 import { useThemeStore } from "./state/useTheme";
-import type { TilemapData, TilemapLayer } from "./state/IdeState";
+import type { TilemapData, TilemapLayer, TilemapArea } from "./state/IdeState";
 import { useEditor } from "./state/IdeState";
 import { Icon } from "./components/Icons";
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
 type Tool = "paint" | "erase" | "fill" | "hand";
+type Mode = "tiles" | "areas";
 type LayerVis = Record<number, boolean>;
+// Internal area cell representation reuses the layer cell shape (placeholder
+// value "1" means "in area") so the paint/erase/fill helpers work unchanged.
+type AreaCells = Record<number, Record<number, string>>;
+
+const AREA_NAME_RE = /^[a-z][a-z0-9_]*$/;
+
+function areaCellsFromList(cells: Array<[number, number]>): AreaCells {
+  const out: AreaCells = {};
+  for (const [c, r] of cells) {
+    if (!out[c]) out[c] = {};
+    out[c][r] = "1";
+  }
+  return out;
+}
+
+function areaCellsToList(cells: AreaCells): Array<[number, number]> {
+  const out: Array<[number, number]> = [];
+  for (const [colStr, rows] of Object.entries(cells)) {
+    const col = Number(colStr);
+    for (const rowStr of Object.keys(rows)) out.push([col, Number(rowStr)]);
+  }
+  return out;
+}
+
+// Deterministic HSL color from area name — distinct hues without a palette table.
+function areaColor(name: string): { fill: string; stroke: string } {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
+  const hue = h % 360;
+  return { fill: `hsla(${hue}, 75%, 55%, 0.35)`, stroke: `hsla(${hue}, 75%, 55%, 0.85)` };
+}
 
 // Encode/decode cell keys
 const cellKey = (col: number, row: number) => `${col},${row}`;
@@ -111,8 +143,10 @@ function loadImage(url: string): Promise<HTMLImageElement> {
   });
 }
 
-// ── Layer cells snapshot for undo ────────────────────────────────────────────
-type UndoEntry = { layerIdx: number; cells: Record<number, Record<number, string>> };
+// ── Layer/area cells snapshot for undo ──────────────────────────────────────
+type UndoEntry =
+  | { kind: "layer"; layerIdx: number; cells: Record<number, Record<number, string>> }
+  | { kind: "area"; areaName: string; cells: AreaCells };
 
 // ── Main component ───────────────────────────────────────────────────────────
 interface TileEditorProps {
@@ -142,6 +176,28 @@ export default function TileEditor({ open, initialName, onClose, onSave, onNewSp
   // ── Tool state ─────────────────────────────────────────────────────────────
   const [tool, setTool] = useState<Tool>("paint");
   const [activeSprite, setActiveSprite] = useState<string | null>(null);
+
+  // ── Areas state ────────────────────────────────────────────────────────────
+  const [mode, setMode] = useState<Mode>("tiles");
+  const [areas, setAreas] = useState<Record<string, AreaCells>>(() => {
+    const existing = initialName ? projectTilemaps[initialName] : null;
+    const src = existing?.areas ?? {};
+    const out: Record<string, AreaCells> = {};
+    for (const [name, area] of Object.entries(src)) out[name] = areaCellsFromList(area.cells);
+    return out;
+  });
+  const [activeAreaName, setActiveAreaName] = useState<string | null>(null);
+  const [editingAreaName, setEditingAreaName] = useState<string | null>(null);
+  const [renameAreaValue, setRenameAreaValue] = useState("");
+
+  // When entering areas mode without an active area, auto-pick the first one
+  // so paint/erase/fill have a target.
+  useEffect(() => {
+    if (mode !== "areas") return;
+    if (activeAreaName && areas[activeAreaName]) return;
+    const first = Object.keys(areas)[0];
+    if (first) setActiveAreaName(first);
+  }, [mode, activeAreaName, areas]);
 
   // ── Canvas pan ────────────────────────────────────────────────────────────
   const stageRef = useRef<Konva.Stage>(null);
@@ -202,32 +258,62 @@ export default function TileEditor({ open, initialName, onClose, onSave, onNewSp
   }, [open]);
 
   // ── Undo/redo ─────────────────────────────────────────────────────────────
-  const commit = useCallback((layerIdx: number, newCells: Record<number, Record<number, string>>) => {
+  const commitLayer = useCallback((layerIdx: number, newCells: Record<number, Record<number, string>>) => {
     setLayers(prev => prev.map((l, i) => i === layerIdx ? { ...l, cells: newCells } : l));
     setHistory(prev => {
       const trimmed = prev.slice(0, historyIdx + 1);
-      return [...trimmed, { layerIdx, cells: newCells }].slice(-100);
+      const entry: UndoEntry = { kind: "layer", layerIdx, cells: newCells };
+      return [...trimmed, entry].slice(-100);
     });
     setHistoryIdx(prev => Math.min(prev + 1, 99));
   }, [historyIdx]);
 
+  const commitArea = useCallback((areaName: string, newCells: AreaCells) => {
+    setAreas(prev => ({ ...prev, [areaName]: newCells }));
+    setHistory(prev => {
+      const trimmed = prev.slice(0, historyIdx + 1);
+      const entry: UndoEntry = { kind: "area", areaName, cells: newCells };
+      return [...trimmed, entry].slice(-100);
+    });
+    setHistoryIdx(prev => Math.min(prev + 1, 99));
+  }, [historyIdx]);
+
+  // Walk history backwards from a given index to find the prior state of the
+  // same target — undo restores to the latest matching entry, or empty if none.
+  const findPriorEntry = useCallback((idx: number, target: UndoEntry): UndoEntry | null => {
+    for (let i = idx - 1; i >= 0; i--) {
+      const e = history[i];
+      if (target.kind === "layer" && e.kind === "layer" && e.layerIdx === target.layerIdx) return e;
+      if (target.kind === "area" && e.kind === "area" && e.areaName === target.areaName) return e;
+    }
+    return null;
+  }, [history]);
+
   const undo = useCallback(() => {
     if (historyIdx < 0) return;
     const entry = history[historyIdx];
-    const prevCells = historyIdx > 0 ? history[historyIdx - 1].cells : {};
-    if (entry) {
-      setLayers(prev => prev.map((l, i) => i === entry.layerIdx ? { ...l, cells: prevCells } : l));
-      setHistoryIdx(hi => hi - 1);
+    if (!entry) return;
+    const prior = findPriorEntry(historyIdx, entry);
+    if (entry.kind === "layer") {
+      const prev = prior && prior.kind === "layer" ? prior.cells : {};
+      setLayers(p => p.map((l, i) => i === entry.layerIdx ? { ...l, cells: prev } : l));
+    } else {
+      const prev = prior && prior.kind === "area" ? prior.cells : {};
+      setAreas(p => ({ ...p, [entry.areaName]: prev }));
     }
-  }, [history, historyIdx]);
+    setHistoryIdx(hi => hi - 1);
+  }, [history, historyIdx, findPriorEntry]);
 
   const redo = useCallback(() => {
     if (historyIdx >= history.length - 1) return;
     const entry = history[historyIdx + 1];
-    if (entry) {
-      setLayers(prev => prev.map((l, i) => i === entry.layerIdx ? { ...l, cells: entry.cells } : l));
-      setHistoryIdx(hi => hi + 1);
+    if (!entry) return;
+    if (entry.kind === "layer") {
+      setLayers(p => p.map((l, i) => i === entry.layerIdx ? { ...l, cells: entry.cells } : l));
+    } else {
+      setAreas(p => ({ ...p, [entry.areaName]: entry.cells }));
     }
+    setHistoryIdx(hi => hi + 1);
   }, [history, historyIdx]);
 
   // Use refs so the keyboard handler can call latest undo/redo without stale closure
@@ -297,6 +383,17 @@ export default function TileEditor({ open, initialName, onClose, onSave, onNewSp
       const snappedRow = horizontal ? start.row : row;
       setGhostCell({ col: snappedCol, row: snappedRow });
 
+      if (mode === "areas" && activeAreaName) {
+        const baseCells = strokeStartCells.current ?? areas[activeAreaName] ?? {};
+        const setApply = (c: AreaCells, cl: number, rw: number) => cellsSet(c, cl, rw, "1");
+        const apply = tool === "erase" ? cellsDel : tool === "paint" ? setApply : null;
+        if (apply) {
+          const newCells = applyLine(baseCells, start, { col: snappedCol, row: snappedRow }, apply);
+          setAreas(prev => ({ ...prev, [activeAreaName]: newCells }));
+        }
+        return;
+      }
+
       const baseCells = strokeStartCells.current ?? layers[activeLayerIdx].cells;
       if (tool === "paint" && activeSprite) {
         const newCells = applyLine(baseCells, start, { col: snappedCol, row: snappedRow },
@@ -313,6 +410,21 @@ export default function TileEditor({ open, initialName, onClose, onSave, onNewSp
 
     if (!paintingRef.current) return;
 
+    if (mode === "areas") {
+      if (!activeAreaName) return;
+      const cur = areas[activeAreaName] ?? {};
+      if (tool === "paint") {
+        if (cellsGet(cur, col, row) !== "1") {
+          setAreas(prev => ({ ...prev, [activeAreaName]: cellsSet(cur, col, row, "1") }));
+        }
+      } else if (tool === "erase") {
+        if (cellsGet(cur, col, row) !== undefined) {
+          setAreas(prev => ({ ...prev, [activeAreaName]: cellsDel(cur, col, row) }));
+        }
+      }
+      return;
+    }
+
     const layer = layers[activeLayerIdx];
     if (tool === "paint" && activeSprite) {
       if (cellsGet(layer.cells, col, row) !== activeSprite) {
@@ -327,7 +439,7 @@ export default function TileEditor({ open, initialName, onClose, onSave, onNewSp
         ));
       }
     }
-  }, [layers, activeLayerIdx, tool, activeSprite, getCell]);
+  }, [layers, activeLayerIdx, tool, activeSprite, getCell, mode, areas, activeAreaName]);
 
   const handleStageMouseDown = useCallback((e: KonvaEventObject<MouseEvent>) => {
     const pos = stageRef.current?.getPointerPosition();
@@ -343,6 +455,29 @@ export default function TileEditor({ open, initialName, onClose, onSave, onNewSp
 
     const [col, row] = getCell(pos.x, pos.y);
     lineStartCellRef.current = { col, row };
+
+    if (mode === "areas") {
+      if (!activeAreaName) return;
+      const cur = areas[activeAreaName] ?? {};
+      if (e.evt.button === 2 || tool === "erase") {
+        strokeStartCells.current = cur;
+        paintingRef.current = true;
+        setAreas(prev => ({ ...prev, [activeAreaName]: cellsDel(cur, col, row) }));
+        return;
+      }
+      if (tool === "fill") {
+        const newCells = floodFill(cur, col, row, "1");
+        if (newCells) commitArea(activeAreaName, newCells);
+        return;
+      }
+      if (tool === "paint") {
+        strokeStartCells.current = cur;
+        paintingRef.current = true;
+        setAreas(prev => ({ ...prev, [activeAreaName]: cellsSet(cur, col, row, "1") }));
+      }
+      return;
+    }
+
     const layer = layers[activeLayerIdx];
 
     if (e.evt.button === 2 || tool === "erase") {
@@ -356,7 +491,7 @@ export default function TileEditor({ open, initialName, onClose, onSave, onNewSp
 
     if (tool === "fill") {
       const newCells = floodFill(layer.cells, col, row, activeSprite ?? "");
-      if (newCells) commit(activeLayerIdx, newCells);
+      if (newCells) commitLayer(activeLayerIdx, newCells);
       return;
     }
 
@@ -367,33 +502,31 @@ export default function TileEditor({ open, initialName, onClose, onSave, onNewSp
         i === activeLayerIdx ? { ...l, cells: cellsSet(l.cells, col, row, activeSprite) } : l
       ));
     }
-  }, [layers, activeLayerIdx, tool, activeSprite, getCell, commit]);
+  }, [layers, activeLayerIdx, tool, activeSprite, getCell, commitLayer, mode, areas, activeAreaName, commitArea]);
+
+  const finishStroke = useCallback(() => {
+    if (!paintingRef.current || strokeStartCells.current === null) return;
+    if (mode === "areas" && activeAreaName) {
+      const newCells = areas[activeAreaName];
+      if (newCells && newCells !== strokeStartCells.current) commitArea(activeAreaName, newCells);
+    } else {
+      const newCells = layers[activeLayerIdx]?.cells;
+      if (newCells && newCells !== strokeStartCells.current) commitLayer(activeLayerIdx, newCells);
+    }
+    strokeStartCells.current = null;
+    paintingRef.current = false;
+    lineStartCellRef.current = null;
+  }, [layers, activeLayerIdx, commitLayer, mode, areas, activeAreaName, commitArea]);
 
   const handleStageMouseUp = useCallback(() => {
     if (panningRef.current) { panningRef.current = false; setIsPanning(false); return; }
-    if (paintingRef.current && strokeStartCells.current !== null) {
-      const newCells = layers[activeLayerIdx]?.cells;
-      if (newCells && newCells !== strokeStartCells.current) {
-        commit(activeLayerIdx, newCells);
-      }
-      strokeStartCells.current = null;
-      paintingRef.current = false;
-      lineStartCellRef.current = null;
-    }
-  }, [layers, activeLayerIdx, commit]);
+    finishStroke();
+  }, [finishStroke]);
 
   const handleStageMouseLeave = useCallback(() => {
     setGhostCell(null);
-    if (paintingRef.current && strokeStartCells.current !== null) {
-      const newCells = layers[activeLayerIdx]?.cells;
-      if (newCells && newCells !== strokeStartCells.current) {
-        commit(activeLayerIdx, newCells);
-      }
-      strokeStartCells.current = null;
-      paintingRef.current = false;
-      lineStartCellRef.current = null;
-    }
-  }, [layers, activeLayerIdx, commit]);
+    finishStroke();
+  }, [finishStroke]);
 
   const handleContextMenu = (e: KonvaEventObject<MouseEvent>) => e.evt.preventDefault();
 
@@ -481,10 +614,37 @@ export default function TileEditor({ open, initialName, onClose, onSave, onNewSp
               style={{ all: "unset", width: 100, fontFamily: theme.fontMono, fontSize: 12, color: theme.panelTxt }}
             />
           </div>
+          {/* Mode toggle (Tiles / Areas) */}
+          <div style={{
+            display: "inline-flex", alignItems: "center", borderRadius: 4,
+            border: `1px solid ${theme.panelBorder}`, height: 26, overflow: "hidden",
+          }}>
+            {(["tiles", "areas"] as Mode[]).map(m => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => setMode(m)}
+                style={{
+                  all: "unset", cursor: "pointer",
+                  padding: "0 10px", height: 24, fontSize: 12, fontFamily: theme.fontUI,
+                  background: mode === m ? theme.accent : "transparent",
+                  color: mode === m ? "#fff" : theme.panelTxt,
+                }}
+              >
+                {m === "tiles" ? "Tiles" : "Areas"}
+              </button>
+            ))}
+          </div>
           <div style={{ flex: 1 }} />
           <button
             type="button"
-            onClick={() => onSave(mapName.trim() || "level1", { layers })}
+            onClick={() => {
+              const serializedAreas: Record<string, TilemapArea> = {};
+              for (const [name, cells] of Object.entries(areas)) {
+                serializedAreas[name] = { cells: areaCellsToList(cells) };
+              }
+              onSave(mapName.trim() || "level1", { layers, areas: serializedAreas });
+            }}
             style={{
               all: "unset", cursor: "pointer", padding: "4px 10px",
               background: theme.runBg, color: theme.runTxt, borderRadius: 4,
@@ -602,7 +762,48 @@ export default function TileEditor({ open, initialName, onClose, onSave, onNewSp
 
                 {gridLines}
 
-                {ghostCell && activeSprite && tool === "paint" && (() => {
+                {/* Area overlays — visible in both modes, more saturated for the active area */}
+                {Object.entries(areas).flatMap(([name, cells]) => {
+                  const active = mode === "areas" && name === activeAreaName;
+                  const c = areaColor(name);
+                  const baseOpacity = active ? 1 : mode === "areas" ? 0.4 : 0.5;
+                  return Object.entries(cells).flatMap(([colStr, rows]) => {
+                    const col = Number(colStr);
+                    const sx = pan.x + col * ts;
+                    if (sx + ts < 0 || sx > stageSize.w) return [];
+                    return Object.keys(rows).map(rowStr => {
+                      const row = Number(rowStr);
+                      const sy = pan.y + row * ts;
+                      if (sy + ts < 0 || sy > stageSize.h) return null;
+                      return (
+                        <KRect
+                          key={`area-${name}-${col}-${row}`}
+                          x={sx} y={sy} width={ts} height={ts}
+                          fill={c.fill}
+                          stroke={active ? c.stroke : undefined}
+                          strokeWidth={active ? 1 : 0}
+                          opacity={baseOpacity}
+                          listening={false}
+                        />
+                      );
+                    }).filter(Boolean);
+                  });
+                })}
+
+                {ghostCell && mode === "areas" && activeAreaName && tool === "paint" && (() => {
+                  const c = areaColor(activeAreaName);
+                  return (
+                    <KRect
+                      x={pan.x + ghostCell.col * ts} y={pan.y + ghostCell.row * ts}
+                      width={ts} height={ts}
+                      fill={c.fill} stroke={c.stroke} strokeWidth={1}
+                      opacity={0.6}
+                      listening={false}
+                    />
+                  );
+                })()}
+
+                {ghostCell && mode === "tiles" && activeSprite && tool === "paint" && (() => {
                   const img = spriteImages[activeSprite];
                   const gx = pan.x + ghostCell.col * ts;
                   const gy = pan.y + ghostCell.row * ts;
@@ -722,53 +923,169 @@ export default function TileEditor({ open, initialName, onClose, onSave, onNewSp
               })}
             </div>
 
-            {/* Sprites */}
-            <div style={{
-              padding: "8px 10px 6px",
-              borderTop: `1px solid ${theme.panelBorder}`,
-              borderBottom: `1px solid ${theme.panelBorder}`,
-              display: "flex", alignItems: "center", justifyContent: "space-between",
-            }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: theme.panelTxtMute, textTransform: "uppercase", letterSpacing: 0.5 }}>Sprites</span>
-              {onNewSprite && (
-                <button
-                  type="button"
-                  title="New sprite"
-                  onClick={onNewSprite}
-                  style={{ all: "unset", cursor: "pointer", display: "flex", alignItems: "center", color: theme.panelTxtMute }}
-                >
-                  <Icon name="plus" size={13} color="currentColor" />
-                </button>
-              )}
-            </div>
-            <div style={{ flex: 1, overflowY: "auto", padding: "6px 8px 8px" }}>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 4 }}>
-                {Object.entries(allSprites).map(([name, url]) => {
-                  const img = spriteImages[name];
-                  const isSelected = activeSprite === name;
-                  return (
+            {mode === "tiles" ? (
+              <>
+                {/* Sprites */}
+                <div style={{
+                  padding: "8px 10px 6px",
+                  borderTop: `1px solid ${theme.panelBorder}`,
+                  borderBottom: `1px solid ${theme.panelBorder}`,
+                  display: "flex", alignItems: "center", justifyContent: "space-between",
+                }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: theme.panelTxtMute, textTransform: "uppercase", letterSpacing: 0.5 }}>Sprites</span>
+                  {onNewSprite && (
                     <button
-                      key={name}
                       type="button"
-                      title={name}
-                      onClick={() => { setActiveSprite(name); setTool("paint"); }}
-                      style={{
-                        all: "unset", cursor: "pointer", aspectRatio: "1/1",
-                        borderRadius: 4, overflow: "hidden",
-                        boxShadow: isSelected ? `0 0 0 2px ${theme.accent}` : `0 0 0 1px ${theme.panelBorder}`,
-                        background: theme.surface,
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                      }}
+                      title="New sprite"
+                      onClick={onNewSprite}
+                      style={{ all: "unset", cursor: "pointer", display: "flex", alignItems: "center", color: theme.panelTxtMute }}
                     >
-                      {img
-                        ? <img src={url} alt={name} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
-                        : <span style={{ fontSize: 8, fontFamily: theme.fontUI, color: theme.panelTxtMute }}>{name.slice(0, 4)}</span>
-                      }
+                      <Icon name="plus" size={13} color="currentColor" />
                     </button>
-                  );
-                })}
-              </div>
-            </div>
+                  )}
+                </div>
+                <div style={{ flex: 1, overflowY: "auto", padding: "6px 8px 8px" }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 4 }}>
+                    {Object.entries(allSprites).map(([name, url]) => {
+                      const img = spriteImages[name];
+                      const isSelected = activeSprite === name;
+                      return (
+                        <button
+                          key={name}
+                          type="button"
+                          title={name}
+                          onClick={() => { setActiveSprite(name); setTool("paint"); }}
+                          style={{
+                            all: "unset", cursor: "pointer", aspectRatio: "1/1",
+                            borderRadius: 4, overflow: "hidden",
+                            boxShadow: isSelected ? `0 0 0 2px ${theme.accent}` : `0 0 0 1px ${theme.panelBorder}`,
+                            background: theme.surface,
+                            display: "flex", alignItems: "center", justifyContent: "center",
+                          }}
+                        >
+                          {img
+                            ? <img src={url} alt={name} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+                            : <span style={{ fontSize: 8, fontFamily: theme.fontUI, color: theme.panelTxtMute }}>{name.slice(0, 4)}</span>
+                          }
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                {/* Areas */}
+                <div style={{
+                  padding: "8px 10px 6px",
+                  borderTop: `1px solid ${theme.panelBorder}`,
+                  borderBottom: `1px solid ${theme.panelBorder}`,
+                  display: "flex", alignItems: "center", justifyContent: "space-between",
+                }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: theme.panelTxtMute, textTransform: "uppercase", letterSpacing: 0.5 }}>Areas</span>
+                  <button
+                    type="button"
+                    title="Add area"
+                    onClick={() => {
+                      const raw = window.prompt("Area name (snake_case, e.g. floor, boss_arena):");
+                      if (!raw) return;
+                      const name = raw.trim();
+                      if (!AREA_NAME_RE.test(name)) {
+                        window.alert("Invalid name. Use lowercase letters, digits, and underscores; must start with a letter.");
+                        return;
+                      }
+                      if (areas[name]) {
+                        window.alert(`Area "${name}" already exists.`);
+                        return;
+                      }
+                      setAreas(prev => ({ ...prev, [name]: {} }));
+                      setActiveAreaName(name);
+                    }}
+                    style={{ all: "unset", cursor: "pointer", display: "flex", alignItems: "center", color: theme.panelTxtMute }}
+                  >
+                    <Icon name="plus" size={13} color="currentColor" />
+                  </button>
+                </div>
+                <div style={{ flex: 1, overflowY: "auto" }}>
+                  {Object.keys(areas).length === 0 && (
+                    <div style={{ padding: "12px 10px", fontSize: 11, color: theme.panelTxtMute, lineHeight: 1.5 }}>
+                      No areas yet. Click + to create one, then brush cells onto it. Access in Python as <code style={{ fontFamily: theme.fontMono }}>level.areas.&lt;name&gt;</code>.
+                    </div>
+                  )}
+                  {Object.keys(areas).map(name => {
+                    const isActive = name === activeAreaName;
+                    const c = areaColor(name);
+                    const count = Object.values(areas[name] ?? {}).reduce((acc, rows) => acc + Object.keys(rows).length, 0);
+                    return (
+                      <div
+                        key={name}
+                        onClick={() => setActiveAreaName(name)}
+                        style={{
+                          display: "flex", alignItems: "center", gap: 6, padding: "5px 8px", cursor: "pointer",
+                          background: isActive ? theme.railActiveBg : "transparent",
+                          borderLeft: isActive ? `3px solid ${theme.accent}` : "3px solid transparent",
+                        }}
+                      >
+                        <div style={{
+                          width: 12, height: 12, borderRadius: 3,
+                          background: c.fill, border: `1px solid ${c.stroke}`, flexShrink: 0,
+                        }} />
+                        {editingAreaName === name ? (
+                          <input
+                            autoFocus
+                            value={renameAreaValue}
+                            onChange={e => setRenameAreaValue(e.target.value)}
+                            onBlur={() => {
+                              const next = renameAreaValue.trim();
+                              if (!next || next === name) { setEditingAreaName(null); return; }
+                              if (!AREA_NAME_RE.test(next)) { window.alert("Invalid name."); setEditingAreaName(null); return; }
+                              if (areas[next]) { window.alert(`Area "${next}" already exists.`); setEditingAreaName(null); return; }
+                              setAreas(prev => {
+                                const out: Record<string, AreaCells> = {};
+                                for (const [k, v] of Object.entries(prev)) out[k === name ? next : k] = v;
+                                return out;
+                              });
+                              if (activeAreaName === name) setActiveAreaName(next);
+                              setEditingAreaName(null);
+                            }}
+                            onKeyDown={e => {
+                              if (e.key === "Enter") e.currentTarget.blur();
+                              if (e.key === "Escape") setEditingAreaName(null);
+                            }}
+                            style={{ flex: 1, fontSize: 12, fontFamily: theme.fontMono, background: theme.surface, color: theme.panelTxt, border: "none", outline: "none", minWidth: 0 }}
+                          />
+                        ) : (
+                          <span
+                            style={{ flex: 1, fontSize: 12, fontFamily: theme.fontMono, color: theme.panelTxt, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                            onDoubleClick={() => { setEditingAreaName(name); setRenameAreaValue(name); }}
+                          >
+                            {name}
+                          </span>
+                        )}
+                        <span style={{ fontSize: 10, color: theme.panelTxtMute, fontFamily: theme.fontMono }}>{count}</span>
+                        <button
+                          type="button"
+                          title="Delete area"
+                          style={{ all: "unset", cursor: "pointer", color: "#ef4444", display: "flex" }}
+                          onClick={e => {
+                            e.stopPropagation();
+                            if (!window.confirm(`Delete area "${name}"?`)) return;
+                            setAreas(prev => {
+                              const out = { ...prev };
+                              delete out[name];
+                              return out;
+                            });
+                            if (activeAreaName === name) setActiveAreaName(null);
+                          }}
+                        >
+                          <Icon name="close" size={11} color="currentColor" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>

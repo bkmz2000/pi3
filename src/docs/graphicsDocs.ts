@@ -7,6 +7,8 @@ export type DocParam = {
   ru: string;
 };
 
+export type DocSwatch = { name: string; rgb: [number, number, number] };
+
 export type DocEntry = {
   id: string;
   name: string;
@@ -19,6 +21,8 @@ export type DocEntry = {
   example?: string;
   // Long-form notes shown in a collapsed "Advanced" section.
   advanced?: { en: string; ru: string };
+  // Optional color swatches rendered as a grid (e.g. for the Colors entry).
+  swatches?: DocSwatch[];
 };
 
 export type DocCategory = {
@@ -39,8 +43,13 @@ export const DOCS: DocCategory[] = [
         id: "size",
         name: "size",
         signature: "size(w, h)",
-        en: "Set the size of the canvas window.",
-        ru: "Устанавливает размер окна холста.",
+        en: "Set the canvas window size in pixels.",
+        ru: "Задаёт размер окна холста в пикселях.",
+        example: "size(400, 300)",
+        advanced: {
+          en: "Usually called once at the top of your script before any drawing. Calling it later resizes the canvas; subsequent draws use the new dimensions. Floats are accepted but stored as ints. The Window singleton exposes the same as Window.size(w, h).",
+          ru: "Обычно вызывается один раз в начале программы до отрисовки. Повторный вызов меняет размер холста; последующие вызовы рисования используют новые размеры. Float-значения принимаются, но хранятся как int. Объект Window предоставляет тот же метод: Window.size(w, h).",
+        },
         params: [
           { name: "w", type: "number", en: "Width in pixels.", ru: "Ширина в пикселях." },
           { name: "h", type: "number", en: "Height in pixels.", ru: "Высота в пикселях." },
@@ -52,6 +61,11 @@ export const DOCS: DocCategory[] = [
         signature: "width()",
         en: "Returns the current canvas width in pixels.",
         ru: "Возвращает текущую ширину холста в пикселях.",
+        example: "# Center horizontally\ncircle(width() / 2, 100, 20)",
+        advanced: {
+          en: "Reflects the current size — if you call size() to resize, width() returns the new value. Cheap to call every frame; use it for responsive layout instead of hard-coding pixel values. Same as Window.width.",
+          ru: "Отражает текущий размер — после вызова size() возвращает новое значение. Дешёвый вызов; используйте для адаптивного расположения вместо жёстко заданных пикселей. То же, что Window.width.",
+        },
         returns: { type: "number", en: "Canvas width.", ru: "Ширина холста." },
       },
       {
@@ -60,6 +74,11 @@ export const DOCS: DocCategory[] = [
         signature: "height()",
         en: "Returns the current canvas height in pixels.",
         ru: "Возвращает текущую высоту холста в пикселях.",
+        example: "# Draw at the center of the canvas\ncircle(width() / 2, height() / 2, 20)",
+        advanced: {
+          en: "Reflects the current size after size() calls. Pair with width() to position things relative to the canvas. Same as Window.height.",
+          ru: "Отражает текущий размер после вызовов size(). Используйте вместе с width() для размещения объектов относительно холста. То же, что Window.height.",
+        },
         returns: { type: "number", en: "Canvas height.", ru: "Высота холста." },
       },
     ],
@@ -77,6 +96,11 @@ export const DOCS: DocCategory[] = [
         signature: 'background(color)  /  background(r, g, b)',
         en: 'Clear the canvas. Accepts a color name, an RGB tuple from Colors, or three numbers 0–255. Example: background("black") or background(Colors.blue).',
         ru: 'Очищает холст. Принимает название цвета, кортеж RGB из Colors или три числа 0–255. Пример: background("black") или background(Colors.blue).',
+        example: 'background("black")',
+        advanced: {
+          en: "If you pass a loaded sprite asset (e.g. `assets.sprites.sky`) instead of a color, the sprite is *stretched* to fill the canvas — useful for parallax/skybox backdrops. The sprite must be fully loaded (`done=True`); a not-yet-loaded asset is silently ignored.",
+          ru: "Если передать загруженный спрайт (например, `assets.sprites.sky`) вместо цвета, спрайт *растягивается* на весь холст — удобно для параллакса и фонового неба. Спрайт должен быть полностью загружен (`done=True`); незагруженный ассет просто молча игнорируется.",
+        },
         params: [
           { name: "color", type: "str | tuple | number", en: 'Color name, Colors.* tuple, a gray value, or r, g, b components.', ru: 'Название цвета, кортеж Colors.*, оттенок серого или компоненты r, g, b.' },
         ],
@@ -87,6 +111,7 @@ export const DOCS: DocCategory[] = [
         signature: "circle(x, y, radius)",
         en: "Draw a filled circle centered at (x, y) with the given radius.",
         ru: "Рисует закрашенный круг с центром в точке (x, y) и заданным радиусом.",
+        example: 'fill("red")\ncircle(100, 100, 30)',
         params: [
           { name: "x", type: "number", en: "Center X position.", ru: "Координата X центра." },
           { name: "y", type: "number", en: "Center Y position.", ru: "Координата Y центра." },
@@ -99,6 +124,7 @@ export const DOCS: DocCategory[] = [
         signature: "rect(x, y, w, h)",
         en: "Draw a filled rectangle. The top-left corner is at (x, y).",
         ru: "Рисует закрашенный прямоугольник. Левый верхний угол находится в точке (x, y).",
+        example: "rect(50, 50, 120, 80)",
         params: [
           { name: "x", type: "number", en: "Left edge X.", ru: "Координата X левого края." },
           { name: "y", type: "number", en: "Top edge Y.", ru: "Координата Y верхнего края." },
@@ -112,6 +138,7 @@ export const DOCS: DocCategory[] = [
         signature: "ellipse(x, y, w, h)",
         en: "Draw a filled ellipse centered at (x, y). Omit h to draw a circle.",
         ru: "Рисует закрашенный эллипс с центром в точке (x, y). Опустите h, чтобы нарисовать круг.",
+        example: "ellipse(100, 100, 120, 60)",
         params: [
           { name: "x", type: "number", en: "Center X.", ru: "Координата X центра." },
           { name: "y", type: "number", en: "Center Y.", ru: "Координата Y центра." },
@@ -125,6 +152,7 @@ export const DOCS: DocCategory[] = [
         signature: "line(x1, y1, x2, y2)",
         en: "Draw a line between two points.",
         ru: "Рисует линию между двумя точками.",
+        example: 'stroke("black")\nline(20, 20, 180, 120)',
         params: [
           { name: "x1", type: "number", en: "Start X.", ru: "Начальная координата X." },
           { name: "y1", type: "number", en: "Start Y.", ru: "Начальная координата Y." },
@@ -138,6 +166,7 @@ export const DOCS: DocCategory[] = [
         signature: "point(x, y)",
         en: "Draw a single dot at position (x, y).",
         ru: "Рисует одну точку в позиции (x, y).",
+        example: "stroke_width(4)\npoint(150, 100)",
         params: [
           { name: "x", type: "number", en: "X position.", ru: "Координата X." },
           { name: "y", type: "number", en: "Y position.", ru: "Координата Y." },
@@ -149,6 +178,7 @@ export const DOCS: DocCategory[] = [
         signature: "text(s, x, y)  /  text(s, anchor)",
         en: "Draw a string. Pass an x, y position for manual placement, or an AnchorPoint (e.g. Window.top_right, actor.top) for automatic edge alignment with padding.",
         ru: "Рисует строку текста. Передайте x, y для ручного размещения или AnchorPoint (например, Window.top_right, actor.top) для автоматического выравнивания у края с отступом.",
+        example: 'text("Hello!", 20, 30)\ntext("Score: 42", Window.top_right)',
         params: [
           { name: "s", type: "str", en: "The text to display.", ru: "Текст для отображения." },
           { name: "x", type: "number", en: "X position (when not using an anchor).", ru: "Координата X (без якоря)." },
@@ -162,6 +192,7 @@ export const DOCS: DocCategory[] = [
         signature: "say(s, anchor)",
         en: "Draw a speech bubble with a tail pointing at anchor. Use an actor anchor like actor.top to place the bubble above the actor. Works with any AnchorPoint.",
         ru: "Рисует облачко с хвостиком, указывающим на якорь. Используйте якорь актора, например actor.top, чтобы разместить облачко над актором. Работает с любым AnchorPoint.",
+        example: 'say("Hi!", hero.top)',
         params: [
           { name: "s", type: "str", en: "The text inside the bubble.", ru: "Текст внутри облачка." },
           { name: "anchor", type: "AnchorPoint", en: "Where the tail points. Use actor.top, actor.right, Window.center, etc.", ru: "Куда указывает хвостик. Используйте actor.top, actor.right, Window.center и т.д." },
@@ -174,6 +205,7 @@ export const DOCS: DocCategory[] = [
         signature: "text_size(n)",
         en: "Set the font size for text() calls.",
         ru: "Устанавливает размер шрифта для вызовов text().",
+        example: 'text_size(24)\ntext("Big!", 20, 50)',
         params: [
           { name: "n", type: "number", en: "Font size in pixels.", ru: "Размер шрифта в пикселях." },
         ],
@@ -184,6 +216,7 @@ export const DOCS: DocCategory[] = [
         signature: 'text_align(horizontal, vertical)',
         en: 'Set text alignment. Use "left", "center", or "right" for horizontal; "top", "middle", or "bottom" for vertical.',
         ru: 'Устанавливает выравнивание текста. Горизонтальное: "left", "center", "right"; вертикальное: "top", "middle", "bottom".',
+        example: 'text_align("center", "middle")\ntext("Centered", width()/2, height()/2)',
         params: [
           { name: "horizontal", type: "str", en: '"left", "center", or "right".', ru: '"left", "center" или "right".' },
           { name: "vertical", type: "str", optional: true, default: '"top"', en: '"top", "middle", or "bottom".', ru: '"top", "middle" или "bottom".' },
@@ -195,6 +228,7 @@ export const DOCS: DocCategory[] = [
         signature: "image(img, x, y, w, h)",
         en: "Draw a sprite image at position (x, y). Use assets.sprites to get images.",
         ru: "Рисует спрайт в позиции (x, y). Используйте assets.sprites для получения изображений.",
+        example: "image(assets.sprites.hero, 100, 100)",
         params: [
           { name: "img", type: "sprite", en: "The sprite from assets.sprites.", ru: "Спрайт из assets.sprites." },
           { name: "x", type: "number", en: "X position (top-left corner).", ru: "Координата X (левый верхний угол)." },
@@ -216,21 +250,26 @@ export const DOCS: DocCategory[] = [
         id: "colors_palette",
         name: "Colors",
         signature: "Colors.<name>",
-        en: "A palette of named colors that match the current editor theme. Use them anywhere a color is accepted. Available names: red, green, blue, yellow, orange, purple, pink, cyan, white, black, gray, brown. Colors update when you switch theme and re-run. For per-project theme palettes (e.g. for a dungeon scene), see Themes — Themes.<name>.<color> exposes the same names with mood-specific RGB.",
-        ru: "Палитра именованных цветов, соответствующих текущей теме редактора. Используйте их везде, где принимается цвет. Доступные имена: red, green, blue, yellow, orange, purple, pink, cyan, white, black, gray, brown. Цвета обновляются при смене темы и перезапуске. Для палитр конкретного проекта (например, в подземелье) смотрите Themes — Themes.<name>.<color> предоставляет те же имена в нужной атмосфере.",
-        params: [
-          { name: "Colors.red", type: "tuple", en: "A warm red.", ru: "Тёплый красный." },
-          { name: "Colors.green", type: "tuple", en: "A bright green.", ru: "Яркий зелёный." },
-          { name: "Colors.blue", type: "tuple", en: "A vivid blue.", ru: "Насыщенный синий." },
-          { name: "Colors.yellow", type: "tuple", en: "A golden yellow.", ru: "Золотисто-жёлтый." },
-          { name: "Colors.orange", type: "tuple", en: "An orange.", ru: "Оранжевый." },
-          { name: "Colors.purple", type: "tuple", en: "A purple.", ru: "Фиолетовый." },
-          { name: "Colors.pink", type: "tuple", en: "A soft pink.", ru: "Нежно-розовый." },
-          { name: "Colors.cyan", type: "tuple", en: "A cyan / aqua.", ru: "Голубой / аквамарин." },
-          { name: "Colors.white", type: "tuple", en: "White.", ru: "Белый." },
-          { name: "Colors.black", type: "tuple", en: "Black.", ru: "Чёрный." },
-          { name: "Colors.gray", type: "tuple", en: "A medium gray.", ru: "Средне-серый." },
-          { name: "Colors.brown", type: "tuple", en: "A brown.", ru: "Коричневый." },
+        en: "The locked Sweetie 16 palette (GrafxKid, CC0). Use anywhere a color is accepted. Same 16 names that appear in the sprite editor — pixels and code stay visually consistent.",
+        ru: "Закреплённая палитра Sweetie 16 (GrafxKid, CC0). Используйте везде, где принимается цвет. Это те же 16 имён, что и в редакторе спрайтов — пиксели и код выглядят согласованно.",
+        example: 'fill(Colors.red)\ncircle(100, 100, 30)',
+        swatches: [
+          { name: "black",  rgb: [ 26,  28,  44] },
+          { name: "wine",   rgb: [ 93,  39,  93] },
+          { name: "red",    rgb: [177,  62,  83] },
+          { name: "orange", rgb: [239, 125,  87] },
+          { name: "yellow", rgb: [255, 205, 117] },
+          { name: "lime",   rgb: [167, 240, 112] },
+          { name: "green",  rgb: [ 56, 183, 100] },
+          { name: "teal",   rgb: [ 37, 113, 121] },
+          { name: "navy",   rgb: [ 41,  54, 111] },
+          { name: "blue",   rgb: [ 59,  93, 201] },
+          { name: "sky",    rgb: [ 65, 166, 246] },
+          { name: "cyan",   rgb: [115, 239, 247] },
+          { name: "white",  rgb: [244, 244, 244] },
+          { name: "silver", rgb: [148, 176, 194] },
+          { name: "gray",   rgb: [ 86, 108, 134] },
+          { name: "slate",  rgb: [ 51,  60,  87] },
         ],
       },
       {
@@ -239,6 +278,11 @@ export const DOCS: DocCategory[] = [
         signature: 'fill(color)  /  fill(r, g, b)  /  fill(None)',
         en: 'Set the fill color. Accepts a color name string ("red"), a Colors.* tuple, three RGB numbers (0–255), a single gray value, or None to disable fill (same as no_fill()).',
         ru: 'Устанавливает цвет заливки. Принимает строку с названием цвета ("red"), кортеж Colors.*, три числа RGB (0–255), одно число для серого или None для отключения заливки (то же, что no_fill()).',
+        example: 'fill("red")\ncircle(100, 100, 30)',
+        advanced: {
+          en: "Fill is a *state machine*: once set, every subsequent shape uses this color until you change it. The state survives across `main()` calls within a frame but resets to its initial value at the start of every frame, so you must re-call `fill` each frame (or wrap it in `push`/`pop` if you only want the change to be local). `fill(None)` is identical to `no_fill()` — use whichever reads more naturally.",
+          ru: "Заливка — это *состояние*: задал — все последующие фигуры используют этот цвет, пока не изменишь. Состояние сохраняется между вызовами в пределах одного кадра, но сбрасывается к исходному в начале каждого кадра — поэтому `fill` нужно вызывать каждый кадр (либо заворачивай в `push`/`pop`, если изменение должно быть локальным). `fill(None)` идентичен `no_fill()` — используй ту запись, что лучше читается.",
+        },
         params: [
           { name: "color", type: "str | tuple | number | None", en: 'Color name, Colors.* value, RGB tuple, gray value, or None.', ru: 'Название цвета, значение Colors.*, кортеж RGB, оттенок серого или None.' },
         ],
@@ -249,6 +293,7 @@ export const DOCS: DocCategory[] = [
         signature: "no_fill()  /  fill(None)",
         en: "Disable fill so shapes are drawn as outlines only. fill(None) is a shorthand for the same effect.",
         ru: "Отключает заливку — фигуры рисуются только контуром. fill(None) — сокращённая запись с тем же эффектом.",
+        example: 'no_fill()\nstroke("black")\nrect(20, 20, 80, 60)',
       },
       {
         id: "stroke_color",
@@ -256,6 +301,11 @@ export const DOCS: DocCategory[] = [
         signature: 'stroke(color)  /  stroke(r, g, b)  /  stroke(None)',
         en: 'Set the outline color. Accepts a color name, a Colors.* tuple, three RGB values, or None to disable the outline (same as no_stroke()).',
         ru: 'Устанавливает цвет обводки. Принимает название цвета, кортеж Colors.*, три значения RGB или None для отключения обводки (то же, что no_stroke()).',
+        example: 'stroke("blue")\nstroke_width(3)\nline(0, 0, 100, 100)',
+        advanced: {
+          en: "Stroke is a state machine just like `fill`: persists across shapes within a frame, resets at the start of the next frame. Lines need *both* a stroke color and a non-zero `stroke_width` — setting only one of them silently produces nothing visible. `stroke(None)` is identical to `no_stroke()`.",
+          ru: "Обводка — состояние, как и `fill`: сохраняется между фигурами в пределах кадра и сбрасывается в начале следующего. Для линий нужны *оба* — цвет обводки и ненулевая `stroke_width`; если задать только одно, линия молча не рисуется. `stroke(None)` идентичен `no_stroke()`.",
+        },
         params: [
           { name: "color", type: "str | tuple | number | None", en: 'Color name, Colors.* value, RGB components, or None.', ru: 'Название цвета, значение Colors.*, компоненты RGB или None.' },
         ],
@@ -266,6 +316,7 @@ export const DOCS: DocCategory[] = [
         signature: "no_stroke()  /  stroke(None)",
         en: "Disable outline so shapes are drawn without borders. stroke(None) is a shorthand for the same effect.",
         ru: "Отключает обводку — фигуры рисуются без границ. stroke(None) — сокращённая запись с тем же эффектом.",
+        example: 'no_stroke()\nfill("yellow")\ncircle(100, 100, 40)',
       },
       {
         id: "stroke_width",
@@ -273,6 +324,11 @@ export const DOCS: DocCategory[] = [
         signature: "stroke_width(w)",
         en: "Set the thickness of outlines and lines in pixels.",
         ru: "Устанавливает толщину обводки и линий в пикселях.",
+        example: "stroke_width(4)\nline(10, 10, 100, 100)",
+        advanced: {
+          en: "Width is integer-only — fractional values get truncated. It is *not* compensated for `scale()`, so a `stroke_width(2)` inside `scale(3)` draws as 6 screen pixels. Resets per frame like other state.",
+          ru: "Толщина — только целое число, дробное усекается. Не компенсируется при `scale()`: `stroke_width(2)` внутри `scale(3)` рисуется как 6 экранных пикселей. Сбрасывается каждый кадр, как и другое состояние.",
+        },
         params: [
           { name: "w", type: "number", en: "Line thickness in pixels.", ru: "Толщина линии в пикселях." },
         ],
@@ -292,6 +348,11 @@ export const DOCS: DocCategory[] = [
         signature: "push()",
         en: "Save the current drawing state (fill, stroke, transforms). Use with pop().",
         ru: "Сохраняет текущее состояние рисования (заливка, обводка, трансформации). Используйте вместе с pop().",
+        example: 'push()\nfill("red")\ncircle(100, 100, 20)\npop()  # red fill discarded',
+        advanced: {
+          en: "`push()` snapshots the *whole* drawing state — the transform matrix plus fill/stroke/stroke-width — onto a stack. The matrix and color state reset to identity at the start of every frame, so unbalanced push/pop in one frame is only visible until the next `main()` tick. Nesting is fine, but each `push` must have a matching `pop` or later draws in the same frame use the wrong state.",
+          ru: "`push()` сохраняет *всё* состояние рисования — матрицу трансформаций и заливку/обводку/толщину — в стек. Матрица и цвета сбрасываются к исходным в начале каждого кадра, так что несбалансированные push/pop в одном кадре проявятся только до следующего вызова `main()`. Вложенность допустима, но у каждого `push` должен быть парный `pop` — иначе последующие draw в этом же кадре пойдут с неправильным состоянием.",
+        },
       },
       {
         id: "pop",
@@ -299,6 +360,11 @@ export const DOCS: DocCategory[] = [
         signature: "pop()",
         en: "Restore the drawing state saved with push().",
         ru: "Восстанавливает состояние рисования, сохранённое с помощью push().",
+        example: "push()\ntranslate(50, 50)\ncircle(0, 0, 10)\npop()  # translation undone",
+        advanced: {
+          en: "`pop()` without a matching `push()` pops off the bottom of the stack — the result is undefined and downstream draws in that frame are likely wrong. The matrix always resets per-frame, so a single stray `pop` does not corrupt later frames, only the current one.",
+          ru: "`pop()` без парного `push()` снимает элемент с конца стека — результат не определён и последующие draw в этом кадре скорее всего будут неправильными. Матрица сбрасывается каждый кадр, так что одиночный лишний `pop` портит только текущий кадр, не следующие.",
+        },
       },
       {
         id: "translate",
@@ -306,6 +372,11 @@ export const DOCS: DocCategory[] = [
         signature: "translate(x, y)",
         en: "Move the drawing origin by (x, y). Shapes drawn after this will be shifted.",
         ru: "Перемещает начало системы координат на (x, y). Фигуры, нарисованные после, будут смещены.",
+        example: "translate(100, 50)\ncircle(0, 0, 20)  # actually drawn at (100, 50)",
+        advanced: {
+          en: "Translations accumulate: `translate(50, 0); translate(50, 0)` shifts a total of 100px. Order matters with `rotate`/`scale` — translate-then-rotate orbits drawing around `(x, y)`, while rotate-then-translate rotates the offset vector itself. Wrap a temporary translate in `push()`/`pop()` to keep it from leaking into the rest of the frame.",
+          ru: "Сдвиги накапливаются: `translate(50, 0); translate(50, 0)` сдвигает на 100px суммарно. Порядок с `rotate`/`scale` имеет значение — translate, затем rotate вращает вокруг `(x, y)`, тогда как rotate, затем translate поворачивает сам вектор смещения. Заверни временный translate в `push()`/`pop()`, чтобы он не повлиял на остальной кадр.",
+        },
         params: [
           { name: "x", type: "number", en: "Horizontal shift.", ru: "Горизонтальное смещение." },
           { name: "y", type: "number", en: "Vertical shift.", ru: "Вертикальное смещение." },
@@ -317,6 +388,11 @@ export const DOCS: DocCategory[] = [
         signature: "rotate(angle)",
         en: "Rotate the coordinate system by the given angle in degrees (clockwise).",
         ru: "Поворачивает систему координат на заданный угол в градусах (по часовой стрелке).",
+        example: "translate(100, 100)\nrotate(45)\nrect(-20, -20, 40, 40)  # rotated 45°",
+        advanced: {
+          en: "Rotation pivots around the *current origin* — to rotate around a point, `translate(x, y)` first so the origin is there, then draw the shape centered on `(0, 0)`. Angles accumulate, so `rotate(30); rotate(60)` equals one `rotate(90)`. Note that `rotate` only transforms the coordinate system: it has no effect on a Rect/Circle actor's collider, which stays axis-aligned in world coordinates.",
+          ru: "Поворот идёт вокруг *текущего начала координат* — чтобы повернуть вокруг точки, сначала вызови `translate(x, y)`, затем рисуй фигуру с центром в `(0, 0)`. Углы складываются: `rotate(30); rotate(60)` равно одному `rotate(90)`. `rotate` влияет только на систему координат: коллайдер Rect/Circle актёра не поворачивается и остаётся осе-ориентированным в мировых координатах.",
+        },
         params: [
           { name: "angle", type: "number", en: "Rotation angle in degrees.", ru: "Угол поворота в градусах." },
         ],
@@ -327,6 +403,11 @@ export const DOCS: DocCategory[] = [
         signature: "scale(x, y)",
         en: "Scale the drawing. Pass one value for uniform scale, or two for independent axes.",
         ru: "Масштабирует рисование. Одно значение — равномерное масштабирование; два — по каждой оси отдельно.",
+        example: "scale(2)\nrect(50, 50, 30, 30)  # drawn 60×60",
+        advanced: {
+          en: "Scaling pivots around the current origin, so positions multiply along with sizes — `scale(2); rect(50, 50, …)` lands at `(100, 100)`. A negative factor flips the axis (`scale(-1, 1)` mirrors horizontally), which is the standard way to flip a sprite. Stroke width is *not* automatically corrected for scale: lines drawn after `scale(2)` are twice as thick on screen.",
+          ru: "Масштабирование идёт от текущего начала координат, так что позиции умножаются вместе с размерами — `scale(2); rect(50, 50, …)` оказывается в `(100, 100)`. Отрицательный коэффициент отражает по оси (`scale(-1, 1)` — горизонтальное зеркало), это стандартный способ отзеркалить спрайт. Толщина обводки *не* компенсируется автоматически: линии после `scale(2)` становятся вдвое толще на экране.",
+        },
         params: [
           { name: "x", type: "number", en: "Horizontal scale factor.", ru: "Коэффициент масштабирования по горизонтали." },
           { name: "y", type: "number", optional: true, en: "Vertical scale factor. Defaults to x.", ru: "Коэффициент масштабирования по вертикали. По умолчанию равен x." },
@@ -338,6 +419,7 @@ export const DOCS: DocCategory[] = [
         signature: "with Camera() as cam: ...",
         en: "A 2D camera offset. Use as a context manager — inside `with cam:` everything you draw is shifted so the camera's position appears at the center of the canvas. Combine with cam.follow(actor) for scrolling worlds.",
         ru: "Двухмерное смещение камеры. Используется как контекстный менеджер — внутри `with cam:` всё, что рисуется, сдвигается так, чтобы позиция камеры оказывалась в центре холста. В сочетании с cam.follow(actor) удобно для прокручиваемых уровней.",
+        example: "cam = Camera().follow(hero)\n\ndef main():\n    with cam:\n        level.draw()\n        hero.draw()",
         params: [
           { name: "Camera(x=0, y=0)", type: "—", en: "Create a camera at world position (x, y).", ru: "Создать камеру в мировой позиции (x, y)." },
           { name: "cam.pos", type: "Vector2", en: "Camera position as a Vector2 (mutable).", ru: "Позиция камеры как Vector2 (изменяемая)." },
@@ -361,6 +443,7 @@ export const DOCS: DocCategory[] = [
         signature: "Vector2(x, y)  /  Point(x, y)",
         en: "A 2D vector with arithmetic and geometry helpers. `Point` is an alias of `Vector2` — use whichever reads more naturally. Accepts numeric pairs, tuples, or other Vector2s in arithmetic. Mutable: you can assign to `.x` and `.y`.",
         ru: "Двухмерный вектор с арифметикой и геометрическими методами. `Point` — псевдоним `Vector2`, используйте тот, что читается естественнее. Поддерживает арифметику с парами чисел, кортежами и другими Vector2. Изменяемый: можно присваивать `.x` и `.y`.",
+        example: "pos = Vector2(50, 50)\nvel = Vector2(2, 1)\npos += vel  # pos is now (52, 51)",
         params: [
           { name: "v.x, v.y", type: "number", en: "Components (mutable).", ru: "Компоненты (изменяемые)." },
           { name: "v + w / v - w / -v", type: "Vector2", en: "Arithmetic with another Vector2 or a 2-tuple.", ru: "Арифметика с другим Vector2 или парой (x, y)." },
@@ -371,6 +454,10 @@ export const DOCS: DocCategory[] = [
           { name: "v.dot(w)", type: "number", en: "Dot product.", ru: "Скалярное произведение." },
           { name: "v.normalized()", type: "Vector2", en: "Unit vector in the same direction (zero vector stays zero).", ru: "Единичный вектор в том же направлении (нулевой вектор остаётся нулевым)." },
         ],
+        advanced: {
+          en: "Vector2 is mutable but `+`, `-`, `*`, `/` all return *new* vectors — only `+=`/`-=` mutate in place. Equality is component-wise float comparison: `Vector2(0.1+0.2) == Vector2(0.3)` is `False` due to floating-point error — use `distance_to(...) < epsilon` for fuzzy checks. `normalized()` on the zero vector returns the zero vector (no division-by-zero, no exception). Arithmetic accepts `(x, y)` tuples on either side: `Vector2(1, 0) + (0, 1)` works.",
+          ru: "Vector2 изменяемый, но `+`, `-`, `*`, `/` возвращают *новые* векторы — только `+=`/`-=` меняют на месте. Равенство — покомпонентное сравнение float: `Vector2(0.1+0.2) == Vector2(0.3)` будет `False` из-за погрешности — для приблизительного сравнения используй `distance_to(...) < epsilon`. `normalized()` от нулевого вектора возвращает нулевой вектор (без деления на ноль и без исключения). Арифметика принимает кортежи `(x, y)` с обеих сторон: `Vector2(1, 0) + (0, 1)` работает.",
+        },
       },
       {
         id: "polar",
@@ -378,6 +465,11 @@ export const DOCS: DocCategory[] = [
         signature: "Polar(magnitude, angle_degrees)",
         en: "Build a Vector2 from a magnitude and an angle in degrees. Angle convention matches actor.angle and actor.move(): 0° = east (+x), 90° = south (+y, screen y-down), 180° = west, 270° = north. The most common use is setting actor.vel for continuous motion at an angle without writing the trig yourself.",
         ru: "Создаёт Vector2 из модуля и угла в градусах. Соглашение об угле совпадает с actor.angle и actor.move(): 0° = восток (+x), 90° = юг (+y, ось вниз), 180° = запад, 270° = север. Чаще всего применяется для задания actor.vel — непрерывное движение под углом без ручной тригонометрии.",
+        example: "bullet.vel = Polar(8, ship.angle)  # move at speed 8 in ship's direction",
+        advanced: {
+          en: "Polar returns a *new* Vector2 — there is no in-place version. The angle convention is counterclockwise in math but clockwise on screen because the canvas y axis points down, so `Polar(1, 90)` points down (south), not up. A negative magnitude is allowed and reverses the direction, equivalent to adding 180° to the angle.",
+          ru: "Polar возвращает *новый* Vector2 — варианта на месте нет. Угол идёт против часовой стрелки в математике, но по часовой на экране, потому что ось y холста направлена вниз: `Polar(1, 90)` смотрит вниз (юг), а не вверх. Отрицательная длина допустима и разворачивает направление — эквивалентно добавлению 180° к углу.",
+        },
         params: [
           { name: "magnitude", type: "number", en: "Length of the resulting vector (e.g. speed in pixels per frame).", ru: "Длина итогового вектора (например, скорость в пикселях за кадр)." },
           { name: "angle_degrees", type: "number", en: "Direction in degrees. Pass actor.angle to match a sprite's facing.", ru: "Направление в градусах. Передайте actor.angle, чтобы совпасть с направлением спрайта." },
@@ -401,6 +493,11 @@ export const DOCS: DocCategory[] = [
         signature: "run(main, fps=60)",
         en: "Start the game loop. The function main() is called every frame to draw and update your program. Also available as Window.run(main, fps).",
         ru: "Запускает игровой цикл. Функция main() вызывается каждый кадр для рисования и обновления программы. Также доступно как Window.run(main, fps).",
+        example: 'def main():\n    background("black")\n    circle(100, 100, 20)\n\nrun(main)',
+        advanced: {
+          en: "Each call to `run()` cancels any previously running loop and resets `frame_count` to 0 — calling it again restarts the game cleanly. Per-frame order is fixed: every living actor's `_apply_velocity()` (consuming `vx`/`vy`), then each actor's `update()`, then your `main()`. Key/mouse `pressed`/`released` flags are cleared at the *end* of each frame, so by the time the next frame starts they are False again unless the event repeats. `fps` only sets the *target* — heavy frames may take longer and your code should not assume a fixed dt.",
+          ru: "Каждый вызов `run()` отменяет предыдущий цикл и сбрасывает `frame_count` в 0 — повторный вызов чисто перезапускает игру. Порядок внутри кадра фиксирован: сначала `_apply_velocity()` каждого живого актёра (применяет `vx`/`vy`), затем `update()` каждого актёра, затем твой `main()`. Флаги `pressed`/`released` мыши и клавиатуры сбрасываются в *конце* кадра, так что в следующем кадре они снова False, если событие не повторилось. `fps` задаёт только *целевую* частоту — тяжёлые кадры могут идти дольше, не закладывайся на фиксированный dt.",
+        },
         params: [
           { name: "main", type: "function", en: "A function called each frame. No arguments.", ru: "Функция, вызываемая каждый кадр. Без аргументов." },
           { name: "fps", type: "number", optional: true, default: "60", en: "Target frames per second.", ru: "Целевая частота кадров в секунду." },
@@ -412,6 +509,7 @@ export const DOCS: DocCategory[] = [
         signature: "stop()",
         en: "Stop the game loop. Also available as Window.stop().",
         ru: "Останавливает игровой цикл. Также доступно как Window.stop().",
+        example: "if Keyboard.escape.pressed:\n    stop()",
       },
       {
         id: "frame_rate",
@@ -419,6 +517,11 @@ export const DOCS: DocCategory[] = [
         signature: "frame_rate(fps)",
         en: "Change the target frame rate while the game loop is running.",
         ru: "Изменяет целевую частоту кадров во время работы игрового цикла.",
+        example: "frame_rate(30)  # slow down to 30 fps",
+        advanced: {
+          en: "Takes effect from the *next* scheduled tick, not the currently-pending one — calling `frame_rate(30)` inside `main()` keeps the current frame on its previous schedule. `frame_count` keeps counting at the new rate without resetting.",
+          ru: "Действует со *следующего* запланированного тика, а не с уже отложенного — вызов `frame_rate(30)` внутри `main()` не меняет расписание текущего кадра. `frame_count` продолжает считать с новой частотой без сброса.",
+        },
         params: [
           { name: "fps", type: "number", en: "New target frames per second.", ru: "Новая целевая частота кадров в секунду." },
         ],
@@ -429,6 +532,11 @@ export const DOCS: DocCategory[] = [
         signature: "frame_count",
         en: "Read-only integer that counts how many frames have elapsed since the last run(). Starts at 0 and increments by 1 each frame. Useful for timing events: if frame_count % 60 == 0: ...",
         ru: "Целое число только для чтения — количество кадров с момента последнего run(). Начинается с 0 и увеличивается на 1 каждый кадр. Удобно для таймингов: if frame_count % 60 == 0: ...",
+        example: "if frame_count % 60 == 0:\n    spawn_enemy()  # once per second at 60 fps",
+        advanced: {
+          en: "`frame_count` resets to 0 on every `run()`, so it counts *this* loop, not lifetime ticks. It increments *after* `main()` returns, so the first `main()` invocation sees `frame_count == 0`. Tying timing to `frame_count % N` couples your code to the current fps — switch to `Timer` (wall-clock) if you want behaviour stable across `frame_rate()` changes or stutter.",
+          ru: "`frame_count` сбрасывается в 0 при каждом `run()` — считает *текущий* цикл, а не за всё время. Инкрементируется *после* возврата `main()`, поэтому первый вызов `main()` видит `frame_count == 0`. Привязка тайминга к `frame_count % N` зависит от текущей fps — переходи на `Timer` (по реальному времени), если поведение должно быть стабильным при смене `frame_rate()` или просадках.",
+        },
         returns: { type: "int", en: "Current frame index.", ru: "Текущий индекс кадра." },
       },
       {
@@ -437,6 +545,11 @@ export const DOCS: DocCategory[] = [
         signature: "Timer(s=None, ms=None)",
         en: "Wall-clock countdown timer. Poll t.done() (or t.left() <= 0) each frame, then call t.restart() to start the next interval. Frame-rate independent. Example: t = Timer(s=2); if t.done(): spawn(); t.restart()",
         ru: "Таймер обратного отсчёта по реальному времени. Каждый кадр проверяйте t.done() (или t.left() <= 0), затем вызывайте t.restart() для следующего интервала. Не зависит от частоты кадров. Пример: t = Timer(s=2); if t.done(): spawn(); t.restart()",
+        example: "t = Timer(s=2)\n\ndef main():\n    if t.done():\n        spawn_enemy()\n        t.restart()",
+        advanced: {
+          en: "Timer is wall-clock (`time.monotonic()`), so it ticks during stalls and across `frame_rate()` changes — use it whenever you want behaviour independent of fps. `done()` stays True until you call `restart()`, so without a restart the branch fires every frame after expiry. Constructing `Timer()` with no `s` or `ms` gives duration 0 — it's already done on frame 1; pair with `restart(s=…)` when you need a deferred first interval.",
+          ru: "Timer работает по реальному времени (`time.monotonic()`), так что тикает и во время просадок, и при смене `frame_rate()` — используй его, если поведение должно быть независимым от fps. `done()` остаётся True, пока не вызовешь `restart()` — без рестарта ветка будет срабатывать каждый кадр после истечения. `Timer()` без `s`/`ms` имеет длительность 0 — уже готов на первом кадре; используй `restart(s=…)` для отложенного первого интервала.",
+        },
         params: [
           { name: "s", type: "number", optional: true, en: "Duration in seconds.", ru: "Длительность в секундах." },
           { name: "ms", type: "number", optional: true, en: "Duration in milliseconds (alternative to s).", ru: "Длительность в миллисекундах (вместо s)." },
@@ -448,6 +561,7 @@ export const DOCS: DocCategory[] = [
         signature: "t.left()",
         en: "Seconds remaining. Negative when the timer has expired.",
         ru: "Секунды до срабатывания. Отрицательное число — таймер истёк.",
+        example: 'text(f"Time left: {t.left():.1f}", 10, 20)',
         returns: { type: "float", en: "Seconds remaining.", ru: "Секунды до конца." },
       },
       {
@@ -456,6 +570,7 @@ export const DOCS: DocCategory[] = [
         signature: "t.elapsed()",
         en: "Seconds since the timer was started or last restarted.",
         ru: "Секунды с момента запуска или последнего restart().",
+        example: "if t.elapsed() > 1.0:\n    fade_in = True",
         returns: { type: "float", en: "Seconds since start.", ru: "Секунды с момента старта." },
       },
       {
@@ -464,6 +579,7 @@ export const DOCS: DocCategory[] = [
         signature: "t.done()",
         en: "True when the interval has elapsed.",
         ru: "True, если интервал прошёл.",
+        example: "if t.done():\n    spawn()\n    t.restart()",
         returns: { type: "bool", en: "Whether the timer has fired.", ru: "Сработал ли таймер." },
       },
       {
@@ -472,6 +588,7 @@ export const DOCS: DocCategory[] = [
         signature: "t.restart(s=None, ms=None)",
         en: "Reset the timer's start point. Pass a new s or ms to also change the duration.",
         ru: "Сбрасывает счёт времени. Можно передать новые s или ms, чтобы изменить длительность.",
+        example: "t.restart()           # same duration\nt.restart(s=5)        # also change to 5 seconds",
         params: [
           { name: "s", type: "number", optional: true, en: "New duration in seconds.", ru: "Новая длительность в секундах." },
           { name: "ms", type: "number", optional: true, en: "New duration in milliseconds.", ru: "Новая длительность в миллисекундах." },
@@ -483,6 +600,7 @@ export const DOCS: DocCategory[] = [
         signature: "assets.sounds.<name>",
         en: "Audio clips. Upload mp3/ogg/wav files in the Assets panel under the Sounds tab; access them as assets.sounds.<name>. Methods: play(), loop(), pause(), stop(). Each play() allocates a fresh stream, so overlapping plays work. Example: assets.sounds.pop.play()",
         ru: "Аудио-клипы. Загружайте mp3/ogg/wav в панели Ассеты на вкладке Звуки; обращайтесь как assets.sounds.<имя>. Методы: play(), loop(), pause(), stop(). Каждый play() запускает отдельный поток, поэтому звуки могут накладываться. Пример: assets.sounds.pop.play()",
+        example: "assets.sounds.jump.play()",
       },
       {
         id: "sound_play",
@@ -490,6 +608,7 @@ export const DOCS: DocCategory[] = [
         signature: "assets.sounds.<name>.play()",
         en: "Play the sound once from the start.",
         ru: "Воспроизводит звук один раз с начала.",
+        example: "if Keyboard.space.pressed:\n    assets.sounds.jump.play()",
       },
       {
         id: "sound_loop",
@@ -497,6 +616,7 @@ export const DOCS: DocCategory[] = [
         signature: "assets.sounds.<name>.loop()",
         en: "Play the sound on repeat until stop() is called.",
         ru: "Воспроизводит звук в цикле, пока не будет вызван stop().",
+        example: "assets.sounds.music.loop()",
       },
       {
         id: "sound_pause",
@@ -504,6 +624,7 @@ export const DOCS: DocCategory[] = [
         signature: "assets.sounds.<name>.pause()",
         en: "Pause the most recently started instance of this sound.",
         ru: "Ставит на паузу последний запущенный экземпляр звука.",
+        example: "assets.sounds.music.pause()",
       },
       {
         id: "sound_stop",
@@ -511,6 +632,7 @@ export const DOCS: DocCategory[] = [
         signature: "assets.sounds.<name>.stop()",
         en: "Stop every instance of this sound and reset playback.",
         ru: "Останавливает все экземпляры звука и сбрасывает воспроизведение.",
+        example: "assets.sounds.music.stop()",
       },
     ],
   },
@@ -527,6 +649,7 @@ export const DOCS: DocCategory[] = [
         signature: "Window",
         en: "A singleton with canvas size, anchor points, and game-loop control. Window.width and Window.height always reflect the current canvas size — unlike width() and height(), they update immediately when the canvas is resized.",
         ru: "Объект-синглтон с размерами холста, якорными точками и управлением игровым циклом. Window.width и Window.height всегда отражают текущий размер холста.",
+        example: "circle(Window.width / 2, Window.height / 2, 30)",
         params: [
           { name: "Window.width", type: "number", en: "Current canvas width in pixels.", ru: "Текущая ширина холста в пикселях." },
           { name: "Window.height", type: "number", en: "Current canvas height in pixels.", ru: "Текущая высота холста в пикселях." },
@@ -541,6 +664,7 @@ export const DOCS: DocCategory[] = [
         signature: "Window.<edge>",
         en: "AnchorPoints at screen edges and corners. Pass one to text() or say() for automatic edge-aligned placement with built-in padding. All positions update dynamically if the canvas is resized.",
         ru: "Якорные точки у краёв и углов экрана. Передайте одну в text() или say() для автоматического размещения у края с отступом. Все позиции обновляются динамически при изменении размера холста.",
+        example: 'text("Score: 42", Window.top_right)\ntext("Game Over", Window.center)',
         params: [
           { name: "Window.top_left", type: "AnchorPoint", en: "Top-left corner (text aligns left, baseline top).", ru: "Левый верхний угол (текст по левому краю, базовая линия сверху)." },
           { name: "Window.top_right", type: "AnchorPoint", en: "Top-right corner (text aligns right, baseline top).", ru: "Правый верхний угол (текст по правому краю, базовая линия сверху)." },
@@ -559,6 +683,11 @@ export const DOCS: DocCategory[] = [
         signature: "AnchorPoint(x, y, h_align, v_align)",
         en: "Represents a position with alignment hints. Returned by Window.<edge> and actor.<edge> properties. Pass it to text() or say(). x and y can be callables (for dynamic positions) or plain numbers.",
         ru: "Представляет позицию с подсказками о выравнивании. Возвращается свойствами Window.<edge> и actor.<edge>. Передайте его в text() или say(). x и y могут быть функциями (для динамических позиций) или числами.",
+        example: 'corner = AnchorPoint(10, 10, "left", "top")\ntext("Hi", corner)',
+        advanced: {
+          en: "AnchorPoint subclasses Vector2, so it works in arithmetic, equality, and `distance_to`. `x` and `y` may be callables: `Window.top_right` stores lambdas that read the current canvas size, so the anchor re-resolves whenever the canvas resizes. Reading `.x`/`.y` evaluates the callable each access — cache it if you read repeatedly in one frame.",
+          ru: "AnchorPoint наследуется от Vector2, так что участвует в арифметике, равенстве и `distance_to`. `x` и `y` могут быть функциями: `Window.top_right` хранит лямбды, читающие текущий размер холста, и якорь пересчитывается при ресайзе. Чтение `.x`/`.y` каждый раз вызывает функцию — кэшируй, если читаешь много раз в кадре.",
+        },
         params: [
           { name: "x", type: "number | callable", en: "X coordinate or a lambda returning it.", ru: "Координата X или лямбда, её возвращающая." },
           { name: "y", type: "number | callable", en: "Y coordinate or a lambda returning it.", ru: "Координата Y или лямбда, её возвращающая." },
@@ -581,6 +710,11 @@ export const DOCS: DocCategory[] = [
         signature: "Mouse",
         en: "The current mouse state. Mouse.x/Mouse.y are the canvas coordinates. Mouse.down is true while a button is held, Mouse.pressed is true only on the first frame of a click, Mouse.released is true only on the frame the button is let go.",
         ru: "Текущее состояние мыши. Mouse.x/Mouse.y — координаты на холсте. Mouse.down — кнопка удерживается, Mouse.pressed — только в первый кадр клика, Mouse.released — только в кадр отпускания.",
+        example: "circle(Mouse.x, Mouse.y, 10)\nif Mouse.pressed:\n    fire()",
+        advanced: {
+          en: "`pressed` and `released` are frame-edge events: they read True for exactly one frame, then auto-clear at the end of that frame. Reading the same flag twice in one frame both return True, but only the *first* `main()` after the event sees it. There is no per-button distinction — `Mouse.down`/`pressed` fire for any button. `Mouse.x`/`Mouse.y` keep their last value between events; they are not `None` before the first mouse-move.",
+          ru: "`pressed` и `released` — события на границе кадра: они True ровно один кадр, потом сбрасываются в конце этого же кадра. Два чтения в одном кадре оба вернут True, но только *первый* `main()` после события их увидит. Различения по кнопке нет — `Mouse.down`/`pressed` срабатывают на любую кнопку. `Mouse.x`/`Mouse.y` сохраняют последнее значение между событиями; до первого движения мыши они не `None`.",
+        },
         params: [
           { name: "Mouse.x", type: "number", en: "Current X position on the canvas.", ru: "Текущая координата X на холсте." },
           { name: "Mouse.y", type: "number", en: "Current Y position on the canvas.", ru: "Текущая координата Y на холсте." },
@@ -595,6 +729,11 @@ export const DOCS: DocCategory[] = [
         signature: "Keyboard.<key>  /  Keyboard[\"key\"]",
         en: "Check keyboard state. Access keys as attributes (Keyboard.space, Keyboard.arrow_left, Keyboard.a) or by string (Keyboard[\"1\"]). Each key object has .down, .pressed, and .released.",
         ru: "Проверка состояния клавиатуры. Доступ к клавишам через атрибут (Keyboard.space, Keyboard.arrow_left, Keyboard.a) или строку (Keyboard[\"1\"]). У каждой клавиши есть .down, .pressed и .released.",
+        example: "if Keyboard.arrow_right.down:\n    hero.change_x_by(3)\nif Keyboard.space.pressed:\n    jump()",
+        advanced: {
+          en: "Attribute and string access both raise on unknown keys (`AttributeError` and `KeyError` respectively) — there is no silent fallback. `pressed`/`released` clear at the end of every frame, so polling them mid-frame in two places sees the same edge twice within that frame. The OS key-repeat does *not* re-fire `pressed`: a held key emits one `pressed` and stays `down` until released. Reading a key object is cheap — `_Key` is constructed per access, no shared state.",
+          ru: "Атрибут и доступ по строке оба кидают на неизвестной клавише (`AttributeError` и `KeyError` соответственно), молчаливого фолбэка нет. `pressed`/`released` сбрасываются в конце каждого кадра, так что два проверки в разных местах одного кадра увидят один и тот же edge дважды в этом кадре. Автоповтор ОС *не* пересоздаёт `pressed`: удерживаемая клавиша выдаёт один `pressed` и остаётся `down` до отпускания. Чтение клавиши дешёвое — `_Key` создаётся при каждом обращении, разделяемого состояния нет.",
+        },
         params: [
           { name: ".down", type: "bool", en: "True while the key is held.", ru: "True, пока клавиша удерживается." },
           { name: ".pressed", type: "bool", en: "True only on the first frame the key is pressed.", ru: "True только в первый кадр нажатия клавиши." },
@@ -607,6 +746,11 @@ export const DOCS: DocCategory[] = [
         signature: "Keyboard.<key>",
         en: "Arrow keys: arrow_left, arrow_right, arrow_up, arrow_down. Special: space, escape, enter, backspace, tab, shift, ctrl, alt. Letters: a–z. Number keys: key_0–key_9 (use the prefix because Keyboard.0 is not valid Python), or Keyboard[\"0\"]–Keyboard[\"9\"] with string syntax.",
         ru: "Стрелки: arrow_left, arrow_right, arrow_up, arrow_down. Спецклавиши: space, escape, enter, backspace, tab, shift, ctrl, alt. Буквы: a–z. Цифровые клавиши: key_0–key_9 (с префиксом, так как Keyboard.0 — не валидный Python), или Keyboard[\"0\"]–Keyboard[\"9\"] через строку.",
+        example: 'if Keyboard.a.down: ...\nif Keyboard["1"].pressed: ...\nif Keyboard.key_2.pressed: ...',
+        advanced: {
+          en: "`Keyboard.0` is a syntax error — Python identifiers cannot start with a digit. Use either `Keyboard.key_0` (the prefixed name) or `Keyboard[\"0\"]` (string subscript). Name lookup is case-insensitive (`Keyboard.SPACE` works), and unknown names raise immediately rather than silently returning a dead key — so a typo surfaces in the console instead of producing a key that never fires.",
+          ru: "`Keyboard.0` — синтаксическая ошибка Python: идентификатор не может начинаться с цифры. Используй либо `Keyboard.key_0` (с префиксом), либо `Keyboard[\"0\"]` (по строке). Поиск имени не зависит от регистра (`Keyboard.SPACE` работает), а неизвестное имя сразу кидает ошибку, а не возвращает «мёртвую» клавишу — опечатка проявится в консоли, а не превратится в клавишу, которая никогда не срабатывает.",
+        },
       },
     ],
   },
@@ -623,6 +767,11 @@ export const DOCS: DocCategory[] = [
         signature: "Actor(**kwargs)",
         en: "Base class for game objects. Pass initial values as keyword arguments. Subclass it and define init() and/or update() to add custom behaviour.",
         ru: "Базовый класс для игровых объектов. Начальные значения передаются именованными аргументами. Наследуйте его и определите init() и/или update() для добавления собственного поведения.",
+        example: "hero = Actor(x=100, y=100, image=assets.sprites.knight)\nhero.draw()",
+        advanced: {
+          en: "Every Actor registers itself in `Actor.all_actors()` on construction — even an instance you never store in a variable still occupies a slot. Defining `init(self)` on a subclass runs it after kwargs are applied; defining `update(self)` makes the game loop call it before `main()` each frame. The `angle` setter wraps the value to [0, 360) automatically. Passing an asset (sprite/animation result) as the first positional arg auto-sets a rect collider matching its declared size — `Actor(assets.sprites.knight)` already has a hitbox.",
+          ru: "Каждый Actor при создании регистрируется в `Actor.all_actors()` — даже если ты нигде его не сохраняешь, он занимает место в реестре. Если в подклассе определить `init(self)`, он запустится после применения именованных аргументов; `update(self)` будет вызываться игровым циклом каждый кадр до `main()`. Сеттер `angle` автоматически приводит значение к диапазону [0, 360). Если передать ресурс (спрайт или результат анимации) первым позиционным аргументом, прямоугольный хитбокс автоматически подстроится под его размер — у `Actor(assets.sprites.knight)` хитбокс уже есть.",
+        },
         params: [
           { name: "x", type: "number", optional: true, default: "0", en: "Horizontal center position.", ru: "Горизонтальная позиция центра." },
           { name: "y", type: "number", optional: true, default: "0", en: "Vertical center position.", ru: "Вертикальная позиция центра." },
@@ -641,6 +790,11 @@ export const DOCS: DocCategory[] = [
         signature: "actor.method()",
         en: "Methods available on every Actor.",
         ru: "Методы, доступные каждому актору.",
+        example: "hero.point_towards(Mouse.x, Mouse.y)\nhero.move(3)\nhero.draw()",
+        advanced: {
+          en: "`move(d)` uses the visual `angle`, not velocity — useful for one-shot imperative steps, but it ignores `vx/vy` completely. All movement methods short-circuit to a no-op after `die()`, so logic targeting a dead actor silently does nothing instead of erroring. `future_state` mirrors `_apply_velocity` exactly (single `vx, vy` step) and never mutates the actor, so calling `future_state.collides_any(...)` multiple times per frame is safe. `die()` removes the actor from `Actor._registry` immediately, but any reference held in a `Group` lingers until the next iteration over that group.",
+          ru: "`move(d)` использует визуальный `angle`, а не скорость — удобно для одношагового движения, но `vx/vy` полностью игнорирует. После `die()` все методы движения молча ничего не делают, так что код, нацеленный на мёртвого актёра, не падает с ошибкой. `future_state` повторяет `_apply_velocity` ровно один раз (шаг `vx, vy`) и не меняет актёра, поэтому `future_state.collides_any(...)` можно вызывать несколько раз за кадр. `die()` сразу убирает актёра из `Actor._registry`, но ссылка, удерживаемая в `Group`, сохраняется до следующего прохода по этой группе.",
+        },
         params: [
           { name: "move(distance)", type: "—", en: "One-shot step: move forward by distance in the direction of angle (using the visual rotation). Useful when you want a per-frame imperative step instead of a continuous velocity. For continuous motion at an angle, set actor.vel = Polar(distance_per_frame, angle).", ru: "Одношаговое движение: сместиться вперёд на distance в направлении угла (по визуальному повороту). Подходит, когда нужен императивный шаг каждый кадр, а не постоянная скорость. Для непрерывного движения под углом задайте actor.vel = Polar(скорость_за_кадр, angle)." },
           { name: "move_to(x, y)", type: "—", en: "Jump directly to position (x, y).", ru: "Переместиться напрямую в позицию (x, y)." },
@@ -663,6 +817,11 @@ export const DOCS: DocCategory[] = [
         signature: "actor.collider",
         en: "Each actor has a collider that defines its hitbox. Rect and Circle actors configure their colliders automatically. For a base Actor (or to override the shape), call set_circle or set_rect. Without a collider shape, collides_with always returns False.",
         ru: "У каждого актора есть коллайдер, определяющий его хитбокс. Акторы Rect и Circle настраивают коллайдеры автоматически. Для базового Actor (или чтобы переопределить форму) вызовите set_circle или set_rect. Без формы коллайдера collides_with всегда возвращает False.",
+        example: "hero = Actor(image=assets.sprites.knight)\nhero.collider.set_rect(32, 48)",
+        advanced: {
+          en: "Without `set_circle` or `set_rect`, `collides_with` returns `False` and `collides_any` returns `None` — silent, not an error. Rect-vs-rect uses AABB testing in world coordinates: a visually rotated Rect still collides as if axis-aligned. Circle-vs-rect uses the exact closest-point test. The `dx/dy` offset lets the hitbox sit off-center from the sprite (e.g. at a character's feet), which also shifts where the anchor points land.",
+          ru: "Без `set_circle` или `set_rect` метод `collides_with` возвращает `False`, а `collides_any` — `None`, без ошибки. Прямоугольник с прямоугольником проверяется по AABB в мировых координатах: визуально повёрнутый Rect всё равно сталкивается как осе-ориентированный. Круг с прямоугольником — точная проверка по ближайшей точке. Смещение `dx/dy` позволяет сдвинуть хитбокс относительно центра спрайта (например, к ногам персонажа) — это же смещение влияет на положение якорных точек.",
+        },
         params: [
           { name: "collider.set_circle(r, dx=0, dy=0)", type: "—", en: "Set a circular hitbox with radius r. dx/dy offset the hitbox from the actor's center.", ru: "Устанавливает круглый хитбокс радиуса r. dx/dy смещают хитбокс от центра актора." },
           { name: "collider.set_rect(w, h, dx=0, dy=0)", type: "—", en: "Set a rectangular hitbox of size w×h. dx/dy offset the hitbox.", ru: "Устанавливает прямоугольный хитбокс размером w×h. dx/dy смещают хитбокс." },
@@ -678,6 +837,11 @@ export const DOCS: DocCategory[] = [
         signature: "actor.random_position() / actor.wrap() / actor.in_bounds()",
         en: "Helpers for placing and moving actors relative to the canvas boundaries.",
         ru: "Вспомогательные методы для размещения и перемещения акторов относительно границ холста.",
+        example: "enemy.random_position()  # place fully inside canvas\nasteroid.wrap()          # wrap on all edges",
+        advanced: {
+          en: "`random_position()` reads the *collider* half-size to keep the body inside the canvas — a bare `Actor` with no collider falls back to margin 0 and can land touching any edge. `wrap_x`/`wrap_y` only correct for one canvas-width crossing per call, so an actor moving faster than the canvas width in a single frame will not snap correctly — clamp velocity instead. `in_bounds()` checks the actor's center only, not the full body; pair it with anchor points (`actor.left`, `actor.right`) if you need a full-body test.",
+          ru: "`random_position()` использует половину размера *коллайдера*, чтобы тело осталось внутри холста — у базового `Actor` без коллайдера отступ равен 0 и актёр может оказаться у самого края. `wrap_x`/`wrap_y` корректируют только один переход за вызов, так что актёр, пролетающий больше ширины холста за кадр, не вернётся как надо — лучше ограничить скорость. `in_bounds()` проверяет только центр актёра, а не всё тело; для полной проверки сочетай его с якорями (`actor.left`, `actor.right`).",
+        },
         params: [
           { name: "random_position()", type: "—", en: "Teleport so the actor is fully inside the canvas. Uses the collider shape for margin (circle radius or half-rect size), so the actor never sticks out. Falls back to any position on a bare Actor.", ru: "Телепортирует актора так, чтобы он полностью находился внутри холста. Использует форму коллайдера для отступа (радиус круга или половина прямоугольника). У базового Actor — любая позиция." },
           { name: "wrap_x()", type: "—", en: "If the actor leaves the left or right edge, it appears on the opposite side.", ru: "Если актор выходит за левый или правый край, он появляется с противоположной стороны." },
@@ -692,6 +856,11 @@ export const DOCS: DocCategory[] = [
         signature: "actor.<edge>",
         en: "Each actor exposes AnchorPoints at its edges. Size precedence: an explicit collider (Circle radius, Rect half-size) wins; otherwise the actor's sprite (`image`) dimensions are used; a bare Actor with no image returns its center for all anchors. AnchorPoints behave as Vector2 (arithmetic, equality, distance_to), so you can pass them to tile_at() or do math directly.",
         ru: "Каждый актор предоставляет AnchorPoint у своих краёв. Приоритет размеров: явный коллайдер (радиус Circle, половина размеров Rect); иначе — размеры спрайта (`image`); базовый Actor без изображения возвращает свой центр для всех якорей. AnchorPoint ведёт себя как Vector2 (арифметика, равенство, distance_to), его можно передавать в tile_at() или использовать в математике напрямую.",
+        example: 'say("Ouch!", hero.top)\ntile = ground.tile_at(hero.bottom)',
+        advanced: {
+          en: "AnchorPoint is a Vector2 subclass, so anchors participate in arithmetic, equality, and `distance_to` — pass `hero.top` straight into `tile_at()` or compute `enemy.center.distance_to(player.pos)`. Size precedence is collider → sprite `image` dimensions → zero, so a bare `Actor` with no collider and no image returns the actor's center for *every* anchor. Anchors are recomputed on each access, so they always reflect the actor's current position and the current collider offset (`dx`/`dy`).",
+          ru: "AnchorPoint — подкласс Vector2, поэтому якоря участвуют в арифметике, равенстве и `distance_to` — `hero.top` можно передать прямо в `tile_at()` или вычислить `enemy.center.distance_to(player.pos)`. Приоритет размеров: коллайдер → размеры спрайта `image` → ноль, поэтому базовый `Actor` без коллайдера и без изображения возвращает центр для *всех* якорей. Якоря пересчитываются при каждом обращении, так что всегда отражают текущую позицию актёра и текущее смещение коллайдера (`dx`/`dy`).",
+        },
         params: [
           { name: "actor.center", type: "AnchorPoint", en: "Center of the actor.", ru: "Центр актора." },
           { name: "actor.top", type: "AnchorPoint", en: "Top edge center. Use with say() or text() to place content above the actor.", ru: "Центр верхнего края. Используйте с say() или text(), чтобы разместить контент над актором." },
@@ -710,6 +879,7 @@ export const DOCS: DocCategory[] = [
         signature: "Actor.all_actors()  /  Actor.random_coords()",
         en: "Class-level helpers.",
         ru: "Вспомогательные методы класса.",
+        example: "for actor in Actor.all_actors():\n    actor.draw()",
         params: [
           { name: "Actor.all_actors()", type: "list", en: "Returns a list of every living actor.", ru: "Возвращает список всех живых акторов." },
           { name: "Actor.random_coords()", type: "(x, y)", en: "Returns a random (x, y) within the canvas (does not account for actor size). Prefer actor.random_position() when you want the full body inside the canvas.", ru: "Возвращает случайную (x, y) в пределах холста (не учитывает размер актора). Предпочтите actor.random_position(), если нужно, чтобы тело актора полностью находилось внутри." },
@@ -721,6 +891,11 @@ export const DOCS: DocCategory[] = [
         signature: "Rect(x, y, width, height, color, stroke_color, stroke_width)",
         en: "A rectangle actor that draws itself. Automatically sets a rect collider matching its size. The color parameter accepts a color name string, a Colors.* tuple, or an RGB tuple.",
         ru: "Актор-прямоугольник, который рисует себя. Автоматически устанавливает прямоугольный коллайдер, соответствующий его размеру. Параметр color принимает строку с названием цвета, кортеж Colors.* или кортеж RGB.",
+        example: 'wall = Rect(x=100, y=50, width=20, height=100, color="gray")\nwall.draw()',
+        advanced: {
+          en: "The collider is auto-sized from the constructor `width`/`height` and is *not* updated if you later reassign `actor.width` — call `actor.collider.set_rect(w, h)` when the size changes at runtime. Visual `angle` rotates the drawn rectangle but not the collider, which stays axis-aligned in world coordinates. `color` and `stroke_color` accept a name string, a `Colors.*` tuple, or an RGB tuple interchangeably.",
+          ru: "Коллайдер задаётся по `width`/`height` в конструкторе и *не* обновляется, если позже изменить `actor.width` — при изменении размера в рантайме нужно вызвать `actor.collider.set_rect(w, h)`. Визуальный `angle` поворачивает нарисованный прямоугольник, но не коллайдер — он остаётся осе-ориентированным в мировых координатах. `color` и `stroke_color` принимают строку с именем, кортеж `Colors.*` или RGB-кортеж — все три формы взаимозаменяемы.",
+        },
         params: [
           { name: "x", type: "number", optional: true, default: "0", en: "Center X.", ru: "Координата X центра." },
           { name: "y", type: "number", optional: true, default: "0", en: "Center Y.", ru: "Координата Y центра." },
@@ -737,6 +912,11 @@ export const DOCS: DocCategory[] = [
         signature: "Circle(x, y, radius, color, stroke_color, stroke_width)",
         en: "A circle actor that draws itself. Automatically sets a circle collider with the given radius.",
         ru: "Актор-круг, который рисует себя. Автоматически устанавливает круглый коллайдер с заданным радиусом.",
+        example: 'ball = Circle(x=100, y=100, radius=15, color="red")\nball.draw()',
+        advanced: {
+          en: "The collider radius is fixed at construction; reassigning `actor.radius` later does not update the hitbox — call `actor.collider.set_circle(r)` when it changes at runtime. The circle collider is rotation-invariant, so `angle` has no effect on collisions (only on any sprite drawn on top). Setting `actor.image` is fine: the sprite is drawn at the same center, but the hitbox stays circular regardless of sprite shape.",
+          ru: "Радиус коллайдера фиксируется при создании; присваивание `actor.radius` позже не обновит хитбокс — при изменении в рантайме вызови `actor.collider.set_circle(r)`. Круглый коллайдер не зависит от поворота, поэтому `angle` не влияет на коллизии (только на нарисованный сверху спрайт). Можно задать `actor.image`: спрайт нарисуется в том же центре, но хитбокс останется круглым независимо от формы спрайта.",
+        },
         params: [
           { name: "x", type: "number", optional: true, default: "0", en: "Center X.", ru: "Координата X центра." },
           { name: "y", type: "number", optional: true, default: "0", en: "Center Y.", ru: "Координата Y центра." },
@@ -752,6 +932,11 @@ export const DOCS: DocCategory[] = [
         signature: "Group()",
         en: "A collection of actors that is safe to iterate even while actors are dying. Dead actors are filtered out automatically on each iteration.",
         ru: "Коллекция акторов, по которой безопасно итерировать даже при гибели акторов. Мёртвые акторы автоматически исключаются при каждой итерации.",
+        example: "enemies = Group()\nenemies.add(Enemy(x=50, y=50))\n\nfor e in enemies:\n    e.draw()",
+        advanced: {
+          en: "Iteration filters dead actors lazily — passing through a Group cleans it up. `len(group)` is *not* filtered, so recently-dead actors still count until the next iteration sweep. `add()` does not deduplicate: adding the same actor twice gives it two slots and `collides_any` will test it twice. Iteration is safe during `add`/`remove`/`die` because `__iter__` returns a fresh list copy each time.",
+          ru: "Итерация лениво отфильтровывает мёртвых актёров — проход по группе её очищает. `len(group)` *не* фильтрует, поэтому недавно умершие учитываются до следующего прохода. `add()` не проверяет дубликаты: дважды добавленный актёр займёт два места и в `collides_any` будет проверен дважды. Итерация безопасна при `add`/`remove`/`die`, потому что `__iter__` каждый раз возвращает свежую копию списка.",
+        },
         params: [
           { name: "add(actor)", type: "—", en: "Add an actor to the group.", ru: "Добавить актор в группу." },
           { name: "remove(actor)", type: "—", en: "Remove an actor from the group.", ru: "Удалить актор из группы." },
@@ -773,6 +958,7 @@ export const DOCS: DocCategory[] = [
         signature: "assets.tilemaps.<name>",
         en: "Access a project tilemap by name. Returns a TileMap object containing all of its layers. The tilemap must be created in the sprite editor and added to the project first.",
         ru: "Доступ к тайловой карте проекта по имени. Возвращает объект TileMap со всеми его слоями. Тайловая карта должна быть предварительно создана в редакторе спрайтов.",
+        example: "level = assets.tilemaps.level1\nlevel.draw()",
         params: [
           { name: "name", type: "str", en: "Tilemap name as set in the editor, e.g. assets.tilemaps.level1.", ru: "Имя тайловой карты из редактора, например assets.tilemaps.level1." },
         ],
@@ -784,30 +970,29 @@ export const DOCS: DocCategory[] = [
         signature: "tilemap.draw(x=0, y=0)",
         en: "A collection of named TilemapLayers drawn bottom-to-top. Call draw() each frame to render all layers at an offset — useful for scrolling.",
         ru: "Набор именованных слоёв тайловой карты, рисуемых снизу вверх. Вызывайте draw() каждый кадр для отрисовки всех слоёв со смещением — удобно для прокрутки.",
+        example: 'level = assets.tilemaps.level1\nlevel.draw(-cam.x, -cam.y)  # scroll',
+        advanced: {
+          en: "Layers draw bottom-to-top in the order set by the editor, so a layer added later visually covers earlier ones — useful for foliage or rooftops on top of a ground layer. Attribute access falls through to `layers`: `level.background` is shorthand for `level.layers[\"background\"]`, and raises `AttributeError` (not `KeyError`) on a missing layer. Areas are tilemap-wide — they don't belong to a layer — and are accessed under `level.areas.<name>` (see the Areas entry).",
+          ru: "Слои рисуются снизу вверх в порядке, заданном в редакторе, так что более поздний слой визуально перекрывает предыдущие — удобно для листвы или крыш поверх земли. Атрибутный доступ перенаправляет в `layers`: `level.background` — короткая запись для `level.layers[\"background\"]`, при отсутствующем слое кидает `AttributeError` (не `KeyError`). Области (areas) — общие для всей карты, не привязаны к слою — доступны через `level.areas.<имя>` (см. запись об областях).",
+        },
         params: [
           { name: "draw(x=0, y=0)", type: "—", en: "Draw all layers at pixel offset (x, y). Tiles outside the canvas are skipped automatically.", ru: "Рисует все слои со смещением (x, y) в пикселях. Тайлы за пределами холста автоматически пропускаются." },
           { name: "layers", type: "dict", en: 'Dict of layer name → TilemapLayer. Access a specific layer with tilemap.layers["Layer 1"].', ru: 'Словарь имя слоя → TilemapLayer. Доступ к слою: tilemap.layers["Layer 1"].' },
-          { name: "tag / all_tiles", type: "—", en: 'See the "Tile tags" entry below for the tag-and-query workflow shared by TileMap and TilemapLayer.', ru: 'См. запись "Tile tags" ниже — общий рабочий процесс пометки и запроса для TileMap и TilemapLayer.' },
+          { name: "areas", type: "namespace", en: 'Namespace of named cell-set zones brushed in the Tile Editor. `tilemap.areas.floor` returns a Group of merged-rect colliders for use with `actor.collides_any(...)`. See the "Areas" entry.', ru: 'Пространство имён зон, нарисованных в редакторе тайловой карты. `tilemap.areas.floor` возвращает Group коллайдеров (объединённых в прямоугольники) для `actor.collides_any(...)`. См. запись "Области".' },
         ],
       },
       {
-        id: "tilemap_tags",
-        name: "Tile tags",
-        signature: 'level.tag(tile_name, *tags)  →  level.all_tiles(tag) → Group',
-        en: 'Label tiles by name, then ask the tilemap for a Group of colliders for every cell with that label. Use the Group for collisions, just like Actors.',
-        ru: 'Пометьте тайлы по имени, затем получите Group коллайдеров для всех ячеек с этой меткой. Group работает в коллизиях так же, как с актёрами.',
-        example: 'level.tag("brick", "wall")\nwalls = level.all_tiles("wall")\n\nif player.collides_any(walls):\n    player.stop()',
+        id: "tilemap_areas",
+        name: "Areas",
+        signature: 'tilemap.areas.<name> → Group',
+        en: 'Named cell-set zones brushed onto the tilemap in the Tile Editor. Each area becomes a Group of merged-rectangle colliders you can pass to `actor.collides_any(...)`. Use them for floors, walls, hazard zones, boss arenas — any region the game needs to test against. Areas are tilemap-wide; they do not belong to a specific layer.',
+        ru: 'Именованные зоны из ячеек, нарисованные на тайловой карте в редакторе. Каждая область — это Group объединённых в прямоугольники коллайдеров, который можно передать в `actor.collides_any(...)`. Подходит для пола, стен, опасных зон, арены босса — любых регионов, с которыми игра должна проверять столкновения. Области общие для всей карты, не привязаны к слою.',
+        example: 'if player.collides_any(level.areas.floor):\n    on_ground = True\n\nif player.collides_any(level.areas.boss_arena):\n    background(Colors.wine)',
         advanced: {
-          en: 'Pass merge=True to all_tiles to greedily collapse adjacent tagged cells into larger rectangles — a 30-tile wall stripe becomes 1 rectangle. This is the form to feed into Light.add_obstacles, because the light raycaster is O(N²) per source. Multiple tags per call are allowed and idempotent (set semantics). TileMap.tag/all_tiles work across every layer; TilemapLayer.tag/all_tiles work on a single layer. An unknown tag returns an empty Group — safe to iterate. The returned TileRef actors skip Actor.all_actors() — they exist only as collision shapes, the tilemap itself draws the pixels. The Group is cached per (tag, merge) pair until tags change.',
-          ru: 'Передайте merge=True в all_tiles, чтобы жадно объединить соседние помеченные ячейки в большие прямоугольники — стена из 30 тайлов превращается в 1 прямоугольник. Именно такую Group передавайте в Light.add_obstacles, потому что raycaster света имеет сложность O(N²) на источник. Несколько меток за вызов допустимы и идемпотентны (семантика множества). TileMap.tag/all_tiles работают по всем слоям; TilemapLayer.tag/all_tiles — по одному слою. Неизвестная метка возвращает пустую Group — безопасно итерировать. Возвращаемые TileRef не входят в Actor.all_actors() — они существуют только как формы для коллизий, пиксели рисует сам tilemap. Group кэшируется по паре (tag, merge) до изменения меток.',
+          en: 'Adjacent cells in an area are greedily merged into rectangles when the tilemap loads, so a 30-cell wall stripe becomes one rectangle — `actor.collides_any` then runs against a handful of colliders instead of hundreds. The merge happens once at construction; areas are not editable from Python at runtime. Area names are validated in the editor as snake_case (`[a-z][a-z0-9_]*`) so `level.areas.<name>` always works as attribute access. An area you never brushed any cells into is a valid empty Group — safe to iterate. The TileRef actors inside the Group skip `Actor.all_actors()` — they exist only as collision shapes; the tilemap itself draws the pixels.',
+          ru: 'Соседние ячейки внутри области объединяются в прямоугольники при загрузке тайловой карты — стена из 30 ячеек становится одним прямоугольником, и `actor.collides_any` работает по горстке коллайдеров вместо сотен. Объединение происходит один раз при создании; области нельзя менять из Python в рантайме. Имена областей валидируются в редакторе как snake_case (`[a-z][a-z0-9_]*`), чтобы `level.areas.<имя>` всегда работало как атрибутный доступ. Пустая область (без нарисованных ячеек) — это пустая Group, по ней безопасно итерировать. TileRef внутри Group не входят в `Actor.all_actors()` — они существуют только как формы коллизий, пиксели рисует сама тайловая карта.',
         },
-        params: [
-          { name: "tile_name", type: "str", en: 'Name of the tile to tag, as used in the sprite editor.', ru: 'Имя тайла из редактора спрайтов.' },
-          { name: "*tags", type: "str", en: 'One or more labels to attach. Duplicates are ignored.', ru: 'Одна или несколько меток. Дубликаты игнорируются.' },
-          { name: "tag", type: "str", en: 'Label to look up in all_tiles().', ru: 'Метка для поиска в all_tiles().' },
-          { name: "merge", type: "bool", default: "False", en: 'Combine adjacent cells into bigger rectangles. See Advanced.', ru: 'Объединять соседние ячейки в большие прямоугольники. См. Подробнее.' },
-        ],
-        returns: { type: 'Group', en: 'Tile colliders for collides_any() / Light.add_obstacles.', ru: 'Коллайдеры тайлов для collides_any() / Light.add_obstacles.' },
+        returns: { type: 'Group', en: 'Merged-rectangle tile colliders for `collides_any()`.', ru: 'Коллайдеры тайлов (объединённые в прямоугольники) для `collides_any()`.' },
       },
       {
         id: "tilemap_layer_class",
@@ -815,62 +1000,18 @@ export const DOCS: DocCategory[] = [
         signature: "layer.draw(x=0, y=0)",
         en: "A single named layer from a TileMap. Contains a sparse grid of tile names mapped to ImageBitmaps from the project assets. You can draw individual layers and query tiles by position.",
         ru: "Один именованный слой тайловой карты. Содержит разрежённую сетку из имён тайлов, привязанных к изображениям из ассетов проекта. Можно рисовать отдельные слои и получать тайлы по позиции.",
+        example: 'bg = level.layers["background"]\nbg.draw()\nname = bg.tile_at(hero.bottom)',
+        advanced: {
+          en: "Cells are stored sparsely as a `dict[col][row]`, so an empty grid takes near-zero memory and `tile_at` on an empty cell returns `None` instead of erroring. `tile_at` accepts either two numbers or any single Vector2/Point/AnchorPoint — `layer.tile_at(player.bottom)` is the foot-on-floor check pattern. For collision queries, use tilemap-wide Areas (`tilemap.areas.<name>`) rather than walking individual layers — Areas come pre-merged into rectangles.",
+          ru: "Ячейки хранятся разрежённо как `dict[col][row]`, так что пустая сетка почти не занимает памяти, а `tile_at` на пустой ячейке возвращает `None` без ошибки. `tile_at` принимает либо два числа, либо один Vector2/Point/AnchorPoint — `layer.tile_at(player.bottom)` это типичная проверка «нога на полу». Для проверки столкновений используй области уровня карты (`tilemap.areas.<имя>`), а не обход отдельных слоёв — Areas уже объединены в прямоугольники.",
+        },
         params: [
           { name: "draw(x=0, y=0)", type: "—", en: "Draw this layer at pixel offset (x, y).", ru: "Рисует этот слой со смещением (x, y) в пикселях." },
           { name: "tile_at(px, py)", type: "str|None", en: "Return the tile name at pixel position (px, py), or None if empty. Also accepts a single Vector2/Point/AnchorPoint: tile_at(player.bottom).", ru: "Возвращает имя тайла в пиксельной позиции (px, py) или None, если ячейка пустая. Также принимает один Vector2/Point/AnchorPoint: tile_at(player.bottom)." },
           { name: "get_tile(col, row)", type: "str|None", en: "Return the tile name at grid column/row, or None if empty.", ru: "Возвращает имя тайла по координатам столбца и строки сетки или None, если ячейка пустая." },
           { name: "tiles()", type: "generator", en: "Yield (col, row, name) for every filled cell in the layer.", ru: "Генерирует (col, row, name) для каждой заполненной ячейки слоя." },
-          { name: 'tag / all_tiles', type: '—', en: 'See the "Tile tags" entry — the same API works on a single layer.', ru: 'См. запись "Tile tags" — тот же API работает и на одном слое.' },
           { name: "name", type: "str", en: "The layer's name as set in the editor.", ru: "Имя слоя из редактора." },
           { name: "tile_size", type: "number", en: "Tile size in pixels (all tiles in a layer are the same size).", ru: "Размер тайла в пикселях (все тайлы в слое одного размера)." },
-        ],
-      },
-    ],
-  },
-
-  // ─── Themes & Lighting ─────────────────────────────────────────────────────
-  {
-    id: "themes_lighting",
-    en: "Themes & Lighting",
-    ru: "Темы и освещение",
-    entries: [
-      {
-        id: "themes_namespace",
-        name: "Themes",
-        signature: "Themes.<name>.<color>",
-        en: 'Named color themes. Each theme exposes the same color names as Colors but with different RGB values, plus ambient and light_shade for lighting integration. Built-in themes: "default", "summer", "dungeon", "moonlit". Use anywhere a color is accepted, e.g. fill(Themes.summer.green). Themes.current resolves at access time to the project\'s active theme (chosen in the sprite editor).',
-        ru: 'Именованные цветовые темы. Каждая тема предоставляет тот же набор имён цветов, что и Colors, но с другими значениями RGB, а также поля ambient и light_shade для освещения. Встроенные темы: "default", "summer", "dungeon", "moonlit". Используйте везде, где принимается цвет: fill(Themes.summer.green). Themes.current разрешается во время доступа в активную тему проекта (выбирается в редакторе спрайтов).',
-        params: [
-          { name: 'Themes.<name>', type: '_Theme', en: 'A theme object. Access its colors as Themes.dungeon.red, ambient as Themes.dungeon.ambient, light shade as Themes.dungeon.light_shade.', ru: 'Объект темы. Доступ к цветам: Themes.dungeon.red, к ambient: Themes.dungeon.ambient, к свету: Themes.dungeon.light_shade.' },
-          { name: 'Themes.current', type: '_Theme', en: 'The project\'s active theme. Lazy — do not store in a long-lived variable if the theme can change.', ru: 'Активная тема проекта. Динамическая — не сохраняйте в долгоживущей переменной, если тема может меняться.' },
-        ],
-      },
-      {
-        id: "light_class",
-        name: "Light",
-        signature: "Light(ambient=(40,40,60), radius=200)",
-        en: "Multiply-blended lighting overlay with optional shadow-casting sources. Add obstacles (walls, tiles) and sources (torches, the player), then call light.draw() last each frame so the lightmap composites over everything else. Visibility polygons are cached automatically: a source's polygon is only recomputed when its position or radius changes, or when any obstacle moves or resizes. A fully static scene pays the raycasting cost on the first frame and reuses the polygons afterwards — combine with all_tiles(\"wall\", merge=True) for tile-map lighting that holds 60fps.",
-        ru: "Освещение с мультипликативным наложением и поддержкой теней. Добавьте препятствия (стены, тайлы) и источники (факелы, игрока), затем вызывайте light.draw() последним в каждом кадре, чтобы карта света наложилась поверх остального. Полигоны видимости кэшируются автоматически: полигон источника пересчитывается только при изменении его позиции/радиуса или при движении/изменении препятствий. Полностью статичная сцена платит за raycasting только в первом кадре, затем переиспользует полигоны — в связке с all_tiles(\"wall\", merge=True) подземелье держит 60fps.",
-        params: [
-          { name: 'ambient', type: 'tuple', optional: true, default: '(40,40,60)', en: 'Ambient RGB applied where no source reaches. Use Themes.<name>.ambient for a themed ambient.', ru: 'Окружающий RGB там, куда не достаёт источник. Используйте Themes.<name>.ambient для тематического значения.' },
-          { name: 'radius', type: 'number', optional: true, default: '200', en: 'Default light radius in pixels for sources.', ru: 'Радиус источника света в пикселях по умолчанию.' },
-        ],
-      },
-      {
-        id: "light_methods",
-        name: "Light methods",
-        signature: "light.method()",
-        en: "All setter methods return self so calls can be chained: Light().add_source(torch).shade('warm').flicker(True).",
-        ru: "Все методы-сеттеры возвращают self для цепочечных вызовов: Light().add_source(torch).shade('warm').flicker(True).",
-        params: [
-          { name: 'add_source(actor_or_group_or_pos)', type: 'Light', en: 'Register a light source — an Actor (e.g. torch), a Group of actors, or a position tuple/Vector2.', ru: 'Регистрирует источник света — Actor (например, факел), Group акторов или кортеж/Vector2 позиции.' },
-          { name: 'add_obstacles(group)', type: 'Light', en: 'Register obstacles that cast shadows. Pass any iterable (Group, list, all_tiles result) or a single Actor.', ru: 'Регистрирует препятствия, отбрасывающие тени. Принимает любой итерируемый объект (Group, list, all_tiles) или одного Actor.' },
-          { name: 'add_obst(actor)', type: 'Light', en: 'Alias of add_obstacles.', ru: 'Алиас add_obstacles.' },
-          { name: "shade(name)", type: 'Light', en: 'Set the light gradient color by named shade. Available: "neutral", "warm", "cool", "moonlight", "candle". Raises ValueError on unknown names.', ru: 'Устанавливает цвет градиента света по имени. Доступно: "neutral", "warm", "cool", "moonlight", "candle". Незнакомое имя — ValueError.' },
-          { name: 'flicker(enabled=True)', type: 'Light', en: 'Toggle fire-like intensity jitter in [0.85, 1.0], derived deterministically from frame_count + per-light seed.', ru: 'Включает дрожание интенсивности (как у огня) в диапазоне [0.85, 1.0], детерминированно по frame_count + сиду источника.' },
-          { name: 'radius(r)', type: 'Light', en: 'Change the default radius for new sources.', ru: 'Меняет радиус по умолчанию для новых источников.' },
-          { name: 'style(theme)', type: 'Light', en: 'Set ambient + shade from a theme. Accepts a Themes.<name> object or a theme-name string. Example: light.style("dungeon").', ru: 'Устанавливает ambient + shade из темы. Принимает объект Themes.<name> или строку с именем темы. Пример: light.style("dungeon").' },
-          { name: 'draw()', type: '—', en: 'Emit the lighting overlay for this frame. Call this LAST in main(), after all other drawing, so the lightmap composites on top.', ru: 'Рисует накладку освещения для этого кадра. Вызывайте ПОСЛЕДНЕЙ в main() после всех остальных draw-вызовов, чтобы карта света наложилась поверх.' },
         ],
       },
     ],
@@ -888,6 +1029,11 @@ export const DOCS: DocCategory[] = [
         signature: "random(low, high)",
         en: "Return a random float. With one argument, returns a value in [0, low). With two arguments, returns a value in [low, high).",
         ru: "Возвращает случайное число с плавающей точкой. С одним аргументом — в диапазоне [0, low). С двумя — в диапазоне [low, high).",
+        example: "x = random(width())          # 0 to canvas width\nangle = random(-180, 180)    # any direction",
+        advanced: {
+          en: "Returns a `float` (uses `random.uniform`), not an integer — wrap with `int()` if you need a whole number. There is no seed control here; results are non-deterministic across runs. Both endpoints can appear in the result (uniform is inclusive on both sides for floats), unlike `random.randrange`.",
+          ru: "Возвращает `float` (использует `random.uniform`), не целое — оборачивай `int()`, если нужно целое число. Управления seed здесь нет, результаты не детерминированы между запусками. Оба конца могут попасть в результат (`uniform` включает обе границы для float), в отличие от `random.randrange`.",
+        },
         params: [
           { name: "low", type: "number", en: "Lower bound (or upper bound if high is omitted).", ru: "Нижняя граница (или верхняя, если high не указан)." },
           { name: "high", type: "number", optional: true, en: "Upper bound.", ru: "Верхняя граница." },
@@ -900,6 +1046,7 @@ export const DOCS: DocCategory[] = [
         signature: "random_color()",
         en: "Return a random color tuple from the Colors palette. The returned value can be passed directly to fill(), stroke(), or background().",
         ru: "Возвращает случайный кортеж цвета из палитры Colors. Результат можно напрямую передать в fill(), stroke() или background().",
+        example: "fill(random_color())\ncircle(100, 100, 30)",
         returns: { type: "tuple", en: "An (R, G, B) color tuple.", ru: "Кортеж цвета (R, G, B)." },
       },
       {
@@ -908,6 +1055,11 @@ export const DOCS: DocCategory[] = [
         signature: "assets.sprites.<name>",
         en: "Access a project sprite by filename without extension. The sprite must be added to the project first via the Assets panel.",
         ru: "Доступ к спрайту проекта по имени файла без расширения. Спрайт должен быть предварительно добавлен через панель Ассеты.",
+        example: "image(assets.sprites.ship, 100, 100)",
+        advanced: {
+          en: "Sprite assets are loaded asynchronously: until `done=True`, `image(...)` silently draws nothing — your code can reference a sprite at startup without erroring while the bitmap is still decoding. Names come from filenames, so renaming the asset in the editor breaks the reference.",
+          ru: "Спрайты загружаются асинхронно: пока `done=True` не установлен, `image(...)` молча ничего не рисует — код может ссылаться на спрайт при старте без ошибки, пока картинка декодируется. Имена берутся из имён файлов — переименование в редакторе ломает ссылку.",
+        },
         params: [
           { name: "name", type: "str", en: "Filename without extension, e.g. assets.sprites.ship for ship.svg.", ru: "Имя файла без расширения, например assets.sprites.ship для ship.svg." },
         ],
@@ -918,6 +1070,7 @@ export const DOCS: DocCategory[] = [
         signature: "assets.animations.<name>",
         en: "Access a project animation by name. Returns an Animation object whose frames are the drawings from the Animations panel. Call update() each frame and draw animation.frame with image().",
         ru: "Доступ к анимации проекта по имени. Возвращает объект Animation, кадры которого — рисунки из панели Анимации. Каждый кадр вызывайте update() и рисуйте animation.frame с помощью image().",
+        example: "walk = assets.animations.walk\nwalk.update()\nimage(walk.frame, 100, 100)",
         params: [
           { name: "name", type: "str", en: "Animation name as set in the Animations panel, e.g. assets.animations.walk.", ru: "Имя анимации из панели Анимации, например assets.animations.walk." },
         ],
@@ -937,6 +1090,11 @@ export const DOCS: DocCategory[] = [
         signature: "Animation(frames, fps=8)",
         en: "A frame-cycling sprite animation. Pass a list of sprite frames and the playback speed. Call update() every frame to advance the timer, then draw animation.frame with image(). Create animations in the Animations panel — they load automatically as assets.animations.<name>.",
         ru: "Покадровая спрайтовая анимация. Передайте список кадров и скорость воспроизведения. Вызывайте update() каждый кадр для продвижения таймера, затем рисуйте animation.frame с помощью image(). Создавайте анимации в панели Анимации — они загружаются автоматически как assets.animations.<name>.",
+        example: "anim = Animation(assets.animations.walk.frames, fps=12)",
+        advanced: {
+          en: "Animation `fps` is clamped to at least 1 frame per game tick — setting `fps` higher than the loop's target fps cannot make the animation play faster than one new sprite per tick. Each Animation has its own internal tick accumulator, so multiple Animations stay in sync individually even if the loop drops a frame. The `frames` list is *not* defensively copied at every access — mutating it externally affects the running animation.",
+          ru: "`fps` анимации не может быть меньше одного игрового тика на кадр — задание `fps` выше целевой fps цикла не ускорит воспроизведение больше, чем один спрайт за тик. У каждой Animation свой накопитель тиков, так что несколько анимаций остаются синхронными по отдельности, даже если игровой цикл просел. Список `frames` не копируется при каждом обращении — изменение его извне повлияет на работающую анимацию.",
+        },
         params: [
           { name: "frames", type: "list", en: "List of sprite frames (e.g. from assets.animations.walk.frame or custom list).", ru: "Список кадров спрайта." },
           { name: "fps", type: "number", optional: true, default: "8", en: "Playback speed in frames per second.", ru: "Скорость воспроизведения в кадрах в секунду." },
@@ -948,6 +1106,11 @@ export const DOCS: DocCategory[] = [
         signature: "animation.update()",
         en: "Advance the animation timer by one game frame. Must be called once per frame inside main() to move between sprite frames.",
         ru: "Продвигает таймер анимации на один игровой кадр. Нужно вызывать один раз за кадр внутри main() для смены кадров спрайта.",
+        example: "anim.update()\nimage(anim.frame, hero.x, hero.y)",
+        advanced: {
+          en: "`update()` is a no-op when the animation has 0 or 1 frame or is paused. If you forget to call it, `animation.frame` stays pinned on the same sprite forever (no error). Multiple calls per frame advance the animation that many ticks — useful for fast-forwarding, but the usual pattern is exactly one call per frame.",
+          ru: "`update()` ничего не делает, если у анимации 0 или 1 кадр или она на паузе. Если забыть вызвать, `animation.frame` навсегда останется на том же спрайте (без ошибки). Несколько вызовов за кадр продвигают анимацию на столько же тиков — удобно для перемотки, но обычная схема — один вызов за кадр.",
+        },
       },
       {
         id: "animation_frame",
@@ -955,6 +1118,7 @@ export const DOCS: DocCategory[] = [
         signature: "animation.frame",
         en: "The current sprite frame. Pass directly to image() to draw it. Returns None if the animation has no frames.",
         ru: "Текущий кадр спрайта. Передайте напрямую в image() для отрисовки. Возвращает None, если у анимации нет кадров.",
+        example: "image(anim.frame, 100, 100)",
         returns: { type: "sprite", en: "Current frame sprite, or None.", ru: "Текущий кадр-спрайт, или None." },
       },
       {
@@ -963,6 +1127,7 @@ export const DOCS: DocCategory[] = [
         signature: "animation.play()  animation.pause()  animation.reset()",
         en: "Control playback. play() resumes, pause() freezes on the current frame, reset() jumps back to frame 0 and resumes.",
         ru: "Управление воспроизведением. play() возобновляет, pause() замораживает на текущем кадре, reset() переходит к кадру 0 и возобновляет.",
+        example: "if Keyboard.space.pressed:\n    anim.pause() if not anim.paused else anim.play()",
       },
       {
         id: "animation_loop",
@@ -970,6 +1135,7 @@ export const DOCS: DocCategory[] = [
         signature: "animation.loop = True",
         en: "Whether the animation loops back to frame 0 after the last frame. Set to False to hold on the last frame when done.",
         ru: "Зацикливать ли анимацию после последнего кадра. Установите False, чтобы остановиться на последнем кадре.",
+        example: "death_anim.loop = False  # hold on last frame",
       },
       {
         id: "animation_done",
@@ -977,6 +1143,11 @@ export const DOCS: DocCategory[] = [
         signature: "animation.done",
         en: "True when a non-looping animation has finished playing and is holding on the last frame.",
         ru: "True, когда незацикленная анимация завершила воспроизведение и остановилась на последнем кадре.",
+        example: "if death_anim.done:\n    hero.die()",
+        advanced: {
+          en: "`done` requires *all three*: `loop=False`, playback stopped, *and* the last frame reached. A looping animation always returns False. Calling `reset()` flips `done` back to False and starts playback again from the first frame.",
+          ru: "`done` требует *одновременно*: `loop=False`, остановленное воспроизведение *и* достижение последнего кадра. Зацикленная анимация всегда возвращает False. `reset()` возвращает `done` в False и запускает воспроизведение с первого кадра.",
+        },
         returns: { type: "bool", en: "True if finished.", ru: "True, если завершена." },
       },
     ],

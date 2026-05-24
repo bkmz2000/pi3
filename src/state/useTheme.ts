@@ -82,8 +82,6 @@ export interface Theme {
     ident: string;
   };
 
-  colorPalette: Record<string, [number, number, number]>;
-
   radiusWindow: number;
   radiusCard: number;
   radiusButton: number;
@@ -113,20 +111,6 @@ const THEMES: Record<ThemeId, Theme> = {
   studio: {
     ...BASE,
     name: "Studio",
-    colorPalette: {
-      red:    [210,  70,  60],
-      green:  [ 50, 185,  80],
-      blue:   [ 60, 110, 220],
-      yellow: [230, 190,  30],
-      orange: [220, 120,  40],
-      purple: [160,  70, 200],
-      pink:   [230, 110, 160],
-      cyan:   [ 30, 185, 195],
-      white:  [255, 250, 240],
-      black:  [ 10,  20,  25],
-      gray:   [140, 140, 130],
-      brown:  [150,  85,  40],
-    },
     appBg: "#e9e3d3",
     appTxt: "#1f2933",
     surface: "#fbf6e9",
@@ -200,20 +184,6 @@ const THEMES: Record<ThemeId, Theme> = {
   midnight: {
     ...BASE,
     name: "Midnight",
-    colorPalette: {
-      red:    [230,  90,  80],
-      green:  [ 70, 210, 110],
-      blue:   [ 80, 140, 255],
-      yellow: [255, 220,  60],
-      orange: [255, 155,  60],
-      purple: [190, 110, 235],
-      pink:   [255, 150, 195],
-      cyan:   [ 60, 220, 230],
-      white:  [232, 242, 244],
-      black:  [  6,  24,  27],
-      gray:   [100, 140, 145],
-      brown:  [175, 110,  60],
-    },
     appBg: "#06181b",
     appTxt: "#e8f2f4",
     surface: "#0c2e34",
@@ -287,20 +257,6 @@ const THEMES: Record<ThemeId, Theme> = {
   daylight: {
     ...BASE,
     name: "Daylight",
-    colorPalette: {
-      red:    [195,  65,  55],
-      green:  [ 40, 165,  70],
-      blue:   [ 50, 100, 205],
-      yellow: [215, 175,  25],
-      orange: [205, 110,  35],
-      purple: [145,  60, 185],
-      pink:   [215, 100, 150],
-      cyan:   [ 25, 165, 175],
-      white:  [251, 246, 230],
-      black:  [ 12,  46,  52],
-      gray:   [130, 130, 120],
-      brown:  [140,  80,  38],
-    },
     appBg: "#e6dfcb",
     appTxt: "#0c2e34",
     surface: "#f7f1de",

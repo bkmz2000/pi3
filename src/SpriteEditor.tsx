@@ -10,7 +10,6 @@ import {
 import type { KonvaEventObject } from "konva/lib/Node";
 import type Konva from "konva";
 import { useThemeStore, type Theme } from "./state/useTheme";
-import { GRAPHICS_THEMES, DEFAULT_THEME, themedSwatchHex } from "./state/themes";
 import { Icon } from "./components/Icons";
 import { ThemedDialog } from "./components/ThemedDialog";
 
@@ -37,15 +36,13 @@ const POW2 = [1, 2, 4, 8, 16, 32];
 const prevPow2 = (v: number) => POW2[Math.max(0, POW2.indexOf(v) - 1)] ?? 1;
 const nextPow2 = (v: number) => POW2[Math.min(POW2.length - 1, POW2.indexOf(v) + 1)] ?? 32;
 
+// Sweetie 16 palette by GrafxKid (https://lospec.com/palette-list/sweetie-16).
+// Keep in sync with COLOR_NAMES in src/assets/python/graphics/__init__.py.
 const COLORS: { name: string; hex: string }[] = [
-  { name: "red",       hex: "#ff0000" }, { name: "orange",   hex: "#ff8c00" }, { name: "yellow",  hex: "#ffff00" },
-  { name: "gold",      hex: "#ffd700" }, { name: "lime",     hex: "#7cfc00" }, { name: "green",   hex: "#008000" },
-  { name: "cyan",      hex: "#00ffff" }, { name: "teal",     hex: "#008080" }, { name: "sky",     hex: "#87ceeb" },
-  { name: "blue",      hex: "#0000ff" }, { name: "navy",     hex: "#000080" }, { name: "indigo",  hex: "#4b0082" },
-  { name: "magenta",   hex: "#ff00ff" }, { name: "pink",     hex: "#ff69b4" }, { name: "coral",   hex: "#ff7f50" },
-  { name: "brown",     hex: "#8b4513" }, { name: "maroon",   hex: "#800000" }, { name: "olive",   hex: "#808000" },
-  { name: "white",     hex: "#ffffff" }, { name: "silver",   hex: "#c0c0c0" }, { name: "gray",    hex: "#808080" },
-  { name: "dark-gray", hex: "#404040" }, { name: "black",    hex: "#000000" }, { name: "purple",  hex: "#800080" },
+  { name: "black",  hex: "#1a1c2c" }, { name: "wine",   hex: "#5d275d" }, { name: "red",    hex: "#b13e53" }, { name: "orange", hex: "#ef7d57" },
+  { name: "yellow", hex: "#ffcd75" }, { name: "lime",   hex: "#a7f070" }, { name: "green",  hex: "#38b764" }, { name: "teal",   hex: "#257179" },
+  { name: "navy",   hex: "#29366f" }, { name: "blue",   hex: "#3b5dc9" }, { name: "sky",    hex: "#41a6f6" }, { name: "cyan",   hex: "#73eff7" },
+  { name: "white",  hex: "#f4f4f4" }, { name: "silver", hex: "#94b0c2" }, { name: "gray",   hex: "#566c86" }, { name: "slate",  hex: "#333c57" },
 ];
 
 const isTransparent = (c: string) => c === "transparent";
@@ -162,28 +159,12 @@ type SpriteEditorProps = {
   initialName?: string;
   initialDataUrl?: string;
   initialAnimation?: AnimationData;
-  // Active graphics theme + change handler. The caller reads/writes from the
-  // project metadata; SpriteEditor stays decoupled from IdeState so jest can
-  // mount it without pulling in import.meta-using modules.
-  theme?: string;
-  onThemeChange?: (name: string) => void;
 };
 
-export default function SpriteEditor({ open, onClose, onSave, onSaveAnimation, size = 64, initialName, initialDataUrl, initialAnimation, theme: graphicsTheme, onThemeChange }: SpriteEditorProps) {
+export default function SpriteEditor({ open, onClose, onSave, onSaveAnimation, size = 64, initialName, initialDataUrl, initialAnimation }: SpriteEditorProps) {
   const theme = useThemeStore((s) => s.theme);
   const { t } = useTranslation();
 
-  // Active graphics theme name, supplied by the caller from project metadata.
-  // Falls back to "default" and warns once if the saved name is missing.
-  const projectTheme = graphicsTheme && GRAPHICS_THEMES[graphicsTheme]
-    ? graphicsTheme
-    : DEFAULT_THEME;
-  useEffect(() => {
-    if (graphicsTheme && !GRAPHICS_THEMES[graphicsTheme]) {
-      console.warn(`Unknown saved graphics theme "${graphicsTheme}"; falling back to "${DEFAULT_THEME}".`);
-    }
-  }, [graphicsTheme]);
-  const themedColors = COLORS.map((c) => ({ name: c.name, hex: themedSwatchHex(projectTheme, c.name, c.hex) }));
   const [scale, setScale] = useState(10);
   const SCALE = scale;
   const W = size * SCALE;
@@ -1049,7 +1030,7 @@ export default function SpriteEditor({ open, onClose, onSave, onSaveAnimation, s
                 background: isTransparent(fill) ? "repeating-conic-gradient(#cbd5e1 0% 25%, #fff 0% 50%) 50% / 6px 6px" : fill,
                 boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.2)" }} />
             </button>
-            <ColorPopover open={showFillPicker} value={fill} onPick={onFillPick} testId="fill-color-popover" theme={theme} colors={themedColors}
+            <ColorPopover open={showFillPicker} value={fill} onPick={onFillPick} testId="fill-color-popover" theme={theme} colors={COLORS}
             opacity={opacity} onOpacityChange={o => {
               setOpacity(o);
               if (selectedIds.length > 0) commit(shapes.map(s => selectedIds.includes(s.id) ? { ...s, opacity: o } : s));
@@ -1072,7 +1053,7 @@ export default function SpriteEditor({ open, onClose, onSave, onSaveAnimation, s
                 background: isTransparent(stroke) ? "repeating-conic-gradient(#cbd5e1 0% 25%, #fff 0% 50%) 50% / 6px 6px" : stroke,
                 boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.2)" }} />
             </button>
-            <ColorPopover open={showStrokePicker} value={stroke} onPick={onStrokePick} anchor="bottom-right" testId="stroke-color-popover" theme={theme} colors={themedColors} />
+            <ColorPopover open={showStrokePicker} value={stroke} onPick={onStrokePick} anchor="bottom-right" testId="stroke-color-popover" theme={theme} colors={COLORS} />
           </div>
 
           <div style={{ width: 1, height: 20, background: theme.panelBorder, margin: "0 2px" }} />
@@ -1085,27 +1066,6 @@ export default function SpriteEditor({ open, onClose, onSave, onSaveAnimation, s
             }} />
           <div style={{ width: 1, height: 20, background: theme.panelBorder, margin: "0 2px" }} />
           <Stepper label={t('spriteEditor.scale')} value={scale} min={1} max={10} onChange={setScale} format={v => `${v}×`} theme={theme} />
-
-          <div style={{ width: 1, height: 20, background: theme.panelBorder, margin: "0 2px" }} />
-
-          {/* Graphics theme picker — swaps swatch palette; does not modify pixels. */}
-          <label style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11, color: theme.panelTxtMute, textTransform: "uppercase", letterSpacing: 0.5 }}>
-            {t('spriteEditor.theme', { defaultValue: 'Theme' })}
-            <select
-              data-testid="sprite-theme-select"
-              value={projectTheme}
-              disabled={!onThemeChange}
-              onChange={(e) => onThemeChange?.(e.target.value)}
-              style={{
-                fontFamily: theme.fontUI, fontSize: 11, color: theme.panelTxt,
-                background: theme.surfacePanel, border: `1px solid ${theme.panelBorder}`,
-                borderRadius: 3, padding: "2px 4px", outline: "none",
-              }}>
-              {Object.keys(GRAPHICS_THEMES).map((name) => (
-                <option key={name} value={name}>{name}</option>
-              ))}
-            </select>
-          </label>
 
           <div style={{ flex: 1 }} />
 

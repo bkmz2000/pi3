@@ -2,7 +2,6 @@ import { useCallback, useEffect } from "react";
 import { create } from "zustand";
 import { WorkerCommand, WorkerEvent, WorkerEventType, LintDiagnostic } from "./WorkerInterface";
 import { useIde, useEditor, type AnimationData } from "../state/IdeState";
-import { useThemeStore } from "../state/useTheme";
 import GraphicsInit from "../assets/python/graphics/__init__.py?raw";
 import GraphicsActors from "../assets/python/graphics/actors/__init__.py?raw";
 import GraphicsAnimation from "../assets/python/graphics/animation.py?raw";
@@ -397,8 +396,7 @@ export function useRunner() {
       const { animations } = useEditor.getState().project;
       const { animBitmaps, animTransferables } = await loadAnimations(animations ?? {});
       const showHitboxes = useIde.getState().showHitboxes;
-      const themePalette = useThemeStore.getState().theme.colorPalette;
-      const { tilemaps, theme: projectTheme, sounds: projectSounds } = useEditor.getState().project;
+      const { tilemaps, sounds: projectSounds } = useEditor.getState().project;
       // Reset audio state for this run and build the URL map
       // (library sounds + project sounds; project takes precedence).
       stopAllSounds();
@@ -414,8 +412,6 @@ export function useRunner() {
           animations: animBitmaps,
           soundNames,
           showHitboxes,
-          themePalette,
-          themeName: projectTheme,
         } satisfies WorkerCommand,
         [...transferables, ...animTransferables],
       );

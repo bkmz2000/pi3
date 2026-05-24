@@ -9,69 +9,33 @@
 
 import { DOCS } from '../../src/docs/graphicsDocs';
 
-describe('graphicsDocs — new API entries from graphics-lighting-collisions-themes', () => {
-  it('has a Themes & Lighting category with Themes / Light / Light methods entries', () => {
-    const cat = DOCS.find((c) => c.id === 'themes_lighting');
-    expect(cat).toBeDefined();
-    expect(cat!.entries.map((e) => e.id)).toEqual([
-      'themes_namespace',
-      'light_class',
-      'light_methods',
-    ]);
+describe('graphicsDocs — tilemap + actor regression guards', () => {
+  it('Lighting category is hidden from docs (Python class stays callable)', () => {
+    expect(DOCS.find((c) => c.id === 'lighting')).toBeUndefined();
   });
 
-  it('documents every Light method including style and the "draw last" rule', () => {
-    const cat = DOCS.find((c) => c.id === 'themes_lighting')!;
-    const lightMethods = cat.entries.find((e) => e.id === 'light_methods')!;
-    const names = lightMethods.params!.map((p) => p.name);
-    for (const m of [
-      'add_source(actor_or_group_or_pos)',
-      'add_obstacles(group)',
-      'add_obst(actor)',
-      'shade(name)',
-      'flicker(enabled=True)',
-      'radius(r)',
-      'style(theme)',
-      'draw()',
-    ]) {
-      expect(names).toContain(m);
-    }
-    const drawDoc = lightMethods.params!.find((p) => p.name === 'draw()')!;
-    expect(drawDoc.en).toMatch(/LAST/);
-  });
-
-  it('documents Themes.current as a separate entry', () => {
-    const themes = DOCS
-      .find((c) => c.id === 'themes_lighting')!
-      .entries.find((e) => e.id === 'themes_namespace')!;
-    expect(themes.params!.map((p) => p.name)).toContain('Themes.current');
-  });
-
-  it('documents the tile-tag workflow as a dedicated entry', () => {
+  it('documents the tilemap Areas workflow as a dedicated entry', () => {
     const tilemap = DOCS.find((c) => c.id === 'tilemap')!;
-    const tagsEntry = tilemap.entries.find((e) => e.id === 'tilemap_tags');
-    expect(tagsEntry).toBeDefined();
-    expect(tagsEntry!.signature).toMatch(/\.tag\(.*\)/);
-    expect(tagsEntry!.signature).toMatch(/\.all_tiles\(/);
+    const areasEntry = tilemap.entries.find((e) => e.id === 'tilemap_areas');
+    expect(areasEntry).toBeDefined();
+    // Signature exposes the attribute-access shape.
+    expect(areasEntry!.signature).toMatch(/tilemap\.areas\.<name>/);
+    expect(areasEntry!.signature).toMatch(/Group/);
 
-    // The entry should ship a runnable example.
-    expect(tagsEntry!.example).toBeDefined();
-    expect(tagsEntry!.example!).toMatch(/level\.tag/);
-    expect(tagsEntry!.example!).toMatch(/all_tiles/);
-    expect(tagsEntry!.example!).toMatch(/collides_any/);
+    // The runnable example should use the two canonical patterns: a floor
+    // collision check and an area-as-zone test.
+    expect(areasEntry!.example).toBeDefined();
+    expect(areasEntry!.example!).toMatch(/level\.areas\./);
+    expect(areasEntry!.example!).toMatch(/collides_any/);
 
-    // The merge=True option is the performance escape hatch for tile-map
-    // lighting; it must remain explicitly documented (now in the Advanced
-    // collapsible note).
-    expect(tagsEntry!.advanced).toBeDefined();
-    expect(tagsEntry!.advanced!.en).toMatch(/merge=True/);
-    expect(tagsEntry!.advanced!.en).toMatch(/Light\.add_obstacles/);
-    // Single-layer usage should be mentioned somewhere in the entry.
-    expect(tagsEntry!.advanced!.en).toMatch(/TilemapLayer/);
+    // Advanced note should call out the auto-merging (perf) and the
+    // snake_case validation (since attribute access depends on it).
+    expect(areasEntry!.advanced).toBeDefined();
+    expect(areasEntry!.advanced!.en).toMatch(/merge/i);
+    expect(areasEntry!.advanced!.en).toMatch(/snake_case|\[a-z\]/);
 
-    // The merge param itself is exposed in the Parameters table.
-    const paramNames = tagsEntry!.params!.map((p) => p.name);
-    expect(paramNames).toContain('merge');
+    // Legacy tag/all_tiles entry must not exist any more.
+    expect(tilemap.entries.find((e) => e.id === 'tilemap_tags')).toBeUndefined();
   });
 
   it('documents Actor.future_state with the wall-stop example', () => {
@@ -102,10 +66,18 @@ describe('graphicsDocs — new API entries from graphics-lighting-collisions-the
     expect(angle.en).toMatch(/Polar/);
   });
 
-  it('cross-references Themes from the Colors entry', () => {
+  it('Colors entry exposes the Sweetie 16 swatches', () => {
     const colors = DOCS
       .find((c) => c.id === 'color')!
       .entries.find((e) => e.id === 'colors_palette')!;
-    expect(colors.en).toMatch(/Themes/);
+    expect(colors.swatches).toBeDefined();
+    expect(colors.swatches!.length).toBe(16);
+    const names = colors.swatches!.map((s) => s.name);
+    expect(names).toContain('black');
+    expect(names).toContain('wine');
+    expect(names).toContain('slate');
+    expect(names).not.toContain('pink');
+    expect(names).not.toContain('purple');
+    expect(names).not.toContain('brown');
   });
 });

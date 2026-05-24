@@ -147,30 +147,28 @@ expected_funcs = {
 expected_classes = {
     "TileRef", "TilemapLayer", "TileMap",
     "Light", "Camera",
-    "_Theme", "_Themes",
 }
 for cls in expected_classes:
     test(f"Class '{cls}' is defined", cls in get_func_names(tree))
 
-# Tile tagging API on TilemapLayer / TileMap
+# Old tagging API has been removed in favor of cell-set Areas brushed in the
+# Tile Editor. Check that the legacy methods are gone and the new entry points
+# exist on TileMap.
 tilemap_layer_methods = get_class_body_names(tree, "TilemapLayer")
 for m in ("tag", "all_tiles"):
-    test(f"TilemapLayer.{m} exists", m in tilemap_layer_methods)
+    test(f"TilemapLayer.{m} removed", m not in tilemap_layer_methods)
 tilemap_methods = get_class_body_names(tree, "TileMap")
 for m in ("tag", "all_tiles"):
-    test(f"TileMap.{m} exists", m in tilemap_methods)
+    test(f"TileMap.{m} removed", m not in tilemap_methods)
+test("TileMap.__init__ exists", "__init__" in tilemap_methods)
 
 # Light API surface
 light_methods = get_class_body_names(tree, "Light")
 for m in ("__init__", "add_obstacles", "add_obst", "add_source",
-          "shade", "flicker", "radius", "style", "draw"):
+          "shade", "flicker", "radius", "draw"):
     test(f"Light.{m} exists", m in light_methods)
 
-# Themes data + active theme name
-test("THEMES_DATA assigned at module level", "THEMES_DATA" in module_names)
 test("SHADES assigned at module level", "SHADES" in module_names)
-test("Themes assigned at module level", "Themes" in module_names)
-test("_active_theme_name defined", "_active_theme_name" in module_names)
 
 func_names = get_func_names(tree)
 for fn in expected_funcs:
@@ -1133,129 +1131,74 @@ with cam3:
 test("Camera unfollow holds pos", cam3.x == 50 and cam3.y == 0)
 
 
-# --- Tile tagging + all_tiles ---
+# --- TileMap.areas (cell-set zones brushed in the Tile Editor) ---
 
-print("\n=== Runtime: tile tagging / all_tiles ===")
+print("\n=== Runtime: TileMap.areas ===")
 
 from graphics import TileRef, TileMap
 
 reset()
-layer = g.TilemapLayer("ground", 32, {
-    0: {0: "brick", 1: "brick"},
-    1: {0: "brick", 1: "stone"},
-}, {})
-test("TilemapLayer.tag returns self", layer.tag("brick", "wall") is layer)
-layer.tag("stone", "wall")
+# Layers are required to derive the tile size for area cells.
+la = g.TilemapLayer("ground", 32, {}, {})
+# Two areas: a 5-tile horizontal stripe at row 0, and a 2x2 block at (10..11, 5..6).
+stripe_cells = [[c, 0] for c in range(5)]
+block_cells = [[c, r] for c in (10, 11) for r in (5, 6)]
+tm = TileMap([la], {"ground": la}, {
+    "floor": {"cells": stripe_cells},
+    "boss_arena": {"cells": block_cells},
+})
 
-walls = layer.all_tiles("wall")
-test("all_tiles returns Group", isinstance(walls, Group))
-test("all_tiles count == 4 (3 brick + 1 stone)", len(walls) == 4)
+# Attribute access on the areas namespace.
+floor = tm.areas.floor
+boss = tm.areas.boss_arena
+test("tm.areas.floor returns Group", isinstance(floor, Group))
+test("tm.areas.boss_arena returns Group", isinstance(boss, Group))
 
-# Positions: brick at (0,0), (0,1), (1,0); stone at (1,1). Centers at (col*32+16, row*32+16)
-positions = sorted([(int(a._x), int(a._y)) for a in walls])
-test("all_tiles positions correct",
-     positions == [(16, 16), (16, 48), (48, 16), (48, 48)])
+# Merging: 5-cell stripe collapses to 1 rect, 2x2 block to 1 rect.
+test("floor merges to 1 rectangle", len(floor) == 1)
+test("boss_arena merges to 1 rectangle", len(boss) == 1)
 
-# Returned actors are TileRefs with correct collider size
-for a in walls:
-    test("all_tiles actor is TileRef", isinstance(a, TileRef))
-    test("all_tiles actor collider shape == rect", a.collider.shape == "rect")
-    test("all_tiles actor collider size == tile_size", a.collider.width == 32 and a.collider.height == 32)
-    break  # one is enough
-
-# Idempotent tagging
-layer.tag("brick", "wall")
-test("Re-tagging idempotent", len(layer.all_tiles("wall")) == 4)
-
-# Cache invalidation on re-tag with new name
-layer2 = g.TilemapLayer("ground2", 32, {0: {0: "brick"}, 1: {0: "stone"}}, {})
-layer2.tag("brick", "wall")
-test("First all_tiles call has 1 brick", len(layer2.all_tiles("wall")) == 1)
-layer2.tag("stone", "wall")
-test("After tagging stone too, all_tiles has 2", len(layer2.all_tiles("wall")) == 2)
-
-# Empty result for unknown tag
-empty = layer.all_tiles("lava")
-test("Unknown tag returns empty Group", len(empty) == 0)
-test("Unknown tag still returns a Group", isinstance(empty, Group))
-
-# TileRefs are NOT in Actor._registry
-reg_before = len(Actor._registry)
-layer3 = g.TilemapLayer("g3", 32, {0: {0: "x"}}, {})
-layer3.tag("x", "wall")
-_ = layer3.all_tiles("wall")
-test("TileRef not in Actor._registry", len(Actor._registry) == reg_before)
-
-# collides_any works with all_tiles result
-reset()
-g._width = 400; g._height = 400
-layer4 = g.TilemapLayer("g4", 32, {2: {2: "brick"}}, {})  # tile at col=2, row=2 → center (80, 80)
-layer4.tag("brick", "wall")
-hero = Circle(80, 80, 10)
-test("collides_any works on all_tiles Group", hero.collides_any(layer4.all_tiles("wall")) is not None)
-hero._x = 200; hero._y = 200
-test("collides_any returns None when far", hero.collides_any(layer4.all_tiles("wall")) is None)
-
-# TileMap.tag propagates to layers, all_tiles aggregates
-reset()
-la = g.TilemapLayer("ground", 32, {0: {0: "brick"}}, {})
-lb = g.TilemapLayer("walls", 32, {1: {1: "brick"}}, {})
-tm = TileMap([la, lb], {"ground": la, "walls": lb})
-tm.tag("brick", "wall")
-test("TileMap.tag propagates: ground has wall", "wall" in la._tags.get("brick", set()))
-test("TileMap.tag propagates: walls has wall", "wall" in lb._tags.get("brick", set()))
-agg = tm.all_tiles("wall")
-test("TileMap.all_tiles aggregates across layers", len(agg) == 2)
-
-# all_tiles(tag, merge=True) — greedy rectangle merger.
-print("\n=== Runtime: all_tiles(tag, merge=True) ===")
-reset()
-# 5-tile horizontal stripe at row 0 + 2x2 block at (10..11, 5..6)
-merge_cells = {c: {0: "wall"} for c in range(5)}
-for c in range(2):
-    merge_cells.setdefault(c + 10, {})[5] = "wall"
-    merge_cells.setdefault(c + 10, {})[6] = "wall"
-merge_layer = g.TilemapLayer("merge", 32, merge_cells, {})
-merge_layer.tag("wall", "wall")
-
-unmerged = merge_layer.all_tiles("wall", merge=False)
-merged = merge_layer.all_tiles("wall", merge=True)
-test("merge=False keeps one collider per cell", len(unmerged) == 9)
-test("merge=True collapses to 2 rectangles (stripe + block)", len(merged) == 2)
-
-def _covered_area(grp):
-    return sum(a.collider.width * a.collider.height for a in grp)
-test("merged rectangles cover identical area", _covered_area(unmerged) == _covered_area(merged))
-
-# Merged rectangles are still TileRefs with rect colliders.
-for a in merged:
-    test("merged actor is TileRef", isinstance(a, TileRef))
-    test("merged actor has rect collider", a.collider.shape == "rect")
+# Returned actors are TileRefs with correct rect colliders.
+for a in floor:
+    test("area actor is TileRef", isinstance(a, TileRef))
+    test("area actor collider shape == rect", a.collider.shape == "rect")
+    test("floor rect width == 5 * tile_size", a.collider.width == 5 * 32)
+    test("floor rect height == 1 * tile_size", a.collider.height == 32)
     break
 
-# Collision behavior is preserved on the stripe and on the block.
-stripe_probe = Circle(2 * 32 + 16, 0 * 32 + 16, 4)
-test("collides on stripe (unmerged)", stripe_probe.collides_any(unmerged) is not None)
-test("collides on stripe (merged)",   stripe_probe.collides_any(merged)   is not None)
-block_probe = Circle(10 * 32 + 16, 6 * 32 + 16, 4)
-test("collides on block (unmerged)",  block_probe.collides_any(unmerged) is not None)
-test("collides on block (merged)",    block_probe.collides_any(merged)   is not None)
-gap_probe = Circle(7 * 32 + 16, 3 * 32 + 16, 4)
-test("misses empty space (unmerged)", gap_probe.collides_any(unmerged) is None)
-test("misses empty space (merged)",   gap_probe.collides_any(merged)   is None)
+# Area coverage equals raw cell count × tile_size².
+def _covered_area(grp):
+    return sum(a.collider.width * a.collider.height for a in grp)
+test("floor coverage matches cell count", _covered_area(floor) == 5 * 32 * 32)
+test("boss_arena coverage matches cell count", _covered_area(boss) == 4 * 32 * 32)
 
-# Separate cache entries for merged vs unmerged on the same tag.
-test("merge=False and merge=True cached independently",
-     merge_layer.all_tiles("wall", merge=False) is unmerged and
-     merge_layer.all_tiles("wall", merge=True)  is merged)
+# Empty area is valid and produces an empty Group.
+tm_empty = TileMap([la], {"ground": la}, {"empty_zone": {"cells": []}})
+test("empty area is valid", isinstance(tm_empty.areas.empty_zone, Group))
+test("empty area has length 0", len(tm_empty.areas.empty_zone) == 0)
 
-# TileMap.all_tiles propagates merge=True per layer.
-la2 = g.TilemapLayer("a", 32, {c: {0: "wall"} for c in range(3)}, {})
-lb2 = g.TilemapLayer("b", 32, {c: {0: "wall"} for c in range(4)}, {})
-la2.tag("wall", "wall"); lb2.tag("wall", "wall")
-tm2 = g.TileMap([la2, lb2], {"a": la2, "b": lb2})
-test("TileMap.all_tiles(merge=True) merges within each layer",
-     len(tm2.all_tiles("wall", merge=True)) == 2)
+# TileRefs from areas are not in Actor._registry (would otherwise tick).
+reg_before = len(Actor._registry)
+_ = TileMap([la], {"ground": la}, {"x": {"cells": [[0, 0]]}})
+test("area TileRefs not in Actor._registry", len(Actor._registry) == reg_before)
+
+# collides_any against an area Group works like any other Group.
+reset()
+g._width = 400; g._height = 400
+la3 = g.TilemapLayer("g", 32, {}, {})
+tm3 = TileMap([la3], {"g": la3}, {"wall": {"cells": [[2, 2]]}})  # center (80, 80)
+hero = Circle(80, 80, 10)
+test("collides_any hits the area", hero.collides_any(tm3.areas.wall) is not None)
+hero._x = 200; hero._y = 200
+test("collides_any misses when far", hero.collides_any(tm3.areas.wall) is None)
+
+# TileMap with no areas argument exposes an empty areas namespace.
+tm_none = TileMap([la], {"ground": la})
+test("areas defaults to empty namespace", not hasattr(tm_none.areas, "anything"))
+
+# Areas are tilemap-wide: they don't belong to a specific layer.
+test("TilemapLayer no longer has tag method", not hasattr(la, "tag"))
+test("TilemapLayer no longer has all_tiles method", not hasattr(la, "all_tiles"))
 
 
 # --- Actor.future_state ---
@@ -1308,50 +1251,16 @@ mover._apply_velocity()
 test("actor.vel = Polar then apply moves east", abs(mover._x - 5) < 1e-9 and abs(mover._y) < 1e-9)
 
 
-# --- Themes ---
+# --- Colors (Sweetie 16 palette) ---
 
-print("\n=== Runtime: Themes ===")
+print("\n=== Runtime: Colors (Sweetie 16) ===")
 
-from graphics import Themes, THEMES_DATA
-
-test("Themes in __all__", "Themes" in g.__all__)
-test("Themes.default exists", Themes.default is not None)
-test("Themes.summer exists", Themes.summer is not None)
-test("Themes.dungeon exists", Themes.dungeon is not None)
-test("Themes.moonlit exists", Themes.moonlit is not None)
-test("Themes.summer.green is 3-tuple", isinstance(Themes.summer.green, tuple) and len(Themes.summer.green) == 3)
-test("Themes.summer.green differs from Themes.dungeon.green", Themes.summer.green != Themes.dungeon.green)
-test("Themes.summer.green differs from Colors.green", Themes.summer.green != g.Colors.green)
-test("fill(Themes.summer.green) works", (lambda: (reset(), g.fill(Themes.summer.green), g._draw_commands[-1][0] == "fill")[-1])())
-test("Themes.dungeon.ambient", Themes.dungeon.ambient == (35, 30, 50))
-test("Themes.dungeon.light_shade", Themes.dungeon.light_shade == (255, 180, 110))
-
-try:
-    _ = Themes.no_such_theme
-    test("Unknown theme raises", False)
-except AttributeError as e:
-    test("Unknown theme raises AttributeError naming it", "no_such_theme" in str(e))
-
-try:
-    _ = Themes.summer.notacolor
-    test("Unknown color on theme raises", False)
-except AttributeError as e:
-    msg = str(e)
-    test("Unknown color on theme raises AttributeError naming theme + color",
-         "summer" in msg and "notacolor" in msg)
-
-# Theme palette parity
-base_color_names = {n for n in dir(g.Colors) if not n.startswith("_") and isinstance(getattr(g.Colors, n), tuple)}
-for tname, tdata in THEMES_DATA.items():
-    theme_names = set(tdata["palette"].keys())
-    test(f"Theme '{tname}' palette equals base Colors names",
-         theme_names == base_color_names)
-
-# Base Colors RGB unchanged
-test("Colors.red unchanged", g.Colors.red == (220, 60, 60))
-test("Colors.green unchanged", g.Colors.green == (50, 200, 80))
-test("Colors.blue unchanged", g.Colors.blue == (60, 120, 255))
-test("Colors.black unchanged", g.Colors.black == (0, 0, 0))
+test("Colors.red matches Sweetie", g.Colors.red == (177, 62, 83))
+test("Colors.black matches Sweetie", g.Colors.black == (26, 28, 44))
+test("Colors.white matches Sweetie", g.Colors.white == (244, 244, 244))
+test("Colors.cyan matches Sweetie", g.Colors.cyan == (115, 239, 247))
+test("Colors has 16 named slots",
+     len([n for n in dir(g.Colors) if not n.startswith("_") and isinstance(getattr(g.Colors, n), tuple)]) == 16)
 
 
 # --- Light ---
@@ -1376,24 +1285,6 @@ try:
     test("Unknown shade raises", False)
 except ValueError as e:
     test("Unknown shade raises ValueError naming it", "rainbow" in str(e))
-
-# Light.style accepts theme object
-tl2 = Light()
-tl2.style(Themes.dungeon)
-test("Light.style(Themes.dungeon) sets ambient", tl2._ambient == Themes.dungeon.ambient)
-test("Light.style(Themes.dungeon) sets shade_rgb", tl2._shade_rgb == Themes.dungeon.light_shade)
-
-# Light.style accepts theme name string
-tl3 = Light()
-tl3.style("dungeon")
-test("Light.style('dungeon') == Light.style(Themes.dungeon) ambient", tl3._ambient == tl2._ambient)
-test("Light.style('dungeon') == Light.style(Themes.dungeon) shade", tl3._shade_rgb == tl2._shade_rgb)
-
-try:
-    Light().style("no_such_theme")
-    test("Light.style with unknown theme raises", False)
-except ValueError as e:
-    test("Light.style with unknown theme raises", "no_such_theme" in str(e))
 
 # Flicker is deterministic in [0.85, 1.0] range
 from graphics import _flicker_value

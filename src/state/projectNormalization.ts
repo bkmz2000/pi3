@@ -22,6 +22,5 @@ export function toEditorProject(api: ApiProject): EditorProject {
     tilemaps: api.tilemaps ?? {},
     animations: api.animations ?? {},
     sounds: api.sounds ?? {},
-    theme: api.theme,
   };
 }

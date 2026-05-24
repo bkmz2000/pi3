@@ -234,8 +234,6 @@ export default function Rail() {
   const projectSounds = useEditor((s) => s.project.sounds);
   const addSound = useEditor((s) => s.addSound);
   const removeSound = useEditor((s) => s.removeSound);
-  const projectTheme = useEditor((s) => s.project.theme);
-  const setProjectTheme = useEditor((s) => s.setProjectTheme);
 
   const isRunning = running;
   const runIcon: IconName = !ready ? "settings" : isRunning ? "stop" : "play";
@@ -515,8 +513,6 @@ export default function Rail() {
           }}
           initialName={editingAsset?.name.replace(/\.svg$/i, '') || ''}
           initialDataUrl={editingAsset?.url}
-          theme={projectTheme}
-          onThemeChange={setProjectTheme}
         />
       </Suspense>
 
@@ -528,8 +524,6 @@ export default function Rail() {
           onSave={() => { /* unused in anim mode; handled by onSaveAnimation */ }}
           initialName={editingAnimation?.name ?? ""}
           initialAnimation={editingAnimation?.data}
-          theme={projectTheme}
-          onThemeChange={setProjectTheme}
           onSaveAnimation={(name, data) => {
             saveAnimation(name, data);
             setAnimEditorOpen(false);

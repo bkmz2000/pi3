@@ -241,7 +241,10 @@
     "description": "Description",
     "optional": "optional",
     "returns": "Returns",
-    "advanced": "Advanced"
+    "advanced": "Advanced",
+    "tabConcepts": "Concepts",
+    "tabRecipes": "Recipes",
+    "tabReference": "Reference"
   },
   "teacher": {
     "dashboard": "Teacher Dashboard",

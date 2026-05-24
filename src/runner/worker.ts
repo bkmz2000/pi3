@@ -244,8 +244,6 @@ async function runGraphicsScript(
   soundNames: string[] | undefined,
   entry: string,
   showHitboxes: boolean = false,
-  themePalette?: Record<string, [number, number, number]>,
-  themeName?: string,
 ) {
   prepareFiles(p, files);
 
@@ -273,26 +271,6 @@ async function runGraphicsScript(
   p.globals.set("_tilemap_data", JSON.stringify(tilemaps ?? {}));
   p.globals.set("_sound_names", soundNames ?? []);
   p.globals.set("_using_graphics", true);
-
-  if (themePalette && Object.keys(themePalette).length > 0) {
-    const paletteEntries = Object.entries(themePalette);
-    p.globals.set("_theme_palette", paletteEntries);
-    await p.runPythonAsync(
-      `import graphics; graphics.Colors._update_theme(dict(_theme_palette.to_py()))`,
-    );
-  }
-
-  // Active graphics theme name, used by `Themes.current` in Python.
-  const activeTheme = themeName || "default";
-  p.globals.set("_active_theme_name", activeTheme);
-  await p.runPythonAsync(
-    `import graphics
-if _active_theme_name in graphics.THEMES_DATA:
-    graphics._active_theme_name = _active_theme_name
-else:
-    print(f"warning: unknown graphics theme '{_active_theme_name}', using 'default'")
-    graphics._active_theme_name = "default"`,
-  );
 
   await p.runPythonAsync(`
 import graphics
@@ -359,7 +337,8 @@ for _tm_name, _tm_data in _raw_tm.items():
         _layer = graphics.TilemapLayer(_lname, _tile_size, _cells, {})
         _layers.append(_layer)
         _layer_by_name[_lname] = _layer
-    _tilemaps_dict[_tm_name] = graphics.TileMap(_layers, _layer_by_name)
+    _areas = _tm_data.get("areas", {}) or {}
+    _tilemaps_dict[_tm_name] = graphics.TileMap(_layers, _layer_by_name, _areas)
 
 # Build sounds namespace from name list (URLs live on main thread).
 _sounds_ns = {}
@@ -402,15 +381,13 @@ async function runScript(
   soundNames: string[] | undefined,
   entry: string,
   showHitboxes: boolean = false,
-  themePalette?: Record<string, [number, number, number]>,
-  themeName?: string,
 ) {
   const code = files[entry] ?? "";
 
   p.globals.set("_using_graphics", false);
 
   if (usesNewGraphics(code)) {
-    await runGraphicsScript(p, files, assets, tilemaps, animations, soundNames, entry, showHitboxes, themePalette, themeName);
+    await runGraphicsScript(p, files, assets, tilemaps, animations, soundNames, entry, showHitboxes);
     return;
   }
 
@@ -454,7 +431,7 @@ self.onmessage = async (e: MessageEvent<WorkerCommand>) => {
   } else if (msg.cmd === "run") {
     try {
       const p = await ensurePyodide();
-      await runScript(p, msg.files, msg.assets, msg.tilemaps, msg.animations, msg.soundNames, msg.entry, msg.showHitboxes, msg.themePalette, msg.themeName);
+      await runScript(p, msg.files, msg.assets, msg.tilemaps, msg.animations, msg.soundNames, msg.entry, msg.showHitboxes);
     } catch (err: unknown) {
       post({ type: "error", error: String(err) });
       post({ type: "result" });

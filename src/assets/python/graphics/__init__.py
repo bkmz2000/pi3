@@ -8,6 +8,7 @@ from graphics.actors import Actor, Rect, Circle, Group
 
 import math
 import traceback
+from types import SimpleNamespace
 from typing import Any, Callable, Optional, Union
 
 _version = "1.0"
@@ -46,51 +47,46 @@ _show_hitboxes = False
 
 # === COLORS ===
 
+# Sweetie 16 palette by GrafxKid (https://lospec.com/palette-list/sweetie-16).
+# Locked color palette — used by both Colors.<name> and fill("<name>") lookups.
 COLOR_NAMES = {
-    "red": (255, 0, 0),
-    "green": (0, 255, 0),
-    "blue": (0, 0, 255),
-    "yellow": (255, 255, 0),
-    "cyan": (0, 255, 255),
-    "magenta": (255, 0, 255),
-    "white": (255, 255, 255),
-    "black": (0, 0, 0),
-    "gray": (128, 128, 128),
-    "grey": (128, 128, 128),
-    "orange": (255, 165, 0),
-    "purple": (128, 0, 128),
-    "pink": (255, 192, 203),
-    "brown": (139, 69, 19),
-    "lime": (0, 255, 0),
-    "navy": (0, 0, 128),
-    "teal": (0, 128, 128),
-    "olive": (128, 128, 0),
-    "maroon": (128, 0, 0),
-    "silver": (192, 192, 192),
-    "aqua": (0, 255, 255),
-    "fuchsia": (255, 0, 255),
+    "black":  ( 26,  28,  44),
+    "wine":   ( 93,  39,  93),
+    "red":    (177,  62,  83),
+    "orange": (239, 125,  87),
+    "yellow": (255, 205, 117),
+    "lime":   (167, 240, 112),
+    "green":  ( 56, 183, 100),
+    "teal":   ( 37, 113, 121),
+    "navy":   ( 41,  54, 111),
+    "blue":   ( 59,  93, 201),
+    "sky":    ( 65, 166, 246),
+    "cyan":   (115, 239, 247),
+    "white":  (244, 244, 244),
+    "silver": (148, 176, 194),
+    "gray":   ( 86, 108, 134),
+    "slate":  ( 51,  60,  87),
 }
 
 
 class _Colors:
-    """Named color palette. Use fill(Colors.red) for theme-aware colors."""
-    red    = (220,  60,  60)
-    green  = ( 50, 200,  80)
-    blue   = ( 60, 120, 255)
-    yellow = (255, 220,  40)
-    orange = (255, 140,  40)
-    purple = (180,  80, 220)
-    pink   = (255, 130, 180)
-    cyan   = ( 40, 210, 220)
-    white  = (255, 255, 255)
-    black  = (  0,   0,   0)
-    gray   = (150, 150, 150)
-    brown  = (160,  90,  40)
-
-    def _update_theme(self, palette: dict):
-        for name, rgb in palette.items():
-            if hasattr(self, name):
-                setattr(self, name, tuple(rgb))
+    """Named color palette. Locked to Sweetie 16."""
+    black  = COLOR_NAMES["black"]
+    wine   = COLOR_NAMES["wine"]
+    red    = COLOR_NAMES["red"]
+    orange = COLOR_NAMES["orange"]
+    yellow = COLOR_NAMES["yellow"]
+    lime   = COLOR_NAMES["lime"]
+    green  = COLOR_NAMES["green"]
+    teal   = COLOR_NAMES["teal"]
+    navy   = COLOR_NAMES["navy"]
+    blue   = COLOR_NAMES["blue"]
+    sky    = COLOR_NAMES["sky"]
+    cyan   = COLOR_NAMES["cyan"]
+    white  = COLOR_NAMES["white"]
+    silver = COLOR_NAMES["silver"]
+    gray   = COLOR_NAMES["gray"]
+    slate  = COLOR_NAMES["slate"]
 
 
 Colors = _Colors()
@@ -913,15 +909,15 @@ def _clear():
 
 
 class TileRef(Rect):
-    """Lightweight tile collider returned by `all_tiles`.
+    """Lightweight tile collider produced by tilemap areas.
 
     Subclass of Rect that removes itself from the global Actor registry so the
     game loop does not tick or auto-draw it. The TilemapLayer renders its tiles
-    via `tilemap_layer` draw commands; TileRefs exist purely as colliders.
+    via `tilemap_layer` draw commands; TileRefs exist purely as colliders for
+    `collides_any`.
 
-    `size` is a shortcut for square cells (the default `all_tiles` behavior);
-    pass `width`/`height` instead for merged multi-cell rectangles produced by
-    `all_tiles(tag, merge=True)`.
+    `size` is a shortcut for square cells; pass `width`/`height` instead for
+    multi-cell rectangles produced by the area merger.
     """
 
     def __init__(self, x, y, size=None, *, width=None, height=None):
@@ -980,59 +976,6 @@ class TilemapLayer:
         self.name = name
         self.tile_size = tile_size
         self._cells = cells    # dict[int, dict[int, str]]
-        self._tags = {}        # dict[str, set[str]]  — tile_name → set of tag strings
-        self._tag_group_cache = {}  # dict[str, Group]
-
-    def tag(self, name, *tags):
-        """Associate one or more tags with a tile name. Idempotent (set semantics)."""
-        existing = self._tags.setdefault(name, set())
-        for t in tags:
-            existing.add(t)
-        self._tag_group_cache.clear()
-        return self
-
-    def all_tiles(self, tag, merge=False):
-        """Return a Group of TileRef colliders for every cell whose tile-name has `tag`.
-
-        With `merge=True`, run a greedy 2D rectangle merger so adjacent tagged
-        cells collapse into larger rectangles. Identical collision behavior,
-        but obstacle count drops dramatically — critical when feeding the
-        result to `Light.add_obstacles` since the raycaster is O(N^2) per
-        source. A wall stripe of 30 tiles becomes 1 rectangle.
-        """
-        cache_key = (tag, bool(merge))
-        cached = self._tag_group_cache.get(cache_key)
-        if cached is not None:
-            return cached
-        result = Group()
-        matching = {n for n, ts in self._tags.items() if tag in ts}
-        if matching:
-            if merge:
-                tagged_cells = {
-                    (col, row)
-                    for col, rows in self._cells.items()
-                    for row, name in rows.items()
-                    if name in matching
-                }
-                for cx, cy, w, h in _merge_tile_rects(tagged_cells, self.tile_size):
-                    result.add(TileRef(cx, cy, width=w, height=h))
-            else:
-                half = self.tile_size / 2
-                for col, rows in self._cells.items():
-                    for row, name in rows.items():
-                        if name in matching:
-                            cx = col * self.tile_size + half
-                            cy = row * self.tile_size + half
-                            result.add(TileRef(cx, cy, self.tile_size))
-        self._tag_group_cache[cache_key] = result
-        return result
-
-    def _has_tile_name(self, name):
-        for rows in self._cells.values():
-            for n in rows.values():
-                if n == name:
-                    return True
-        return False
 
     def draw(self, x=0, y=0):
         cells_flat = [[col, row, name] for col, rows in self._cells.items() for row, name in rows.items()]
@@ -1061,13 +1004,22 @@ class TilemapLayer:
 
 
 class TileMap:
-    """A collection of named TilemapLayers, drawn bottom-to-top."""
+    """A collection of named TilemapLayers, drawn bottom-to-top.
 
-    def __init__(self, layers: list, layer_by_name: dict):
+    Named regions (cell-set zones brushed in the Tile Editor) are exposed as
+    `tilemap.areas.<name>` — each is a Group of merged-rect colliders ready
+    for `collides_any`. Areas span the whole tilemap; they do not belong to
+    a specific layer.
+    """
+
+    def __init__(self, layers: list, layer_by_name: dict, areas: dict = None):
         self._layers = layers
         self.layers = layer_by_name
+        self.areas = _build_areas_namespace(areas or {}, layers)
 
     def __getattr__(self, name):
+        # Only reached when normal lookup fails; `layers`/`areas` are real
+        # attributes so this is purely a layer-name shortcut.
         try:
             return self.layers[name]
         except KeyError:
@@ -1077,25 +1029,23 @@ class TileMap:
         for layer in self._layers:
             layer.draw(x, y)
 
-    def tag(self, name, *tags):
-        """Apply tags to every layer that contains the given tile name."""
-        for layer in self._layers:
-            if layer._has_tile_name(name):
-                layer.tag(name, *tags)
-        return self
 
-    def all_tiles(self, tag, merge=False):
-        """Aggregate `all_tiles(tag)` across every layer in this tilemap.
+def _build_areas_namespace(areas: dict, layers: list):
+    """Build a SimpleNamespace of `name → Group of merged-rect TileRefs`.
 
-        `merge` is applied per layer — adjacent cells inside one layer collapse
-        into rectangles, but cells in different layers are not merged across
-        layer boundaries.
-        """
-        result = Group()
-        for layer in self._layers:
-            for actor in layer.all_tiles(tag, merge=merge):
-                result.add(actor)
-        return result
+    Cell coordinates are interpreted in the tile grid; pixel size comes from
+    the first layer's `tile_size` (all layers in a tilemap share size today).
+    """
+    tile_size = layers[0].tile_size if layers else 32
+    built = {}
+    for name, area in areas.items():
+        cells = area.get("cells", []) if isinstance(area, dict) else area
+        cell_set = {(int(c[0]), int(c[1])) for c in cells}
+        group = Group()
+        for cx, cy, w, h in _merge_tile_rects(cell_set, tile_size):
+            group.add(TileRef(cx, cy, width=w, height=h))
+        built[name] = group
+    return SimpleNamespace(**built)
 
 
 from graphics.animation import Animation  # noqa: E402
@@ -1178,151 +1128,6 @@ class Camera:
     def __exit__(self, exc_type, exc_val, exc_tb):
         pop()
         return False
-
-
-# === THEMES ===
-
-
-THEMES_DATA = {
-    "default": {
-        "palette": {
-            "red":    (220,  60,  60),
-            "green":  ( 50, 200,  80),
-            "blue":   ( 60, 120, 255),
-            "yellow": (255, 220,  40),
-            "orange": (255, 140,  40),
-            "purple": (180,  80, 220),
-            "pink":   (255, 130, 180),
-            "cyan":   ( 40, 210, 220),
-            "white":  (255, 255, 255),
-            "black":  (  0,   0,   0),
-            "gray":   (150, 150, 150),
-            "brown":  (160,  90,  40),
-        },
-        "ambient": (255, 255, 255),
-        "light_shade": (255, 255, 255),
-    },
-    "summer": {
-        "palette": {
-            "red":    (255,  95,  60),
-            "green":  (120, 220,  80),
-            "blue":   ( 90, 170, 255),
-            "yellow": (255, 230,  80),
-            "orange": (255, 165,  60),
-            "purple": (200, 120, 230),
-            "pink":   (255, 165, 200),
-            "cyan":   ( 80, 230, 230),
-            "white":  (255, 250, 230),
-            "black":  ( 40,  30,  20),
-            "gray":   (180, 170, 140),
-            "brown":  (180, 110,  60),
-        },
-        "ambient": (220, 210, 180),
-        "light_shade": (255, 230, 180),
-    },
-    "dungeon": {
-        "palette": {
-            "red":    (180,  40,  40),
-            "green":  ( 60, 140,  60),
-            "blue":   ( 40,  80, 160),
-            "yellow": (200, 170,  40),
-            "orange": (200, 100,  40),
-            "purple": (120,  60, 160),
-            "pink":   (180,  90, 130),
-            "cyan":   ( 40, 160, 170),
-            "white":  (200, 200, 210),
-            "black":  ( 10,  10,  15),
-            "gray":   ( 90,  90, 100),
-            "brown":  (110,  70,  40),
-        },
-        "ambient": (35, 30, 50),
-        "light_shade": (255, 180, 110),
-    },
-    "moonlit": {
-        "palette": {
-            "red":    (200,  80,  90),
-            "green":  (100, 180, 140),
-            "blue":   (110, 150, 220),
-            "yellow": (230, 220, 160),
-            "orange": (220, 160, 100),
-            "purple": (180, 140, 220),
-            "pink":   (220, 170, 200),
-            "cyan":   (140, 200, 220),
-            "white":  (220, 230, 255),
-            "black":  ( 10,  15,  30),
-            "gray":   (120, 130, 160),
-            "brown":  (120,  90,  80),
-        },
-        "ambient": (60, 70, 110),
-        "light_shade": (190, 210, 255),
-    },
-}
-
-
-class _Theme:
-    """A named color theme. Access palette colors via attribute (`theme.green`)."""
-
-    def __init__(self, name, data):
-        # Use object.__setattr__ to avoid triggering __getattr__ during init.
-        object.__setattr__(self, "name", name)
-        object.__setattr__(self, "_palette", dict(data["palette"]))
-        object.__setattr__(self, "ambient", tuple(data["ambient"]))
-        object.__setattr__(self, "light_shade", tuple(data["light_shade"]))
-
-    def __getattr__(self, name):
-        # Called only when normal lookup fails.
-        palette = object.__getattribute__(self, "_palette")
-        if name in palette:
-            return palette[name]
-        raise AttributeError(
-            f"Theme '{self.name}' has no color '{name}'. "
-            f"Available: {sorted(palette.keys())}"
-        )
-
-    def __repr__(self):
-        return f"_Theme({self.name!r})"
-
-
-# Active theme name, set by the worker on each run via
-# `graphics._active_theme_name = "<name>"`. Resolved dynamically by
-# `Themes.current` so user code can do `Light.style(Themes.current)` without
-# threading the name through itself.
-_active_theme_name = "default"
-
-
-class _Themes:
-    """Top-level themes container; expose as module-level `Themes`.
-
-    Attribute access returns a `_Theme` (e.g. `Themes.dungeon`). The special
-    name `Themes.current` resolves to the active project theme at access time;
-    holding it in a variable captures a snapshot of whichever theme was active
-    at that moment.
-    """
-
-    def __init__(self):
-        object.__setattr__(
-            self, "_themes",
-            {name: _Theme(name, data) for name, data in THEMES_DATA.items()},
-        )
-
-    def __getattr__(self, name):
-        themes = object.__getattribute__(self, "_themes")
-        if name == "current":
-            # Resolve dynamically from the module-level active name; fall back
-            # to "default" if a stale name slipped through.
-            active = globals().get("_active_theme_name", "default")
-            return themes.get(active, themes["default"])
-        if name in themes:
-            return themes[name]
-        raise AttributeError(
-            f"Unknown theme '{name}'. Available: {sorted(themes.keys())}"
-        )
-
-    def __contains__(self, name):
-        return name in object.__getattribute__(self, "_themes")
-
-
-Themes = _Themes()
 
 
 # === LIGHTING ===
@@ -1441,7 +1246,7 @@ class Light:
 
     Usage:
         tlight = Light(ambient=(40, 40, 60), radius=180)
-        tlight.add_obstacles(level.all_tiles("wall"))
+        tlight.add_obstacles(level.areas.walls)
         tlight.add_source(torch)
         tlight.shade("warm").flicker(True)
         # In main(): call tlight.draw() last so it composites over all drawing.
@@ -1478,7 +1283,7 @@ class Light:
             self._invalidate_polys()
 
     def add_obstacles(self, src):
-        """Add an iterable (Group, list, all_tiles result) or a single Actor."""
+        """Add an iterable (Group, list, tilemap area) or a single Actor."""
         if isinstance(src, Actor):
             self._add_one_obstacle(src)
         elif hasattr(src, "__iter__"):
@@ -1525,18 +1330,6 @@ class Light:
 
     def radius(self, r):
         self._radius = float(r)
-        return self
-
-    def style(self, theme):
-        """Set ambient + shade RGB from a theme (object or name string)."""
-        if isinstance(theme, str):
-            if theme not in THEMES_DATA:
-                raise ValueError(
-                    f"Unknown theme '{theme}'. Available: {sorted(THEMES_DATA.keys())}"
-                )
-            theme = getattr(Themes, theme)
-        self._ambient = tuple(int(c) for c in theme.ambient)
-        self._shade_rgb = tuple(int(c) for c in theme.light_shade)
         return self
 
     def _source_position(self, src):
@@ -1623,7 +1416,7 @@ __all__ = [
     "Actor", "Rect", "Circle", "Group", "Collider",
     "Camera",
     "TilemapLayer", "TileMap", "TileRef",
-    "Themes", "Light",
+    "Light",
     "Animation",
     "run", "stop",
     "assets",

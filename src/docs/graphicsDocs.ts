@@ -15,6 +15,10 @@ export type DocEntry = {
   ru: string;
   params?: DocParam[];
   returns?: { type: string; en: string; ru: string };
+  // A short runnable snippet shown under the description.
+  example?: string;
+  // Long-form notes shown in a collapsed "Advanced" section.
+  advanced?: { en: string; ru: string };
 };
 
 export type DocCategory = {
@@ -789,20 +793,21 @@ export const DOCS: DocCategory[] = [
       {
         id: "tilemap_tags",
         name: "Tile tags",
-        signature: 'level.tag(tile_name, *tags) → level.all_tiles(tag, merge=False) → Group',
-        en: 'Tag tiles by name, then query a Group of read-only tile colliders for every cell whose tile-name has that tag. Tags are set in Python at run time (no persistence yet); the returned Group works with collides_any() and as light obstacles. Pass merge=True to run a greedy rectangle merger so adjacent tagged cells collapse into larger rectangles — critical when feeding the result to Light.add_obstacles because the raycaster is O(N^2) per source. TileMap.tag delegates to every layer containing the tile; TileMap.all_tiles aggregates across layers. TilemapLayer.tag / .all_tiles do the same on a single layer. Returns a Group of TileRef actors with rect colliders; without merge, each one is centered on its cell and sized to tile_size. The Group is cached per (tag, merge) pair until tags change.',
-        ru: 'Пометьте тайлы по имени, затем получите Group коллайдеров для всех ячеек с этой меткой. Метки задаются в Python во время выполнения (постоянство пока не реализовано); возвращаемая Group работает с collides_any() и подходит как препятствие для света. Передайте merge=True, чтобы соседние помеченные ячейки объединились в большие прямоугольники жадным мерджером — это критично для Light.add_obstacles, потому что raycaster O(N^2) на источник. TileMap.tag делегирует во все слои, где встречается тайл; TileMap.all_tiles агрегирует по слоям. TilemapLayer.tag / .all_tiles делают то же самое на одном слое. Возвращает Group объектов TileRef с прямоугольными коллайдерами; без merge — каждый по центру ячейки, размера tile_size. Группа кэшируется по паре (tag, merge) до изменения меток.',
+        signature: 'level.tag(tile_name, *tags)  →  level.all_tiles(tag) → Group',
+        en: 'Label tiles by name, then ask the tilemap for a Group of colliders for every cell with that label. Use the Group for collisions, just like Actors.',
+        ru: 'Пометьте тайлы по имени, затем получите Group коллайдеров для всех ячеек с этой меткой. Group работает в коллизиях так же, как с актёрами.',
+        example: 'level.tag("brick", "wall")\nwalls = level.all_tiles("wall")\n\nif player.collides_any(walls):\n    player.stop()',
+        advanced: {
+          en: 'Pass merge=True to all_tiles to greedily collapse adjacent tagged cells into larger rectangles — a 30-tile wall stripe becomes 1 rectangle. This is the form to feed into Light.add_obstacles, because the light raycaster is O(N²) per source. Multiple tags per call are allowed and idempotent (set semantics). TileMap.tag/all_tiles work across every layer; TilemapLayer.tag/all_tiles work on a single layer. An unknown tag returns an empty Group — safe to iterate. The returned TileRef actors skip Actor.all_actors() — they exist only as collision shapes, the tilemap itself draws the pixels. The Group is cached per (tag, merge) pair until tags change.',
+          ru: 'Передайте merge=True в all_tiles, чтобы жадно объединить соседние помеченные ячейки в большие прямоугольники — стена из 30 тайлов превращается в 1 прямоугольник. Именно такую Group передавайте в Light.add_obstacles, потому что raycaster света имеет сложность O(N²) на источник. Несколько меток за вызов допустимы и идемпотентны (семантика множества). TileMap.tag/all_tiles работают по всем слоям; TilemapLayer.tag/all_tiles — по одному слою. Неизвестная метка возвращает пустую Group — безопасно итерировать. Возвращаемые TileRef не входят в Actor.all_actors() — они существуют только как формы для коллизий, пиксели рисует сам tilemap. Group кэшируется по паре (tag, merge) до изменения меток.',
+        },
         params: [
-          { name: 'level.tag("brick", "wall")', type: 'TileMap', en: 'Tag every "brick" tile in every layer with "wall". Returns the TileMap for chaining.', ru: 'Помечает все тайлы "brick" во всех слоях меткой "wall". Возвращает TileMap для цепочечных вызовов.' },
-          { name: 'level.tag("torch_lit", "torch", "light_source")', type: 'TileMap', en: 'Multiple tags per call; idempotent (set semantics — duplicates have no effect).', ru: 'Несколько меток за вызов; идемпотентно (семантика множества — дубли игнорируются).' },
-          { name: 'walls = level.all_tiles("wall")', type: 'Group', en: 'Group of tile colliders for every tagged cell, ready for collision queries.', ru: 'Group коллайдеров для всех помеченных ячеек, готовая для проверки столкновений.' },
-          { name: 'walls = level.all_tiles("wall", merge=True)', type: 'Group', en: 'Same coverage and same collision behavior, but adjacent cells collapse into bigger rectangles. A 30-tile wall stripe becomes 1 rectangle — pass this to Light.add_obstacles for a big raycasting speedup.', ru: 'То же покрытие и поведение коллизий, но соседние ячейки объединяются в большие прямоугольники. Стена из 30 тайлов превращается в 1 прямоугольник — передавайте такую группу в Light.add_obstacles для ощутимого ускорения raycaster.' },
-          { name: 'player.collides_any(walls)', type: 'Actor|None', en: 'Standard collision: returns the first wall actor the player overlaps, or None.', ru: 'Стандартная проверка: возвращает первого пересекаемого "wall", или None.' },
-          { name: 'light.add_obstacles(walls)', type: '—', en: 'The same Group works as shadow-casting obstacles for a Light.', ru: 'Та же Group подходит как препятствия, отбрасывающие тени, для Light.' },
-          { name: 'level.all_tiles("lava")', type: 'Group', en: 'Unknown tag returns an empty Group (len == 0); safe to iterate.', ru: 'Неизвестная метка — пустая Group (len == 0); безопасно итерировать.' },
-          { name: 'layer.tag(...) / layer.all_tiles(...)', type: '—', en: 'Same API on a single TilemapLayer. Useful when you only want to query one named layer.', ru: 'Тот же API на одном TilemapLayer. Полезно, когда нужно работать только с одним слоем.' },
-          { name: 'TileRef colliders', type: '—', en: 'Returned tile actors skip Actor.all_actors() — they are not ticked or auto-drawn. The tilemap itself renders the pixels; TileRefs exist purely as collision shapes.', ru: 'Возвращаемые тайлы не входят в Actor.all_actors() — они не тикаются и не рисуются автоматически. Пиксели рисует сам tilemap; TileRef нужны только для коллизий.' },
+          { name: "tile_name", type: "str", en: 'Name of the tile to tag, as used in the sprite editor.', ru: 'Имя тайла из редактора спрайтов.' },
+          { name: "*tags", type: "str", en: 'One or more labels to attach. Duplicates are ignored.', ru: 'Одна или несколько меток. Дубликаты игнорируются.' },
+          { name: "tag", type: "str", en: 'Label to look up in all_tiles().', ru: 'Метка для поиска в all_tiles().' },
+          { name: "merge", type: "bool", default: "False", en: 'Combine adjacent cells into bigger rectangles. See Advanced.', ru: 'Объединять соседние ячейки в большие прямоугольники. См. Подробнее.' },
         ],
+        returns: { type: 'Group', en: 'Tile colliders for collides_any() / Light.add_obstacles.', ru: 'Коллайдеры тайлов для collides_any() / Light.add_obstacles.' },
       },
       {
         id: "tilemap_layer_class",

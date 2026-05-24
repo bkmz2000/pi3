@@ -104,6 +104,10 @@ export const useRunnerStore = create<RunnerState>((set) => ({
         handleSoundEvent(msg.action, msg.name);
         break;
       }
+      case "screenshot": {
+        // Handled by per-request listener in captureScreenshot()
+        break;
+      }
       default: {
         const missing: never = msg;
         throw new Error(`missing ${missing}`);
@@ -465,6 +469,26 @@ export function useRunner() {
     cleanupEvents = wireEvents(el);
   }, []);
 
+  const captureScreenshot = useCallback((): Promise<Blob | null> => {
+    return new Promise((resolve) => {
+      const w = getWorker();
+      const reqId = ++lintReqId;
+      const handler = (e: MessageEvent<WorkerEvent>) => {
+        if (e.data.type === "screenshot" && e.data.reqId === reqId) {
+          w.removeEventListener("message", handler);
+          clearTimeout(timer);
+          resolve(e.data.blob);
+        }
+      };
+      const timer = setTimeout(() => {
+        w.removeEventListener("message", handler);
+        resolve(null);
+      }, 2000);
+      w.addEventListener("message", handler);
+      w.postMessage({ cmd: "screenshot", reqId } satisfies WorkerCommand);
+    });
+  }, []);
+
   const lint = useCallback((code: string, filename: string) => {
     return new Promise<LintDiagnostic[]>((resolve) => {
       const reqId = ++lintReqId;
@@ -505,6 +529,7 @@ export function useRunner() {
     respondToInput,
     lint,
     lintErrors,
+    captureScreenshot,
     _appendOutput,
   };
 }

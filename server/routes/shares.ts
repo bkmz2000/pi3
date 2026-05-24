@@ -32,13 +32,13 @@ export function createSharesRouter(): Router {
 
   router.post('/', (req: Request, res: Response): void => {
     const projectId = req.params.id as string;
-    const { username, role = 'viewer' } = req.body;
+    const { username, user_id, role = 'viewer' } = req.body;
     const db = getDb();
 
     if (!requireOwner(projectId, req.user!.id, res)) return;
 
-    if (!username || typeof username !== 'string') {
-      res.status(400).json({ error: 'Bad Request', message: 'Username is required' });
+    if ((!username || typeof username !== 'string') && (!user_id || typeof user_id !== 'string')) {
+      res.status(400).json({ error: 'Bad Request', message: 'username or user_id is required' });
       return;
     }
 
@@ -47,7 +47,9 @@ export function createSharesRouter(): Router {
       return;
     }
 
-    const targetUser = db.prepare('SELECT id FROM users WHERE name = ?').get(username.trim()) as { id: string } | undefined;
+    const targetUser = user_id
+      ? db.prepare('SELECT id FROM users WHERE id = ?').get(user_id) as { id: string } | undefined
+      : db.prepare('SELECT id FROM users WHERE name = ?').get(username.trim()) as { id: string } | undefined;
 
     if (!targetUser) {
       res.status(404).json({ error: 'Not Found', message: 'User not found' });

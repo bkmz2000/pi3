@@ -48,6 +48,7 @@
     "@types/cookie-parser": "^1.4.10",
     "@uiw/codemirror-theme-github": "^4.25.9",
     "@uiw/react-codemirror": "^4.25.7",
+    "animal-avatar-generator": "^1.2.0",
     "bcryptjs": "^3.0.3",
     "better-sqlite3": "^11.6.0",
     "cookie-parser": "^1.4.7",

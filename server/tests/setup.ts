@@ -35,6 +35,8 @@ export function createTestDb(): Database.Database {
       animations TEXT NOT NULL DEFAULT '{}',
       sounds TEXT NOT NULL DEFAULT '{}',
       current_file TEXT NOT NULL DEFAULT 'main.py',
+      thumbnail BLOB,
+      thumbnail_updated_at INTEGER,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL,
       FOREIGN KEY (user_id) REFERENCES users(id)

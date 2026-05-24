@@ -1,4 +1,4 @@
-import { Router, Request, Response } from 'express';
+import { Router, Request, Response, raw } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { getDb } from '../db/index.js';
 import { authMiddleware } from '../middleware/auth.js';
@@ -31,6 +31,7 @@ export function createProjectsRouter(): Router {
     const db = getDb();
     const projects = db.prepare(`
       SELECT DISTINCT p.id, p.name, p.description, p.is_public, p.created_at, p.updated_at,
+             p.thumbnail_updated_at,
              p.user_id as owner_id,
              CASE WHEN p.user_id = ? THEN 'owner'
                   WHEN ps.role IS NOT NULL THEN ps.role
@@ -342,6 +343,72 @@ export function createProjectsRouter(): Router {
       console.error('Error saving project content:', error);
       res.status(500).json({ error: 'Internal Server Error', message: 'Failed to save project content' });
     }
+  });
+
+  router.get('/:id/thumbnail', (req: Request, res: Response): void => {
+    const { id } = req.params;
+    const access = getProjectAccess(id as string, req.user!.id);
+    if (!access.exists || !access.role) {
+      res.status(404).end();
+      return;
+    }
+    const row = getDb()
+      .prepare('SELECT thumbnail, thumbnail_updated_at FROM projects WHERE id = ?')
+      .get(id) as { thumbnail: Buffer | null; thumbnail_updated_at: number | null } | undefined;
+    if (!row || !row.thumbnail) {
+      res.status(404).end();
+      return;
+    }
+    res.setHeader('Content-Type', 'image/png');
+    res.setHeader('Cache-Control', 'private, max-age=60');
+    if (row.thumbnail_updated_at) {
+      res.setHeader('Last-Modified', new Date(row.thumbnail_updated_at).toUTCString());
+    }
+    res.send(row.thumbnail);
+  });
+
+  router.put(
+    '/:id/thumbnail',
+    raw({ type: 'image/png', limit: '1mb' }),
+    (req: Request, res: Response): void => {
+      const { id } = req.params;
+      const access = getProjectAccess(id as string, req.user!.id);
+      if (!access.exists) {
+        res.status(404).json({ error: 'Not Found', message: 'Project not found' });
+        return;
+      }
+      if (!hasRole(access, 'editor')) {
+        res.status(403).json({ error: 'Forbidden', message: 'Write access required' });
+        return;
+      }
+      const body = req.body;
+      if (!Buffer.isBuffer(body) || body.length === 0) {
+        res.status(400).json({ error: 'Bad Request', message: 'Expected image/png body' });
+        return;
+      }
+      const now = Date.now();
+      getDb()
+        .prepare('UPDATE projects SET thumbnail = ?, thumbnail_updated_at = ?, updated_at = ? WHERE id = ?')
+        .run(body, now, now, id);
+      res.json({ thumbnail_updated_at: now });
+    },
+  );
+
+  router.delete('/:id/thumbnail', (req: Request, res: Response): void => {
+    const { id } = req.params;
+    const access = getProjectAccess(id as string, req.user!.id);
+    if (!access.exists) {
+      res.status(404).end();
+      return;
+    }
+    if (!hasRole(access, 'editor')) {
+      res.status(403).end();
+      return;
+    }
+    getDb()
+      .prepare('UPDATE projects SET thumbnail = NULL, thumbnail_updated_at = NULL WHERE id = ?')
+      .run(id);
+    res.status(204).end();
   });
 
   router.use('/:id/share', createSharesRouter());

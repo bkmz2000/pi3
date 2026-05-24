@@ -44,7 +44,9 @@
     "teacherDashboard": "Teacher dashboard",
     "myClasses": "My classes",
     "askForHelp": "Ask for help",
-    "myClass": "My class"
+    "myClass": "My class",
+    "copyHandle": "Copy handle",
+    "handleCopied": "Copied!"
   },
   "sideMenu": {
     "close": "Close",
@@ -193,7 +195,11 @@
   "canvas": {
     "label": "canvas",
     "statusLive": "live",
-    "statusPaused": "paused"
+    "statusPaused": "paused",
+    "screenshot": "Take screenshot (sets as project cover)",
+    "screenshotHistory": "Recent screenshots",
+    "setAsCover": "Use as project cover",
+    "screenshotNoProject": "Save the project first to set a cover"
   },
   "console": {
     "checking": "Checking for errors...",
@@ -234,7 +240,8 @@
     "default": "Default",
     "description": "Description",
     "optional": "optional",
-    "returns": "Returns"
+    "returns": "Returns",
+    "advanced": "Advanced"
   },
   "teacher": {
     "dashboard": "Teacher Dashboard",
@@ -339,6 +346,21 @@
     "roleEditor": "Editor",
     "roleViewer": "Viewer",
     "description": "Description (optional)",
-    "creating": "Creating..."
+    "creating": "Creating...",
+    "backToEditor": "Back to editor",
+    "shareTitle": "Share project",
+    "shareSubtitle": "Share {{name}} with someone",
+    "sharePerson": "Person",
+    "sharePersonPlaceholder": "Search by name or @handle",
+    "shareNoMatches": "No users match.",
+    "shareSearching": "Searching…",
+    "shareRoleLabel": "Permission",
+    "shareRoleEditorDesc": "Can edit",
+    "shareRoleViewerDesc": "Can view",
+    "shareCancel": "Cancel",
+    "shareConfirm": "Share",
+    "shareSharing": "Sharing…",
+    "shareSuccess": "Shared with {{name}}.",
+    "shareHintMinChars": "Type at least 2 characters."
   }
 }

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type CSSProperties } from "react";
 import { useTranslation } from "react-i18next";
 import type { Theme } from "../state/useTheme";
 import { DOCS, type DocCategory, type DocEntry } from "../docs/graphicsDocs";
@@ -82,18 +82,15 @@ function ParamTable({ entry, lang, theme }: { entry: DocEntry; lang: string; the
             <tr key={p.name}>
               <td style={col}>
                 {p.name}
-                {p.optional && (
-                  <span style={{ color: theme.panelTxtMute, fontSize: 10, marginLeft: 3 }}>?</span>
-                )}
-              </td>
-              <td style={colMute}>{p.type}</td>
-              <td style={{ ...colMute, fontFamily: theme.fontUI, fontSize: 12 }}>
-                {isRu ? p.ru : p.en}
                 {p.default !== undefined && (
                   <span style={{ color: theme.accent, marginLeft: 4, fontFamily: theme.fontMono, fontSize: 11 }}>
                     = {p.default}
                   </span>
                 )}
+              </td>
+              <td style={colMute}>{p.type}</td>
+              <td style={{ ...colMute, fontFamily: theme.fontUI, fontSize: 12 }}>
+                {isRu ? p.ru : p.en}
               </td>
             </tr>
           ))}
@@ -105,6 +102,53 @@ function ParamTable({ entry, lang, theme }: { entry: DocEntry; lang: string; the
           <span style={{ fontFamily: theme.fontMono, fontSize: 11, color: theme.accent }}>{entry.returns.type}</span>
           {" — "}
           {isRu ? entry.returns.ru : entry.returns.en}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ExampleBlock({ code, theme }: { code: string; theme: Theme }) {
+  const pre: CSSProperties = {
+    margin: '8px 0 0',
+    padding: '8px 10px',
+    background: theme.editorBg ?? theme.panelHeader,
+    border: `1px solid ${theme.panelBorder}`,
+    borderRadius: 5,
+    fontFamily: theme.fontMono,
+    fontSize: 11.5,
+    lineHeight: 1.55,
+    color: theme.panelTxt,
+    whiteSpace: 'pre',
+    overflowX: 'auto',
+  };
+  return <pre style={pre}>{code}</pre>;
+}
+
+function AdvancedNote({ entry, lang, theme }: { entry: DocEntry; lang: string; theme: Theme }) {
+  const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
+  const isRu = lang.startsWith('ru');
+  if (!entry.advanced) return null;
+  return (
+    <div style={{ marginTop: 8 }}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        style={{
+          all: 'unset', cursor: 'pointer',
+          display: 'inline-flex', alignItems: 'center', gap: 5,
+          fontFamily: theme.fontUI, fontSize: 11, fontWeight: 700,
+          color: theme.panelTxtMute,
+          textTransform: 'uppercase', letterSpacing: '0.06em',
+        }}
+      >
+        <span style={{ display: 'inline-block', transform: open ? 'rotate(90deg)' : 'rotate(0deg)', fontSize: 9 }}>▶</span>
+        {t('docs.advanced')}
+      </button>
+      {open && (
+        <div style={{ marginTop: 6, fontFamily: theme.fontUI, fontSize: 12.5, color: theme.panelTxtMute, lineHeight: 1.55 }}>
+          {isRu ? entry.advanced.ru : entry.advanced.en}
         </div>
       )}
     </div>
@@ -172,10 +216,12 @@ function EntryRow({
             borderBottom: `1px solid ${theme.panelBorder}`,
           }}
         >
-          <div style={{ fontFamily: theme.fontUI, fontSize: 13, color: theme.panelTxt, lineHeight: 1.5, marginBottom: entry.params && entry.params.length > 0 ? 6 : 0 }}>
+          <div style={{ fontFamily: theme.fontUI, fontSize: 13, color: theme.panelTxt, lineHeight: 1.5 }}>
             {isRu ? entry.ru : entry.en}
           </div>
+          {entry.example && <ExampleBlock code={entry.example} theme={theme} />}
           <ParamTable entry={entry} lang={lang} theme={theme} />
+          {entry.advanced && <AdvancedNote entry={entry} lang={lang} theme={theme} />}
         </div>
       )}
     </div>

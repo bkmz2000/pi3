@@ -53,15 +53,25 @@ describe('graphicsDocs — new API entries from graphics-lighting-collisions-the
     expect(tagsEntry).toBeDefined();
     expect(tagsEntry!.signature).toMatch(/\.tag\(.*\)/);
     expect(tagsEntry!.signature).toMatch(/\.all_tiles\(/);
-    // The body should cover both TileMap-level and TilemapLayer-level usage.
-    const paramNames = tagsEntry!.params!.map((p) => p.name).join(' | ');
-    expect(paramNames).toMatch(/level\.tag/);
-    expect(paramNames).toMatch(/all_tiles/);
-    expect(paramNames).toMatch(/layer\.tag/);
-    // The merge=True option must be explicitly documented (it's the
-    // performance escape hatch for tile-map lighting).
-    expect(tagsEntry!.en).toMatch(/merge=True/);
-    expect(paramNames).toMatch(/merge=True/);
+
+    // The entry should ship a runnable example.
+    expect(tagsEntry!.example).toBeDefined();
+    expect(tagsEntry!.example!).toMatch(/level\.tag/);
+    expect(tagsEntry!.example!).toMatch(/all_tiles/);
+    expect(tagsEntry!.example!).toMatch(/collides_any/);
+
+    // The merge=True option is the performance escape hatch for tile-map
+    // lighting; it must remain explicitly documented (now in the Advanced
+    // collapsible note).
+    expect(tagsEntry!.advanced).toBeDefined();
+    expect(tagsEntry!.advanced!.en).toMatch(/merge=True/);
+    expect(tagsEntry!.advanced!.en).toMatch(/Light\.add_obstacles/);
+    // Single-layer usage should be mentioned somewhere in the entry.
+    expect(tagsEntry!.advanced!.en).toMatch(/TilemapLayer/);
+
+    // The merge param itself is exposed in the Parameters table.
+    const paramNames = tagsEntry!.params!.map((p) => p.name);
+    expect(paramNames).toContain('merge');
   });
 
   it('documents Actor.future_state with the wall-stop example', () => {

@@ -512,5 +512,18 @@ self.onmessage = async (e: MessageEvent<WorkerCommand>) => {
       console.warn("Worker: Lint skipped —", err);
       post({ type: "lint", diagnostics: [], reqId });
     }
+  } else if (msg.cmd === "screenshot") {
+    const { reqId } = msg;
+    if (!offscreen) {
+      post({ type: "screenshot", reqId, blob: null });
+      return;
+    }
+    try {
+      const blob = await offscreen.convertToBlob({ type: "image/png" });
+      post({ type: "screenshot", reqId, blob });
+    } catch (err) {
+      console.warn("Worker: screenshot failed —", err);
+      post({ type: "screenshot", reqId, blob: null });
+    }
   }
 };

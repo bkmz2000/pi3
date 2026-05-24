@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useProjects } from '../../hooks/useProjects';
 import { useUser } from '../../state/useUser';
 import { useThemeStore } from '../../state/useTheme';
-import { ProjectCard } from './ProjectCard';
+import { ProjectRow } from './ProjectRow';
 import { NewProjectDialog } from './NewProjectDialog';
 import { useNavigate } from 'react-router-dom';
 import { Icon } from '../Icons';
@@ -89,7 +89,7 @@ export function ProjectsPage() {
           }}
         >
           <Icon name="close" size={14} color="currentColor" />
-          Back to Editor
+          {t('projects.backToEditor')}
         </button>
         <div style={{ flex: 1 }} />
         <span style={{
@@ -222,11 +222,11 @@ export function ProjectsPage() {
               </div>
             ) : (
               <div style={{
-                display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
-                gap: 12,
+                display: 'flex', flexDirection: 'column', gap: 8,
+                maxWidth: 760, margin: '0 auto',
               }}>
                 {apiProjects.map((project) => (
-                  <ProjectCard
+                  <ProjectRow
                     key={project.id}
                     project={project}
                     onSelect={handleSelectProject}

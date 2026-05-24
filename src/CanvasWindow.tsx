@@ -3,11 +3,76 @@ import { useTranslation } from "react-i18next";
 import { useRunner } from "./runner/RunnerProvider";
 import { useThemeStore } from "./state/useTheme";
 import { Icon } from "./components/Icons";
+import { useEditor, isExampleSessionId } from "./state/IdeState";
+import { uploadProjectThumbnail } from "./state/api";
+
+type Snap = { id: number; url: string; blob: Blob };
+const MAX_SNAPS = 5;
 
 export default function CanvasWindow() {
   const { t } = useTranslation();
   const theme = useThemeStore((s) => s.theme);
-  const { attachCanvas, canvasActive, running, canvasWidth, canvasHeight } = useRunner();
+  const { attachCanvas, canvasActive, running, canvasWidth, canvasHeight, captureScreenshot } = useRunner();
+  const projectId = useEditor((s) => s.currentProjectId);
+  const canPersist = !!projectId && !isExampleSessionId(projectId);
+  const [snaps, setSnaps] = useState<Snap[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
+  const [coverId, setCoverId] = useState<number | null>(null);
+  const [busy, setBusy] = useState(false);
+  const snapIdRef = useRef(0);
+
+  useEffect(() => {
+    return () => { snaps.forEach((s) => URL.revokeObjectURL(s.url)); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Reset history when project changes
+  useEffect(() => {
+    setSnaps((cur) => {
+      cur.forEach((s) => URL.revokeObjectURL(s.url));
+      return [];
+    });
+    setCoverId(null);
+  }, [projectId]);
+
+  const capture = async () => {
+    const blob = await captureScreenshot();
+    if (!blob) return;
+    const url = URL.createObjectURL(blob);
+    const snap: Snap = { id: ++snapIdRef.current, url, blob };
+    setSnaps((cur) => {
+      const next = [snap, ...cur];
+      while (next.length > MAX_SNAPS) {
+        const dropped = next.pop()!;
+        URL.revokeObjectURL(dropped.url);
+      }
+      return next;
+    });
+    if (canPersist && projectId) {
+      try {
+        setBusy(true);
+        await uploadProjectThumbnail(projectId, blob);
+        setCoverId(snap.id);
+      } catch (err) {
+        console.warn("Thumbnail upload failed:", err);
+      } finally {
+        setBusy(false);
+      }
+    }
+  };
+
+  const setAsCover = async (snap: Snap) => {
+    if (!canPersist || !projectId) return;
+    try {
+      setBusy(true);
+      await uploadProjectThumbnail(projectId, snap.blob);
+      setCoverId(snap.id);
+    } catch (err) {
+      console.warn("Thumbnail upload failed:", err);
+    } finally {
+      setBusy(false);
+    }
+  };
   const ref = useRef<HTMLCanvasElement | null>(null);
   const windowRef = useRef<HTMLDivElement | null>(null);
   const [pos, setPos] = useState({ x: 0, y: 0 });
@@ -119,7 +184,76 @@ export default function CanvasWindow() {
           {running ? t('canvas.statusLive') : t('canvas.statusPaused')}
         </span>
         <div style={{ flex: 1 }} />
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); capture(); }}
+          onPointerDown={(e) => e.stopPropagation()}
+          disabled={!canvasActive || busy}
+          title={t('canvas.screenshot')}
+          style={{
+            all: 'unset',
+            cursor: canvasActive && !busy ? 'pointer' : 'default',
+            opacity: canvasActive ? (busy ? 0.5 : 1) : 0.35,
+            width: 22, height: 22, borderRadius: 4,
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            color: theme.canvasTitleTxt,
+          }}
+        >
+          <Icon name="camera" size={14} color="currentColor" />
+        </button>
+        {snaps.length > 0 && (
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); setShowHistory((v) => !v); }}
+            onPointerDown={(e) => e.stopPropagation()}
+            title={t('canvas.screenshotHistory')}
+            style={{
+              all: 'unset', cursor: 'pointer',
+              padding: '0 4px', height: 18, borderRadius: 9,
+              background: showHistory ? theme.chip : 'transparent',
+              color: theme.canvasTitleTxt,
+              fontFamily: theme.fontMono, fontSize: 10, fontWeight: 700,
+              display: 'inline-flex', alignItems: 'center',
+            }}
+          >
+            {snaps.length}
+          </button>
+        )}
       </div>
+      {showHistory && snaps.length > 0 && (
+        <div
+          onPointerDown={(e) => e.stopPropagation()}
+          style={{
+            position: 'absolute', top: 32, right: 6,
+            background: theme.surfacePanel,
+            border: `1px solid ${theme.panelBorder}`,
+            borderRadius: 6,
+            padding: 6,
+            display: 'flex', gap: 6,
+            boxShadow: '0 6px 18px rgba(0,0,0,0.25)',
+            zIndex: 10,
+          }}
+        >
+          {snaps.map((s) => (
+            <button
+              key={s.id}
+              type="button"
+              onClick={() => setAsCover(s)}
+              disabled={!canPersist || busy}
+              title={canPersist ? t('canvas.setAsCover') : t('canvas.screenshotNoProject')}
+              style={{
+                all: 'unset', cursor: canPersist && !busy ? 'pointer' : 'default',
+                width: 48, height: 48, borderRadius: 4,
+                border: `2px solid ${s.id === coverId ? theme.accent : 'transparent'}`,
+                overflow: 'hidden', display: 'block',
+                opacity: canPersist ? 1 : 0.6,
+              }}
+            >
+              <img src={s.url} width={48} height={48} style={{ display: 'block', objectFit: 'cover', imageRendering: 'pixelated' }} alt="" />
+            </button>
+          ))}
+        </div>
+      )}
       <div
         style={{
           width: canvasWidth > 0 ? canvasWidth : 300,

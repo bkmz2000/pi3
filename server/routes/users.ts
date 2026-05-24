@@ -129,6 +129,34 @@ router.post('/outsider/login', async (req: Request, res: Response): Promise<void
   }
 });
 
+// GET /api/users/search?q=… — used by share dialog and teacher invite
+// Returns up to 8 users whose display name OR handle contains q (case-insensitive), excluding self.
+router.get('/search', authMiddleware, (req: Request, res: Response): void => {
+  const q = typeof req.query.q === 'string' ? req.query.q.trim() : '';
+  if (q.length < 2) {
+    res.json([]);
+    return;
+  }
+  const db = getDb();
+  // Strip leading @ so users can type "@handle" or "handle"
+  const needle = q.replace(/^@+/, '').toLowerCase();
+  const like = `%${needle}%`;
+  const rows = db.prepare(`
+    SELECT id, name, handle, role
+    FROM users
+    WHERE id != ?
+      AND (LOWER(name) LIKE ? OR LOWER(handle) LIKE ?)
+    ORDER BY
+      CASE WHEN LOWER(handle) = ? THEN 0
+           WHEN LOWER(name) = ? THEN 1
+           WHEN LOWER(handle) LIKE ? THEN 2
+           ELSE 3 END,
+      name ASC
+    LIMIT 8
+  `).all(req.user!.id, like, like, needle, needle, `${needle}%`) as { id: string; name: string; handle: string | null; role: string }[];
+  res.json(rows);
+});
+
 // GET /api/users/me
 router.get('/me', authMiddleware, (req: Request, res: Response): void => {
   const db = getDb();

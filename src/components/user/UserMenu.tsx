@@ -4,29 +4,10 @@ import { useNavigate } from 'react-router-dom';
 import { useUser } from '../../state/useUser';
 import { useThemeStore } from '../../state/useTheme';
 import { Icon } from '../Icons';
+import { HandleAvatar } from './HandleAvatar';
 
-function Avatar({ name, role, size = 28 }: { name: string; role: string; size?: number }) {
-  const theme = useThemeStore((s) => s.theme);
-  const initials = name
-    .split(/[\s_-]+/)
-    .map((p) => p[0])
-    .filter(Boolean)
-    .join('')
-    .toUpperCase()
-    .slice(0, 2);
-  const bg = role === 'teacher' ? theme.runBg : theme.accent;
-  return (
-    <span style={{
-      width: size, height: size, borderRadius: 999,
-      background: bg, color: '#fff',
-      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-      fontFamily: theme.fontUI, fontWeight: 700,
-      fontSize: Math.round(size * 0.42),
-      flexShrink: 0,
-    }}>
-      {initials}
-    </span>
-  );
+function Avatar({ seed, size = 28 }: { seed: string; size?: number }) {
+  return <HandleAvatar seed={seed} size={size} />;
 }
 
 function RoleTag({ role }: { role: string }) {
@@ -66,6 +47,70 @@ function HandIcon({ color }: { color: string }) {
     <svg width={14} height={14} viewBox="0 0 16 16" style={{ flex: 'none', display: 'block' }}>
       <path d="M5.5 9V4.2a1 1 0 1 1 2 0V8m0 0V3.2a1 1 0 1 1 2 0V8m0 0V4.2a1 1 0 1 1 2 0V9m-6 0v3a3 3 0 0 0 3 3h.5a3 3 0 0 0 3-3V9" stroke={color} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" fill="none" />
     </svg>
+  );
+}
+
+function IdentityBlock({ user }: { user: { name: string; handle?: string | null; role: string } }) {
+  const { t } = useTranslation();
+  const theme = useThemeStore((s) => s.theme);
+  const [copied, setCopied] = useState(false);
+  const handle = user.handle ?? '';
+  const canCopy = handle.length > 0;
+
+  const onCopy = async () => {
+    if (!canCopy) return;
+    try {
+      await navigator.clipboard.writeText(`@${handle}`);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1400);
+    } catch { /* clipboard blocked — ignore */ }
+  };
+
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 10,
+      padding: '10px',
+    }}>
+      <Avatar seed={user.handle ?? user.name} size={40} />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <button
+          type="button"
+          onClick={onCopy}
+          disabled={!canCopy}
+          title={canCopy ? (copied ? t('auth.handleCopied') : t('auth.copyHandle')) : undefined}
+          style={{
+            all: 'unset', cursor: canCopy ? 'pointer' : 'default',
+            display: 'flex', alignItems: 'center', gap: 4,
+            fontFamily: theme.fontMono, fontSize: 13, fontWeight: 700,
+            color: copied ? theme.runBg : theme.accent,
+            maxWidth: '100%',
+          }}
+        >
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            @{handle || '—'}
+          </span>
+          {canCopy && (
+            <svg width={11} height={11} viewBox="0 0 16 16" style={{ flex: 'none', opacity: copied ? 1 : 0.55 }}>
+              {copied ? (
+                <path d="M3 8l3 3 7-7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+              ) : (
+                <>
+                  <rect x="5" y="5" width="8" height="8" rx="1.3" stroke="currentColor" strokeWidth="1.3" fill="none" />
+                  <path d="M3 10V4a1 1 0 0 1 1-1h6" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" fill="none" />
+                </>
+              )}
+            </svg>
+          )}
+        </button>
+        <div style={{
+          fontSize: 11.5, color: theme.panelTxtMute, marginTop: 2,
+          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+        }}>
+          {user.name}
+        </div>
+      </div>
+      <RoleTag role={user.role} />
+    </div>
   );
 }
 
@@ -144,7 +189,7 @@ export function UserMenu() {
 
   return (
     <div ref={menuRef} style={{ position: 'relative', fontFamily: theme.fontUI }}>
-      {/* Pill trigger */}
+      {/* Pill trigger — single line: avatar · name · role chip · chevron */}
       <button
         onClick={() => setOpen(!open)}
         style={{
@@ -158,18 +203,18 @@ export function UserMenu() {
           color: theme.panelTxt,
           fontSize: 13, fontWeight: 500,
           transition: 'all 0.15s',
+          maxWidth: 280,
         }}
       >
-        <Avatar name={user.name} role={user.role} size={26} />
-        <span style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.15, textAlign: 'left' }}>
-          <span style={{ fontSize: 13, fontWeight: 600 }}>{user.name}</span>
-          <span style={{
-            fontSize: 10, fontWeight: 700, letterSpacing: 0.3, textTransform: 'uppercase',
-            color: isTeacher ? theme.runBg : theme.accent, marginTop: 1,
-          }}>
-            {isTeacher ? t('auth.roleTeacher') : t('auth.roleStudent')}
-          </span>
+        <Avatar seed={user.handle ?? user.name} size={26} />
+        <span style={{
+          fontSize: 13, fontWeight: 600,
+          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          minWidth: 0,
+        }}>
+          {user.name}
         </span>
+        <RoleTag role={user.role} />
         <ChevronIcon color={theme.panelTxtMute} />
       </button>
 
@@ -184,25 +229,9 @@ export function UserMenu() {
           boxShadow: theme.shadowWindow,
           padding: 5,
         }}>
-          {/* Identity block */}
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: 10,
-            padding: '10px 10px 10px',
-            borderBottom: `1px solid ${theme.panelBorder}`,
-            marginBottom: 4,
-          }}>
-            <Avatar name={user.name} role={user.role} size={36} />
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: theme.panelTxt }}>{user.name}</div>
-              <div style={{
-                fontSize: 10.5, color: theme.panelTxtMute, fontFamily: theme.fontMono,
-                marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-              }}>
-                @{user.handle ?? user.name}
-              </div>
-            </div>
-            <RoleTag role={user.role} />
-          </div>
+          {/* Identity block — handle is primary (click to copy), name secondary */}
+          <IdentityBlock user={user} />
+          <div style={{ height: 1, background: theme.panelBorder, margin: '0 -5px 4px' }} />
 
           {/* Menu items */}
           {menuItems.map((item, i) => (

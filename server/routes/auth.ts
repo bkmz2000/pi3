@@ -226,11 +226,13 @@ router.get('/callback', async (req: Request, res: Response): Promise<void> => {
   }
 
   const role = mapProviderRoleToAppRole(userinfo);
-  const name = userinfo.preferred_username
+  const rawName = userinfo.preferred_username
     || [userinfo.firstName, userinfo.lastName].filter(Boolean).join(' ')
     || userinfo.email
     || userinfo.id
     || 'Unknown';
+  // Loginus prefixes preferred_username with role markers like "[П] " or "[Т] ".
+  const name = rawName.replace(/^\s*\[[\p{L}\d]{1,3}\]\s*/u, '').trim() || rawName;
 
   const db = getDb();
   const existing = db

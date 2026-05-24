@@ -305,7 +305,8 @@ export type IconName =
   | "bucket"
   | "frame"
   | "filter"
-  | "hand";
+  | "hand"
+  | "camera";
 
 export function Icon({ name, ...props }: IconProps & { name: IconName }) {
   switch (name) {
@@ -340,7 +341,18 @@ export function Icon({ name, ...props }: IconProps & { name: IconName }) {
     case "frame": return <IconFrame {...props} />;
     case "filter": return <IconFilter {...props} />;
     case "hand": return <IconHand {...props} />;
+    case "camera": return <IconCamera {...props} />;
   }
+}
+
+function IconCamera({ size = 22, ...rest }: IconProps) {
+  const c = rest.color || "currentColor";
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <path d="M4 8h3l2-2h6l2 2h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z" stroke={c} strokeWidth="1.6" strokeLinejoin="round"/>
+      <circle cx="12" cy="13" r="3.2" stroke={c} strokeWidth="1.6"/>
+    </svg>
+  );
 }
 
 function IconFilter({ size = 22, ...rest }: IconProps) {

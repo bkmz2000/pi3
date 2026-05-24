@@ -44,7 +44,9 @@
     "teacherDashboard": "Кабинет учителя",
     "myClasses": "Мои классы",
     "askForHelp": "Попросить помощь",
-    "myClass": "Мой класс"
+    "myClass": "Мой класс",
+    "copyHandle": "Скопировать тег",
+    "handleCopied": "Скопировано!"
   },
   "sideMenu": {
     "close": "Закрыть",
@@ -193,7 +195,11 @@
   "canvas": {
     "label": "холст",
     "statusLive": "работает",
-    "statusPaused": "пауза"
+    "statusPaused": "пауза",
+    "screenshot": "Сделать снимок (установит обложку проекта)",
+    "screenshotHistory": "Последние снимки",
+    "setAsCover": "Использовать как обложку",
+    "screenshotNoProject": "Сначала сохраните проект, чтобы задать обложку"
   },
   "console": {
     "checking": "Проверка на ошибки...",
@@ -234,7 +240,8 @@
     "default": "По умолчанию",
     "description": "Описание",
     "optional": "необязательно",
-    "returns": "Возвращает"
+    "returns": "Возвращает",
+    "advanced": "Подробнее"
   },
   "teacher": {
     "dashboard": "Панель учителя",
@@ -339,6 +346,21 @@
     "roleEditor": "Редактор",
     "roleViewer": "Зритель",
     "description": "Описание (необязательно)",
-    "creating": "Создание..."
+    "creating": "Создание...",
+    "backToEditor": "Назад к редактору",
+    "shareTitle": "Поделиться проектом",
+    "shareSubtitle": "Поделиться проектом {{name}}",
+    "sharePerson": "Кому",
+    "sharePersonPlaceholder": "Имя или @тег",
+    "shareNoMatches": "Никого не найдено.",
+    "shareSearching": "Поиск…",
+    "shareRoleLabel": "Доступ",
+    "shareRoleEditorDesc": "Может редактировать",
+    "shareRoleViewerDesc": "Может только смотреть",
+    "shareCancel": "Отмена",
+    "shareConfirm": "Поделиться",
+    "shareSharing": "Отправляем…",
+    "shareSuccess": "Поделились с {{name}}.",
+    "shareHintMinChars": "Введите хотя бы 2 символа."
   }
 }

@@ -103,6 +103,18 @@ export interface Project {
   theme?: string;
   created_at: number;
   updated_at: number;
+  thumbnail_updated_at?: number | null;
+}
+
+export async function uploadProjectThumbnail(id: string, blob: Blob): Promise<{ thumbnail_updated_at: number }> {
+  const res = await fetch(`${API_BASE}/api/projects/${id}/thumbnail`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'image/png' },
+    body: blob,
+    credentials: 'include',
+  });
+  if (!res.ok) throw new Error(`Thumbnail upload failed: ${res.status}`);
+  return res.json();
 }
 
 export async function getMe(): Promise<User> {
@@ -143,6 +155,22 @@ export async function deleteProject(id: string): Promise<void> {
 
 export async function shareProject(id: string, username: string, role: 'editor' | 'viewer'): Promise<void> {
   return api.post<void>(`/api/projects/${id}/share`, { username, role });
+}
+
+export interface UserSearchResult {
+  id: string;
+  name: string;
+  handle: string | null;
+  role: string;
+}
+
+export async function searchUsers(q: string): Promise<UserSearchResult[]> {
+  if (q.trim().length < 2) return [];
+  return api.get<UserSearchResult[]>(`/api/users/search?q=${encodeURIComponent(q)}`);
+}
+
+export async function shareProjectWithUser(id: string, userId: string, role: 'editor' | 'viewer'): Promise<void> {
+  return api.post<void>(`/api/projects/${id}/share`, { user_id: userId, role });
 }
 
 export interface TeacherShareStatus {

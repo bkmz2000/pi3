@@ -10,6 +10,9 @@ const config = {
     '^konva$': '<rootDir>/tests/unit/__mocks__/konva.cjs',
     '^react-konva$': '<rootDir>/tests/unit/__mocks__/react-konva.cjs',
     '^../state/useUser$': '<rootDir>/tests/unit/__mocks__/useUser.js',
+    // api.ts reads import.meta.env via apiBase.ts; ts-jest can't transform
+    // import.meta, so swap it for a plain-string mock in tests.
+    '^\\./apiBase$': '<rootDir>/tests/unit/__mocks__/apiBase.ts',
   },
   transform: {
     '^.+\\.(ts|tsx)$': ['ts-jest', {
@@ -38,16 +41,16 @@ const config = {
   // from the global pool, so each area regresses (and gates) on its own.
   coverageThreshold: {
     global: {
-      branches: 6,
-      functions: 6,
-      lines: 10,
-      statements: 9,
+      branches: 7,
+      functions: 7,
+      lines: 12,
+      statements: 11,
     },
     './src/state/': {
-      branches: 16,
-      functions: 6,
-      lines: 9,
-      statements: 9,
+      branches: 39,
+      functions: 37,
+      lines: 36,
+      statements: 35,
     },
     './src/runner/': {
       branches: 23,

@@ -16,6 +16,9 @@ dist-ssr
 dist.old/*
 *.local
 
+# Pyodide runtime mirrored from node_modules at predev/prebuild
+public/pyodide/
+
 # TypeScript cache
 .tsbuildinfo
 .tsbuild/

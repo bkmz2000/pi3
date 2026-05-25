@@ -20,6 +20,11 @@
   ],
   "type": "module",
   "scripts": {
+    "setup:pyodide": "node scripts/copy-pyodide.mjs",
+    "predev": "node scripts/copy-pyodide.mjs",
+    "predev:all": "node scripts/copy-pyodide.mjs",
+    "prebuild": "node scripts/copy-pyodide.mjs",
+    "prepreview": "node scripts/copy-pyodide.mjs",
     "dev": "vite",
     "dev:all": "concurrently -n fe,api -c cyan,green \"vite\" \"node --env-file=.env --import tsx server/index.ts\"",
     "build": "tsc -b && vite build",

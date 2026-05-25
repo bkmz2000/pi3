@@ -1,7 +1,17 @@
-const CACHE_NAME = 'webide-v2';
+const CACHE_NAME = 'webide-v3';
 const PYODIDE_VERSION = '0.26.4';
 
+// We ship Pyodide from the same origin (public/pyodide/, mirrored from
+// node_modules at build time). The CDN URLs remain as a runtime fallback
+// path, so we keep them in the precache list to survive offline use if the
+// local bundle is ever missing.
 const PYODIDE_ASSETS = [
+  '/pyodide/pyodide.mjs',
+  '/pyodide/pyodide.js',
+  '/pyodide/pyodide.asm.js',
+  '/pyodide/pyodide.asm.wasm',
+  '/pyodide/python_stdlib.zip',
+  '/pyodide/pyodide-lock.json',
   `https://cdn.jsdelivr.net/pyodide/v${PYODIDE_VERSION}/full/pyodide.mjs`,
   `https://cdn.jsdelivr.net/pyodide/v${PYODIDE_VERSION}/full/pyodide.js`,
 ];
@@ -20,7 +30,9 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then(async (cache) => {
       console.log('[SW] Caching libraries');
-      await cache.addAll(ALL_ASSETS);
+      // Use individual add() so a single missing asset (e.g. the CDN fallback
+      // when offline) doesn't abort the whole install. addAll() is all-or-nothing.
+      await Promise.allSettled(ALL_ASSETS.map((url) => cache.add(url)));
       console.log('[SW] Libraries cached');
     })
   );
@@ -43,7 +55,8 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
   
-  const isPyodide = url.href.includes('cdn.jsdelivr.net/pyodide');
+  const isPyodide = url.href.includes('cdn.jsdelivr.net/pyodide')
+    || url.pathname.startsWith('/pyodide/');
   const isAppShell = APP_SHELL.includes(url.pathname);
   
   if (isPyodide) {

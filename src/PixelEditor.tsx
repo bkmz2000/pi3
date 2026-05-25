@@ -56,6 +56,7 @@ export default function PixelEditor({
   const isAnimMode = !!(initialAnimation || onSaveAnimation);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const gridCanvasRef = useRef<HTMLCanvasElement>(null);
 
   // Data model: frameData[frameIdx][layerIdx] = Uint8ClampedArray
   const [gridSize, setGridSize] = useState<16 | 32>(size);
@@ -117,23 +118,6 @@ export default function PixelEditor({
 
     ctx.putImageData(new ImageData(buf, gridSize, gridSize), 0, 0);
 
-    // Draw grid directly on canvas
-    ctx.strokeStyle = `${theme.panelBorder}40`;
-    ctx.lineWidth = 1;
-    ctx.globalAlpha = 0.3;
-    const step = (canvas.width / gridSize);
-    for (let i = 1; i < gridSize; i++) {
-      ctx.beginPath();
-      ctx.moveTo(i * step, 0);
-      ctx.lineTo(i * step, canvas.height);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(0, i * step);
-      ctx.lineTo(canvas.width, i * step);
-      ctx.stroke();
-    }
-    ctx.globalAlpha = 1;
-
     // Onion skin: previous frame at 30% opacity
     if (onionSkin && frameIdx > 0) {
       ctx.globalAlpha = 0.3;
@@ -153,6 +137,35 @@ export default function PixelEditor({
       ctx.globalAlpha = 1;
     }
   }, [frameIdx, layers, frameData, gridSize, onionSkin]);
+
+  // Draw grid lines on overlay canvas (sharp, no blending)
+  const drawGrid = useCallback(() => {
+    const canvas = gridCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d")!;
+
+    // Clear with transparent background
+    ctx.clearRect(0, 0, gridSize, gridSize);
+
+    // Draw sharp grid lines
+    ctx.strokeStyle = '#d0d0d0';
+    ctx.lineWidth = 1;
+
+    const pixelSize = gridSize > 0 ? 1 : 0;
+    for (let i = 1; i < gridSize; i++) {
+      // Vertical lines
+      ctx.beginPath();
+      ctx.moveTo(i, 0);
+      ctx.lineTo(i, gridSize);
+      ctx.stroke();
+
+      // Horizontal lines
+      ctx.beginPath();
+      ctx.moveTo(0, i);
+      ctx.lineTo(gridSize, i);
+      ctx.stroke();
+    }
+  }, [gridSize]);
 
 
   // Commit pixel change to undo stack
@@ -393,7 +406,8 @@ export default function PixelEditor({
   // Composite on changes
   useEffect(() => {
     composite();
-  }, [frameIdx, frameData, layers, composite]);
+    drawGrid();
+  }, [frameIdx, frameData, layers, composite, drawGrid]);
 
   if (!open) return null;
 
@@ -452,6 +466,12 @@ export default function PixelEditor({
                 width={gridSize}
                 height={gridSize}
                 style={{ position: "absolute", width: "100%", height: "100%", cursor: tool === "eyedropper" ? "crosshair" : "default", imageRendering: "pixelated", backgroundColor: "#ffffff" }}
+              />
+              <canvas
+                ref={gridCanvasRef}
+                width={gridSize}
+                height={gridSize}
+                style={{ position: "absolute", width: "100%", height: "100%", pointerEvents: "none" }}
               />
             </div>
 

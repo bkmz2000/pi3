@@ -21,6 +21,7 @@ import {
 } from "./components/Icons";
 
 const SpriteEditor = lazy(() => import("./SpriteEditor"));
+const PixelEditor = lazy(() => import("./PixelEditor"));
 const TileEditor = lazy(() => import("./TileEditor"));
 const DocsPanel = lazy(() => import("./components/DocsPanel"));
 
@@ -123,6 +124,7 @@ export default function Rail() {
   const markClean = useEditor((s) => s.markClean);
 
   const [editorOpen, setEditorOpen] = useState(false);
+  const [pixelEditorOpen, setPixelEditorOpen] = useState(false);
   const [tileEditorOpen, setTileEditorOpen] = useState(false);
   const [editingTilemap, setEditingTilemap] = useState<string | null>(null);
   const [showNewProjectDialog, setShowNewProjectDialog] = useState(false);
@@ -134,6 +136,8 @@ export default function Rail() {
   } | null>(null);
   const [animEditorOpen, setAnimEditorOpen] = useState(false);
   const [editingAnimation, setEditingAnimation] = useState<{ name: string; data: import('./state/IdeState').AnimationData } | null>(null);
+  const [pixelAnimEditorOpen, setPixelAnimEditorOpen] = useState(false);
+  const [editingPixelAnimation, setEditingPixelAnimation] = useState<{ name: string; data: import('./state/IdeState').AnimationData } | null>(null);
 
   const { user } = useUser();
   const { ready } = useRunner();
@@ -415,9 +419,14 @@ export default function Rail() {
               onAddSound={addSound}
               onRemoveSound={removeSound}
               onNewSprite={() => { setEditingAsset(null); setEditorOpen(true); }}
+              onNewPixelSprite={() => { setEditingAsset(null); setPixelEditorOpen(true); }}
               onEditAsset={(name, url) => {
                 setEditingAsset({ name, url });
-                setEditorOpen(true);
+                if (name.endsWith(".png")) {
+                  setPixelEditorOpen(true);
+                } else {
+                  setEditorOpen(true);
+                }
               }}
               onClose={closePanels}
             />
@@ -528,6 +537,50 @@ export default function Rail() {
             saveAnimation(name, data);
             setAnimEditorOpen(false);
             setEditingAnimation(null);
+          }}
+        />
+      </Suspense>
+
+      <Suspense fallback={null}>
+        <PixelEditor
+          key={pixelEditorOpen ? "open" : "closed"}
+          open={pixelEditorOpen}
+          onClose={() => {
+            setPixelEditorOpen(false);
+            setEditingAsset(null);
+          }}
+          onSave={(name, dataUrl) => {
+            const cleanName = name.replace(/\.png$/i, '');
+            const oldName = editingAsset?.name.replace(/\.png$/i, '') || '';
+
+            if (editingAsset && oldName !== cleanName) {
+              removeAsset(editingAsset.name);
+              changeAsset(cleanName + ".png", dataUrl);
+            } else if (editingAsset) {
+              changeAsset(editingAsset.name, dataUrl);
+            } else {
+              toggleAsset(cleanName + ".png", dataUrl);
+            }
+            setPixelEditorOpen(false);
+            setEditingAsset(null);
+          }}
+          initialName={editingAsset?.name.replace(/\.png$/i, '') || ''}
+          initialDataUrl={editingAsset?.url}
+        />
+      </Suspense>
+
+      <Suspense fallback={null}>
+        <PixelEditor
+          key={pixelAnimEditorOpen ? `anim-${editingPixelAnimation?.name ?? "__new__"}` : "anim-closed"}
+          open={pixelAnimEditorOpen}
+          onClose={() => { setPixelAnimEditorOpen(false); setEditingPixelAnimation(null); }}
+          onSave={() => { /* unused in anim mode; handled by onSaveAnimation */ }}
+          initialName={editingPixelAnimation?.name ?? ""}
+          initialAnimation={editingPixelAnimation?.data}
+          onSaveAnimation={(name, data) => {
+            saveAnimation(name, data);
+            setPixelAnimEditorOpen(false);
+            setEditingPixelAnimation(null);
           }}
         />
       </Suspense>
@@ -1329,6 +1382,7 @@ type AssetsPanelProps = {
   onAddSound: (name: string, url: string) => void;
   onRemoveSound: (name: string) => void;
   onNewSprite: () => void;
+  onNewPixelSprite: () => void;
   onEditAsset: (name: string, url: string) => void;
   onClose: () => void;
 };
@@ -1342,6 +1396,7 @@ function AssetsPanel({
   onAddSound,
   onRemoveSound,
   onNewSprite,
+  onNewPixelSprite,
   onEditAsset,
   onClose,
 }: AssetsPanelProps) {
@@ -1567,6 +1622,29 @@ function AssetsPanel({
               >
                 <Icon name="plus" size={20} color="currentColor" />
                 {t('sideMenu.newSprite')}
+              </button>
+              <button
+                type="button"
+                onClick={onNewPixelSprite}
+                style={{
+                  all: "unset",
+                  cursor: "pointer",
+                  aspectRatio: "1 / 1",
+                  border: `1.5px dashed ${theme.panelBorder}`,
+                  borderRadius: theme.radiusCard,
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 4,
+                  color: theme.panelTxtMute,
+                  fontFamily: theme.fontUI,
+                  fontSize: 11,
+                  fontWeight: theme.weightUI,
+                }}
+              >
+                <Icon name="plus" size={20} color="currentColor" />
+                Pixel Art
               </button>
               {availableSprites.map(({ name, url }) => (
                 <AvailableSpriteTile

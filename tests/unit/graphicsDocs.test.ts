@@ -7,6 +7,9 @@
  * refactor that drops them turns CI red.
  */
 
+import { readFileSync } from 'fs';
+import { resolve } from 'path';
+
 import { DOCS } from '../../src/docs/graphicsDocs';
 
 describe('graphicsDocs — tilemap + actor regression guards', () => {
@@ -64,6 +67,82 @@ describe('graphicsDocs — tilemap + actor regression guards', () => {
     const angle = actorClass.params!.find((p) => p.name === 'angle')!;
     expect(angle.en).toMatch(/visual/i);
     expect(angle.en).toMatch(/Polar/);
+  });
+
+  it('color math primitives are documented and exist in the Python module', () => {
+    const color = DOCS.find((c) => c.id === 'color')!;
+    const ids = ['lerp', 'darker', 'lighter', 'saturated', 'desaturated'];
+    for (const id of ids) {
+      const entry = color.entries.find((e) => e.id === id);
+      expect(entry).toBeDefined();
+      expect(entry!.example).toBeTruthy();
+      expect(entry!.returns).toBeDefined();
+    }
+
+    // lerp is the foundational primitive — its description must call out the
+    // transfer to non-color uses, per the Stage 0 pedagogy.
+    const lerp = color.entries.find((e) => e.id === 'lerp')!;
+    expect(lerp.en).toMatch(/number/i);
+    expect(lerp.signature).toMatch(/lerp\(a,\s*b,\s*t\)/);
+
+    // The Python module must actually define these — drift between docs and
+    // runtime is the bug this guard exists to catch.
+    const py = readFileSync(
+      resolve(__dirname, '../../src/assets/python/graphics/__init__.py'),
+      'utf8',
+    );
+    for (const id of ids) {
+      expect(py).toMatch(new RegExp(`^def ${id}\\(`, 'm'));
+    }
+    expect(py).toMatch(/^\s*"lerp",\s*"darker",\s*"lighter",\s*"saturated",\s*"desaturated",/m);
+  });
+
+  it('Sprite data API is documented and exists in the Python module', () => {
+    const sprite = DOCS.find((c) => c.id === 'sprite');
+    expect(sprite).toBeDefined();
+    const ids = [
+      'sheet',
+      'create_sprite',
+      'get_pixel',
+      'set_pixel',
+      'palette_swap',
+      'flood_fill',
+      'darken',
+      'lighten',
+      'saturate',
+      'desaturate',
+    ];
+    for (const id of ids) {
+      const entry = sprite!.entries.find((e) => e.id === id);
+      expect(entry).toBeDefined();
+      expect(entry!.example).toBeTruthy();
+    }
+    // The transparency convention (returns None) is load-bearing — guard it.
+    const getPixel = sprite!.entries.find((e) => e.id === 'get_pixel')!;
+    expect(getPixel.en).toMatch(/None/);
+
+    const py = readFileSync(
+      resolve(__dirname, '../../src/assets/python/graphics/__init__.py'),
+      'utf8',
+    );
+    expect(py).toMatch(/^class Sprite:/m);
+    // `sheet` is a module-level dict the worker populates at run start, not
+    // a function — assert it separately.
+    expect(py).toMatch(/^sheet = \{\}/m);
+    for (const id of ids) {
+      if (id === 'sheet') continue;
+      expect(py).toMatch(new RegExp(`^def ${id}\\(`, 'm'));
+    }
+
+    // Worker must wire editor assets into graphics.sheet — if this regresses,
+    // sheet["name"] silently returns nothing and kids see KeyError with no
+    // hint why.
+    const worker = readFileSync(
+      resolve(__dirname, '../../src/runner/worker.ts'),
+      'utf8',
+    );
+    expect(worker).toMatch(/_asset_pixels/);
+    expect(worker).toMatch(/graphics\.sheet\s*=/);
   });
 
   it('Colors entry exposes the Sweetie 16 swatches', () => {

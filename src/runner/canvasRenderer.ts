@@ -248,6 +248,32 @@ export function executeDrawCommands(
         ctx.drawImage(bm, x - dw / 2, y - dh / 2, dw, dh);
         break;
       }
+      case "sprite": {
+        // Python-side Sprite: raw RGBA bytes drawn through a temp OffscreenCanvas
+        // so the active transform (Camera, push/pop, scale, rotate) still applies.
+        const [pixels, sw, sh, x, y, w, h] = args as [
+          Uint8Array | Uint8ClampedArray,
+          number,
+          number,
+          number,
+          number,
+          number | null,
+          number | null,
+        ];
+        if (!pixels || sw <= 0 || sh <= 0) break;
+        if (pixels.byteLength !== sw * sh * 4) break;
+        // Copy into a fresh ArrayBuffer-backed Uint8ClampedArray so the
+        // typing matches ImageData (which rejects SharedArrayBuffer views) and
+        // the renderer owns the memory after Python frees it.
+        const clamped = new Uint8ClampedArray(sw * sh * 4);
+        clamped.set(pixels);
+        const imageData = new ImageData(clamped, sw, sh);
+        const off = new OffscreenCanvas(sw, sh);
+        off.getContext("2d")!.putImageData(imageData, 0, 0);
+        if (w != null) ctx.drawImage(off, x, y, w, h ?? w);
+        else ctx.drawImage(off, x, y);
+        break;
+      }
       case "animation_frame": {
         const [animName, frameIdx, x, y, w, h] = args as [string, number, number, number, number | null, number | null];
         const anim = animations[animName];
@@ -341,9 +367,14 @@ export function executeDrawCommands(
       }
       case "light_end": {
         if (!lightmap) break;
+        // Newer "hsl" mode (default) uses soft-light compositing — perceptually
+        // closer to HSL lightness modulation per pixel without the cost of
+        // getImageData/putImageData every frame. "overlay" keeps the legacy
+        // multiply blend for projects that depend on the older look.
+        const mode = (args as [string?])[0] ?? "hsl";
         ctx.save();
         ctx.setTransform(1, 0, 0, 1, 0, 0);
-        ctx.globalCompositeOperation = "multiply";
+        ctx.globalCompositeOperation = mode === "overlay" ? "multiply" : "soft-light";
         ctx.drawImage(lightmap, 0, 0);
         ctx.restore();
         break;

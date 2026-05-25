@@ -264,6 +264,26 @@ async function runGraphicsScript(
     "_asset_meta",
     Object.entries(assets).map(([name, bm]) => [name, bm.width, bm.height]),
   );
+  // Decode each ImageBitmap to RGBA so `graphics.sheet[name]` returns a
+  // read/write Sprite in Python. Decoding lives in the worker so the main
+  // thread stays unblocked; failure (e.g. tainted bitmap) drops to a
+  // transparent buffer rather than aborting the run.
+  const assetPixels: Array<[string, number, number, Uint8ClampedArray]> = [];
+  for (const [name, bm] of Object.entries(assets)) {
+    const w = bm.width;
+    const h = bm.height;
+    let pixels: Uint8ClampedArray;
+    try {
+      const off = new OffscreenCanvas(w, h);
+      const octx = off.getContext("2d")!;
+      octx.drawImage(bm, 0, 0);
+      pixels = octx.getImageData(0, 0, w, h).data;
+    } catch {
+      pixels = new Uint8ClampedArray(w * h * 4);
+    }
+    assetPixels.push([name, w, h, pixels]);
+  }
+  p.globals.set("_asset_pixels", assetPixels);
   p.globals.set(
     "_anim_meta",
     Object.entries(animations ?? {}).map(([n, a]) => [n, a.frames.length, a.fps]),
@@ -304,6 +324,16 @@ for _name, _w, _h in _asset_meta.to_py():
     _sprites_dict[_key] = _entry
 _sprites = SimpleNamespace(**_sprites_dict)
 _lib_namespaces = {p: SimpleNamespace(**d) for p, d in _lib_packs.items()}
+
+# Build graphics.sheet: a dict of name -> Sprite, with pixels copied from
+# the editor-drawn raster (or rasterized SVG). Writes mutate the Python copy
+# only; rendering via image(sheet["name"], x, y) uses the live bytes.
+_sheet_dict = {}
+for _row in _asset_pixels.to_py():
+    _aname, _aw, _ah, _apx = _row
+    _key = _aname.rsplit(".", 1)[0] if "." in _aname else _aname
+    _sheet_dict[_key] = graphics.Sprite(_aw, _ah, _apx)
+graphics.sheet = _sheet_dict
 
 # Build animations namespace from metadata
 _anim_ns = {}

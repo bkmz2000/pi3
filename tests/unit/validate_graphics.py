@@ -139,6 +139,9 @@ expected_funcs = {
     "image",
     "run", "stop", "frame_rate",
     "random", "random_color",
+    "lerp", "darker", "lighter", "saturated", "desaturated",
+    "create_sprite", "get_pixel", "set_pixel", "palette_swap", "flood_fill",
+    "darken", "lighten", "saturate", "desaturate",
     "_tick",
 }
 
@@ -147,6 +150,7 @@ expected_funcs = {
 expected_classes = {
     "TileRef", "TilemapLayer", "TileMap",
     "Light", "Camera",
+    "Sprite",
 }
 for cls in expected_classes:
     test(f"Class '{cls}' is defined", cls in get_func_names(tree))

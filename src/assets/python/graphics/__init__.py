@@ -92,6 +92,323 @@ class _Colors:
 Colors = _Colors()
 
 
+# === COLOR MATH ===
+#
+# Foundational interpolation primitive (lerp) plus shade/saturation sugar.
+# Colors accept tuples (r, g, b), hex strings ("FFCD75" / "#FFCD75"), or
+# COLOR_NAMES keys ("red"). All helpers return an (r, g, b) int tuple.
+
+_SHADE_STEP = 0.13
+
+
+def _is_number(x):
+    return isinstance(x, (int, float)) and not isinstance(x, bool)
+
+
+def _to_rgb(c):
+    """Normalize a color input to an (r, g, b) int tuple."""
+    if isinstance(c, (tuple, list)) and len(c) == 3:
+        return (int(c[0]), int(c[1]), int(c[2]))
+    if isinstance(c, str):
+        lo = c.lower()
+        if lo in COLOR_NAMES:
+            return COLOR_NAMES[lo]
+        s = lo.lstrip("#")
+        if len(s) == 6:
+            try:
+                return (int(s[0:2], 16), int(s[2:4], 16), int(s[4:6], 16))
+            except ValueError:
+                pass
+        raise ValueError(f"Unknown color: {c!r}")
+    raise TypeError(f"Expected color tuple, hex string, or color name; got {type(c).__name__}")
+
+
+def lerp(a, b, t):
+    """Linear interpolation. Works on numbers OR colors.
+
+    The single foundational primitive — kids learn it once for colors and
+    it transfers directly to position, audio, time-of-day, etc.
+
+        lerp(0, 10, 0.5)                     -> 5.0
+        lerp(Colors.black, Colors.white, .5) -> (127, 127, 127)
+        lerp((255,0,0), (0,0,255), 0.5)      -> (127, 0, 127)
+    """
+    if _is_number(a) and _is_number(b):
+        return a + (b - a) * t
+    ar, ag, ab = _to_rgb(a)
+    br, bg, bb = _to_rgb(b)
+    return (
+        int(ar + (br - ar) * t),
+        int(ag + (bg - ag) * t),
+        int(ab + (bb - ab) * t),
+    )
+
+
+def _rgb_to_hsl(r, g, b):
+    rf, gf, bf = r / 255.0, g / 255.0, b / 255.0
+    mx, mn = max(rf, gf, bf), min(rf, gf, bf)
+    l = (mx + mn) / 2
+    if mx == mn:
+        return 0.0, 0.0, l
+    d = mx - mn
+    s = d / (2 - mx - mn) if l > 0.5 else d / (mx + mn)
+    if mx == rf:
+        h = ((gf - bf) / d + (6 if gf < bf else 0)) / 6
+    elif mx == gf:
+        h = ((bf - rf) / d + 2) / 6
+    else:
+        h = ((rf - gf) / d + 4) / 6
+    return h, s, l
+
+
+def _hsl_to_rgb(h, s, l):
+    if s == 0:
+        v = int(round(l * 255))
+        return (v, v, v)
+
+    def hue(p, q, t):
+        if t < 0:
+            t += 1
+        if t > 1:
+            t -= 1
+        if t < 1 / 6:
+            return p + (q - p) * 6 * t
+        if t < 1 / 2:
+            return q
+        if t < 2 / 3:
+            return p + (q - p) * (2 / 3 - t) * 6
+        return p
+
+    q = l * (1 + s) if l < 0.5 else l + s - l * s
+    p = 2 * l - q
+    return (
+        int(round(hue(p, q, h + 1 / 3) * 255)),
+        int(round(hue(p, q, h) * 255)),
+        int(round(hue(p, q, h - 1 / 3) * 255)),
+    )
+
+
+def darker(c, steps=1):
+    """A darker shade of `c` — RGB lerp toward black.
+
+    `steps` matches one editor darken-brush stroke per step.
+    """
+    return lerp(c, COLOR_NAMES["black"], min(1.0, max(0.0, steps * _SHADE_STEP)))
+
+
+def lighter(c, steps=1):
+    """A lighter shade of `c` — RGB lerp toward white."""
+    return lerp(c, COLOR_NAMES["white"], min(1.0, max(0.0, steps * _SHADE_STEP)))
+
+
+def saturated(c, steps=1):
+    """A more-saturated version of `c` (HSL saturation shift, clamped at 1)."""
+    r, g, b = _to_rgb(c)
+    h, s, l = _rgb_to_hsl(r, g, b)
+    s = max(0.0, min(1.0, s + steps * _SHADE_STEP))
+    return _hsl_to_rgb(h, s, l)
+
+
+def desaturated(c, steps=1):
+    """A less-saturated version of `c` (HSL saturation shift, clamped at 0)."""
+    r, g, b = _to_rgb(c)
+    h, s, l = _rgb_to_hsl(r, g, b)
+    s = max(0.0, min(1.0, s - steps * _SHADE_STEP))
+    return _hsl_to_rgb(h, s, l)
+
+
+# === SPRITES (PIXEL DATA) ===
+#
+# A Sprite is a rectangular RGBA pixel buffer that Python code can read and
+# write. Substage 1a ships the data API only; the asset pipeline that exposes
+# editor-drawn sprites and the canvas render path land in substage 1b.
+
+_TRANSPARENT = (0, 0, 0, 0)
+
+
+class Sprite:
+    """Mutable RGBA pixel buffer addressable by (x, y).
+
+    Stored as a `bytearray` of length `width * height * 4`. Out-of-bounds
+    reads return `None`; out-of-bounds writes are silently ignored — kids
+    drawing with `set_pixel` in a loop should not have to bounds-check
+    everywhere.
+    """
+
+    def __init__(self, width, height, pixels=None):
+        self.width = int(width)
+        self.height = int(height)
+        n = self.width * self.height * 4
+        if pixels is None:
+            self.pixels = bytearray(n)
+        else:
+            buf = bytearray(pixels)
+            if len(buf) != n:
+                raise ValueError(
+                    f"pixel buffer length {len(buf)} does not match {self.width}x{self.height}x4 = {n}"
+                )
+            self.pixels = buf
+
+    def _idx(self, x, y):
+        if x < 0 or y < 0 or x >= self.width or y >= self.height:
+            return -1
+        return (y * self.width + x) * 4
+
+    def __repr__(self):
+        return f"Sprite({self.width}x{self.height})"
+
+
+def create_sprite(width, height, fill=None):
+    """Create a new blank Sprite. Optional `fill` paints every pixel.
+
+        s = create_sprite(16, 16)
+        s = create_sprite(16, 16, fill=Colors.sky)
+    """
+    sprite = Sprite(width, height)
+    if fill is not None:
+        r, g, b = _to_rgb(fill)
+        buf = sprite.pixels
+        for i in range(0, len(buf), 4):
+            buf[i] = r
+            buf[i + 1] = g
+            buf[i + 2] = b
+            buf[i + 3] = 255
+    return sprite
+
+
+def get_pixel(sprite, x, y):
+    """Read a pixel as an (r, g, b) tuple. Returns `None` for fully
+    transparent pixels (alpha = 0) and for out-of-bounds coords.
+    """
+    i = sprite._idx(int(x), int(y))
+    if i < 0:
+        return None
+    p = sprite.pixels
+    if p[i + 3] == 0:
+        return None
+    return (p[i], p[i + 1], p[i + 2])
+
+
+def set_pixel(sprite, x, y, color):
+    """Write a pixel. `color` accepts tuple, hex string, or palette name.
+    Pass `None` to erase (fully transparent).
+
+    Silently ignores out-of-bounds coords — no need to bounds-check inside
+    a drawing loop.
+    """
+    i = sprite._idx(int(x), int(y))
+    if i < 0:
+        return
+    p = sprite.pixels
+    if color is None:
+        p[i] = p[i + 1] = p[i + 2] = p[i + 3] = 0
+        return
+    r, g, b = _to_rgb(color)
+    p[i] = r
+    p[i + 1] = g
+    p[i + 2] = b
+    p[i + 3] = 255
+
+
+def palette_swap(sprite, old_color, new_color):
+    """Replace every pixel that exactly matches `old_color` with `new_color`.
+
+    Exact RGB match — does not consider partial color similarity. Pass
+    `new_color=None` to erase matching pixels.
+    """
+    o_r, o_g, o_b = _to_rgb(old_color)
+    if new_color is None:
+        n_r = n_g = n_b = 0
+        n_a = 0
+    else:
+        n_r, n_g, n_b = _to_rgb(new_color)
+        n_a = 255
+    p = sprite.pixels
+    for i in range(0, len(p), 4):
+        if p[i + 3] != 0 and p[i] == o_r and p[i + 1] == o_g and p[i + 2] == o_b:
+            p[i] = n_r
+            p[i + 1] = n_g
+            p[i + 2] = n_b
+            p[i + 3] = n_a
+
+
+def flood_fill(sprite, x, y, color):
+    """Bucket-fill connected pixels of the same color, starting at (x, y).
+
+    4-connected (orthogonal only). Stops at any color change, including
+    transparency boundaries.
+    """
+    x, y = int(x), int(y)
+    if x < 0 or y < 0 or x >= sprite.width or y >= sprite.height:
+        return
+    p = sprite.pixels
+    w, h = sprite.width, sprite.height
+    i0 = (y * w + x) * 4
+    or_, og, ob, oa = p[i0], p[i0 + 1], p[i0 + 2], p[i0 + 3]
+    if color is None:
+        nr = ng = nb = 0
+        na = 0
+    else:
+        nr, ng, nb = _to_rgb(color)
+        na = 255
+    if or_ == nr and og == ng and ob == nb and oa == na:
+        return
+
+    stack = [(x, y)]
+    while stack:
+        cx, cy = stack.pop()
+        if cx < 0 or cy < 0 or cx >= w or cy >= h:
+            continue
+        ci = (cy * w + cx) * 4
+        if (
+            p[ci] != or_
+            or p[ci + 1] != og
+            or p[ci + 2] != ob
+            or p[ci + 3] != oa
+        ):
+            continue
+        p[ci] = nr
+        p[ci + 1] = ng
+        p[ci + 2] = nb
+        p[ci + 3] = na
+        stack.append((cx + 1, cy))
+        stack.append((cx - 1, cy))
+        stack.append((cx, cy + 1))
+        stack.append((cx, cy - 1))
+
+
+def darken(sprite, x, y, steps=1):
+    """Mutating shade: replace pixel (x, y) with `darker(pixel, steps)`."""
+    c = get_pixel(sprite, x, y)
+    if c is None:
+        return
+    set_pixel(sprite, x, y, darker(c, steps))
+
+
+def lighten(sprite, x, y, steps=1):
+    """Mutating shade: replace pixel (x, y) with `lighter(pixel, steps)`."""
+    c = get_pixel(sprite, x, y)
+    if c is None:
+        return
+    set_pixel(sprite, x, y, lighter(c, steps))
+
+
+def saturate(sprite, x, y, steps=1):
+    """Mutating shade: replace pixel (x, y) with `saturated(pixel, steps)`."""
+    c = get_pixel(sprite, x, y)
+    if c is None:
+        return
+    set_pixel(sprite, x, y, saturated(c, steps))
+
+
+def desaturate(sprite, x, y, steps=1):
+    """Mutating shade: replace pixel (x, y) with `desaturated(pixel, steps)`."""
+    c = get_pixel(sprite, x, y)
+    if c is None:
+        return
+    set_pixel(sprite, x, y, desaturated(c, steps))
+
+
 _KEY_CODES = {
     "arrow_left": 37,
     "arrow_up": 38,
@@ -121,6 +438,10 @@ _KEY_CODES = {
 _CODE_TO_NAME = {v: k for k, v in _KEY_CODES.items()}
 
 assets = None
+
+# Dict of name -> Sprite, populated by the worker at run time from
+# editor-authored pixel assets. Empty until a run starts.
+sheet = {}
 
 
 # === VECTOR ===
@@ -612,6 +933,18 @@ def scale(x, y=None) -> None:
 
 
 def image(img_result: Any, x, y, w=None, h=None) -> None:
+    if isinstance(img_result, Sprite):
+        # Ship the RGBA bytes across the worker boundary — Pyodide's to_js
+        # converts `bytes` to a Uint8Array. The renderer wraps it in an
+        # ImageData and draws via a temp OffscreenCanvas so canvas transforms
+        # (Camera, push/pop, scale) still apply.
+        _draw_commands.append((
+            "sprite",
+            (bytes(img_result.pixels), int(img_result.width), int(img_result.height),
+             float(x), float(y), w, h),
+            {},
+        ))
+        return
     if isinstance(img_result, dict):
         if not img_result.get("done"):
             return
@@ -1254,9 +1587,18 @@ class Light:
 
     _seed_counter = 0
 
-    def __init__(self, ambient=(40, 40, 60), radius=200):
+    def __init__(self, ambient=(40, 40, 60), radius=200, mode="hsl"):
+        # mode="hsl" composites the lightmap with `soft-light` — perceptually
+        # closer to per-pixel HSL lightness modulation, less of a flat color
+        # filter than the old multiply path. mode="overlay" keeps the legacy
+        # alpha-blend look for projects that depend on it.
+        if mode not in ("hsl", "overlay"):
+            raise ValueError(
+                f"Light mode must be 'hsl' or 'overlay', got {mode!r}"
+            )
         self._ambient = tuple(int(c) for c in ambient)
         self._radius = float(radius)
+        self._mode = mode
         self._shade_rgb = (255, 255, 255)
         self._obstacles = []
         self._sources = []   # list of ("actor", Actor) | ("pos", (x, y))
@@ -1395,7 +1737,7 @@ class Light:
         if obstacles_changed:
             self._obstacle_fp = obstacle_fp
 
-        _draw_commands.append(("light_end", (), {}))
+        _draw_commands.append(("light_end", (self._mode,), {}))
 
 
 __all__ = [
@@ -1411,6 +1753,10 @@ __all__ = [
     "frame_rate", "frame_count",
     "random", "random_color",
     "Colors", "AnchorPoint",
+    "lerp", "darker", "lighter", "saturated", "desaturated",
+    "Sprite", "create_sprite", "get_pixel", "set_pixel",
+    "palette_swap", "flood_fill",
+    "darken", "lighten", "saturate", "desaturate",
     "Vector2", "Point", "Polar",
     "Mouse", "Keyboard", "Window",
     "Actor", "Rect", "Circle", "Group", "Collider",
@@ -1420,4 +1766,5 @@ __all__ = [
     "Animation",
     "run", "stop",
     "assets",
+    "sheet",
 ]

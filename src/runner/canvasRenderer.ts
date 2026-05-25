@@ -296,7 +296,7 @@ export function executeDrawCommands(
         break;
       }
       case "tilemap_layer": {
-        const [cellsFlat, tileSize, ox, oy] = args as [Array<[number, number, string]>, number, number, number];
+        const [cellsFlat, tileSize, ox, oy] = args as [Array<[number, number, string, number?]>, number, number, number];
         // Cull against the current transform's visible world rect (handles Camera translate/scale).
         const t = ctx.getTransform();
         const sx0 = t.a !== 0 ? -t.e / t.a : 0;
@@ -305,12 +305,27 @@ export function executeDrawCommands(
         const viewTop = sy0 - oy;
         const viewRight = viewLeft + (t.a !== 0 ? canvasW / t.a : canvasW);
         const viewBottom = viewTop + (t.d !== 0 ? canvasH / t.d : canvasH);
-        for (const [col, row, name] of cellsFlat) {
+        for (const cell of cellsFlat) {
+          const col = cell[0];
+          const row = cell[1];
+          const name = cell[2];
+          const rotation = cell[3] ?? 0;
           const wx = col * tileSize;
           const wy = row * tileSize;
           if (wx + tileSize <= viewLeft || wx >= viewRight || wy + tileSize <= viewTop || wy >= viewBottom) continue;
           const bm = lookupAsset(assets, name);
-          if (bm) ctx.drawImage(bm, ox + wx, oy + wy, tileSize, tileSize);
+          if (!bm) continue;
+          if (rotation) {
+            const cx = ox + wx + tileSize / 2;
+            const cy = oy + wy + tileSize / 2;
+            ctx.save();
+            ctx.translate(cx, cy);
+            ctx.rotate((rotation * Math.PI) / 180);
+            ctx.drawImage(bm, -tileSize / 2, -tileSize / 2, tileSize, tileSize);
+            ctx.restore();
+          } else {
+            ctx.drawImage(bm, ox + wx, oy + wy, tileSize, tileSize);
+          }
         }
         break;
       }

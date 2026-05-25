@@ -969,6 +969,30 @@ def random(low, high=None) -> float:
     return _random.uniform(low, high)
 
 
+def _noise_hash(ix, iy, seed):
+    # Deterministic 32-bit-ish integer hash for value noise grid points.
+    h = (ix * 374761393 + iy * 668265263 + seed * 1442695040888963407) & 0xFFFFFFFF
+    h = (h ^ (h >> 13)) * 1274126177 & 0xFFFFFFFF
+    return ((h ^ (h >> 16)) & 0xFFFFFFFF) / 4294967295.0
+
+
+def noise(x, y, scale=0.1, seed=0) -> float:
+    """Smooth value noise in [0, 1]. Deterministic per (x, y, scale, seed)."""
+    sx = float(x) * float(scale)
+    sy = float(y) * float(scale)
+    ix = math.floor(sx); iy = math.floor(sy)
+    fx = sx - ix;        fy = sy - iy
+    # Smoothstep for fade.
+    u = fx * fx * (3 - 2 * fx)
+    v = fy * fy * (3 - 2 * fy)
+    s = int(seed)
+    a = _noise_hash(ix,     iy,     s)
+    b = _noise_hash(ix + 1, iy,     s)
+    c = _noise_hash(ix,     iy + 1, s)
+    d = _noise_hash(ix + 1, iy + 1, s)
+    return (a * (1 - u) + b * u) * (1 - v) + (c * (1 - u) + d * u) * v
+
+
 def random_color() -> tuple:
     import random as _random
     names = [n for n in dir(Colors) if not n.startswith("_") and isinstance(getattr(Colors, n), tuple)]
@@ -1303,15 +1327,40 @@ def _merge_tile_rects(cells_set, tile_size):
 
 
 class TilemapLayer:
-    """A single named layer in a tilemap. Cells addressed by (col, row) integers."""
+    """A single named layer in a tilemap. Cells addressed by (col, row) integers.
+
+    Each cell holds a tile name and a rotation in {0, 90, 180, 270}. The editor
+    only writes names (rotation 0); rotation is set from code via `set(...)`.
+    """
 
     def __init__(self, name: str, tile_size: int, cells: dict, bitmaps: dict = {}):
         self.name = name
         self.tile_size = tile_size
-        self._cells = cells    # dict[int, dict[int, str]]
+        # Names map: dict[col][row] -> str. Rotations map: dict[col][row] -> int.
+        # Stored separately so the legacy str-only API (tile_at/get_tile/tiles)
+        # stays a string lookup with no tuple unpacking.
+        self._cells = {}
+        self._rotations = {}
+        for col, rows in (cells or {}).items():
+            cmap = {}
+            rmap = {}
+            for row, payload in rows.items():
+                if isinstance(payload, (tuple, list)) and len(payload) == 2:
+                    cmap[row] = payload[0]
+                    rmap[row] = int(payload[1]) % 360
+                else:
+                    cmap[row] = payload
+                    rmap[row] = 0
+            self._cells[col] = cmap
+            self._rotations[col] = rmap
+        self._areas = {}    # filled by TileMap if this layer is its primary
 
     def draw(self, x=0, y=0):
-        cells_flat = [[col, row, name] for col, rows in self._cells.items() for row, name in rows.items()]
+        cells_flat = []
+        for col, rows in self._cells.items():
+            rrows = self._rotations.get(col, {})
+            for row, name in rows.items():
+                cells_flat.append([col, row, name, rrows.get(row, 0)])
         _draw_commands.append(("tilemap_layer", (cells_flat, self.tile_size, float(x), float(y)), {}))
 
     def tile_at(self, px, py=None):
@@ -1335,6 +1384,46 @@ class TilemapLayer:
             for row, name in rows.items():
                 yield (col, row, name)
 
+    # === Tier-3 mutation API ===
+
+    def set(self, col, row, name, rotation=0):
+        """Write a cell. Pass `name=None` to clear."""
+        col = int(col); row = int(row)
+        if name is None:
+            if col in self._cells:
+                self._cells[col].pop(row, None)
+                self._rotations.get(col, {}).pop(row, None)
+            return
+        self._cells.setdefault(col, {})[row] = name
+        self._rotations.setdefault(col, {})[row] = int(rotation) % 360
+
+    def get(self, col, row):
+        """Return (name, rotation) for the cell, or None if empty."""
+        col = int(col); row = int(row)
+        name = self._cells.get(col, {}).get(row)
+        if name is None:
+            return None
+        return (name, self._rotations.get(col, {}).get(row, 0))
+
+    def count_neighbors(self, col, row, name):
+        """Count the 8-neighborhood cells whose tile name equals `name`. Out-of-map cells count as 0."""
+        col = int(col); row = int(row)
+        count = 0
+        for dc in (-1, 0, 1):
+            for dr in (-1, 0, 1):
+                if dc == 0 and dr == 0:
+                    continue
+                if self._cells.get(col + dc, {}).get(row + dr) == name:
+                    count += 1
+        return count
+
+    def group(self, name):
+        """Return a TileGroup over the named area's cells, bound to this layer for mutation."""
+        cells = self._areas.get(name)
+        if cells is None:
+            raise KeyError(f"No area named '{name}' on layer '{self.name}'")
+        return TileGroup(self, set(cells))
+
 
 class TileMap:
     """A collection of named TilemapLayers, drawn bottom-to-top.
@@ -1348,7 +1437,19 @@ class TileMap:
     def __init__(self, layers: list, layer_by_name: dict, areas: dict = None):
         self._layers = layers
         self.layers = layer_by_name
-        self.areas = _build_areas_namespace(areas or {}, layers)
+        areas = areas or {}
+        self.areas = _build_areas_namespace(areas, layers)
+        # Stash raw cell sets per area name so level.group(name) can return a
+        # TileGroup. Bound to the first (primary) layer for mutation ops; users
+        # with multiple layers can call layer.group(name) explicitly.
+        primary = layers[0] if layers else None
+        self._area_cells = {}
+        for aname, area in areas.items():
+            cells = area.get("cells", []) if isinstance(area, dict) else area
+            cell_set = {(int(c[0]), int(c[1])) for c in cells}
+            self._area_cells[aname] = cell_set
+            if primary is not None:
+                primary._areas[aname] = cell_set
 
     def __getattr__(self, name):
         # Only reached when normal lookup fails; `layers`/`areas` are real
@@ -1361,6 +1462,116 @@ class TileMap:
     def draw(self, x=0, y=0):
         for layer in self._layers:
             layer.draw(x, y)
+
+    def group(self, name):
+        """Return a TileGroup over the named area, bound to the primary (first) layer."""
+        if not self._layers:
+            raise RuntimeError("TileMap has no layers")
+        cells = self._area_cells.get(name)
+        if cells is None:
+            raise KeyError(f"No area named '{name}'")
+        return TileGroup(self._layers[0], set(cells))
+
+
+from collections import namedtuple as _namedtuple
+
+Cell = _namedtuple("Cell", ["x", "y"])
+Bounds = _namedtuple("Bounds", ["min", "max", "width", "height"])
+
+
+class TileGroup:
+    """A set of (col, row) cells with transforms and convenience mutations.
+
+    Transforms (`shrink`, `border`) return a new TileGroup.
+    Mutations (`fill`, `scatter`, `fill_random`) write through the bound layer.
+    """
+
+    def __init__(self, layer, cells):
+        self._layer = layer
+        self._cells = set(cells)    # set of (col, row)
+
+    def __len__(self):
+        return len(self._cells)
+
+    def __iter__(self):
+        return self.cells()
+
+    def cells(self):
+        for c, r in self._cells:
+            yield Cell(c, r)
+
+    def bounds(self):
+        if not self._cells:
+            return Bounds(Cell(0, 0), Cell(0, 0), 0, 0)
+        cs = [c for c, _ in self._cells]
+        rs = [r for _, r in self._cells]
+        mn = Cell(min(cs), min(rs))
+        mx = Cell(max(cs), max(rs))
+        return Bounds(mn, mx, mx.x - mn.x + 1, mx.y - mn.y + 1)
+
+    def random_cell(self):
+        import random as _r
+        if not self._cells:
+            return None
+        c, r = _r.choice(list(self._cells))
+        return Cell(c, r)
+
+    def shrink(self, n=1):
+        """Erode by `n` 4-connected steps; cells whose orthogonal neighbors are all in the group survive."""
+        cells = self._cells
+        for _ in range(int(n)):
+            cells = {(c, r) for (c, r) in cells
+                     if (c - 1, r) in cells and (c + 1, r) in cells
+                     and (c, r - 1) in cells and (c, r + 1) in cells}
+        return TileGroup(self._layer, cells)
+
+    def border(self):
+        """Cells in this group with at least one 4-neighbor NOT in the group."""
+        out = set()
+        for (c, r) in self._cells:
+            if ((c - 1, r) not in self._cells
+                or (c + 1, r) not in self._cells
+                or (c, r - 1) not in self._cells
+                or (c, r + 1) not in self._cells):
+                out.add((c, r))
+        return TileGroup(self._layer, out)
+
+    def fill(self, name, rotation=0):
+        """Write `name` to every cell in the group."""
+        for (c, r) in self._cells:
+            self._layer.set(c, r, name, rotation)
+        return self
+
+    def scatter(self, name, count=1):
+        """Write `name` to `count` random cells (without replacement)."""
+        import random as _r
+        cells = list(self._cells)
+        n = min(int(count), len(cells))
+        for c, r in _r.sample(cells, n) if n > 0 else []:
+            self._layer.set(c, r, name)
+        return self
+
+    def fill_random(self, choices, rotate=False):
+        """Write a random tile to every cell.
+
+        `choices` is either a list (uniform) or a dict `{name: weight}`.
+        If `rotate=True`, each cell also gets a random rotation in {0, 90, 180, 270}.
+        """
+        import random as _r
+        if isinstance(choices, dict):
+            names = list(choices.keys())
+            weights = [float(choices[k]) for k in names]
+            def pick():
+                return _r.choices(names, weights=weights, k=1)[0]
+        else:
+            seq = list(choices)
+            def pick():
+                return _r.choice(seq)
+        rotations = (0, 90, 180, 270)
+        for (c, r) in self._cells:
+            rot = _r.choice(rotations) if rotate else 0
+            self._layer.set(c, r, pick(), rot)
+        return self
 
 
 def _build_areas_namespace(areas: dict, layers: list):
@@ -1762,6 +1973,7 @@ __all__ = [
     "Actor", "Rect", "Circle", "Group", "Collider",
     "Camera",
     "TilemapLayer", "TileMap", "TileRef",
+    "TileGroup", "Cell", "Bounds", "noise",
     "Light",
     "Animation",
     "run", "stop",

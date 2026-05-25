@@ -145,6 +145,31 @@ describe('graphicsDocs — tilemap + actor regression guards', () => {
     expect(worker).toMatch(/graphics\.sheet\s*=/);
   });
 
+  it('Tile Tier-3 mutation + group API is documented and exists in Python', () => {
+    const tilemap = DOCS.find((c) => c.id === 'tilemap')!;
+    for (const id of ['tilemap_layer_mutation', 'tilemap_group', 'tile_group']) {
+      expect(tilemap.entries.find((e) => e.id === id)).toBeDefined();
+    }
+    const noise = DOCS.find((c) => c.id === 'utils')!
+      .entries.find((e) => e.id === 'noise');
+    expect(noise).toBeDefined();
+    expect(noise!.returns?.type).toBe('float');
+
+    const py = readFileSync(
+      resolve(__dirname, '../../src/assets/python/graphics/__init__.py'),
+      'utf8',
+    );
+    expect(py).toMatch(/^class TileGroup:/m);
+    expect(py).toMatch(/^def noise\(/m);
+    for (const m of ['set', 'get', 'count_neighbors', 'group']) {
+      // Methods are inside TilemapLayer — match indented def with that name.
+      expect(py).toMatch(new RegExp(`\\n    def ${m}\\(`));
+    }
+    for (const m of ['cells', 'bounds', 'random_cell', 'shrink', 'border', 'fill', 'scatter', 'fill_random']) {
+      expect(py).toMatch(new RegExp(`\\n    def ${m}\\(`));
+    }
+  });
+
   it('Colors entry exposes the Sweetie 16 swatches', () => {
     const colors = DOCS
       .find((c) => c.id === 'color')!

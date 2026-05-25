@@ -166,6 +166,17 @@ for m in ("tag", "all_tiles"):
     test(f"TileMap.{m} removed", m not in tilemap_methods)
 test("TileMap.__init__ exists", "__init__" in tilemap_methods)
 
+# Stage 3: Tile Tier-3 mutation + groups
+for m in ("set", "get", "count_neighbors", "group"):
+    test(f"TilemapLayer.{m} exists", m in tilemap_layer_methods)
+test("TileMap.group exists", "group" in tilemap_methods)
+test("TileGroup class defined", "TileGroup" in get_func_names(tree))
+tilegroup_methods = get_class_body_names(tree, "TileGroup")
+for m in ("cells", "bounds", "random_cell", "shrink", "border",
+          "fill", "scatter", "fill_random"):
+    test(f"TileGroup.{m} exists", m in tilegroup_methods)
+test("noise() defined", "noise" in get_func_names(tree))
+
 # Light API surface
 light_methods = get_class_body_names(tree, "Light")
 for m in ("__init__", "add_obstacles", "add_obst", "add_source",

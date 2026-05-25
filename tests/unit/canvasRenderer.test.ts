@@ -19,6 +19,7 @@ function makeCtx() {
     fillRect: jest.fn(),
     fillText: jest.fn(),
     drawImage: jest.fn(),
+    getTransform: jest.fn(() => ({ a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 })),
     measureText: jest.fn(() => ({ width: 50 })),
     fillStyle: '',
     strokeStyle: '',
@@ -277,6 +278,39 @@ describe('executeDrawCommands', () => {
     expect(ctx.rotate).toHaveBeenCalledWith(Math.PI);
     expect(ctx.scale).toHaveBeenCalledWith(2, 3);
     expect(ctx.restore).toHaveBeenCalled();
+  });
+
+  it('tilemap_layer draws each visible cell at col*tileSize', () => {
+    const ctx = makeCtx();
+    const stone = fakeBitmap(32, 32);
+    executeDrawCommands(
+      ctx,
+      [['tilemap_layer', [[[0, 0, 'stone'], [1, 0, 'stone', 0]], 32, 0, 0]]],
+      { stone },
+      {},
+      200,
+      200,
+    );
+    expect(ctx.drawImage).toHaveBeenNthCalledWith(1, stone, 0, 0, 32, 32);
+    expect(ctx.drawImage).toHaveBeenNthCalledWith(2, stone, 32, 0, 32, 32);
+    expect(ctx.rotate).not.toHaveBeenCalled();
+  });
+
+  it('tilemap_layer rotates around tile center when rotation is non-zero', () => {
+    const ctx = makeCtx();
+    const stone = fakeBitmap(32, 32);
+    executeDrawCommands(
+      ctx,
+      [['tilemap_layer', [[[2, 3, 'stone', 90]], 32, 0, 0]]],
+      { stone },
+      {},
+      200,
+      200,
+    );
+    // Translate to tile center (2*32 + 16, 3*32 + 16) = (80, 112), rotate 90°, draw centered.
+    expect(ctx.translate).toHaveBeenCalledWith(80, 112);
+    expect(ctx.rotate).toHaveBeenCalledWith(Math.PI / 2);
+    expect(ctx.drawImage).toHaveBeenCalledWith(stone, -16, -16, 32, 32);
   });
 
   it('text + text_size + text_align', () => {

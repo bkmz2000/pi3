@@ -147,22 +147,27 @@ export default function PixelEditor({
     // Clear with transparent background
     ctx.clearRect(0, 0, gridSize, gridSize);
 
-    // Draw sharp grid lines
-    ctx.strokeStyle = '#d0d0d0';
+    // Calculate pixel size in canvas coordinates (grid is always at native resolution)
+    // Canvas is displayed at a fixed 480x480 size via CSS, regardless of gridSize
+    const pixelSize = 480 / gridSize;
+
+    // Draw sharp grid lines at scaled coordinates
+    ctx.strokeStyle = '#cccccc';
     ctx.lineWidth = 1;
 
-    const pixelSize = gridSize > 0 ? 1 : 0;
     for (let i = 1; i < gridSize; i++) {
+      const pos = i * pixelSize;
+
       // Vertical lines
       ctx.beginPath();
-      ctx.moveTo(i, 0);
-      ctx.lineTo(i, gridSize);
+      ctx.moveTo(pos, 0);
+      ctx.lineTo(pos, 480);
       ctx.stroke();
 
       // Horizontal lines
       ctx.beginPath();
-      ctx.moveTo(0, i);
-      ctx.lineTo(gridSize, i);
+      ctx.moveTo(0, pos);
+      ctx.lineTo(480, pos);
       ctx.stroke();
     }
   }, [gridSize]);
@@ -469,9 +474,9 @@ export default function PixelEditor({
               />
               <canvas
                 ref={gridCanvasRef}
-                width={gridSize}
-                height={gridSize}
-                style={{ position: "absolute", width: "100%", height: "100%", pointerEvents: "none" }}
+                width={480}
+                height={480}
+                style={{ position: "absolute", width: "100%", height: "100%", pointerEvents: "none", imageRendering: "pixelated" }}
               />
             </div>
 

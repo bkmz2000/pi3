@@ -87,13 +87,13 @@ export default function PixelEditor({
   const composite = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const ctx = canvas.getContext("2d", { willReadFrequently: true })!;
+    const ctx = canvas.getContext("2d")!;
 
-    // Set white background
+    // Fill entire canvas with white first
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, gridSize, gridSize);
 
-    // Create buffer starting with white
+    // Create buffer starting with white background
     const buf = new Uint8ClampedArray(gridSize * gridSize * 4);
     for (let i = 0; i < buf.length; i += 4) {
       buf[i] = 255;     // R: white

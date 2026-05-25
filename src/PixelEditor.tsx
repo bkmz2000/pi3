@@ -5,7 +5,12 @@ import { useThemeStore, type Theme } from "./state/useTheme";
 
 // ── Types ──────────────────────────────────
 type Layer = { id: string; name: string; visible: boolean; opacity: number };
-type Tool = "pencil" | "eraser" | "fill" | "eyedropper";
+type Tool = "pencil" | "eraser" | "fill" | "eyedropper" | "darken" | "lighten";
+
+// Must match graphics._SHADE_STEP — one editor brush stroke equals one
+// `darker(c, 1)` / `lighter(c, 1)` in Python so kids see the same shading
+// from both sides.
+const SHADE_STEP = 0.13;
 type PaletteName = "sweetie16" | "pico8";
 
 const PALETTES: Record<PaletteName, string[]> = {
@@ -77,6 +82,9 @@ export default function PixelEditor({
   const [showGridSize, setShowGridSize] = useState(!initialName);
   const [showPalettePicker, setShowPalettePicker] = useState(false);
   const [onionSkin, setOnionSkin] = useState(false);
+  // Zoom: 1 = base 480px display; 2 = 960px; etc. Lives between 0.5 and 8.
+  // Pan happens through the surrounding scroll container.
+  const [zoom, setZoom] = useState(1);
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackIdx, setPlaybackIdx] = useState(0);
 
@@ -193,6 +201,18 @@ export default function PixelEditor({
     buf[i + 1] = Math.round(lerp(bg, g, out));
     buf[i + 2] = Math.round(lerp(bb, b, out));
     buf[i + 3] = Math.round(lerp(ba, a, out));
+  };
+
+  // Shade brush — lerp the existing pixel toward black (dir=-1) or white (dir=+1).
+  // No-op on transparent pixels (keep the kid from "lightening" empty space).
+  const shadePixel = (buf: Uint8ClampedArray, x: number, y: number, dir: 1 | -1) => {
+    if (x < 0 || x >= gridSize || y < 0 || y >= gridSize) return;
+    const i = (y * gridSize + x) * 4;
+    if (buf[i + 3] === 0) return;
+    const target = dir === 1 ? 255 : 0;
+    buf[i] = Math.round(lerp(buf[i], target, SHADE_STEP));
+    buf[i + 1] = Math.round(lerp(buf[i + 1], target, SHADE_STEP));
+    buf[i + 2] = Math.round(lerp(buf[i + 2], target, SHADE_STEP));
   };
 
   const erasePixel = (buf: Uint8ClampedArray, x: number, y: number) => {
@@ -346,6 +366,10 @@ export default function PixelEditor({
         erasePixel(newBuf, x, y);
       } else if (tool === "fill") {
         floodFill(newBuf, x, y, rgb);
+      } else if (tool === "darken") {
+        shadePixel(newBuf, x, y, -1);
+      } else if (tool === "lighten") {
+        shadePixel(newBuf, x, y, 1);
       }
 
       commitPixels([...frameData[frameIdx].map((l, i) => (i === activeLayer ? newBuf : l))]);
@@ -364,6 +388,10 @@ export default function PixelEditor({
         drawPixel(buf, x, y, rgb);
       } else if (tool === "eraser") {
         erasePixel(buf, x, y);
+      } else if (tool === "darken") {
+        shadePixel(buf, x, y, -1);
+      } else if (tool === "lighten") {
+        shadePixel(buf, x, y, 1);
       }
 
       const newFrame = frameData[frameIdx].map((l, i) => (i === activeLayer ? buf : l));
@@ -464,20 +492,54 @@ export default function PixelEditor({
               </div>
             )}
 
-            {/* Canvas container */}
-            <div style={{ position: "relative", width: 480, height: 480, border: `2px solid ${theme.panelBorder}`, borderRadius: 4, background: "#ffffff", overflow: "hidden" }}>
-              <canvas
-                ref={canvasRef}
-                width={gridSize}
-                height={gridSize}
-                style={{ position: "absolute", width: "100%", height: "100%", cursor: tool === "eyedropper" ? "crosshair" : "default", imageRendering: "pixelated", backgroundColor: "#ffffff" }}
-              />
-              <canvas
-                ref={gridCanvasRef}
-                width={480}
-                height={480}
-                style={{ position: "absolute", width: "100%", height: "100%", pointerEvents: "none", imageRendering: "pixelated" }}
-              />
+            {/* Zoom toolbar */}
+            <div style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 11, color: theme.panelTxtMute }}>
+              <span style={{ textTransform: "uppercase", letterSpacing: 0.5 }}>Zoom:</span>
+              {([0.5, 1, 2, 4] as const).map((z) => (
+                <button
+                  key={z}
+                  onClick={() => setZoom(z)}
+                  style={{
+                    padding: "2px 8px",
+                    fontSize: 11,
+                    background: zoom === z ? theme.accent : theme.surfacePanel,
+                    color: zoom === z ? theme.runTxt : theme.panelTxt,
+                    border: `1px solid ${theme.panelBorder}`,
+                    borderRadius: 3,
+                    cursor: "pointer",
+                  }}
+                >
+                  {z * 100}%
+                </button>
+              ))}
+            </div>
+
+            {/* Canvas container — scrolls when zoomed in. */}
+            <div
+              style={{
+                position: "relative",
+                width: 480,
+                height: 480,
+                border: `2px solid ${theme.panelBorder}`,
+                borderRadius: 4,
+                background: "#ffffff",
+                overflow: "auto",
+              }}
+            >
+              <div style={{ position: "relative", width: 480 * zoom, height: 480 * zoom }}>
+                <canvas
+                  ref={canvasRef}
+                  width={gridSize}
+                  height={gridSize}
+                  style={{ position: "absolute", width: "100%", height: "100%", cursor: tool === "eyedropper" ? "crosshair" : "default", imageRendering: "pixelated", backgroundColor: "#ffffff" }}
+                />
+                <canvas
+                  ref={gridCanvasRef}
+                  width={480}
+                  height={480}
+                  style={{ position: "absolute", width: "100%", height: "100%", pointerEvents: "none", imageRendering: "pixelated" }}
+                />
+              </div>
             </div>
 
             {/* Frame strip (animation) */}
@@ -540,7 +602,7 @@ export default function PixelEditor({
             <div>
               <div style={{ fontSize: 10, color: theme.panelTxtMute, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Tools</div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 4 }}>
-                {(["pencil", "eraser", "fill", "eyedropper"] as Tool[]).map(t => (
+                {(["pencil", "eraser", "fill", "eyedropper", "darken", "lighten"] as Tool[]).map(t => (
                   <button
                     key={t}
                     onClick={() => setTool(t)}

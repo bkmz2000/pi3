@@ -73,7 +73,7 @@ describe('lightmap draw commands', () => {
     ).not.toThrow();
   });
 
-  it('composites the lightmap onto main ctx with multiply', () => {
+  it('composites the lightmap with soft-light by default (HSL-like mode)', () => {
     const { ctx, calls } = makeMockCtx();
     const commands: unknown[] = [
       ['light_begin', [0, 0, 0], {}],
@@ -81,8 +81,19 @@ describe('lightmap draw commands', () => {
     ];
     executeDrawCommands(ctx, commands, {}, {}, 100, 100);
     const composite = calls.find((c) => c.method === 'set:globalCompositeOperation');
-    expect(composite?.args[0]).toBe('multiply');
+    expect(composite?.args[0]).toBe('soft-light');
     expect(calls.some((c) => c.method === 'drawImage')).toBe(true);
+  });
+
+  it('composites with multiply when mode="overlay" (legacy)', () => {
+    const { ctx, calls } = makeMockCtx();
+    const commands: unknown[] = [
+      ['light_begin', [0, 0, 0], {}],
+      ['light_end', ['overlay'], {}],
+    ];
+    executeDrawCommands(ctx, commands, {}, {}, 100, 100);
+    const composite = calls.find((c) => c.method === 'set:globalCompositeOperation');
+    expect(composite?.args[0]).toBe('multiply');
   });
 
   it('handles light_poly with empty polygon gracefully', () => {

@@ -32,6 +32,37 @@ function makeCtx() {
 const fakeBitmap = (w = 32, h = 32) =>
   ({ width: w, height: h, close: () => {} }) as unknown as ImageBitmap;
 
+// jsdom does not provide OffscreenCanvas or ImageData; the "sprite" draw
+// path uses both. Stub them just enough that executeDrawCommands can run.
+class FakeImageData {
+  data: Uint8ClampedArray;
+  width: number;
+  height: number;
+  constructor(data: Uint8ClampedArray, width: number, height: number) {
+    this.data = data;
+    this.width = width;
+    this.height = height;
+  }
+}
+class FakeOffscreenCanvas {
+  width: number;
+  height: number;
+  putCalls: unknown[] = [];
+  constructor(width: number, height: number) {
+    this.width = width;
+    this.height = height;
+  }
+  getContext() {
+    return {
+      putImageData: (img: FakeImageData) => {
+        this.putCalls.push(img);
+      },
+    };
+  }
+}
+(globalThis as unknown as { ImageData: unknown }).ImageData = FakeImageData;
+(globalThis as unknown as { OffscreenCanvas: unknown }).OffscreenCanvas = FakeOffscreenCanvas;
+
 describe('executeDrawCommands', () => {
   it('background fills canvas with color reset to identity transform', () => {
     const ctx = makeCtx();
@@ -103,6 +134,54 @@ describe('executeDrawCommands', () => {
       200,
     );
     expect(ctx.drawImage).toHaveBeenCalledWith(bm, 80, 40, 40, 20);
+  });
+
+  it('sprite paints RGBA buffer through an OffscreenCanvas to honour transforms', () => {
+    const ctx = makeCtx();
+    const pixels = new Uint8Array(2 * 1 * 4);
+    pixels.set([255, 0, 0, 255, 0, 255, 0, 255]);
+    executeDrawCommands(
+      ctx,
+      [['sprite', [pixels, 2, 1, 10, 20, null, null]]],
+      {},
+      {},
+      100,
+      80,
+    );
+    // 2-arg drawImage when no explicit size — the offscreen carrier is the source.
+    expect(ctx.drawImage).toHaveBeenCalledWith(expect.any(FakeOffscreenCanvas), 10, 20);
+    const [bm] = (ctx.drawImage as jest.Mock).mock.calls[0] as [FakeOffscreenCanvas];
+    expect(bm.width).toBe(2);
+    expect(bm.height).toBe(1);
+    expect(bm.putCalls).toHaveLength(1);
+  });
+
+  it('sprite scales to (w, h) when provided', () => {
+    const ctx = makeCtx();
+    const pixels = new Uint8ClampedArray(4 * 4 * 4);
+    executeDrawCommands(
+      ctx,
+      [['sprite', [pixels, 4, 4, 0, 0, 32, 32]]],
+      {},
+      {},
+      100,
+      80,
+    );
+    expect(ctx.drawImage).toHaveBeenCalledWith(expect.any(FakeOffscreenCanvas), 0, 0, 32, 32);
+  });
+
+  it('sprite no-ops on length mismatch (corrupt buffer)', () => {
+    const ctx = makeCtx();
+    const pixels = new Uint8Array(3);
+    executeDrawCommands(
+      ctx,
+      [['sprite', [pixels, 4, 4, 0, 0, null, null]]],
+      {},
+      {},
+      100,
+      80,
+    );
+    expect(ctx.drawImage).not.toHaveBeenCalled();
   });
 
   it('animation_frame draws frame from animation by index (modulo)', () => {

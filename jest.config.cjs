@@ -26,6 +26,11 @@ const config = {
     'src/**/*.{ts,tsx}',
     '!src/**/*.d.ts',
     '!src/vite-env.d.ts',
+    // Declarative content (API reference, recipe data) pinned by
+    // tests/unit/graphicsDocs.test.ts. Counting it as covered code makes the
+    // denominator grow every time docs do, sinking line % without any real
+    // test regression.
+    '!src/docs/**',
   ],
   // Ratchet floors seeded at real measured actuals (2026-05-20), not aspirational.
   // Rule: these only move UP. Bump the relevant slot in the same PR that adds a
@@ -33,10 +38,10 @@ const config = {
   // from the global pool, so each area regresses (and gates) on its own.
   coverageThreshold: {
     global: {
-      branches: 5,
-      functions: 5,
-      lines: 8,
-      statements: 7,
+      branches: 6,
+      functions: 6,
+      lines: 10,
+      statements: 9,
     },
     './src/state/': {
       branches: 16,
@@ -45,10 +50,10 @@ const config = {
       statements: 9,
     },
     './src/runner/': {
-      branches: 3,
-      functions: 2,
-      lines: 8,
-      statements: 7,
+      branches: 23,
+      functions: 3,
+      lines: 23,
+      statements: 22,
     },
   },
 };

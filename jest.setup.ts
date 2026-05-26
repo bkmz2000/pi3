@@ -2,6 +2,16 @@ import '@testing-library/jest-dom';
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 
+// jsdom does not implement ResizeObserver, OffscreenCanvas, or ImageData.
+// Light stubs expose the surface area used by canvas-touching components.
+if (typeof (globalThis as unknown as { ResizeObserver: unknown }).ResizeObserver === 'undefined') {
+  class StubResizeObserver {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  }
+  (globalThis as unknown as { ResizeObserver: unknown }).ResizeObserver = StubResizeObserver;
+}
 // jsdom does not implement OffscreenCanvas or ImageData. Light stubs that
 // expose the surface area used by canvas-touching components.
 if (typeof (globalThis as unknown as { ImageData: unknown }).ImageData === 'undefined') {
@@ -101,9 +111,10 @@ if (typeof globalThis.TextEncoder === 'undefined') {
       const buf = Buffer.from(input ?? '', 'utf-8');
       return new Uint8Array(buf);
     }
-    encodeInto(_src: string, _dest: Uint8Array): { read: number; written: number } {
-      return { read: 0, written: 0 };
-    }
+     // eslint-disable-next-line @typescript-eslint/no-unused-vars
+     encodeInto(_src: string, _dest: Uint8Array): { read: number; written: number } {
+       return { read: 0, written: 0 };
+     }
   }
   (globalThis as unknown as { TextEncoder: unknown }).TextEncoder = JsdomTextEncoder;
 }

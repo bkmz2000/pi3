@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { useRunner } from "./runner/RunnerProvider";
+import { useRunner, useRunnerStore } from "./runner/RunnerProvider";
 import { useThemeStore } from "./state/useTheme";
 import { Icon } from "./components/Icons";
 import { useEditor, isExampleSessionId } from "./state/IdeState";
@@ -123,6 +123,50 @@ export default function CanvasWindow() {
     dragState.current = null;
   };
 
+  // Calculate visual scale to respect Python's size() call while keeping canvas usable
+  const w = canvasWidth > 0 ? canvasWidth : 300;
+  const h = canvasHeight > 0 ? canvasHeight : 300;
+  const [visualScale, setVisualScale] = useState(1);
+  useEffect(() => {
+    if (!canvasActive) {
+      setVisualScale(1);
+      return;
+    }
+    
+    // Get viewport width (approximate using window.innerWidth)
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    const maxAllowedWidth = viewportWidth * 0.8; // 80% of viewport width
+    const maxAllowedHeight = viewportHeight * 0.8; // 80% of viewport height
+    
+    // Calculate scale needed to fit within max allowed dimensions
+    const widthScale = w > maxAllowedWidth ? maxAllowedWidth / w : 1;
+    const heightScale = h > maxAllowedHeight ? maxAllowedHeight / h : 1;
+    const scale = Math.min(widthScale, heightScale, 1); // Never scale up, only down if needed
+    setVisualScale(scale);
+  }, [canvasActive, w, h]);
+
+  // Recompute the display↔native scale whenever the canvas is rendered.
+  // Stored in the runner so mouse coords map correctly.
+  // This combines the Python-set size with any visual scaling applied.
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const measure = () => {
+      const displayW = el.getBoundingClientRect().width || w;
+      const displayH = el.getBoundingClientRect().height || h;
+      // Actual scale factor from pixel buffer to displayed pixels
+      const scaleW = displayW > 0 ? w / displayW : 1;
+      const scaleH = displayH > 0 ? h / displayH : 1;
+      // Use average scale for mouse mapping (could be improved to handle non-uniform scaling)
+      useRunnerStore.setState({ canvasScale: (scaleW + scaleH) / 2 });
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [w, h, canvasActive, visualScale]);
+
   return (
     <div
       ref={windowRef}
@@ -130,8 +174,8 @@ export default function CanvasWindow() {
         position: "fixed",
         right: 24,
         bottom: 156,
-        width: canvasWidth > 0 ? canvasWidth : 300,
-        height: canvasHeight > 0 ? canvasHeight + 30 : 300 + 30,
+        width: `${w}px`,
+        height: `${h + 30}px`, // +30 for title bar
         background: theme.canvasFrame,
         borderRadius: theme.radiusCard,
         boxShadow:
@@ -256,20 +300,32 @@ export default function CanvasWindow() {
       )}
       <div
         style={{
-          width: canvasWidth > 0 ? canvasWidth : 300,
-          height: canvasHeight > 0 ? canvasHeight : 300,
+          width: `${w}px`,
+          height: `${h}px`,
           position: "relative",
           background: theme.canvasBg,
           imageRendering: "pixelated",
           overflow: "hidden",
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}
       >
+        {/* Canvas pixel buffer stays at native (w, h). Visual size scales
+            down via CSS so it always fits while preserving
+            aspect ratio. Mouse coords are remapped via canvasScale. */}
         <canvas
           ref={ref}
-          className="block"
+          width={w}
+          height={h}
           style={{
-            width: canvasWidth > 0 ? canvasWidth : 300,
-            height: canvasHeight > 0 ? canvasHeight : 300,
+            display: 'block',
+            maxWidth: '100%',
+            maxHeight: '100%',
+            width: 'auto',
+            height: 'auto',
+            aspectRatio: `${w} / ${h}`,
+            imageRendering: 'pixelated',
+            transformOrigin: 'top left',
+            transform: `scale(${visualScale})`,
           }}
         />
       </div>

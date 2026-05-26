@@ -1,0 +1,14 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`TileEditor snapshot: toolbar buttons at default state 1`] = `
+[
+  "Pan (H) — also Space+drag or middle mouse",
+  "Paint — Shift+drag for straight lines",
+  "Erase — Shift+drag for straight lines",
+  "Fill",
+  "Undo (Ctrl+Z)",
+  "Redo (Ctrl+Shift+Z)",
+  "Reset view",
+  "Add layer",
+]
+`;

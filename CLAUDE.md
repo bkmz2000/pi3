@@ -113,9 +113,13 @@ The graphics library at `src/assets/python/graphics/` is a custom Python module 
 ### Panel System (src/SideMenu.tsx)
 Rail-based layout. Most panel content is inline in `SideMenu.tsx`; `DocsPanel` is a separate lazy component:
 - **Projects** — built-in examples + user projects list
-- **Assets** — built-in pack + user assets with sprite editor button
+- **Assets** — built-in pack + user assets with asset editor button
 - **Settings** — theme, font size, console auto-hide, show hitboxes
 - **Docs** (`src/components/DocsPanel.tsx`) — bilingual API reference
+
+**Asset editor split**: `src/AssetEditor.tsx` is the unified dispatcher modal. It shows a type picker for `mode='new'` and delegates to the appropriate leaf editor:
+- `src/PixelEditor.tsx` — 16×16 / 32×32 pixel sprite editor + animation frames
+- `src/TileEditor.tsx` — layer-based tilemap editor (cells, areas, undo/redo)
 
 **Docs maintenance**: `src/docs/graphicsDocs.ts` is the single source of truth for the API reference panel. Update it whenever `src/assets/python/graphics/` changes (add/remove/rename functions, change parameter names or defaults).
 

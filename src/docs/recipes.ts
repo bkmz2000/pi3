@@ -7,7 +7,9 @@ export type DocRecipeSection =
   | "tilemaps"
   | "window_utils"
   | "camera"
-  | "transforms";
+  | "transforms"
+  | "color"
+  | "procedural";
 
 export type DocRecipe = {
   id: string;
@@ -28,6 +30,8 @@ export const RECIPE_SECTIONS: { id: DocRecipeSection; en: string; ru: string }[]
   { id: "window_utils", en: "Window & utilities",  ru: "Окно и утилиты" },
   { id: "camera",       en: "Camera",              ru: "Камера" },
   { id: "transforms",   en: "Transformations",     ru: "Трансформации" },
+  { id: "color",        en: "Color & shading",     ru: "Цвет и оттенки" },
+  { id: "procedural",   en: "Procedural patterns", ru: "Процедурная генерация" },
 ];
 
 export const RECIPES: DocRecipe[] = [
@@ -229,5 +233,44 @@ export const RECIPES: DocRecipe[] = [
     en: { title: "Move, rotate, scale", intro: "Shift, turn, and resize the coordinate system." },
     ru: { title: "Сдвиг, поворот, масштаб", intro: "Сдвигай, вращай и масштабируй систему координат." },
     entryIds: ["push", "pop", "translate", "rotate", "scale"],
+  },
+
+  // ─── Color & shading ─────────────────────────────────────────────────────
+  {
+    id: "mix_colors",
+    section: "color",
+    en: { title: "Mix two colors", intro: "Blend smoothly between two colors using lerp." },
+    ru: { title: "Смешать два цвета", intro: "Плавно перейди от одного цвета к другому через lerp." },
+    entryIds: ["lerp"],
+  },
+  {
+    id: "shade_a_color",
+    section: "color",
+    en: { title: "Make it darker, lighter, more vivid", intro: "Step a color up and down the shade and saturation scales — the same step the editor's brushes use." },
+    ru: { title: "Темнее, светлее, насыщеннее", intro: "Сдвинь цвет по шкалам яркости и насыщенности — тот же шаг, что у кистей редактора." },
+    entryIds: ["darker", "lighter", "saturated", "desaturated"],
+  },
+  {
+    id: "paint_a_sprite",
+    section: "color",
+    en: { title: "Paint a sprite in code", intro: "Make a new sprite, draw pixels into it, then recolor or bucket-fill it." },
+    ru: { title: "Нарисовать спрайт кодом", intro: "Создай спрайт, рисуй в нём пиксели, потом перекрашивай или заливай ведром." },
+    entryIds: ["create_sprite", "set_pixel", "get_pixel", "flood_fill", "palette_swap", "darken", "lighten"],
+  },
+
+  // ─── Procedural patterns ─────────────────────────────────────────────────
+  {
+    id: "noise_patterns",
+    section: "procedural",
+    en: { title: "Smooth noise for natural shapes", intro: "Use deterministic noise to seed terrain, caves, or dithered colors." },
+    ru: { title: "Гладкий шум для природных форм", intro: "Детерминированный шум для рельефа, пещер или дитеринга цветов." },
+    entryIds: ["noise"],
+  },
+  {
+    id: "scatter_randomly",
+    section: "procedural",
+    en: { title: "Scatter things randomly", intro: "Pick random numbers and colors; scatter tiles across a TileGroup." },
+    ru: { title: "Случайное размещение", intro: "Получай случайные числа и цвета; разбрасывай тайлы по TileGroup." },
+    entryIds: ["random_fn", "random_color", "tile_group", "tilemap_group"],
   },
 ];

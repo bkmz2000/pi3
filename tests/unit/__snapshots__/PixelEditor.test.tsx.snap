@@ -1,0 +1,17 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`PixelEditor snapshot: toolbar buttons rendered at default state 1`] = `
+[
+  "Pencil",
+  "Eraser",
+  "Line",
+  "Rect",
+  "Circle",
+  "Fill",
+  "Eyedrop",
+  "Darken",
+  "Lighten",
+  "Mirror",
+  "Region",
+]
+`;

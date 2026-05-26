@@ -20,9 +20,7 @@ import {
   type IconName,
 } from "./components/Icons";
 
-const SpriteEditor = lazy(() => import("./SpriteEditor"));
-const PixelEditor = lazy(() => import("./PixelEditor"));
-const TileEditor = lazy(() => import("./TileEditor"));
+import AssetEditor, { type AssetEditorMode } from "./AssetEditor";
 const DocsPanel = lazy(() => import("./components/DocsPanel"));
 
 // ── Logo ───────────────────────────────────
@@ -123,21 +121,22 @@ export default function Rail() {
   const importProjectFromFile = useIde((s) => s.importProjectFromFile);
   const markClean = useEditor((s) => s.markClean);
 
-  const [editorOpen, setEditorOpen] = useState(false);
-  const [pixelEditorOpen, setPixelEditorOpen] = useState(false);
-  const [tileEditorOpen, setTileEditorOpen] = useState(false);
+  // Single unified launch point for sprite/animation/tilemap editing.
+  const [editorMode, setEditorMode] = useState<AssetEditorMode | null>(null);
+  const [editingAsset, setEditingAsset] = useState<{ name: string; url: string } | null>(null);
   const [editingTilemap, setEditingTilemap] = useState<string | null>(null);
+  const [editingAnimation, setEditingAnimation] = useState<{ name: string; data: import('./state/IdeState').AnimationData } | null>(null);
+
   const [showNewProjectDialog, setShowNewProjectDialog] = useState(false);
   const [showImportDialog, setShowImportDialog] = useState(false);
   const [alertMsg, setAlertMsg] = useState<string | null>(null);
-  const [editingAsset, setEditingAsset] = useState<{
-    name: string;
-    url: string;
-  } | null>(null);
-  const [animEditorOpen, setAnimEditorOpen] = useState(false);
-  const [editingAnimation, setEditingAnimation] = useState<{ name: string; data: import('./state/IdeState').AnimationData } | null>(null);
-  const [pixelAnimEditorOpen, setPixelAnimEditorOpen] = useState(false);
-  const [editingPixelAnimation, setEditingPixelAnimation] = useState<{ name: string; data: import('./state/IdeState').AnimationData } | null>(null);
+
+  const closeEditor = () => {
+    setEditorMode(null);
+    setEditingAsset(null);
+    setEditingTilemap(null);
+    setEditingAnimation(null);
+  };
 
   const { user } = useUser();
   const { ready } = useRunner();
@@ -418,15 +417,13 @@ export default function Rail() {
               onRemoveAsset={removeAsset}
               onAddSound={addSound}
               onRemoveSound={removeSound}
-              onNewSprite={() => { setEditingAsset(null); setEditorOpen(true); }}
-              onNewPixelSprite={() => { setEditingAsset(null); setPixelEditorOpen(true); }}
+              onNewSprite={() => { setEditingAsset(null); setEditorMode('new'); }}
+              onNewPixelSprite={() => { setEditingAsset(null); setEditorMode('sprite'); }}
               onEditAsset={(name, url) => {
+                // SVG assets are now read-only (vector editor was removed).
+                if (!name.endsWith(".png")) return;
                 setEditingAsset({ name, url });
-                if (name.endsWith(".png")) {
-                  setPixelEditorOpen(true);
-                } else {
-                  setEditorOpen(true);
-                }
+                setEditorMode('sprite');
               }}
               onClose={closePanels}
             />
@@ -435,8 +432,8 @@ export default function Rail() {
             <TilemapsPanel
               theme={theme}
               tilemaps={projectTilemaps}
-              onOpen={(name) => { setEditingTilemap(name); setTileEditorOpen(true); }}
-              onNew={() => { setEditingTilemap(null); setTileEditorOpen(true); }}
+              onOpen={(name) => { setEditingTilemap(name); setEditorMode('tilemap'); }}
+              onNew={() => { setEditingTilemap(null); setEditorMode('tilemap'); }}
               onDelete={deleteTilemap}
               onClose={closePanels}
             />
@@ -445,8 +442,8 @@ export default function Rail() {
             <AnimationsPanel
               theme={theme}
               animations={projectAnimations ?? {}}
-              onEdit={(name, data) => { setEditingAnimation({ name, data }); setAnimEditorOpen(true); }}
-              onNew={() => { setEditingAnimation(null); setAnimEditorOpen(true); }}
+              onEdit={(name, data) => { setEditingAnimation({ name, data }); setEditorMode('sprite-anim'); }}
+              onNew={() => { setEditingAnimation(null); setEditorMode('sprite-anim'); }}
               onDelete={deleteAnimation}
               onClose={closePanels}
             />
@@ -483,107 +480,42 @@ export default function Rail() {
         />
       )}
 
-      <Suspense fallback={null}>
-        <TileEditor
-          key={tileEditorOpen ? (editingTilemap ?? "__new__") : "closed"}
-          open={tileEditorOpen}
-          initialName={editingTilemap ?? ""}
-          onClose={() => { setTileEditorOpen(false); setEditingTilemap(null); }}
-          onSave={(name, data) => { saveTilemap(name, data); setTileEditorOpen(false); setEditingTilemap(null); }}
-          onNewSprite={() => { setEditingAsset(null); setEditorOpen(true); }}
-        />
-      </Suspense>
-
-      <Suspense fallback={null}>
-        <SpriteEditor
-          key={editorOpen ? "open" : "closed"}
-          open={editorOpen}
-          onClose={() => {
-            setEditorOpen(false);
-            setEditingAsset(null);
-          }}
-          onSave={(name, dataUrl) => {
-            const cleanName = name.replace(/\.svg$/i, '');
-            const oldName = editingAsset?.name.replace(/\.svg$/i, '') || '';
-
-            if (editingAsset && oldName !== cleanName) {
-              // Renamed: remove old asset, add new asset
-              removeAsset(editingAsset.name);
-              changeAsset(cleanName + ".svg", dataUrl);
-            } else if (editingAsset) {
-              // Updated: change existing asset
-              changeAsset(editingAsset.name, dataUrl);
-            } else {
-              // New: toggle asset
-              toggleAsset(cleanName + ".svg", dataUrl);
-            }
-            setEditorOpen(false);
-            setEditingAsset(null);
-          }}
-          initialName={editingAsset?.name.replace(/\.svg$/i, '') || ''}
-          initialDataUrl={editingAsset?.url}
-        />
-      </Suspense>
-
-      <Suspense fallback={null}>
-        <SpriteEditor
-          key={animEditorOpen ? `anim-${editingAnimation?.name ?? "__new__"}` : "anim-closed"}
-          open={animEditorOpen}
-          onClose={() => { setAnimEditorOpen(false); setEditingAnimation(null); }}
-          onSave={() => { /* unused in anim mode; handled by onSaveAnimation */ }}
-          initialName={editingAnimation?.name ?? ""}
-          initialAnimation={editingAnimation?.data}
-          onSaveAnimation={(name, data) => {
-            saveAnimation(name, data);
-            setAnimEditorOpen(false);
-            setEditingAnimation(null);
-          }}
-        />
-      </Suspense>
-
-      <Suspense fallback={null}>
-        <PixelEditor
-          key={pixelEditorOpen ? "open" : "closed"}
-          open={pixelEditorOpen}
-          onClose={() => {
-            setPixelEditorOpen(false);
-            setEditingAsset(null);
-          }}
-          onSave={(name, dataUrl) => {
-            const cleanName = name.replace(/\.png$/i, '');
-            const oldName = editingAsset?.name.replace(/\.png$/i, '') || '';
-
-            if (editingAsset && oldName !== cleanName) {
-              removeAsset(editingAsset.name);
-              changeAsset(cleanName + ".png", dataUrl);
-            } else if (editingAsset) {
-              changeAsset(editingAsset.name, dataUrl);
-            } else {
-              toggleAsset(cleanName + ".png", dataUrl);
-            }
-            setPixelEditorOpen(false);
-            setEditingAsset(null);
-          }}
-          initialName={editingAsset?.name.replace(/\.png$/i, '') || ''}
-          initialDataUrl={editingAsset?.url}
-        />
-      </Suspense>
-
-      <Suspense fallback={null}>
-        <PixelEditor
-          key={pixelAnimEditorOpen ? `anim-${editingPixelAnimation?.name ?? "__new__"}` : "anim-closed"}
-          open={pixelAnimEditorOpen}
-          onClose={() => { setPixelAnimEditorOpen(false); setEditingPixelAnimation(null); }}
-          onSave={() => { /* unused in anim mode; handled by onSaveAnimation */ }}
-          initialName={editingPixelAnimation?.name ?? ""}
-          initialAnimation={editingPixelAnimation?.data}
-          onSaveAnimation={(name, data) => {
-            saveAnimation(name, data);
-            setPixelAnimEditorOpen(false);
-            setEditingPixelAnimation(null);
-          }}
-        />
-      </Suspense>
+      <AssetEditor
+        key={editorMode ?? 'closed'}
+        open={editorMode !== null}
+        mode={editorMode}
+        onClose={closeEditor}
+        spriteInitial={editingAsset ? {
+          name: editingAsset.name.replace(/\.png$/i, ''),
+          url: editingAsset.url,
+        } : undefined}
+        onSaveSprite={(name, dataUrl) => {
+          const cleanName = name.replace(/\.png$/i, '');
+          const oldName = editingAsset?.name.replace(/\.png$/i, '') || '';
+          if (editingAsset && oldName !== cleanName) {
+            removeAsset(editingAsset.name);
+            changeAsset(cleanName + ".png", dataUrl);
+          } else if (editingAsset) {
+            changeAsset(editingAsset.name, dataUrl);
+          } else {
+            toggleAsset(cleanName + ".png", dataUrl);
+          }
+          closeEditor();
+        }}
+        animationInitial={editingAnimation ? {
+          name: editingAnimation.name,
+          data: editingAnimation.data,
+        } : undefined}
+        onSaveAnimation={(name, data) => {
+          saveAnimation(name, data);
+          closeEditor();
+        }}
+        tilemapInitial={editingTilemap !== null ? { name: editingTilemap } : undefined}
+        onSaveTilemap={(name, data) => {
+          saveTilemap(name, data);
+          closeEditor();
+        }}
+      />
     </>
   );
 }

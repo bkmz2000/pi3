@@ -269,9 +269,11 @@ function AppInner() {
           )}
           <FileBar />
 
-          {/* Editor + Console — row when consoleOnRight, column otherwise */}
+          {/* Outer row: [editor+console block] | [docked canvas]. Keeps the
+              canvas on the right regardless of where the console sits. */}
+          <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "row" }}>
           <div
-            style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: consoleOnRight ? "row" : "column" }}
+            style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: consoleOnRight ? "row" : "column" }}
             onClick={e => {
               const target = e.target as HTMLElement;
               if (!target.closest('.cm-comment-gutter') && !target.closest('[data-comment-popover]')) {
@@ -368,8 +370,8 @@ function AppInner() {
 
             {showConsole && <ConsolePanel onRight={consoleOnRight} />}
           </div>
-
           <CanvasWindow />
+          </div>
         </div>
       </div>
       {showForkDialog && (

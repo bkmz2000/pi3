@@ -155,9 +155,12 @@ interface TileEditorProps {
   onClose: () => void;
   onSave: (name: string, data: TilemapData) => void;
   onNewSprite?: () => void;
+  /** When true, render inline without the modal backdrop so AssetEditor can
+   *  host this body inside its unified frame. */
+  embedded?: boolean;
 }
 
-export default function TileEditor({ open, initialName, onClose, onSave, onNewSprite }: TileEditorProps) {
+export default function TileEditor({ open, initialName, onClose, onSave, onNewSprite, embedded = false }: TileEditorProps) {
   const theme = useThemeStore((s) => s.theme);
   const projectAssets = useEditor((s) => s.project.assets);
   const projectTilemaps = useEditor((s) => s.project.tilemaps);
@@ -577,19 +580,16 @@ export default function TileEditor({ open, initialName, onClose, onSave, onNewSp
     transition: "background 0.1s",
   });
 
-  return (
+  const body = (
     <div style={{
-      position: "fixed", inset: 0, zIndex: 60,
-      display: "flex", alignItems: "center", justifyContent: "center",
-      background: "rgba(0,0,0,0.5)",
-    }}>
-      <div style={{
         background: theme.surfacePanel,
-        border: `1px solid ${theme.panelBorder}`,
-        borderRadius: 8,
-        boxShadow: theme.shadowWindow,
-        width: 1160, maxWidth: "calc(100vw - 24px)",
-        height: 780, maxHeight: "calc(100vh - 24px)",
+        border: embedded ? 'none' : `1px solid ${theme.panelBorder}`,
+        borderRadius: embedded ? 0 : 8,
+        boxShadow: embedded ? 'none' : theme.shadowWindow,
+        width: embedded ? '100%' : 1160,
+        maxWidth: embedded ? '100%' : "calc(100vw - 24px)",
+        height: embedded ? '100%' : 780,
+        maxHeight: embedded ? '100%' : "calc(100vh - 24px)",
         display: "flex", flexDirection: "column",
         fontFamily: theme.fontUI, color: theme.panelTxt,
       }}>
@@ -1089,6 +1089,17 @@ export default function TileEditor({ open, initialName, onClose, onSave, onNewSp
           </div>
         </div>
       </div>
+  );
+
+  if (embedded) return body;
+
+  return (
+    <div style={{
+      position: "fixed", inset: 0, zIndex: 60,
+      display: "flex", alignItems: "center", justifyContent: "center",
+      background: "rgba(0,0,0,0.5)",
+    }}>
+      {body}
     </div>
   );
 }

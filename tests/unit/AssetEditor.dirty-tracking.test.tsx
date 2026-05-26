@@ -1,6 +1,6 @@
 import { Project } from '../../src/state/IdeState';
 
-describe('Sprite save dirty tracking', () => {
+describe('Asset save dirty tracking', () => {
   it('preserves Python file dirty state when saving a sprite', () => {
     // Create a project with unsaved Python file
     const project: Project = {

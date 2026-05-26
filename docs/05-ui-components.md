@@ -22,7 +22,9 @@ graph TD
     AssetsPanel["AssetsPanel"]
     AssetTile["AssetTile"]
     SettingsPanel["SettingsPanel"]
-    SpriteEditor["SpriteEditor (lazy)"]
+    AssetEditor["AssetEditor (lazy dispatcher)"]
+    PixelEditor["PixelEditor (lazy)"]
+    TileEditor["TileEditor (lazy)"]
     FileBar["FileBar"]
     FileTab["FileTab"]
     NewFileTab["NewFileTab"]
@@ -40,7 +42,9 @@ graph TD
     SideMenu --> IconButton
     SideMenu --> Backdrop
     SideMenu --> SidePanel
-    SideMenu --> SpriteEditor
+    SideMenu --> AssetEditor
+    AssetEditor --> PixelEditor
+    AssetEditor --> TileEditor
 
     SidePanel --> ProjectsPanel
     SidePanel --> AssetsPanel
@@ -133,7 +137,7 @@ const markClean = useEditor(s => s.markClean);
 ```
 
 ### 3.5 Key Features
-- Lazy-loaded SpriteEditor (React.lazy)
+- Lazy-loaded AssetEditor dispatcher (React.lazy → PixelEditor or TileEditor)
 - Projects auto-fork on edit when no currentProjectId
 - Asset selection toggles assets in project
 - Auto-save on 60-second interval
@@ -233,10 +237,12 @@ Output is batched via `requestAnimationFrame` in RunnerProvider, then flushed to
 Floating, draggable canvas for graphics output.
 
 ### 6.2 Features
-- Fixed position (right: 2rem, bottom: 2rem)
+- Initially positioned at fixed position (right: 2rem, bottom: 2rem)
 - Draggable via title bar (pointer events)
 - Shows only when `canvasActive === true` (opacity transition)
 - OffscreenCanvas transfer for GPU rendering
+- Respects Python's `size()` calls for drawing buffer
+- Visually scales to fit within viewport while preserving aspect ratio
 
 ### 6.3 Drag Implementation
 ```typescript

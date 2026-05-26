@@ -11,6 +11,11 @@ import Robot from "../assets/examples/robot/robot.py?raw";
 import Swatches from "../assets/examples/swatches/swatches.py?raw";
 import Dungeon from "../assets/examples/dungeon/dungeon.py?raw";
 import Platformer from "../assets/examples/platformer/platformer.py?raw";
+import ColorShifter from "../assets/examples/color_shifter/color_shifter.py?raw";
+import SpritePainter from "../assets/examples/sprite_painter/sprite_painter.py?raw";
+import GradientSky from "../assets/examples/gradient_sky/gradient_sky.py?raw";
+import RandomWalls from "../assets/examples/random_walls/random_walls.py?raw";
+import CaveGenerator from "../assets/examples/cave_generator/cave_generator.py?raw";
 import ShipSvg from "../assets/examples/asteroids/assets/ship.svg?url";
 import BulletSvg from "../assets/examples/asteroids/assets/bullet.svg?url";
 import BigAsteroidSvg from "../assets/examples/asteroids/assets/big_asteroid.svg?url";
@@ -147,6 +152,27 @@ const Examples: Record<string, Project> = {
     assets: {},
     tilemaps: {},
     animations: {},
+  },
+  // Pixel-art switch showcase — small, focused demos of the new APIs.
+  "color shifter": {
+    files: { "color_shifter.py": ColorShifter },
+    assets: {}, tilemaps: {}, animations: {},
+  },
+  "sprite painter": {
+    files: { "sprite_painter.py": SpritePainter },
+    assets: {}, tilemaps: {}, animations: {},
+  },
+  "gradient sky": {
+    files: { "gradient_sky.py": GradientSky },
+    assets: {}, tilemaps: {}, animations: {},
+  },
+  "random walls": {
+    files: { "random_walls.py": RandomWalls },
+    assets: {}, tilemaps: {}, animations: {},
+  },
+  "cave generator": {
+    files: { "cave_generator.py": CaveGenerator },
+    assets: {}, tilemaps: {}, animations: {},
   },
 };
 

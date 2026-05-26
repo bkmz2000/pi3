@@ -649,6 +649,7 @@ function ProjectsPanel({
               icon={icons[i % icons.length]}
               theme={theme}
               current={!currentProjectId && true}
+              startHere={name === "hello world"}
               onClick={() => onOpenExample(name)}
             />
           ))}
@@ -725,12 +726,14 @@ function ExampleRow({
   icon,
   theme,
   current,
+  startHere,
   onClick,
 }: {
   name: string;
   icon: IconName;
   theme: Theme;
   current?: boolean;
+  startHere?: boolean;
   onClick: () => void;
 }) {
   const { t } = useTranslation();
@@ -784,6 +787,23 @@ function ExampleRow({
           {name}
         </div>
       </div>
+      {startHere && !current && (
+        <span
+          style={{
+            padding: "3px 8px",
+            borderRadius: 999,
+            background: theme.accent + "33",
+            color: theme.accent,
+            fontFamily: theme.fontUI,
+            fontWeight: theme.weightUI + 100,
+            fontSize: 10.5,
+            letterSpacing: 0.4,
+            whiteSpace: "nowrap",
+          }}
+        >
+          Start Here
+        </span>
+      )}
       {current && (
         <span
           style={{

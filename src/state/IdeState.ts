@@ -1,6 +1,7 @@
 import { create } from "zustand";
 
 import HelloWorld from "../assets/examples/hello_world/hello_world.py?raw";
+import BouncingActor from "../assets/examples/bouncing_actor/main.py?raw";
 import Input from "../assets/examples/input/input.py?raw";
 import P5 from "../assets/examples/p5/p5.py?raw";
 import Snake from "../assets/examples/snake/snake.py?raw";
@@ -93,6 +94,7 @@ const Examples: Record<string, Project> = {
   "hello world": { files: { "main.py": HelloWorld }, assets: {}, tilemaps: {}, animations: {} },
   input: { files: { "input.py": Input }, assets: {}, tilemaps: {}, animations: {} },
   p5: { files: { "p5.py": P5 }, assets: {}, tilemaps: {}, animations: {} },
+  "bouncing actor": { files: { "main.py": BouncingActor }, assets: {}, tilemaps: {}, animations: {} },
   snake: {
     files: { "snake.py": Snake },
     assets: {},
@@ -158,10 +160,6 @@ const Examples: Record<string, Project> = {
     files: { "color_shifter.py": ColorShifter },
     assets: {}, tilemaps: {}, animations: {},
   },
-  "sprite painter": {
-    files: { "sprite_painter.py": SpritePainter },
-    assets: {}, tilemaps: {}, animations: {},
-  },
   "gradient sky": {
     files: { "gradient_sky.py": GradientSky },
     assets: {}, tilemaps: {}, animations: {},
@@ -172,6 +170,11 @@ const Examples: Record<string, Project> = {
   },
   "cave generator": {
     files: { "cave_generator.py": CaveGenerator },
+    assets: {}, tilemaps: {}, animations: {},
+  },
+  // Advanced — uses set_pixel/flood_fill/palette_swap; no beginner recipe yet
+  "sprite painter": {
+    files: { "sprite_painter.py": SpritePainter },
     assets: {}, tilemaps: {}, animations: {},
   },
 };

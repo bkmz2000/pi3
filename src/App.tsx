@@ -11,6 +11,7 @@ import { keymap } from "@codemirror/view";
 import { createGraphicsExtensions, reconfigureGraphicsExtensions } from "./editor/graphicsCompletion";
 import Rail from "./SideMenu";
 import { useEditor, useIde } from "./state/IdeState";
+import { useProjects } from "./hooks/useProjects";
 import { getProject, getComments, type ApiComment } from "./state/api";
 import FileBar from "./FileBar";
 import { useRunner } from "./runner/RunnerProvider";
@@ -76,6 +77,67 @@ function ProjectLoader() {
   }, [projectId, changeCurrentProject]);
 
   return loaded;
+}
+
+function OnboardingNudge() {
+  const theme = useThemeStore((s) => s.theme);
+  const { handleOpenExample } = useProjects();
+  const [hoverStart, setHoverStart] = useState(false);
+  const [hoverNext, setHoverNext] = useState(false);
+
+  const linkStyle = (hovered: boolean) => ({
+    display: "inline-block",
+    padding: "8px 18px",
+    borderRadius: 8,
+    fontFamily: theme.fontUI,
+    fontSize: 14,
+    fontWeight: 600,
+    cursor: "pointer",
+    userSelect: "none" as const,
+    background: hovered ? theme.accent : theme.surface,
+    color: hovered ? "#ffffff" : theme.panelTxt,
+    border: `1px solid ${hovered ? theme.accent : theme.panelBorder}`,
+    transition: "background 0.15s, color 0.15s, border-color 0.15s",
+  });
+
+  return (
+    <div
+      data-onboarding-nudge
+      style={{
+        position: "absolute",
+        inset: 0,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 20,
+        background: theme.editorBg,
+        zIndex: 2,
+      }}
+    >
+      <div style={{ fontFamily: theme.fontUI, fontSize: 15, color: theme.panelTxtMute, marginBottom: 4 }}>
+        New here? Pick where to start:
+      </div>
+      <div style={{ display: "flex", gap: 12 }}>
+        <span
+          style={linkStyle(hoverStart)}
+          onMouseEnter={() => setHoverStart(true)}
+          onMouseLeave={() => setHoverStart(false)}
+          onClick={() => handleOpenExample("hello world")}
+        >
+          Start Here → hello world
+        </span>
+        <span
+          style={linkStyle(hoverNext)}
+          onMouseEnter={() => setHoverNext(true)}
+          onMouseLeave={() => setHoverNext(false)}
+          onClick={() => handleOpenExample("bouncing actor")}
+        >
+          Next Step → bouncing actor
+        </span>
+      </div>
+    </div>
+  );
 }
 
 function AppInner() {
@@ -286,7 +348,9 @@ function AppInner() {
             <div style={{
               flex: 1, minWidth: 0, display: "flex", flexDirection: "column",
               background: theme.editorBg,
+              position: "relative",
             }}>
+              {!currentProjectId && <OnboardingNudge />}
               <div style={{
                 flex: 1, minHeight: 0, background: theme.editorBg,
                 "--cm-bg": theme.editorBg,

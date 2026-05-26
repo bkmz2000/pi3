@@ -396,7 +396,7 @@ export function useRunner() {
       const { animations } = useEditor.getState().project;
       const { animBitmaps, animTransferables } = await loadAnimations(animations ?? {});
       const showHitboxes = useIde.getState().showHitboxes;
-      const { tilemaps, sounds: projectSounds } = useEditor.getState().project;
+      const { tilemaps, sounds: projectSounds, sheet } = useEditor.getState().project;
       // Reset audio state for this run and build the URL map
       // (library sounds + project sounds; project takes precedence).
       stopAllSounds();
@@ -411,6 +411,7 @@ export function useRunner() {
           tilemaps,
           animations: animBitmaps,
           soundNames,
+          sheet,
           showHitboxes,
         } satisfies WorkerCommand,
         [...transferables, ...animTransferables],

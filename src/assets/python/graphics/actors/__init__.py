@@ -66,6 +66,9 @@ class Actor:
         self.flip_x = False
         self.flip_y = False
         self.collider = Collider(self)
+        self._anim_controllers = {}
+        self._active_anim_ctrl = None
+        self._last_active_anim = None
 
         # First positional arg can be an asset dict (sprite/animation result)
         if asset is not None:
@@ -177,6 +180,11 @@ class Actor:
             return col.width / 2, col.height / 2
         # Fall back to sprite dimensions when no explicit collider is set.
         img = self.image
+        import graphics as _g
+        if isinstance(img, _g.SpriteEntry):
+            sprite = img._default_sprite()
+            if sprite is not None:
+                return sprite.width / 2, sprite.height / 2
         if isinstance(img, dict):
             w = img.get("width")
             h = img.get("height")
@@ -236,6 +244,23 @@ class Actor:
         from graphics import AnchorPoint
         hx, hy = self._half_size()
         return AnchorPoint(self._x + hx, self._y + hy, "left", "top")
+
+    def __getattr__(self, name):
+        if name.startswith('_'):
+            raise AttributeError(name)
+        try:
+            image = object.__getattribute__(self, 'image')
+        except AttributeError:
+            raise AttributeError(f"'{type(self).__name__}' has no attribute '{name}'")
+        import graphics as _g
+        if isinstance(image, _g.SpriteEntry):
+            anims = object.__getattribute__(image, '_animations')
+            if name in anims:
+                ctrl_map = object.__getattribute__(self, '_anim_controllers')
+                if name not in ctrl_map:
+                    ctrl_map[name] = _g.AnimationController(self, name)
+                return ctrl_map[name]
+        raise AttributeError(f"'{type(self).__name__}' has no attribute '{name}'")
 
     # --- movement ---
 
@@ -344,7 +369,26 @@ class Actor:
             if sx != 1.0 or sy != 1.0:
                 g.scale(sx, sy)
             img = self.image
-            if isinstance(img, dict) and img.get("done"):
+            if isinstance(img, g.SpriteEntry):
+                ctrl = self._active_anim_ctrl
+                sprite = None
+                if ctrl is not None:
+                    anim = img._animations.get(ctrl._anim_name)
+                    if anim and anim._frames:
+                        sprite = anim[ctrl._frame_idx]
+                if sprite is None:
+                    sprite = img._default_sprite()
+                if sprite is not None:
+                    sw, sh = sprite.width, sprite.height
+                    g._draw_commands.append((
+                        "sprite",
+                        (bytes(sprite.pixels), int(sw), int(sh),
+                         float(-sw / 2), float(-sh / 2), None, None),
+                        {},
+                    ))
+                if ctrl is not None:
+                    ctrl._ticked_this_frame = False
+            elif isinstance(img, dict) and img.get("done"):
                 if "anim_name" in img:
                     anim_name = img["anim_name"]
                     frame_idx = img.get("frame_idx", 0)

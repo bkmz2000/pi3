@@ -16,6 +16,7 @@ import { useThemeStore, type Theme } from "./state/useTheme";
 
 const PixelEditor = lazy(() => import("./PixelEditor"));
 const TileEditor = lazy(() => import("./TileEditor"));
+const SheetEditor = lazy(() => import("./SheetEditor"));
 
 function hexToRgba(hex: string, alpha: number): string {
   if (!hex || !hex.startsWith('#')) return hex;
@@ -38,7 +39,7 @@ function pickerColors(theme: Theme) {
   };
 }
 
-export type AssetEditorMode = 'new' | 'sprite' | 'sprite-anim' | 'tilemap';
+export type AssetEditorMode = 'new' | 'sprite' | 'sprite-anim' | 'tilemap' | 'sheet';
 
 export type AssetEditorProps = {
   open: boolean;
@@ -239,6 +240,9 @@ export default function AssetEditor(props: AssetEditorProps) {
           display: 'flex',
         }}>
         <Suspense fallback={null}>
+          {effectiveMode === 'sheet' && (
+            <SheetEditor onClose={onClose} />
+          )}
           {(effectiveMode === 'sprite' || effectiveMode === 'sprite-anim') && (
             <PixelEditor
               embedded

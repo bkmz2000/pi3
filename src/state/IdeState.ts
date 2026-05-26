@@ -21,7 +21,6 @@ import ShipSvg from "../assets/examples/asteroids/assets/ship.svg?url";
 import BulletSvg from "../assets/examples/asteroids/assets/bullet.svg?url";
 import BigAsteroidSvg from "../assets/examples/asteroids/assets/big_asteroid.svg?url";
 import SmallAsteroidSvg from "../assets/examples/asteroids/assets/small_asteroid.svg?url";
-import { PACK_ASSET_LIST } from "./assets";
 import { projectStorage } from "../utils/storage";
 import { importProjectFromFile as importZipFile } from "../utils/zip";
 import { getProjects, createProject as apiCreateProject, updateProject as apiUpdateProject, deleteProject as apiDeleteProject, saveProjectContent, Project as ApiProject } from "./api";
@@ -55,6 +54,27 @@ export type AnimationData = {
   fps: number;
 };
 
+export type SheetAnimationStrip = {
+  x: number;
+  y: number;
+  frameW: number;
+  frameH: number;
+  frameCount: number;
+};
+
+export type SheetSpriteEntry = {
+  animations: Record<string, SheetAnimationStrip>;
+};
+
+export type SheetSprites = Record<string, SheetSpriteEntry>;
+
+export type SheetData = {
+  pixels: string;   // base64-encoded raw RGBA bytes (width × height × 4)
+  width: number;
+  height: number;
+  sprites: SheetSprites;
+};
+
 // Sentinel id used while a built-in example is being edited but has not
 // yet been forked into a real project. Persists across reloads via the
 // anonymous stash (see utils/anonStash.ts).
@@ -76,19 +96,12 @@ export type Project = {
   tilemaps: Record<string, TilemapData>;
   animations: Record<string, AnimationData>;
   sounds?: Record<string, string>;
+  sheet?: SheetData;
 };
 
 // Re-export adapter for convenience
 export { toEditorProject };
 
-function pickAssets(...names: string[]): Record<string, string> {
-  const byName = Object.fromEntries(
-    PACK_ASSET_LIST.map((a) => [a.name, a.url]),
-  );
-  return Object.fromEntries(
-    names.flatMap((n) => (byName[n] ? [[n, byName[n]]] : [])),
-  );
-}
 
 const Examples: Record<string, Project> = {
   "hello world": { files: { "main.py": HelloWorld }, assets: {}, tilemaps: {}, animations: {} },
@@ -103,14 +116,7 @@ const Examples: Record<string, Project> = {
   },
   sokoban: {
     files: { "sokoban.py": Sokoban },
-    assets: pickAssets(
-      "grassCenter",
-      "castleCenter",
-      "boxEmpty",
-      "boxCoinAlt",
-      "star",
-      "p1_front",
-    ),
+    assets: {},
     tilemaps: {},
     animations: {},
   },
@@ -201,6 +207,7 @@ type EditorState = {
   deleteAnimation: (name: string) => void;
   addSound: (name: string, url: string) => void;
   removeSound: (name: string) => void;
+  setSheet: (data: SheetData) => void;
   markClean: () => void;
 };
 
@@ -390,6 +397,13 @@ export const useEditor = create<EditorState>((set) => ({
       return { project: { ...s.project, sounds }, dirtyFiles: dirty };
     }),
 
+  setSheet: (data) =>
+    set((s) => {
+      const dirty = new Set(s.dirtyFiles);
+      dirty.add("*sheet*");
+      return { project: { ...s.project, sheet: data }, dirtyFiles: dirty };
+    }),
+
   markClean: () => set({ dirtyFiles: new Set() }),
 }));
 
@@ -556,6 +570,7 @@ export const useIde = create<IdeState>((set, get) => ({
         tilemaps: project.tilemaps,
         animations: project.animations,
         sounds: project.sounds,
+        sheet: project.sheet,
         currentFile: useEditor.getState().currentFile,
       });
 

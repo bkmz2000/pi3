@@ -13,6 +13,19 @@ export type InputEventData = {
   keyCode?: number;
 };
 
+export type SheetRunPayload = {
+  pixels: string;   // base64 RGBA
+  width: number;
+  height: number;
+  sprites: Record<string, {
+    animations: Record<string, {
+      x: number; y: number;
+      frameW: number; frameH: number;
+      frameCount: number;
+    }>;
+  }>;
+};
+
 export type WorkerCommand =
   | { cmd: "init"; graphicsInit: string; graphicsActors: string; graphicsAnimation: string; linter: string }
   | {
@@ -22,6 +35,7 @@ export type WorkerCommand =
       tilemaps?: Record<string, unknown>;
       animations?: Record<string, { frames: ImageBitmap[]; fps: number }>;
       soundNames?: string[];
+      sheet?: SheetRunPayload;
       entry: string;
       showHitboxes?: boolean;
     }

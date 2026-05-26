@@ -419,6 +419,7 @@ export default function Rail() {
               onRemoveSound={removeSound}
               onNewSprite={() => { setEditingAsset(null); setEditorMode('new'); }}
               onNewPixelSprite={() => { setEditingAsset(null); setEditorMode('sprite'); }}
+              onEditSheet={() => setEditorMode('sheet')}
               onEditAsset={(name, url) => {
                 // SVG assets are now read-only (vector editor was removed).
                 if (!name.endsWith(".png")) return;
@@ -1336,6 +1337,7 @@ type AssetsPanelProps = {
   onNewSprite: () => void;
   onNewPixelSprite: () => void;
   onEditAsset: (name: string, url: string) => void;
+  onEditSheet: () => void;
   onClose: () => void;
 };
 
@@ -1350,6 +1352,7 @@ function AssetsPanel({
   onNewSprite,
   onNewPixelSprite,
   onEditAsset,
+  onEditSheet,
   onClose,
 }: AssetsPanelProps) {
   const { t } = useTranslation();
@@ -1597,6 +1600,29 @@ function AssetsPanel({
               >
                 <Icon name="plus" size={20} color="currentColor" />
                 Pixel Art
+              </button>
+              <button
+                type="button"
+                onClick={onEditSheet}
+                style={{
+                  all: "unset",
+                  cursor: "pointer",
+                  aspectRatio: "1 / 1",
+                  border: `1.5px solid ${theme.accent}`,
+                  borderRadius: theme.radiusCard,
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 4,
+                  color: theme.accent,
+                  fontFamily: theme.fontUI,
+                  fontSize: 11,
+                  fontWeight: theme.weightUI,
+                }}
+              >
+                <Icon name="grid" size={20} color="currentColor" />
+                Sheet
               </button>
               {availableSprites.map(({ name, url }) => (
                 <AvailableSpriteTile

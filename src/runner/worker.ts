@@ -1,5 +1,5 @@
 import type { PyodideInterface } from "pyodide";
-import { WorkerCommand, WorkerEvent, LintDiagnostic } from "./WorkerInterface";
+import { WorkerCommand, WorkerEvent, LintDiagnostic, SheetRunPayload } from "./WorkerInterface";
 import { executeDrawCommands } from "./canvasRenderer";
 
 let pyodide: PyodideInterface | null = null;
@@ -242,6 +242,7 @@ async function runGraphicsScript(
   tilemaps: Record<string, unknown> | undefined,
   animations: Record<string, { frames: ImageBitmap[]; fps: number }> | undefined,
   soundNames: string[] | undefined,
+  sheet: SheetRunPayload | undefined,
   entry: string,
   showHitboxes: boolean = false,
 ) {
@@ -290,6 +291,23 @@ async function runGraphicsScript(
   );
   p.globals.set("_tilemap_data", JSON.stringify(tilemaps ?? {}));
   p.globals.set("_sound_names", soundNames ?? []);
+
+  // Sheet: decode base64 pixels and pass metadata as JSON
+  if (sheet) {
+    const raw = atob(sheet.pixels);
+    const sheetPixels = new Uint8ClampedArray(raw.length);
+    for (let i = 0; i < raw.length; i++) sheetPixels[i] = raw.charCodeAt(i);
+    p.globals.set("_sheet_pixels", sheetPixels);
+    p.globals.set("_sheet_width", sheet.width);
+    p.globals.set("_sheet_height", sheet.height);
+    p.globals.set("_sheet_meta", JSON.stringify(sheet.sprites));
+  } else {
+    p.globals.set("_sheet_pixels", null);
+    p.globals.set("_sheet_width", 0);
+    p.globals.set("_sheet_height", 0);
+    p.globals.set("_sheet_meta", "{}");
+  }
+
   p.globals.set("_using_graphics", true);
 
   await p.runPythonAsync(`
@@ -384,6 +402,38 @@ graphics.assets = SimpleNamespace(
 )
   `);
 
+  // Build graphics.assets.sheet from the sheet payload (tasks 2.3 and 2.4)
+  await p.runPythonAsync(`
+import json as _json
+
+if _sheet_pixels is not None:
+    _sheet_raw = bytearray(_sheet_pixels.to_py())
+    _sheet_meta_parsed = _json.loads(_sheet_meta)
+    _sheet_ns_dict = {}
+    for _sname, _sentry in _sheet_meta_parsed.items():
+        _anim_dict = {}
+        for _aname, _astrip in _sentry.get("animations", {}).items():
+            _sx = int(_astrip["x"])
+            _sy = int(_astrip["y"])
+            _fw = int(_astrip["frameW"])
+            _fh = int(_astrip["frameH"])
+            _fc = int(_astrip["frameCount"])
+            _frames = []
+            for _fi in range(_fc):
+                _fx = _sx + _fi * _fw
+                _sprite_buf = bytearray(_fw * _fh * 4)
+                for _row in range(_fh):
+                    _dst = _row * _fw * 4
+                    _src = ((_sy + _row) * _sheet_width + _fx) * 4
+                    _sprite_buf[_dst:_dst + _fw * 4] = _sheet_raw[_src:_src + _fw * 4]
+                _frames.append(graphics.Sprite(_fw, _fh, _sprite_buf))
+            _anim_dict[_aname] = graphics.SheetAnimation(_frames)
+        _sheet_ns_dict[_sname] = graphics.SpriteEntry(_sname, _anim_dict)
+    graphics.assets.sheet = graphics.SheetNamespace(_sheet_ns_dict)
+else:
+    graphics.assets.sheet = graphics.SheetNamespace({})
+  `);
+
   await p.runPythonAsync(`
 graphics._running = False
 graphics._stop_requested = False
@@ -409,6 +459,7 @@ async function runScript(
   tilemaps: Record<string, unknown> | undefined,
   animations: Record<string, { frames: ImageBitmap[]; fps: number }> | undefined,
   soundNames: string[] | undefined,
+  sheet: SheetRunPayload | undefined,
   entry: string,
   showHitboxes: boolean = false,
 ) {
@@ -417,7 +468,7 @@ async function runScript(
   p.globals.set("_using_graphics", false);
 
   if (usesNewGraphics(code)) {
-    await runGraphicsScript(p, files, assets, tilemaps, animations, soundNames, entry, showHitboxes);
+    await runGraphicsScript(p, files, assets, tilemaps, animations, soundNames, sheet, entry, showHitboxes);
     return;
   }
 
@@ -461,7 +512,7 @@ self.onmessage = async (e: MessageEvent<WorkerCommand>) => {
   } else if (msg.cmd === "run") {
     try {
       const p = await ensurePyodide();
-      await runScript(p, msg.files, msg.assets, msg.tilemaps, msg.animations, msg.soundNames, msg.entry, msg.showHitboxes);
+      await runScript(p, msg.files, msg.assets, msg.tilemaps, msg.animations, msg.soundNames, msg.sheet, msg.entry, msg.showHitboxes);
     } catch (err: unknown) {
       post({ type: "error", error: String(err) });
       post({ type: "result" });

@@ -13,6 +13,7 @@ COPY index.html ./
 COPY public public/
 COPY src src/
 COPY server/ ./server/
+COPY scripts/ ./scripts/
 COPY jest.config.cjs ./
 COPY jest.setup.ts ./
 COPY tests/ ./tests/

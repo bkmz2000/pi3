@@ -800,7 +800,30 @@ export default function PixelEditor({
   const sizeChip = (s: 16 | 32) => {
     const on = gridSize === s;
     return (
-      <button key={s} onClick={() => setGridSize(s)}
+      <button key={s} onClick={() => {
+          if (s === gridSize) return;
+          setGridSize(s);
+          setFrameData(frames => frames.map(buf => {
+            const next = emptyBuf(s);
+            // Centre-copy: paste old pixels into the new buffer so work isn't lost
+            const oldSide = gridSize;
+            const copyW = Math.min(oldSide, s);
+            const copyH = Math.min(oldSide, s);
+            for (let y = 0; y < copyH; y++) {
+              for (let x = 0; x < copyW; x++) {
+                const si = (y * oldSide + x) * 4;
+                const di = (y * s + x) * 4;
+                next[di]     = buf[si];
+                next[di + 1] = buf[si + 1];
+                next[di + 2] = buf[si + 2];
+                next[di + 3] = buf[si + 3];
+              }
+            }
+            return next;
+          }));
+          setHistory([]);
+          setFuture([]);
+        }}
         style={{ padding: '2px 7px', fontSize: 9, borderRadius: 99,
           background: on ? E.accentSoft : 'transparent',
           border: `1px solid ${on ? E.accentLine : E.border}`,

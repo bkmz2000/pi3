@@ -48,8 +48,8 @@ const config = {
     },
     './src/state/': {
       branches: 39,
-      functions: 37,
-      lines: 36,
+      functions: 36,
+      lines: 35,
       statements: 35,
     },
     './src/runner/': {

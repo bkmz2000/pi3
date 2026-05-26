@@ -313,7 +313,6 @@ expected_examples = {
     "sokoban/sokoban.py",
     "swatches/swatches.py",
     "dungeon/dungeon.py",
-    "themes/themes.py",
 }
 
 for ex in expected_examples:
@@ -474,15 +473,6 @@ reset(); g.fill(g.Colors.red)
 test("fill(Colors.red) queues fill", cmd()[0] == "fill")
 test("fill(Colors.red) value matches Colors.red", cmd()[1] == g.Colors.red)
 
-saved_red = g.Colors.red
-g.Colors._update_theme({"red": (200, 50, 50)})
-test("_update_theme updates Colors.red", g.Colors.red == (200, 50, 50))
-g.Colors._update_theme({"red": saved_red})
-test("_update_theme restores Colors.red", g.Colors.red == saved_red)
-
-g.Colors._update_theme({"nonexistent_color": (1, 2, 3)})
-test("_update_theme ignores unknown colors", not hasattr(g.Colors, "nonexistent_color"))
-
 
 # --- fill / no_fill / stroke / no_stroke ---
 
@@ -494,7 +484,7 @@ test("no_fill() queues no_fill", cmd()[0] == "no_fill")
 
 reset(); g.fill("blue")
 test("fill('blue') queues fill", cmd()[0] == "fill")
-test("fill('blue') value is blue rgb", cmd()[1] == (0, 0, 255))
+test("fill('blue') value is blue rgb", cmd()[1] == g.Colors.blue)
 
 reset(); g.fill(100, 150, 200)
 test("fill(r,g,b) queues correct rgb", cmd() == ("fill", (100, 150, 200), {}))
@@ -516,7 +506,7 @@ test("stroke(r,g,b) queues stroke", cmd() == ("stroke", (255, 0, 0), {}))
 
 reset(); g.stroke("red")
 test("stroke('red') queues stroke", cmd()[0] == "stroke")
-test("stroke('red') value is red", cmd()[1] == (255, 0, 0))
+test("stroke('red') value is red", cmd()[1] == g.Colors.red)
 
 reset(); g.stroke_width(3)
 test("stroke_width(3) queues correctly", cmd() == ("stroke_width", (3,), {}))
@@ -525,7 +515,7 @@ test("stroke_width(3) queues correctly", cmd() == ("stroke_width", (3,), {}))
 # --- background ---
 
 reset(); g.background("black")
-test("background('black') queues (0,0,0)", cmd() == ("background", (0, 0, 0), {}))
+test("background('black') queues Colors.black", cmd() == ("background", g.Colors.black, {}))
 
 reset(); g.background(10, 20, 30)
 test("background(r,g,b) queues correctly", cmd() == ("background", (10, 20, 30), {}))
@@ -1446,6 +1436,285 @@ reset_draw(); stable_light.draw()
 poly_second = stable_light._source_polys[0][3]
 test("Cached polygon is the same list object across frames",
      poly_first is poly_second)
+
+
+# === 7.1: SheetAnimation / SpriteEntry / SheetNamespace ===
+
+print("\n=== Sheet sprites: SheetAnimation / SpriteEntry / SheetNamespace ===")
+
+from graphics import SheetAnimation, SpriteEntry, SheetNamespace
+
+# Build some fake Sprite objects for frames
+reset()
+_fake_sprite = lambda w, h: g.Sprite(w, h, bytearray(w * h * 4))
+
+# SheetAnimation: indexing and wrap
+sa = SheetAnimation([_fake_sprite(16, 16), _fake_sprite(16, 16), _fake_sprite(16, 16)])
+test("SheetAnimation: len returns frame count", len(sa) == 3)
+test("SheetAnimation: [0] returns first frame", sa[0].width == 16)
+test("SheetAnimation: [2] returns last frame", sa[2].width == 16)
+test("SheetAnimation: [3] wraps to [0]", sa[3] is sa[0])
+test("SheetAnimation: [-1] wraps to last", sa[-1] is sa[2])
+test("SheetAnimation: large index wraps", sa[100] is sa[100 % 3])
+test("SheetAnimation._default_sprite() is frames[0]", sa._default_sprite() is sa[0])
+
+sa_empty = SheetAnimation([])
+try:
+    _ = sa_empty[0]
+    test("Empty SheetAnimation: index raises IndexError", False)
+except IndexError:
+    test("Empty SheetAnimation: index raises IndexError", True)
+test("Empty SheetAnimation._default_sprite() is None", sa_empty._default_sprite() is None)
+
+# SpriteEntry: attribute access
+idle_anim = SheetAnimation([_fake_sprite(32, 32)])
+run_anim  = SheetAnimation([_fake_sprite(32, 32), _fake_sprite(32, 32)])
+se = SpriteEntry("hero", {"idle": idle_anim, "run": run_anim})
+test("SpriteEntry.idle returns correct SheetAnimation", se.idle is idle_anim)
+test("SpriteEntry.run returns correct SheetAnimation", se.run is run_anim)
+try:
+    _ = se.fly
+    test("SpriteEntry: unknown animation raises AttributeError", False)
+except AttributeError as e:
+    test("SpriteEntry: unknown animation raises AttributeError", "fly" in str(e))
+try:
+    _ = se._private
+    test("SpriteEntry: _private raises AttributeError", False)
+except AttributeError:
+    test("SpriteEntry: _private raises AttributeError", True)
+test("SpriteEntry._default_sprite() returns first frame of first anim",
+     se._default_sprite() is idle_anim[0])
+
+# SheetNamespace: attribute access
+hero_entry  = SpriteEntry("hero",  {"idle": idle_anim})
+enemy_entry = SpriteEntry("enemy", {"idle": idle_anim})
+ns = SheetNamespace({"hero": hero_entry, "enemy": enemy_entry})
+test("SheetNamespace.hero returns correct SpriteEntry", ns.hero is hero_entry)
+test("SheetNamespace.enemy returns correct SpriteEntry", ns.enemy is enemy_entry)
+try:
+    _ = ns.ghost
+    test("SheetNamespace: unknown sprite raises AttributeError", False)
+except AttributeError as e:
+    test("SheetNamespace: unknown sprite raises AttributeError", "ghost" in str(e))
+try:
+    _ = ns._private
+    test("SheetNamespace: _private raises AttributeError", False)
+except AttributeError:
+    test("SheetNamespace: _private raises AttributeError", True)
+
+
+# === 7.2: AnimationController.tick() semantics ===
+
+print("\n=== Sheet sprites: AnimationController.tick() ===")
+
+from graphics import AnimationController
+
+# Build an actor with a SpriteEntry image
+reset()
+f3 = [_fake_sprite(16, 16), _fake_sprite(16, 16), _fake_sprite(16, 16)]
+anim3 = SheetAnimation(f3)
+entry = SpriteEntry("hero", {"walk": anim3})
+a_ctrl = Actor()
+a_ctrl.image = entry
+
+# First tick: no prior animation → switch, frame resets to 0, no advance
+ctrl = a_ctrl.walk
+test("actor.walk returns AnimationController", isinstance(ctrl, AnimationController))
+test("ctrl.frame_idx starts at 0", ctrl.frame_idx == 0)
+ctrl.tick()
+test("First tick (switch from None): frame stays 0", ctrl.frame_idx == 0)
+ctrl._ticked_this_frame = False   # simulate end-of-frame draw()
+
+# Second tick: same animation → advances by 1
+ctrl.tick()
+test("Second tick (same anim): frame advances to 1", ctrl.frame_idx == 1)
+ctrl._ticked_this_frame = False
+
+# Third tick: wraps at frameCount=3
+ctrl.tick()
+test("Third tick: frame advances to 2", ctrl.frame_idx == 2)
+ctrl._ticked_this_frame = False
+ctrl.tick()
+test("Fourth tick: wraps back to 0", ctrl.frame_idx == 0)
+ctrl._ticked_this_frame = False
+
+# Switch semantics: create a second controller for a different animation
+ctrl2_anim = SheetAnimation([_fake_sprite(8, 8), _fake_sprite(8, 8)])
+entry2 = SpriteEntry("hero", {"idle": ctrl2_anim, "run": anim3})
+a2 = Actor(); a2.image = entry2
+idle_ctrl = a2.idle
+idle_ctrl.tick()           # tick idle once (switch from None → frame 0)
+idle_ctrl._ticked_this_frame = False
+idle_ctrl.tick()           # advance to frame 1
+test("idle: after 2 ticks frame == 1", idle_ctrl.frame_idx == 1)
+idle_ctrl._ticked_this_frame = False
+run_ctrl = a2.run
+run_ctrl.tick()            # switch from idle to run → reset, no advance
+test("Switch to run: frame resets to 0", run_ctrl.frame_idx == 0)
+
+# Double-tick guard: warn on stderr but don't advance
+import io
+reset()
+dbl_entry = SpriteEntry("hero", {"walk": SheetAnimation([_fake_sprite(8, 8), _fake_sprite(8, 8)])})
+dbl_actor = Actor(); dbl_actor.image = dbl_entry
+dbl_ctrl = dbl_actor.walk
+dbl_ctrl.tick()   # first tick — frame stays 0 (switch from None)
+dbl_ctrl.tick()   # double-tick in same frame — should warn, not advance
+test("Double-tick: frame stays 0 (no advance)", dbl_ctrl.frame_idx == 0)
+
+# _ticked_this_frame is reset by draw()
+reset()
+drw_entry = SpriteEntry("hero", {"walk": SheetAnimation([_fake_sprite(16, 16), _fake_sprite(16, 16)])})
+drw_actor = Actor(); drw_actor.image = drw_entry; drw_actor._x = 0; drw_actor._y = 0
+drw_ctrl = drw_actor.walk
+drw_ctrl.tick()                      # switch tick (frame=0, ticked=True)
+test("Before draw: _ticked_this_frame is True", drw_ctrl._ticked_this_frame)
+g._draw_commands.clear()
+drw_actor.draw()                     # draw() should reset the guard
+test("After draw: _ticked_this_frame is False", not drw_ctrl._ticked_this_frame)
+
+
+# === 7.3: Sheet marshaling from raw pixel buffer ===
+
+print("\n=== Sheet sprites: worker sheet marshaling ===")
+
+import json as _json
+
+# Simulate the worker's Python code that builds assets.sheet from globals.
+# Create a minimal 4×8 sheet: two 4×4 frames side by side for "hero/idle".
+_fw, _fh, _fc = 4, 4, 2
+_sheet_w, _sheet_h = _fw * _fc, _fh  # 8×4 sheet
+
+# Fill frame 0 with all-red, frame 1 with all-blue
+_sheet_raw = bytearray(_sheet_w * _sheet_h * 4)
+for _row in range(_fh):
+    for _col in range(_fw):
+        _i = (_row * _sheet_w + _col) * 4
+        _sheet_raw[_i:_i+4] = [255, 0, 0, 255]          # frame 0: red
+    for _col in range(_fw, _fw * 2):
+        _i = (_row * _sheet_w + _col) * 4
+        _sheet_raw[_i:_i+4] = [0, 0, 255, 255]          # frame 1: blue
+
+_meta = {
+    "hero": {
+        "animations": {
+            "idle": {"x": 0, "y": 0, "frameW": _fw, "frameH": _fh, "frameCount": _fc}
+        }
+    }
+}
+
+_sheet_ns_dict2 = {}
+for _sname, _sentry in _meta.items():
+    _anim_dict2 = {}
+    for _aname, _astrip in _sentry.get("animations", {}).items():
+        _sx  = int(_astrip["x"])
+        _sy  = int(_astrip["y"])
+        _fw2 = int(_astrip["frameW"])
+        _fh2 = int(_astrip["frameH"])
+        _fc2 = int(_astrip["frameCount"])
+        _frames2 = []
+        for _fi in range(_fc2):
+            _fx = _sx + _fi * _fw2
+            _sprite_buf2 = bytearray(_fw2 * _fh2 * 4)
+            for _r in range(_fh2):
+                _dst = _r * _fw2 * 4
+                _src = ((_sy + _r) * _sheet_w + _fx) * 4
+                _sprite_buf2[_dst:_dst + _fw2 * 4] = _sheet_raw[_src:_src + _fw2 * 4]
+            _frames2.append(g.Sprite(_fw2, _fh2, _sprite_buf2))
+        _anim_dict2[_aname] = SheetAnimation(_frames2)
+    _sheet_ns_dict2[_sname] = SpriteEntry(_sname, _anim_dict2)
+_built_ns = SheetNamespace(_sheet_ns_dict2)
+
+test("Marshaled namespace has hero", hasattr(_built_ns, "hero"))
+test("hero has idle animation", hasattr(_built_ns.hero, "idle"))
+_idle = _built_ns.hero.idle
+test("idle has 2 frames", len(_idle) == 2)
+_f0 = _idle[0]
+test("Frame 0 dimensions are frameW×frameH", _f0.width == _fw and _f0.height == _fh)
+test("Frame 0 pixel size matches", len(_f0.pixels) == _fw * _fh * 4)
+test("Frame 0 first pixel is red", list(_f0.pixels[:4]) == [255, 0, 0, 255])
+_f1 = _idle[1]
+test("Frame 1 first pixel is blue", list(_f1.pixels[:4]) == [0, 0, 255, 255])
+
+
+# === 7.4: Actor.__getattr__ + draw() with SpriteEntry ===
+
+print("\n=== Sheet sprites: Actor.__getattr__ + draw() ===")
+
+reset()
+g._width = 200; g._height = 200
+
+# Build a SpriteEntry with known pixel content
+_px = bytearray(16 * 16 * 4)
+for _i in range(0, len(_px), 4):
+    _px[_i:_i+4] = [128, 0, 128, 255]  # purple frame
+_sp_f0 = g.Sprite(16, 16, _px)
+_sp_anim = SheetAnimation([_sp_f0])
+_sp_entry = SpriteEntry("wizard", {"cast": _sp_anim})
+
+act4 = Actor()
+act4.image = _sp_entry
+act4._x = 50.0; act4._y = 60.0
+
+# __getattr__: returns AnimationController for known animation names
+cast_ctrl = act4.cast
+test("actor.cast returns AnimationController", isinstance(cast_ctrl, AnimationController))
+test("Same controller returned on second access", act4.cast is cast_ctrl)
+
+try:
+    _ = act4.fly
+    test("actor.<unknown_anim> raises AttributeError", False)
+except AttributeError as e:
+    test("actor.<unknown_anim> raises AttributeError", "fly" in str(e) or "wizard" in str(e))
+
+# draw() without tick: uses _default_sprite() fallback
+g._draw_commands.clear()
+act4.draw()
+sprite_cmds = [c for c in g._draw_commands if c[0] == "sprite"]
+test("draw() without tick emits a sprite command", len(sprite_cmds) == 1)
+_sc = sprite_cmds[0]
+test("sprite command width == 16", _sc[1][1] == 16)
+test("sprite command height == 16", _sc[1][2] == 16)
+test("sprite centered: x offset == -8", _sc[1][3] == -8.0)
+test("sprite centered: y offset == -8", _sc[1][4] == -8.0)
+
+# draw() after tick: uses controller's frame
+reset()
+g._draw_commands.clear()
+act4._active_anim_ctrl = None
+cast_ctrl.tick()   # first tick: switch from None → frame 0, _ticked=True
+act4._active_anim_ctrl = cast_ctrl
+act4.draw()
+sprite_cmds2 = [c for c in g._draw_commands if c[0] == "sprite"]
+test("draw() after tick still emits sprite command", len(sprite_cmds2) == 1)
+test("After draw(): _ticked_this_frame reset to False", not cast_ctrl._ticked_this_frame)
+
+# frame advances on subsequent ticks
+_build_frames = [g.Sprite(8, 8, bytearray(8*8*4)), g.Sprite(8, 8, bytearray(8*8*4)), g.Sprite(8, 8, bytearray(8*8*4))]
+_adv_anim = SheetAnimation(_build_frames)
+_adv_entry = SpriteEntry("hero", {"run": _adv_anim})
+adv_actor = Actor(); adv_actor.image = _adv_entry
+run_c = adv_actor.run
+
+run_c.tick()   # switch from None → frame 0
+adv_actor._active_anim_ctrl = run_c
+g._draw_commands.clear(); adv_actor.draw()   # resets guard
+test("Frame 0 after first tick (switch)", run_c.frame_idx == 0)
+
+run_c.tick()   # advance: frame 1
+adv_actor._active_anim_ctrl = run_c
+g._draw_commands.clear(); adv_actor.draw()
+test("Frame 1 after second tick", run_c.frame_idx == 1)
+
+run_c.tick()   # advance: frame 2
+adv_actor._active_anim_ctrl = run_c
+g._draw_commands.clear(); adv_actor.draw()
+test("Frame 2 after third tick", run_c.frame_idx == 2)
+
+run_c.tick()   # wrap: back to frame 0
+adv_actor._active_anim_ctrl = run_c
+g._draw_commands.clear(); adv_actor.draw()
+test("Frame wraps to 0 after third frame", run_c.frame_idx == 0)
 
 
 # === Summary ===

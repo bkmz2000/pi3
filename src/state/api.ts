@@ -99,6 +99,7 @@ export interface Project {
   tilemaps: Record<string, import('./IdeState').TilemapData>;
   animations: Record<string, import('./IdeState').AnimationData>;
   sounds: Record<string, string>;
+  sheet?: import('./IdeState').SheetData;
   current_file: string;
   created_at: number;
   updated_at: number;
@@ -144,7 +145,7 @@ export async function updateProject(id: string, data: { name?: string; descripti
   return api.put<Project>(`/api/projects/${id}`, data);
 }
 
-export async function saveProjectContent(id: string, data: { files?: Record<string, string>; assets?: Record<string, string>; tilemaps?: Record<string, import('./IdeState').TilemapData>; animations?: Record<string, import('./IdeState').AnimationData>; sounds?: Record<string, string>; currentFile?: string }): Promise<Project> {
+export async function saveProjectContent(id: string, data: { files?: Record<string, string>; assets?: Record<string, string>; tilemaps?: Record<string, import('./IdeState').TilemapData>; animations?: Record<string, import('./IdeState').AnimationData>; sounds?: Record<string, string>; sheet?: import('./IdeState').SheetData; currentFile?: string }): Promise<Project> {
   return api.put<Project>(`/api/projects/${id}/save`, data);
 }
 

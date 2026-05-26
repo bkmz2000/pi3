@@ -170,6 +170,39 @@ describe('graphicsDocs — tilemap + actor regression guards', () => {
     }
   });
 
+  it('sheet API entries are documented and Python module has the new classes', () => {
+    const sheetCat = DOCS.find((c) => c.id === 'sheet_api');
+    expect(sheetCat).toBeDefined();
+
+    const expectedIds = [
+      'assets_sheet_namespace',
+      'sprite_entry',
+      'sheet_animation',
+      'animation_controller_tick',
+      'actor_with_sheet',
+    ];
+    for (const id of expectedIds) {
+      const entry = sheetCat!.entries.find((e) => e.id === id);
+      expect(entry).toBeDefined();
+      expect(entry!.en).toBeTruthy();
+      expect(entry!.ru).toBeTruthy();
+    }
+
+    // Validate the example for AnimationController shows .tick() usage
+    const ctrlEntry = sheetCat!.entries.find((e) => e.id === 'animation_controller_tick')!;
+    expect(ctrlEntry.example).toMatch(/\.tick\(\)/);
+
+    // Python module must define the new classes
+    const py = readFileSync(
+      resolve(__dirname, '../../src/assets/python/graphics/__init__.py'),
+      'utf8',
+    );
+    for (const cls of ['SheetNamespace', 'SpriteEntry', 'SheetAnimation', 'AnimationController']) {
+      expect(py).toMatch(new RegExp(`^class ${cls}:`, 'm'));
+    }
+    expect(py).toMatch(/"SheetAnimation",\s*"SpriteEntry",\s*"SheetNamespace",\s*"AnimationController",/);
+  });
+
   it('Colors entry exposes the Sweetie 16 swatches', () => {
     const colors = DOCS
       .find((c) => c.id === 'color')!

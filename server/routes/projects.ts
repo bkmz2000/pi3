@@ -17,6 +17,7 @@ interface Project {
   tilemaps: string;
   animations: string;
   sounds: string;
+  sheet?: string | null;
   current_file: string;
   created_at: number;
   updated_at: number;
@@ -199,6 +200,7 @@ export function createProjectsRouter(): Router {
       tilemaps: JSON.parse(project.tilemaps || '{}'),
       animations: JSON.parse(project.animations || '{}'),
       sounds: JSON.parse(project.sounds || '{}'),
+      sheet: project.sheet ? JSON.parse(project.sheet) : undefined,
     });
   });
 
@@ -284,7 +286,7 @@ export function createProjectsRouter(): Router {
 
   router.put('/:id/save', (req: Request, res: Response): void => {
     const id = req.params.id as string;
-    const { files, assets, tilemaps, animations, sounds, currentFile } = req.body;
+    const { files, assets, tilemaps, animations, sounds, sheet, currentFile } = req.body;
     const db = getDb();
 
     const access = getProjectAccess(id as string, req.user!.id);
@@ -325,6 +327,10 @@ export function createProjectsRouter(): Router {
       updates.push('current_file = ?');
       values.push(currentFile);
     }
+    if (sheet !== undefined) {
+      updates.push('sheet = ?');
+      values.push(sheet === null ? null : JSON.stringify(sheet));
+    }
 
     values.push(id);
 
@@ -338,6 +344,7 @@ export function createProjectsRouter(): Router {
         tilemaps: JSON.parse(updated.tilemaps || '{}'),
         animations: JSON.parse(updated.animations || '{}'),
         sounds: JSON.parse(updated.sounds || '{}'),
+        sheet: updated.sheet ? JSON.parse(updated.sheet) : undefined,
       });
     } catch (error) {
       console.error('Error saving project content:', error);

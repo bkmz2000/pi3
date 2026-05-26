@@ -1439,4 +1439,69 @@ export const DOCS: DocCategory[] = [
       },
     ],
   },
+
+  // ─── Sheet API ──────────────────────────────────────────────────────────────
+  {
+    id: "sheet_api",
+    en: "Sheet sprites",
+    ru: "Спрайты листа",
+    entries: [
+      {
+        id: "assets_sheet_namespace",
+        name: "assets.sheet",
+        signature: "assets.sheet.<sprite_name>",
+        en: "Namespace of named sprites from the project sheet. Access a sprite by attribute name: `assets.sheet.hero` returns the `SpriteEntry` for the sprite called \"hero\". Raises `AttributeError` with available names if the sprite doesn't exist.",
+        ru: "Пространство имён спрайтов проекта. Доступ по имени атрибута: `assets.sheet.hero` возвращает `SpriteEntry` для спрайта «hero». Вызывает `AttributeError` с перечислением доступных имён, если спрайт не найден.",
+        example: "hero = Actor(assets.sheet.hero, x=100, y=100)\nhero.draw()",
+        advanced: {
+          en: "`assets.sheet` is populated at run-start from the project sheet canvas. Each sprite entry's frames are extracted eagerly into individual `Sprite` objects so that Python code can read and modify pixels without per-frame decoding. If the project has no sheet, `assets.sheet` is an empty namespace — accessing any name raises `AttributeError`.",
+          ru: "`assets.sheet` заполняется при старте программы из листа проекта. Кадры каждого спрайта сразу копируются в отдельные объекты `Sprite`, чтобы Python-код мог читать и изменять пиксели без декодирования в каждом кадре. Если у проекта нет листа, `assets.sheet` — пустое пространство имён.",
+        },
+      },
+      {
+        id: "sprite_entry",
+        name: "SpriteEntry",
+        signature: "assets.sheet.<sprite>.<anim_name>",
+        en: "A named sprite from the sheet. Access animations by attribute: `assets.sheet.hero.idle` returns the `SheetAnimation` for the \"idle\" animation. When passed directly to `image()` or used as an `Actor` image, renders frame 0 of the first animation.",
+        ru: "Именованный спрайт из листа. Доступ к анимациям по атрибуту: `assets.sheet.hero.idle` возвращает `SheetAnimation` для анимации «idle». При передаче в `image()` или использовании как образ `Actor` рисует кадр 0 первой анимации.",
+        example: "# Static image — frame 0 of first animation:\nimage(assets.sheet.tree, 50, 50)\n\n# Animated actor:\nhero = Actor(assets.sheet.hero, x=100, y=100)",
+        advanced: {
+          en: "Accessing an unknown animation name raises `AttributeError` listing the available names. `SpriteEntry._default_sprite()` is used internally by `Actor.draw()` and `image()` when no animation controller has been ticked.",
+          ru: "Обращение к несуществующей анимации вызывает `AttributeError` с перечислением доступных. `SpriteEntry._default_sprite()` используется внутри `Actor.draw()` и `image()`, когда ни один контроллер анимации не получил тик.",
+        },
+      },
+      {
+        id: "sheet_animation",
+        name: "SheetAnimation",
+        signature: "assets.sheet.<sprite>.<anim>[index]",
+        en: "An animation strip: an ordered list of `Sprite` frames. Index it with `[n]` to get a specific frame; indexing wraps with modulo so `anim[frameCount]` is the same as `anim[0]`. `len(anim)` returns the number of frames. When passed to `image()`, renders frame 0.",
+        ru: "Полоса анимации: упорядоченный список кадров `Sprite`. Обращение по индексу `[n]` возвращает конкретный кадр; индекс оборачивается по модулю, так что `anim[frameCount]` — то же самое, что `anim[0]`. `len(anim)` возвращает число кадров. При передаче в `image()` рисует кадр 0.",
+        example: "idle = assets.sheet.hero.idle\nprint(len(idle))         # number of frames\nimage(idle[0], 100, 100) # specific frame\nimage(idle, 100, 100)    # frame 0 shortcut",
+      },
+      {
+        id: "animation_controller_tick",
+        name: "AnimationController.tick()",
+        signature: "actor.<anim_name>.tick()",
+        en: "Advance one frame of the named animation. Call once per game frame inside `update()` or `main()`. On the first tick, or after switching from a different animation, the frame resets to 0 (no advance this tick). On subsequent ticks of the same animation, the frame counter increments and wraps at `frameCount`. Calling `tick()` twice in the same frame prints a warning.",
+        ru: "Продвинуть анимацию на один кадр. Вызывайте один раз за кадр в `update()` или `main()`. При первом тике или переключении с другой анимации кадр сбрасывается в 0 (без продвижения в этот тик). При следующих тиках той же анимации счётчик кадров увеличивается и оборачивается при достижении `frameCount`. Двойной вызов за кадр выводит предупреждение.",
+        example: "class Hero(Actor):\n    def update(self):\n        if Keyboard.right.down:\n            self.vx = 3\n            self.run.tick()\n        else:\n            self.vx = 0\n            self.idle.tick()\n\nhero = Hero(assets.sheet.hero, x=100, y=100)",
+        advanced: {
+          en: "`actor.idle` returns an `AnimationController` bound to that actor instance — two actors can play the same animation at different frame positions. The controller is lazily created on first access and cached in `actor._anim_controllers`. The frame guard (`_ticked_this_frame`) is reset by `actor.draw()` so the next frame's `tick()` works normally.",
+          ru: "`actor.idle` возвращает `AnimationController`, привязанный к конкретному экземпляру актора — два актора могут воспроизводить одну анимацию на разных кадрах. Контроллер создаётся лениво при первом обращении и кэшируется в `actor._anim_controllers`. Защита от двойного тика (`_ticked_this_frame`) сбрасывается в `actor.draw()`, чтобы следующий `tick()` работал нормально.",
+        },
+      },
+      {
+        id: "actor_with_sheet",
+        name: "Actor with sheet sprite",
+        signature: "Actor(assets.sheet.<sprite>, x, y)",
+        en: "Create an actor whose image is a sheet sprite. Access animation controllers via attribute lookup (`actor.idle`, `actor.run`) — these return `AnimationController` objects. Call `.tick()` on the active animation each frame, then call `actor.draw()` to render the current frame centered on the actor's position.",
+        ru: "Создать актор со спрайтом из листа. Доступ к контроллерам анимации — через атрибуты (`actor.idle`, `actor.run`); они возвращают объекты `AnimationController`. Вызывайте `.tick()` на активной анимации каждый кадр, затем `actor.draw()` — отрисует текущий кадр по центру позиции актора.",
+        example: "from graphics.actors import Actor\nimport graphics as g\n\nclass Hero(Actor):\n    def update(self):\n        if Keyboard.right.down:\n            self.vx = 3\n            self.run.tick()\n        else:\n            self.vx = 0\n            self.idle.tick()\n        self.wrap_x()\n\ng.size(400, 300)\nhero = Hero(assets.sheet.hero, x=200, y=150)\n\ndef main():\n    g.background(Colors.navy)\n    for a in Actor.all_actors():\n        a.draw()\n\ng.run(main)",
+        advanced: {
+          en: "Switching animations (calling `self.run.tick()` after `self.idle.tick()` was active) resets the new animation's frame to 0 on the first tick — the first frame of the new animation always shows for a full frame, preventing one-frame glitches. If no `.tick()` has been called yet, `draw()` renders frame 0 of the first animation as a static fallback.",
+          ru: "Переключение анимации (вызов `self.run.tick()` после активного `self.idle.tick()`) сбрасывает кадр новой анимации в 0 при первом тике — первый кадр новой анимации всегда показывается полный кадр, предотвращая мерцание. Если `.tick()` ещё не вызывался, `draw()` рисует кадр 0 первой анимации как статическое изображение.",
+        },
+      },
+    ],
+  },
 ];

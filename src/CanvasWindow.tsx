@@ -123,27 +123,21 @@ export default function CanvasWindow() {
     dragState.current = null;
   };
 
-  // Calculate visual scale to respect Python's size() call while keeping canvas usable
   const w = canvasWidth > 0 ? canvasWidth : 300;
   const h = canvasHeight > 0 ? canvasHeight : 300;
   const [visualScale, setVisualScale] = useState(1);
   useEffect(() => {
-    if (!canvasActive) {
-      setVisualScale(1);
-      return;
-    }
-    
-    // Get viewport width (approximate using window.innerWidth)
-    const viewportWidth = window.innerWidth;
-    const viewportHeight = window.innerHeight;
-    const maxAllowedWidth = viewportWidth * 0.8; // 80% of viewport width
-    const maxAllowedHeight = viewportHeight * 0.8; // 80% of viewport height
-    
-    // Calculate scale needed to fit within max allowed dimensions
-    const widthScale = w > maxAllowedWidth ? maxAllowedWidth / w : 1;
-    const heightScale = h > maxAllowedHeight ? maxAllowedHeight / h : 1;
-    const scale = Math.min(widthScale, heightScale, 1); // Never scale up, only down if needed
-    setVisualScale(scale);
+    const compute = () => {
+      if (!canvasActive) { setVisualScale(1); return; }
+      const maxW = window.innerWidth * 0.85;
+      const maxH = (window.innerHeight - 60) * 0.85; // subtract approx title bar + console
+      const ws = w > maxW ? maxW / w : 1;
+      const hs = h > maxH ? maxH / h : 1;
+      setVisualScale(Math.min(ws, hs, 1));
+    };
+    compute();
+    window.addEventListener('resize', compute);
+    return () => window.removeEventListener('resize', compute);
   }, [canvasActive, w, h]);
 
   // Recompute the display↔native scale whenever the canvas is rendered.
@@ -167,6 +161,9 @@ export default function CanvasWindow() {
     return () => ro.disconnect();
   }, [w, h, canvasActive, visualScale]);
 
+  const visualW = Math.round(w * visualScale);
+  const visualH = Math.round(h * visualScale);
+
   return (
     <div
       ref={windowRef}
@@ -174,8 +171,8 @@ export default function CanvasWindow() {
         position: "fixed",
         right: 24,
         bottom: 156,
-        width: `${w}px`,
-        height: `${h + 30}px`, // +30 for title bar
+        width: `${visualW}px`,
+        height: `${visualH + 30}px`, // +30 for title bar
         background: theme.canvasFrame,
         borderRadius: theme.radiusCard,
         boxShadow:
@@ -300,32 +297,23 @@ export default function CanvasWindow() {
       )}
       <div
         style={{
-          width: `${w}px`,
-          height: `${h}px`,
+          width: `${visualW}px`,
+          height: `${visualH}px`,
           position: "relative",
           background: theme.canvasBg,
           imageRendering: "pixelated",
           overflow: "hidden",
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}
       >
-        {/* Canvas pixel buffer stays at native (w, h). Visual size scales
-            down via CSS so it always fits while preserving
-            aspect ratio. Mouse coords are remapped via canvasScale. */}
         <canvas
           ref={ref}
           width={w}
           height={h}
           style={{
             display: 'block',
-            maxWidth: '100%',
-            maxHeight: '100%',
-            width: 'auto',
-            height: 'auto',
-            aspectRatio: `${w} / ${h}`,
+            width: '100%',
+            height: '100%',
             imageRendering: 'pixelated',
-            transformOrigin: 'top left',
-            transform: `scale(${visualScale})`,
           }}
         />
       </div>

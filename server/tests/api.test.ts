@@ -344,3 +344,159 @@ describe('Sharing API', () => {
     expect(res.status).toBe(400);
   });
 });
+
+describe('Thumbnail API', () => {
+  const PNG_1PX = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+    'base64',
+  );
+
+  it('GET /api/projects/:id/thumbnail returns 404 when no thumbnail', async () => {
+    const res = await request(app)
+      .get(`/api/projects/${testProject.id}/thumbnail`)
+      .set(authHeader(testUser1.api_token));
+
+    expect(res.status).toBe(404);
+  });
+
+  it('PUT /api/projects/:id/thumbnail stores PNG and GET retrieves it', async () => {
+    const putRes = await request(app)
+      .put(`/api/projects/${testProject.id}/thumbnail`)
+      .set(authHeader(testUser1.api_token))
+      .set('Content-Type', 'image/png')
+      .send(PNG_1PX);
+
+    expect(putRes.status).toBe(200);
+    expect(putRes.body).toHaveProperty('thumbnail_updated_at');
+
+    const getRes = await request(app)
+      .get(`/api/projects/${testProject.id}/thumbnail`)
+      .set(authHeader(testUser1.api_token));
+
+    expect(getRes.status).toBe(200);
+    expect(getRes.headers['content-type']).toMatch(/image\/png/);
+  });
+
+  it('PUT /api/projects/:id/thumbnail rejects non-PNG body', async () => {
+    const res = await request(app)
+      .put(`/api/projects/${testProject.id}/thumbnail`)
+      .set(authHeader(testUser1.api_token))
+      .set('Content-Type', 'image/png')
+      .send(Buffer.alloc(0));
+
+    expect(res.status).toBe(400);
+  });
+
+  it('PUT /api/projects/:id/thumbnail rejects viewer', async () => {
+    const now = Date.now();
+    db.prepare('INSERT INTO project_shares (id, project_id, user_id, role, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)')
+      .run(uuidv4(), testProject.id, testUser2.id, 'viewer', now, now);
+
+    const res = await request(app)
+      .put(`/api/projects/${testProject.id}/thumbnail`)
+      .set(authHeader(testUser2.api_token))
+      .set('Content-Type', 'image/png')
+      .send(PNG_1PX);
+
+    expect(res.status).toBe(403);
+  });
+
+  it('DELETE /api/projects/:id/thumbnail removes thumbnail', async () => {
+    await request(app)
+      .put(`/api/projects/${testProject.id}/thumbnail`)
+      .set(authHeader(testUser1.api_token))
+      .set('Content-Type', 'image/png')
+      .send(PNG_1PX);
+
+    const delRes = await request(app)
+      .delete(`/api/projects/${testProject.id}/thumbnail`)
+      .set(authHeader(testUser1.api_token));
+
+    expect(delRes.status).toBe(204);
+
+    const getRes = await request(app)
+      .get(`/api/projects/${testProject.id}/thumbnail`)
+      .set(authHeader(testUser1.api_token));
+    expect(getRes.status).toBe(404);
+  });
+
+  it('DELETE /api/projects/:id/thumbnail rejects viewer', async () => {
+    const now = Date.now();
+    db.prepare('INSERT INTO project_shares (id, project_id, user_id, role, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)')
+      .run(uuidv4(), testProject.id, testUser2.id, 'viewer', now, now);
+
+    const res = await request(app)
+      .delete(`/api/projects/${testProject.id}/thumbnail`)
+      .set(authHeader(testUser2.api_token));
+
+    expect(res.status).toBe(403);
+  });
+
+  it('GET/PUT/DELETE thumbnail returns 404 for nonexistent project', async () => {
+    const base = '/api/projects/nonexistent/thumbnail';
+    const [g, p, d] = await Promise.all([
+      request(app).get(base).set(authHeader(testUser1.api_token)),
+      request(app).put(base).set(authHeader(testUser1.api_token)).set('Content-Type', 'image/png').send(PNG_1PX),
+      request(app).delete(base).set(authHeader(testUser1.api_token)),
+    ]);
+    expect(g.status).toBe(404);
+    expect(p.status).toBe(404);
+    expect(d.status).toBe(404);
+  });
+});
+
+describe('User Search API', () => {
+  beforeEach(() => {
+    const now = Date.now();
+    db.prepare('INSERT INTO users (id, api_token, name, handle, role, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+      .run(uuidv4(), uuidv4().replace(/-/g, ''), 'Charlie', 'charlie42', 'student', now, now);
+    db.prepare('INSERT INTO users (id, api_token, name, handle, role, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+      .run(uuidv4(), uuidv4().replace(/-/g, ''), 'Charlotte', 'lotte99', 'teacher', now, now);
+  });
+
+  it('GET /api/users/search returns empty array for short query', async () => {
+    const res = await request(app)
+      .get('/api/users/search?q=x')
+      .set(authHeader(testUser1.api_token));
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual([]);
+  });
+
+  it('GET /api/users/search finds users by name', async () => {
+    const res = await request(app)
+      .get('/api/users/search?q=char')
+      .set(authHeader(testUser1.api_token));
+
+    expect(res.status).toBe(200);
+    expect(res.body.length).toBeGreaterThanOrEqual(2);
+    const names = res.body.map((u: { name: string }) => u.name);
+    expect(names).toContain('Charlie');
+    expect(names).toContain('Charlotte');
+  });
+
+  it('GET /api/users/search finds users by handle with @ prefix', async () => {
+    const res = await request(app)
+      .get('/api/users/search?q=@charlie')
+      .set(authHeader(testUser1.api_token));
+
+    expect(res.status).toBe(200);
+    expect(res.body.length).toBeGreaterThanOrEqual(1);
+    expect(res.body[0].name).toBe('Charlie');
+  });
+
+  it('GET /api/users/search excludes self', async () => {
+    const res = await request(app)
+      .get('/api/users/search?q=alice')
+      .set(authHeader(testUser1.api_token));
+
+    expect(res.status).toBe(200);
+    const ids = res.body.map((u: { id: string }) => u.id);
+    expect(ids).not.toContain(testUser1.id);
+  });
+
+  it('GET /api/users/search requires auth', async () => {
+    const res = await request(app).get('/api/users/search?q=char');
+    expect(res.status).toBe(401);
+  });
+});

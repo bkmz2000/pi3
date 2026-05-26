@@ -10,6 +10,7 @@ import {
 // built-in implementations from the 'buffer' module (Node 18+ exposes a
 // spec-compliant Blob/File with both methods). File extends Blob there too.
 {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const nodeBuffer = require('buffer') as typeof import('buffer');
   if (typeof Blob.prototype.arrayBuffer !== 'function') {
     (globalThis as unknown as { Blob: typeof Blob }).Blob =

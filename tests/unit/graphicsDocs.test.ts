@@ -13,8 +13,10 @@ import { resolve } from 'path';
 import { DOCS } from '../../src/docs/graphicsDocs';
 
 describe('graphicsDocs — tilemap + actor regression guards', () => {
-  it('Lighting category is hidden from docs (Python class stays callable)', () => {
-    expect(DOCS.find((c) => c.id === 'lighting')).toBeUndefined();
+  it('Lighting category is exposed in docs (Python class stays callable)', () => {
+    const lighting = DOCS.find((c) => c.id === 'lighting');
+    expect(lighting).toBeDefined();
+    expect(lighting!.entries.some((e) => e.id === 'light_class')).toBe(true);
   });
 
   it('documents the tilemap Areas workflow as a dedicated entry', () => {

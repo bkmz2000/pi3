@@ -1,7 +1,7 @@
 # AGENTS.md — pi3 Project
 
-**Last Updated**: 2026-05-06  
-**Recent Changes**: Fixed server route architecture (nested routers for files/shares), user authentication system, all tests passing.
+**Last Updated**: 2026-05-28
+**Recent Changes**: Removed `from_cfg`/`@method`/config.py, replaced `get_coords`/`set_coords` with direct property access (`actor.x`/`actor.y`/`actor.pos`/`actor.move_to`), added 5 warning-level linter checks (W001-W005).
 
 ---
 
@@ -29,37 +29,39 @@ Each 4-space indentation level is visually distinguished with colored background
 - Spaces 17-20: `#0ea5e9`
 - Spaces 21+: `#0284c7` (darkest)
 
-Implemented via `indentationGuideField` StateField in `App.tsx`.
+Implemented via `indentationGuideField` StateField in `editor/theme.ts`.
 
 ### Soft Line Wraps
 CodeMirror configured with `EditorView.lineWrapping` for no horizontal scrolling.
 
 ### File Management
-- **Auto-save on run**: Files are saved before running (`SideMenu.tsx:handleRunToggle`)
+- **Auto-save on run**: Files are saved before running (`useRunButton.ts:handleRunToggle`)
+- **Auto-save interval**: Every 60 seconds while the project is dirty (`useAutoSave.ts`)
 - **Ctrl+S save**: Keyboard shortcut saves all dirty files
 - **Delete confirmation**: `window.confirm()` dialog before file deletion (`FileBar.tsx`)
 
 ### Console Panel
-Located on the right side with:
+Resizeable panel at the bottom (or right side via settings) with:
 - **Copy button**: Copies console output to clipboard
 - **Clear button**: Clears console output
 - **Input support**: Shows input prompt when Python requests input
+- **Running indicator**: Animated dots while script executes
 
 **Note**: Stopping a graphical script no longer clears the console (uses `stop()` instead of `clear()` in `RunnerProvider.tsx`).
 
 ### Service Worker Caching
 Pyodide is cached via Service Worker for faster subsequent loads:
 - **Location**: `public/sw.js`
-- **Cached assets**: Pyodide v0.26.4
+- **Cached assets**: Pyodide v0.29.3
 - **Behavior**: Automatic caching on first load, serves from cache on subsequent loads
 - **Version management**: Cache version `webide-v2`, auto-invalidated on version change
 
 ### Lazy Loading
-SpriteEditor (Konva) is lazy-loaded via `React.lazy()` to reduce initial bundle size:
+DocsPanel is lazy-loaded via `React.lazy()` to reduce initial bundle size:
 ```typescript
-const SpriteEditor = lazy(() => import("./SpriteEditor"));
+const DocsPanel = lazy(() => import("./components/DocsPanel"));
 ```
-Loaded only when the sprite editor panel is opened.
+Loaded only when the docs panel is opened.
 
 ### PWA Support
 The app is installable as a Progressive Web App:
@@ -75,15 +77,9 @@ The app is installable as a Progressive Web App:
 ### Overview
 Python linting implemented as a pure Python module (`linter.py`) running inside Pyodide. No external WASM dependencies. Linting runs when user clicks "Run" — not while typing.
 
-### Why Python instead of Ruff WASM?
-- No WASM download (~1MB savings)
-- Simpler architecture
-- Easier to customize for student-friendly error messages
-- For 100-200 line beginner projects, Ruff's extensive rule set was overkill
-
 ### Architecture
 ```
-SideMenu.tsx (handleRunToggle)
+useRunButton.ts (handleRunToggle)
     ↓ lint(code, filename)
 RunnerProvider.tsx (lint callback)
     ↓ postMessage({ cmd: "lint" })
@@ -98,69 +94,79 @@ ConsolePanel (displays errors)
 ```
 
 ### Checks Performed
-All diagnostics have severity "error".
 
-| Code | Description |
-|------|-------------|
-| E999 | Syntax error |
-| E101 | Indentation contains tabs |
-| E111 | Indentation not multiple of 4 |
-| E225 | Unsupported operand types (e.g., `3 + "2"`) |
-| E225Call | Method call argument type mismatch (e.g., `list.append("str")` when list is `list[int]`) |
-| E301 | Missing blank lines between top-level definitions |
-| E303 | Too many blank lines |
-| E501 | Line too long (>100 chars) |
-| F401 | Imported but unused |
-| F821 | Undefined name |
+| Code | Severity | Description |
+|------|----------|-------------|
+| E999 | error | Syntax error (missing colons, unclosed brackets, unterminated strings, etc.) |
+| E101 | error | Indentation contains tabs |
+| E111 | error | Indentation not multiple of 4 |
+| E225 | error | Unsupported operand types (e.g., `3 + "2"`) |
+| E225Call | error | Method call argument type mismatch (e.g., `list.append("str")` when list is `list[int]`) |
+| E303 | error | Too many blank lines (>4) |
+| E501 | error | Line too long (>100 chars) |
+| F401 | error | Imported but unused |
+| F821 | error | Undefined name |
+| W001 | warning | Variable assigned but never used |
+| W002 | warning | Non-descriptive variable name (`data`, `value`, `temp`, `result`, `thing`, `stuff`) |
+| W003 | warning | Gibberish name (5+ chars, vowel ratio < 0.2) |
+| W004 | warning | Similar name to existing variable (Levenshtein distance 1, >=3 chars) |
+| W005 | warning | Variable type reassignment (e.g., `int` then `str`) |
+
+Errors (E/F codes) block execution. Warnings (W codes) are shown but do not block.
 
 ### Type Checking
-The linter includes basic type checking:
+The linter includes basic type checking using Python's `ast` module:
 - **Binary operation type mismatches**: `3 + "2"`, `"hello" * "world"`, etc.
 - **Literal type validation**: `x: Literal["up", "down"] = "left"` reports an error
 - **Method call type checking**: `arr = [1, 2, 3]; arr.append("4")` reports error since `append` expects `int` not `str`
-- Uses Python's `ast` module for code analysis
 
 ### Features
 - **No inline diagnostics**: Errors NOT shown as squiggly underlines while typing
 - **Run-time linting**: Lint runs only when user clicks "Run"
 - **Console output**: Errors displayed with status messages
-- **Script execution blocked**: If errors found, script does not run
+- **Script execution blocked**: If errors found, script does not run. Warnings only do not block.
+- **Star-import handling**: `from graphics import *` is recognized; symbols from known modules are not flagged as undefined
 
 ### File Location
-`src/assets/python/linter.py` - bundled into Pyodide worker at initialization.
+`src/assets/python/linter.py` — bundled into Pyodide worker at initialization.
 
 ### Types
 ```typescript
 type LintDiagnostic = {
-  code: string;
-  messageKey: string;           // e.g., "linter.E225"
+  code: string;                  // e.g., "E225", "W001"
+  messageKey: string;            // e.g., "linter.E225"
   messageArgs: Record<string, string | number>;  // e.g., {op: "+", left: "int", right: "str"}
   row: number;
   column: number;
   endRow: number;
   endColumn: number;
-  severity: "error";
+  severity: "error" | "warning";
 };
 ```
 
 ### Translation
 Messages are translated via i18n using `messageKey` and `messageArgs`. Supported keys:
-- `linter.E999` - Generic syntax error
-- `linter.E999Colon` - Missing colon
-- `linter.E999Unclosed` - Unclosed bracket
-- `linter.E999Unterminated` - Unterminated string
-- `linter.E999Invalid` - Invalid syntax
-- `linter.E999EOL` - Premature end of line
-- `linter.E999Unmatched` - Unmatched brackets
-- `linter.E999Assign` - Assignment error
-- `linter.E111` - Indentation not multiple of 4
-- `linter.E225` - Unsupported operand types
-- `linter.E225Call` - Method call argument type mismatch
-- `linter.E301` - Missing blank lines
-- `linter.E303` - Too many blank lines
-- `linter.E501` - Line too long
-- `linter.F401` - Unused import
-- `linter.F821` - Undefined name
+- `linter.E999` — Generic syntax error
+- `linter.E999Colon` — Missing colon
+- `linter.E999Unclosed` — Unclosed bracket
+- `linter.E999Unterminated` — Unterminated string
+- `linter.E999Invalid` — Invalid syntax
+- `linter.E999EOL` — Premature end of line
+- `linter.E999Unmatched` — Unmatched brackets
+- `linter.E999Assign` — Assignment error
+- `linter.E101` — Indentation contains tabs
+- `linter.E111` — Indentation not multiple of 4
+- `linter.E225` — Unsupported operand types
+- `linter.E225Call` — Method call argument type mismatch
+- `linter.E303` — Too many blank lines
+- `linter.E501` — Line too long
+- `linter.F401` — Unused import
+- `linter.F821` — Undefined name
+- `linter.W001` — Unused variable
+- `linter.W002` — Non-descriptive variable name
+- `linter.W003` — Gibberish name
+- `linter.W004` — Similar variable names (possible typo)
+- `linter.W005` — Type reassignment
 
 ---
 
@@ -170,13 +176,15 @@ Messages are translated via i18n using `messageKey` and `messageArgs`. Supported
 
 ```
 graphics/
-  __init__.py      — g module (window, drawing, events)
+  __init__.py      — g module (drawing, color, events, loop, camera, light, tilemaps, animations)
   actors/
-    __init__.py     — Actor class with from_cfg()
-    config.py      — @method decorator + from_cfg()
+    __init__.py     — Actor, Rect, Circle, Group, Collider
+  animation.py      — Standalone Animation class (manual frame cycling)
 ```
 
-### Two Ways to Create Actors
+There is no `config.py` or `@method` decorator. Actors are created directly via constructors or subclassing.
+
+### Creating Actors
 
 **1. Direct Constructor:**
 ```python
@@ -187,70 +195,101 @@ def draw_fn(self):
     g.circle(self.x, self.y, 20)
 
 player = Actor(x=100, y=100, draw=draw_fn)
-player.set_coords(150, 150)
+player.x = 150
+player.y = 150
 ```
 
-**2. From Config Module:**
+**2. Using move_to:**
 ```python
-# player_cfg.py
-from graphics.actors.config import method
-
-x = 100
-y = 100
-
-@method
-def draw(self):
-    g.fill(255, 0, 0)
-    g.circle(self.x, self.y, 20)
-
-# main.py
-from graphics.actors import Actor
-import player_cfg
-
-player = Actor.from_cfg(player_cfg)
+player = Actor(x=100, y=100, draw=draw_fn)
+player.move_to(150, 150)
 ```
 
-### Config File Pattern
-
+**3. Using the pos Vector2 property:**
 ```python
-# snake_cfg.py
-import graphics as g
-from graphics.actors.config import method
-
-TILE_SIZE = 20  # uppercase = constant (not actor state)
-GRID_SIZE = 20
-
-x = 10  # initial position
-y = 10
-tail = []
-direction = "up"
-
-@method
-def draw(self):
-    cx, cy = self.get_coords()
-    g.fill(0, 255, 0)
-    g.rect(cx * TILE_SIZE, cy * TILE_SIZE, TILE_SIZE, TILE_SIZE)
-
-@method
-def update(self):
-    if self.direction == "right":
-        cx = (cx + 1) % GRID_SIZE
-    self.set_coords(cx, cy)
+player = Actor(x=100, y=100, draw=draw_fn)
+player.pos = Vector2(150, 150)
 ```
 
-**Rules:**
-- `@method` decorator marks functions to bind as actor methods
-- Module vars (x, y, tail, direction, etc.) become actor instance attributes
-- `x` and `y` are used for initial position, passed to `set_coords()`
-- Uppercase vars (TILE_SIZE, GRID_SIZE) are constants, not actor state
+**4. Subclassing:**
+```python
+class Player(Actor):
+    def draw(self):
+        g.fill(Colors.blue)
+        g.rect(self.x - 10, self.y - 10, 20, 20)
 
-### Actor Properties vs Methods
+player = Player(x=100, y=100)
+```
 
-| Property | How to Access |
-|----------|---------------|
-| Position (`_x`, `_y`) | `actor.get_coords()`, `actor.set_coords(x, y)` |
-| Custom attributes | `actor.tail`, `actor.direction` (direct access) |
-| System properties | `actor.x`, `actor.y`, `actor.angle` (read-only properties) |
+**5. Built-in shapes:**
+```python
+# Rect: (x, y) is the center
+box = Rect(x=100, y=200, width=60, height=40, color="red")
+
+# Circle: (x, y) is the center
+ball = Circle(x=100, y=200, radius=30, color="blue")
+```
+
+### Actor Properties
+
+| Property | Access | Description |
+|----------|--------|-------------|
+| `x`, `y` | Read-write (float) | Position |
+| `angle` | Read-write (float, 0-360) | Rotation in degrees |
+| `vx`, `vy` | Read-write (float) | Velocity (applied automatically each frame) |
+| `pos` | Read-write (Vector2) | Position as Vector2 |
+| `vel` | Read-write (Vector2) | Velocity as Vector2 |
+| `visible` | Read-write (bool) | Whether the actor is drawn |
+| `scale` | Read-write (float) | Drawing scale (default 1.0) |
+| `flip_x`, `flip_y` | Read-write (bool) | Horizontal/vertical flip |
+| `image` | Read-write | Sprite/SpriteEntry/SheetAnimation to draw |
+| `collider` | Read-only (Collider) | Hitbox configuration |
+
+### Actor Methods
+
+**Movement:**
+- `move(distance)` — Move in the direction of `angle`
+- `move_to(x, y)` — Teleport to position
+- `change_x_by(dx)` / `change_y_by(dy)` — Offset by delta
+- `rotate(degrees)` — Rotate by relative degrees
+- `point_towards(x, y)` — Face a target coordinate
+
+**Lifecycle:**
+- `die()` — Mark as dead (removed from Group iteration, skips draw/update)
+- `is_alive()` — Returns True if not dead
+- `init()` — Hook called during `__init__` (override in subclasses)
+- `update()` — Hook called each frame (override in subclasses)
+- `draw()` — Hook called each frame (override in subclasses)
+
+**Spatial helpers:**
+- `random_position()` — Teleport to random position within canvas
+- `wrap_x()` / `wrap_y()` / `wrap()` — Screen wrapping
+- `in_bounds()` — Check if center is inside canvas
+
+**Pixel editing (sprites):**
+- `reset()` — Restore original pixel data
+- Iteration: `for pixel in actor:` — Yields PixelView objects
+
+**Anchor points** (return AnchorPoint, usable with `g.text()`):
+- `actor.center`, `actor.top`, `actor.bottom`, `actor.left`, `actor.right`
+- `actor.top_left`, `actor.top_right`, `actor.bottom_left`, `actor.bottom_right`
+
+**Collision (configure via `actor.collider.set_circle()` or `actor.collider.set_rect()`):**
+- `actor.collides_with(other)` — Check collision with another actor
+- `actor.collides_any(group)` — Check collision with any actor in a Group
+
+**Animation (for sprites with `SpriteEntry` image):**
+- `actor.<anim_name>.tick()` — Advance animation frame (call in `update()`)
+
+**Velocity:** `actor.vx` and `actor.vy` are applied automatically each frame via `_apply_velocity()`. Set these and the actor moves each tick without manual position updates.
+
+### Group (Actor Collection)
+```python
+enemies = Group()
+enemies.add(Enemy(x=100, y=50))
+for enemy in enemies:        # Automatically filters dead actors
+    enemy.update()
+```
 
 ### Event Handlers
 
@@ -265,22 +304,14 @@ def game_loop():
 
 @g.on_mouse_move
 def on_mouse_move(x, y):
-    box.set_coords(x, y)
+    player.move_to(x, y)
 
 @g.on_mouse_click
 def on_mouse_click(x, y):
-    box.set_coords(x, y)
-    box.color = random.randint(100, 255)
+    spawn_bullet(x, y)
 ```
 
 **Note:** Mouse event handlers receive `(x, y)` coordinates as arguments.
-
-### Public Actor Methods
-
-- `set_coords(x, y)`, `get_coords()` — position
-- `get_coords()` returns `(x, y)` tuple
-- `set_coords(x, y)` sets position
-- Direct attribute access: `actor.tail`, `actor.direction`
 
 ### Color Functions
 
@@ -289,27 +320,139 @@ def on_mouse_click(x, y):
 - `stroke(r, g, b)` or `stroke("blue")` — set stroke color
 - `stroke(None)` — disable stroke (same as `no_stroke()`)
 - `no_fill()` / `no_stroke()` — explicitly disable fill/stroke
+- `stroke_width(w)` — set stroke width
+
+### Color Palette (Sweetie 16)
+
+Access via `Colors.<name>` or string name in `fill()`/`stroke()`:
+black, wine, red, orange, yellow, lime, green, teal, navy, blue, sky, cyan, white, silver, gray, slate
+
+### Color Helpers
+- `lerp(a, b, t)` — Linear interpolation between two colors
+- `darker(c, steps=1)` / `lighter(c, steps=1)` — Adjust brightness
+- `saturated(c, steps=1)` / `desaturated(c, steps=1)` — Adjust saturation
+- `random_color()` — Random color from the palette
+
+### Vector Math
+- `Vector2(x, y)` / `Point(x, y)` (alias) — 2D vector
+- `Polar(magnitude, angle_degrees)` — Create vector from polar coordinates
+
+### Timing
+- `frame_rate(fps)` — Set target FPS (default 60)
+- `frame_count` — Number of frames since run started
+- `Timer(s=, ms=)` — Countdown timer with `.done()`, `.left()`, `.elapsed()`, `.restart()`
 
 ### Sprite Assets
 
 Sprites are loaded via `assets.sprites.<name>` (extension automatically stripped):
 ```python
-ship = Actor(image=assets.sprites.spaceship, radius=10)
+ship = Actor(image=assets.sprites.spaceship)
 ```
 
-Assets are stored in `src/assets/sprites/` and included via `pickAssets()` in `IdeState.ts`.
+**Sheet animations** (via `assets.sheet`):
+```python
+player = Actor(image=assets.sheet.player)
+# Access animations: player.idle.tick(), player.walk.tick()
+```
+
+### Camera
+
+```python
+with Camera() as cam:
+    cam.follow(player, lerp=0.1)  # lerp < 1 = smooth follow
+    g.background(Colors.navy)
+    # Draw everything...
+    for enemy in enemies:
+        enemy.draw()
+```
+
+### Light
+
+```python
+light = Light(ambient=(40, 40, 60), radius=200, mode="hsl")
+light.add_obstacles(walls)  # Any Group or Actor list
+light.add_source(player)    # Position from Actor or (x, y) tuple
+light.shade("wine")         # Color tint
+light.flicker(True)         # Torch flicker effect
+light.draw()                # Must be called in draw loop
+```
+
+### Tilemaps
+
+```
+TilemapLayer   — Grid-based layer with named tiles
+TileMap        — Multi-layer tilemap
+TileRef        — Reference to tiles in specific layer/area
+TileGroup      — Named area group within a layer
+Cell           — Individual cell
+Bounds         — Iterable collection of cell positions
+```
+
+### Sound
+
+```python
+assets.sounds.explosion.play()
+assets.sounds.music.loop()
+assets.sounds.music.pause()
+assets.sounds.music.stop()
+```
+
+Supported formats: MP3, OGG, WAV.
+
+### Animation (Standalone)
+
+```python
+walk = Animation(frames=[frame1, frame2, frame3], fps=8)
+walk.play()        # Start playing (default: looping)
+walk.pause()       # Freeze on current frame
+walk.reset()       # Back to frame 0
+walk.update()      # Advance one tick (call in main loop)
+g.image(walk.frame, x, y)  # Draw current frame
+```
+
+### Full API Surface
+
+Exported from `graphics/__init__.py` (`__all__`):
+```
+size, width, height,
+circle, rect, ellipse, line, point,
+text, text_size, text_align, say,
+fill, no_fill, stroke, no_stroke, stroke_width,
+background,
+push, pop, translate, rotate, scale,
+image,
+frame_rate, frame_count,
+random, random_color,
+Colors, AnchorPoint,
+lerp, darker, lighter, saturated, desaturated,
+Sprite, PixelView, create_sprite, get_pixel, set_pixel,
+palette_swap, flood_fill,
+darken, lighten, saturate, desaturate,
+Vector2, Point, Polar,
+Mouse, Keyboard, Window,
+Camera,
+TilemapLayer, TileMap, TileRef, TileGroup, Cell, Bounds,
+noise,
+Light,
+Animation,
+SheetAnimation, SpriteEntry, SheetNamespace, AnimationController,
+run, stop,
+assets, sheet,
+```
 
 ---
 
 ## Stack
 
-- **React 19 + TypeScript + Vite** — frontend
-- **Tailwind CSS** — styling
-- **Zustand** — state management
+- **React 19 + TypeScript + Vite 7** — frontend
+- **Tailwind CSS v4** — styling
+- **Zustand v5** — state management
 - **CodeMirror 6** — code editor
-- **Pyodide** — Python runtime in a Web Worker
-- **Python Linter** — pure Python linter running in Pyodide (mypy-based type checking)
-- **react-konva** — sprite editor canvas
+- **Pyodide v0.29.3** — Python runtime in a Web Worker
+- **JSZip** — project import/export
+- **react-konva** — sprite editor canvas (lazy-loaded)
+- **Express.js v4 + better-sqlite3** — backend server
+- **i18next** — internationalization
 - **Jest + Puppeteer** — testing
 
 ---
@@ -318,76 +461,170 @@ Assets are stored in `src/assets/sprites/` and included via `pickAssets()` in `I
 
 ```
 src/
-  App.tsx                    # Root layout (LoadingScreen, ConsolePanel, CodeMirror)
-  FileBar.tsx               # File tabs
-  SideMenu.tsx             # Navigation rail + panels (projects, assets, settings)
-  CanvasWindow.tsx          # Floating graphics canvas
-  SpriteEditor.tsx         # Konva-based vector sprite editor
+  main.tsx                  # React entry point (BrowserRouter + StrictMode)
+  App.tsx                   # Root layout (routes, LoadingScreen, editor, console, canvas)
+  appInit.ts                # App initialization (auth error handler)
+  FileBar.tsx               # File tabs + share/help actions
+  SideMenu.tsx              # Navigation rail + side panels (projects, assets, tilemaps, animations, settings, docs)
+  CanvasWindow.tsx          # Floating graphics canvas (draggable, screenshots)
+  AssetEditor.tsx           # Overlay editor for sprites/tilemaps/animations
+  PixelEditor.tsx           # Pixel art editor for sprites
+  TileEditor.tsx            # Tilemap editor
+  SheetEditor.tsx           # Sprite sheet editor
 
   components/
-    Backdrop.tsx           # Modal backdrop
-    ConsolePanel.tsx       # Console output + input
-    IconButton.tsx        # Reusable icon button
-    LoadingScreen.tsx      # Initial loading UI
-    ProjectButton.tsx      # Project list item
-    SidePanel.tsx         # Slide-out panel
+    Backdrop.tsx            # Modal backdrop (click outside to close)
+    ConsolePanel.tsx        # Console output + input prompt (resizeable)
+    DocsPanel.tsx           # Reference documentation panel (lazy-loaded)
+    IconButton.tsx          # Reusable icon button
+    Icons.tsx               # SVG icon definitions
+    LoadingScreen.tsx       # Initial loading UI ("pi³" logo)
+    ProjectButton.tsx       # Project list item
+    SaveErrorIndicator.tsx  # Save error banner (auth/network)
+    SidePanel.tsx           # Slide-out panel with focus management
+    ThemedDialog.tsx        # Themed modal dialog
+    ToastContainer.tsx      # Toast notification stack
     dialogs/
-      ImportDialog.tsx     # ZIP import dialog
-      NewProjectDialog.tsx # New project dialog
+      ForkDialog.tsx        # Fork confirmation dialog
+      ImportDialog.tsx      # ZIP import dialog
+    projects/
+      index.ts              # Barrel export
+      NewProjectDialog.tsx  # New project dialog
+      ProjectCard.tsx       # Project card
+      ProjectRow.tsx        # Project row
+      ProjectsPage.tsx      # /projects route
+      ShareDialog.tsx       # Project sharing dialog
+    teacher/
+      TeacherDashboard.tsx  # /teacher route
+      TeacherProjectView.tsx # /teacher/projects/:projectId
+      GroupsSection.tsx     # Group management
+      HelpRequestsSection.tsx # Help request queue
+      StudentProjectsSection.tsx # Student project listing
+      GroupQueueView.tsx    # Group-specific help queue
+      NavItem.tsx           # Teacher nav item
+      styles.ts             # Teacher-specific styles
+    user/
+      AuthSection.tsx       # Auth UI section
+      HandleAvatar.tsx      # User avatar with handle
+      LoginButton.tsx       # Login button
+      LoginDialog.tsx       # Login dialog
+      UserMenu.tsx          # User dropdown menu
+      index.ts              # Barrel export
 
   editor/
-    theme.ts               # CodeMirror theme + indentation guides
+    theme.ts                # CodeMirror theme + indentation guides
+    comments.ts             # Teacher comment extension
+    graphicsCompletion.ts   # Graphics API autocomplete source
 
   state/
-    IdeState.ts           # Zustand stores (useEditor, useIde)
-    assets.ts             # Asset packing
+    IdeState.ts             # Zustand stores (useEditor, useIde)
+    assets.ts               # Asset packing (sprites, sounds, library packs)
+    api.ts                  # API client + typed endpoint functions
+    apiBase.ts              # API base URL
+    asyncAction.ts          # Async action utilities
+    notificationsStore.ts   # Notifications store
+    projectNormalization.ts # Normalize API projects to editor format
+    toastsStore.ts          # Toast notifications store
+    useNotifications.ts     # Notifications hook
+    useTeacherShare.ts      # Teacher share hook
+    useTheme.ts             # Theme state (light/dark, editor colors, font)
+    useToasts.ts            # Toast hook
+    useUser.ts              # User auth state (authState, login/logout)
 
   runner/
-    RunnerProvider.tsx    # Worker singleton, run/lint/stop
-    WorkerInterface.ts    # TypeScript types
-    worker.ts             # Pyodide + Ruff WASM worker
+    RunnerProvider.tsx      # Worker singleton, run/lint/stop, asset loading, event wiring
+    worker.ts               # Pyodide Web Worker — Python execution, canvas rendering, interrupts
+    WorkerInterface.ts      # TypeScript types for worker commands/events
+    canvasRenderer.ts       # JS-side canvas renderer for draw commands
 
   hooks/
-    useAutoSave.ts        # Auto-save logic
-    usePanels.ts          # Panel state
-    useProjects.ts        # Project management
-    useRunButton.ts       # Run/stop button
+    useAutoSave.ts          # 60-second auto-save interval
+    usePanels.ts            # Panel open/close/toggle state
+    useProjects.ts          # Project CRUD operations
+    useRunButton.ts         # Run/stop button orchestration (lint → save → run)
 
   utils/
-    storage.ts            # IndexedDB project storage
-    zip.ts                # ZIP import/export
+    storage.ts              # IndexedDB project cache (WebIDE v2)
+    zip.ts                  # ZIP import/export (JSZip)
+    anonStash.ts            # Anonymous session persistence (localStorage)
+    userDisplay.ts          # User display name formatting
+
+  docs/
+    concepts.ts             # Graphics concepts reference data
+    graphicsDocs.ts         # API documentation data
+    recipes.ts              # Code recipes (copy-pasteable snippets)
 
   i18n/
-    index.ts              # i18next config
-    en.json               # English translations
-    ru.json               # Russian translations
+    index.ts                # i18next config (en + ru, localStorage + browser detection)
+    en.json                  # English translations
+    ru.json                  # Russian translations
 
   assets/
     python/
       graphics/
-        __init__.py      # g module (drawing, color, events, loop)
+        __init__.py         # g module (drawing, color, events, loop, camera, light, tilemaps, noise)
         actors/
-          __init__.py     # Actor class
-          config.py       # @method decorator + from_cfg()
-      shim.py             # Legacy p5 API
-      transform.py        # AST transformer
+          __init__.py       # Actor, Rect, Circle, Group, Collider
+        animation.py        # Standalone Animation class
+      linter.py             # Python linter (runs inside Pyodide)
     examples/
-      hello_world/        # Hello world example
-      input/              # Input example
-      bounce/             # Bounce example
-      snake/
-        snake.py          # main entry
-        snake_cfg.py     # snake config
-        apple_cfg.py     # apple config
-      sokoban/            # Sokoban example
-      p5/                 # p5 example
-      asteroids/          # Asteroids example
-    sprites/               # Packaged sprites
+      hello_world/          # Hello world (print)
+      input/                # Input example (name, age prompts)
+      bounce/               # Ball bouncing (graphics intro)
+      bouncing_actor/       # Actor-based bounce
+      snake/                # Snake game (snake.py only, no _cfg files)
+      sokoban/              # Sokoban puzzle
+      asteroids/            # Asteroids game
+      catch/                # Catch game
+      p5/                   # Processing/p5-inspired sketch
+      platformer/           # Platformer game
+      dungeon/              # Dungeon generator
+      cave_generator/       # Cave generator
+      color_shifter/        # Color animation
+      gradient_sky/         # Sky gradient
+      random_walls/         # Random wall generation
+      robot/                # Robot drawing
+      sprite_painter/       # Procedural sprite painting
+      swatches/             # Color palette swatches
+    sprites/                # ~83 SVG sprite assets (Kenney game assets)
+    sounds/
+      kenney_rpg-audio/     # RPG audio pack
+
+server/
+  index.ts                  # Express app entry (CORS, sessions, routes, static, SPA fallback)
+  session.d.ts              # Session type augmentation
+  db/
+    index.ts                # SQLite init, migrations, reset
+    handle.ts               # User handle generation
+    word-lists.ts           # Word lists for handles
+    migrations/
+      001_initial.sql ...
+      008_group_polish.sql
+  middleware/
+    auth.ts                 # Auth middleware (session + API token)
+    projectAuth.ts          # Project access control (owner/editor/viewer roles)
+  routes/
+    auth.ts                 # OAuth/outsider login/logout
+    projects.ts             # Project CRUD + save + share + help requests
+    shares.ts               # Project sharing (nested under projects)
+    comments.ts             # Teacher comments (nested under projects)
+    users.ts                # User management (me, search, outsider)
+    groups.ts               # Group/class CRUD + invite codes
+    help-requests.ts        # Help request queue
+  tests/                    # Server-side API tests
 
 tests/
   puppeteer/
-    production-test-suite.js # E2E tests (12 tests)
-  unit/                      # Jest unit tests (38 tests)
+    production-test-suite.js   # Main E2E test suite
+    sprite-editor-test-runner.js
+    onboarding.test.js
+    test-utils.js
+  unit/                        # Jest unit tests
+
+public/
+  sw.js                    # Service worker (Pyodide caching)
+  manifest.json            # PWA manifest
+  icon-192.svg / icon-512.svg / icon-maskable.svg / favicon.svg
 ```
 
 ---
@@ -396,24 +633,23 @@ tests/
 
 ```bash
 npm install
-npm run dev        # Start dev server (http://localhost:5173)
-npm test           # Run unit tests
-npm run lint       # Run ESLint
-npm run test:puppeteer  # Run E2E tests (dev server must be running)
+npm run dev              # Start dev server (http://localhost:5173)
+npm test                 # Run unit tests (Jest)
+npm run lint             # Run ESLint
+npm run test:puppeteer   # Run E2E tests (dev server must be running)
+npm run test:server      # Run server-side tests
 ```
 
 ---
 
 ## Testing
 
-### E2E Tests (12 tests)
+### E2E Tests
 ```bash
 npm run test:puppeteer
 ```
 
-Tests: Core UI, Python execution, p5 sketch, Asset panel, Project panel, Error handling, Console output, Sprite editor, Hello World, Snake, Asteroids, Sokoban
-
-### Unit Tests (38 tests)
+### Unit Tests
 ```bash
 npm test
 ```
@@ -426,7 +662,7 @@ npm test
 
 1. `RunnerProvider.tsx` wires mouse/keyboard listeners to `window`
 2. Events sent to worker via `postMessage({ cmd: "event", ... })`
-3. `worker.ts` receives and calls `_inject_event(kind, data)`
+3. `worker.ts` receives and calls `graphics._inject_event(kind, data)`
 4. `_inject_event` in `graphics/__init__.py` dispatches to handlers
 
 ### Lint Flow
@@ -437,18 +673,41 @@ npm test
 4. `worker.ts` runs the Python linter, returns diagnostics via `postMessage({ type: "lint", diagnostics })`
 5. `RunnerProvider.tsx` receives diagnostics and returns them to `handleRunToggle()`
 6. If errors: prints status + errors to console, does NOT run
-7. If clean: prints "No errors found", then runs the script
+7. If only warnings: prints warning count, then runs the script
+8. If clean: prints "No errors found", then runs the script
 
-### Key Fixes
+### Run Flow
 
-- **Mouse event filtering**: `mousemove` only calls `on_mouse_move` handlers, `mousedown` only calls `on_mouse_click` handlers
-- **State clearing**: `Actor._registry.clear()` and `Actor._id_counter = 0` called before user code runs
-- **Canvas size**: Applied AFTER `setup_func()` runs to ensure `g.size()` takes effect
-- **Stop behavior**: Uses `stop()` instead of `clear()` to preserve console output
-- **interrupt_ack mechanism**: `RunnerProvider.tsx:interrupt()` returns a Promise that resolves when the worker acknowledges with `interrupt_ack`, ensuring the worker is fully stopped before code runs again
-- **_loop_generation invalidation**: `_loop_generation` ALWAYS INCREMENTS (never resets to a fixed value). Each run adds +3 to `_loop_generation` (worker initialization: +1, runGraphicsScript: +1, g.run(): +1). Old ticks have smaller `my_generation` values and skip when they see larger `_loop_generation` values. Runs get unique generations (3, 6, 9, 12...) preventing old ticks from executing in new runs.
+1. `useRunButton.handleRunToggle()` reads code and dirty state from `useEditor`
+2. If dirty, calls `saveCurrentProject()` to persist
+3. Calls `clear()` to reset console
+4. (Optional) Lints code; aborts on errors
+5. Calls `run(files, assets, entry)` on the runner
+6. `RunnerProvider.run()` loads assets as ImageBitmaps, transfers to worker
+7. `worker.ts` receives `cmd: "run"`, prepares files in Pyodide FS
+8. Executes via `pyodide.runPythonAsync()`
+9. Stdout/stderr streamed back via postMessage, batched by requestAnimationFrame
 
-### Asset Loading (2026-03-28)
+### Interrupt Mechanism
+
+Two-tier interrupt:
+1. `SharedArrayBuffer(1)` byte set to 2 for fast signal (if available)
+2. `postMessage({ cmd: "interrupt" })` triggers `graphics.stop()` + `graphics._clear()`
+3. Worker sends `interrupt_ack` back
+4. `RunnerProvider.interrupt()` returns a Promise that resolves on ack (or 150ms timeout)
+
+### Loop Generation Invalidation
+
+`_loop_generation` ALWAYS INCREMENTS (never resets). Each run adds +3. Old tick callbacks compare their stored generation against current and skip if stale. Runs get unique generations (3, 6, 9, 12...) preventing old ticks from executing in new runs.
+
+### Key State Clearing (before each run)
+
+- `Actor._registry.clear()` and `Actor._id_counter = 0`
+- `_draw_commands = []`
+- `_loop_generation` incremented
+- Canvas size applied AFTER setup functions run so `g.size()` takes effect
+
+### Asset Loading
 
 **Problem**: SVG sprites couldn't be decoded by `createImageBitmap` in Web Worker context.
 
@@ -456,35 +715,37 @@ npm test
 
 ```
 RunnerProvider.tsx (main thread)
-    ↓ creates ImageBitmap via Image+canvas
+    ↓ creates ImageBitmap via Image + canvas
     ↓ postMessage with transferable
 worker.ts
     ↓ receives ImageBitmap
-    ↓ sets _asset_bitmaps via _shim._ide_build_assets()
+    ↓ stores in module-level runAssets/runAnimations
+    ↓ RGBA pixel buffers extracted on-demand for draw commands
 ```
 
-**Data URL handling**: Assets stored as URL-encoded SVG data URLs (e.g., `data:image/svg+xml,%3csvg...`). Main thread parses and creates ImageBitmap using Image element.
+**Data URL handling**: Assets stored as data URLs. Main thread parses and creates ImageBitmaps.
 
-**_ide_build_assets**: Now accepts a list of (name, bitmap) pairs from `Object.entries()`, strips `.svg` extension from names, and returns SimpleNamespace with `sprites` attribute.
+**JS-side rendering**: `_ide_flush_draw_commands` callback renders directly to OffscreenCanvas 2D context using `canvasRenderer.ts`. ImageBitmaps never cross into Python — only metadata (names, dimensions) and RGBA buffers do.
 
 ---
 
 ## Sprite Editor
 
-### Layout (2026-03-28)
+### Layout
 - Tools on the LEFT side (vertical stack)
-- Canvas on the RIGHT side  
+- Canvas on the RIGHT side
 - Colors/width controls BELOW the canvas
 - Save button in UPPER LEFT corner
-- PNG export removed (only SVG save)
 
 ### Features
-- **Tools**: rectangle, ellipse, line, polygon (click to place points, Enter/click to close), freehand, select (transformer for resize/move)
-- **Color picker**: predefined palette + custom color input (fill and stroke as popovers)
+- **Tools**: select, rectangle, ellipse, line, pen, polygon (click to place points, double-click/Enter to close), text, path-edit
+- **Color picker**: Sweetie 16 predefined palette + custom color input (fill and stroke as popovers)
 - **Stroke width**: 0-4 range
 - **Undo/Redo**: history stack, Ctrl+Z / Ctrl+Shift+Z
 - **Delete**: select + Delete key or trash icon
-- **Save as SVG**: serializes shapes back to SVG format
+- **Grid**: Toggle grid overlay with configurable size
+- **Center point**: Configure rotation center for sprites
+- **Save**: SVG serialization back to sprite format
 
 ---
 
@@ -495,30 +756,17 @@ Privacy-first code sharing for instructor oversight during courses. No accounts 
 
 ### Architecture
 ```
-Student Browser (IDE) ──HTTP──▶ Cloudflare Worker ──KV──▶ Session Storage
-                                           ↑
-Instructor Browser (Dashboard) ──polls for sessions + adds comments
+Student Browser (IDE) ──HTTP──▶ Express Server ──SQLite──▶ Project + Comments Storage
+                                      ↑
+Instructor Browser (Dashboard) ──polls for projects + adds comments
 ```
 
 ### Session Flow
-1. Student clicks "Share" → code + assets zipped → sent to Worker
-2. Worker stores zip in KV with random session ID (e.g., `abc123`)
-3. Student sends link via Zoom: `pi3.app/share/abc123`
-4. Instructor opens share link or dashboard, sees code
-5. Instructor adds comments → stored in KV
-6. Student polls for comments → sees them in IDE
-
-### KV Schema
-```
-share:{session_id} = {
-  code: string,           // zipped project (base64)
-  timestamp: number,       // last update time
-  expires: number         // expiration timestamp (1 hour from last edit)
-}
-comments:{session_id} = [
-  { anchor: string, text: string, timestamp: number }
-]
-```
+1. Student clicks "Share with teacher" → enters teacher's username/email
+2. Project shared via `POST /api/projects/:id/share`
+3. Instructor opens dashboard at `/teacher` or views project at `/teacher/projects/:projectId`
+4. Instructor adds comments → stored in SQLite via `/api/projects/:id/comments`
+5. Student polls for comments → sees them in IDE
 
 ### Comment Anchoring
 Comments are anchored to **content**, not line numbers. This means if student adds/removes lines, comments stay attached to matching code.
@@ -542,21 +790,26 @@ After student adds line above:
 ```
 
 ### Security & Privacy
-- No accounts required
-- Session IDs are random (unpredictable)
-- Data expires automatically (1 hour since last edit)
-- No IP logging
-- Student code is not read by us (only stored for sharing)
+- OAuth-based school accounts or password-based "outsider" accounts
+- Student code accessible only to project owner and explicitly shared teachers
+- Teacher dashboard requires teacher role
+- Group/classroom system for organized classrooms
 
 ---
 
 ## Common Pitfalls
 
-- **`@method` functions require `self`**: `def draw(self):` not `def draw():`
-- **`x`/`y` in config**: Used for initial position, not stored as attributes
-- **Cross-actor references**: Define in main file, not config (e.g., `apple` in `snake_cfg` must be set in `snake.py`)
+- **`draw()` and `update()` hooks**: Override these on Actor subclasses — they are called automatically each frame
+- **Collision requires collider setup**: Call `actor.collider.set_circle(radius)` or `.set_rect(w, h)` before `.collides_with()` works. `Rect` and `Circle` classes auto-configure their colliders.
+- **`Rect`/`Circle` center origin**: Both shapes use `(x, y)` as their **center**, not top-left corner
+- **Angle 0 means right**: `actor.move(distance)` moves to the right at angle 0, down (screen y-axis) as angle increases
 - **Mouse handler signatures**: Must accept `(x, y)` parameters
 - **Linter runs on "Run" click**: Errors are NOT shown while typing, only when you try to run
+- **Actor kwargs**: Only known property names (`x`, `y`, `angle`, `vx`, `vy`, `image`, etc.) go through property setters. Unknown kwargs are set directly on the instance — a typo like `player.x=100, player.y=200, player.vx=5` (instead of `vx=5`) creates a custom attribute, not velocity.
+- **Velocity auto-apply**: `actor.vx` and `actor.vy` are applied automatically each frame. You do NOT need to call `actor.x += actor.vx` in `update()`.
+- **Sheet animations**: For `actor.image = assets.sheet.player`, access animations via `actor.walk.tick()`, not `actor.image.walk.tick()`.
+- **`fill(None)` vs `no_fill()`**: Both disable fill. Use whichever is clearer.
+- **ZIP export loses non-file data**: Tilemaps, animations, sounds, and sprite sheet data are NOT included in project ZIP exports.
 
 ---
 

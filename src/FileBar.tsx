@@ -27,6 +27,7 @@ function FileTab({
   const [hover, setHover] = useState(false);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(name);
+  const { t } = useTranslation();
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -126,10 +127,20 @@ function FileTab({
         />
       )}
       {active && (
-        <span
+        <div
+          role="button"
+          tabIndex={0}
+          aria-label={t('fileBar.closeFile', { filename: name })}
           onClick={(e) => {
             e.stopPropagation();
             onClose();
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              e.stopPropagation();
+              onClose();
+            }
           }}
           style={{
             width: 18,
@@ -140,10 +151,11 @@ function FileTab({
             justifyContent: "center",
             color: theme.panelTxtMute,
             marginLeft: 2,
+            cursor: "pointer",
           }}
         >
           <Icon name="close" size={12} color="currentColor" />
-        </span>
+        </div>
       )}
     </button>
   );

@@ -19,6 +19,7 @@ import {
   Icon,
   type IconName,
 } from "./components/Icons";
+import { CloseButton } from "./components/CloseButton";
 
 import AssetEditor, { type AssetEditorMode } from "./AssetEditor";
 const DocsPanel = lazy(() => import("./components/DocsPanel"));
@@ -112,7 +113,7 @@ function RailButton({
 
 // ── Rail ───────────────────────────────────
 export default function Rail() {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const theme = useThemeStore((s) => s.theme);
   const currentProjectId = useEditor((s) => s.currentProjectId);
   const dirtyFiles = useEditor((s) => s.dirtyFiles);
@@ -459,7 +460,6 @@ export default function Rail() {
             <Suspense fallback={null}>
               <DocsPanel
                 theme={theme}
-                lang={i18n.language}
                 onClose={closePanels}
               />
             </Suspense>
@@ -552,24 +552,7 @@ function PanelHeader({
       >
         {title}
       </div>
-      <button
-        type="button"
-        onClick={onClose}
-        aria-label="Close"
-        style={{
-          all: "unset",
-          cursor: "pointer",
-          width: 30,
-          height: 30,
-          borderRadius: 10,
-          display: "inline-flex",
-          alignItems: "center",
-          justifyContent: "center",
-          color: theme.panelTxtMute,
-        }}
-      >
-        <Icon name="close" size={18} color="currentColor" />
-      </button>
+      <CloseButton theme={theme} onClose={onClose} />
     </div>
   );
 }
@@ -1764,7 +1747,7 @@ function SoundsSubPanel({
 function ToggleRow({
   label,
   hint,
-  on,
+  on: checked,
   theme,
   accent,
   onChange,
@@ -1776,16 +1759,12 @@ function ToggleRow({
   accent?: string;
   onChange?: (v: boolean) => void;
 }) {
-  const [v, setV] = useState(on);
-  const current = v;
   return (
     <button
       type="button"
-      onClick={() => {
-        const next = !v;
-        setV(next);
-        onChange?.(next);
-      }}
+      role="switch"
+      aria-checked={checked}
+      onClick={() => onChange?.(!checked)}
       style={{
         all: "unset",
         cursor: "pointer",
@@ -1829,7 +1808,7 @@ function ToggleRow({
           width: 40,
           height: 24,
           borderRadius: 999,
-          background: current ? (accent || theme.runBg) : theme.panelBorder,
+          background: checked ? (accent || theme.runBg) : theme.panelBorder,
           position: "relative",
           transition: "background 0.18s",
           flex: "none",
@@ -1839,7 +1818,7 @@ function ToggleRow({
           style={{
             position: "absolute",
             top: 3,
-            left: current ? 19 : 3,
+            left: checked ? 19 : 3,
             width: 18,
             height: 18,
             borderRadius: 999,
@@ -1955,6 +1934,11 @@ function SettingsPanel({
           <input
             type="range" min="10" max="24" step="1"
             value={fontSize}
+            aria-label="Font size"
+            aria-valuemin={10}
+            aria-valuemax={24}
+            aria-valuenow={fontSize}
+            aria-valuetext={`${fontSize} pixels`}
             onChange={(e) => setFontSize(+e.target.value)}
             style={{ flex: 1, accentColor: theme.accent }}
           />

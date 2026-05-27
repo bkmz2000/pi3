@@ -14,18 +14,14 @@ export function LoginButton() {
         onClick={() => setOpen(true)}
         style={{
           all: "unset", cursor: "pointer",
-          padding: "6px 16px",
-          borderRadius: 999,
-          background: theme.runBg,
-          color: theme.runTxt,
+          padding: "4px 8px",
           fontFamily: theme.fontUI,
-          fontWeight: 600,
-          fontSize: 12.5,
+          fontWeight: 500,
+          fontSize: 12,
+          color: theme.panelTxtMute,
           display: "inline-flex",
           alignItems: "center",
-          gap: 6,
-          boxShadow: "0 1px 0 rgba(255,255,255,0.15) inset",
-          transition: "opacity 0.15s",
+          transition: "color 0.15s",
         }}
       >
         {t('auth.signIn')}

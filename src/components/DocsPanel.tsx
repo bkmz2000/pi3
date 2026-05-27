@@ -83,9 +83,8 @@ function TabBar({ active, onChange, theme }: { active: TabId; onChange: (t: TabI
   );
 }
 
-function ParamTable({ entry, lang, theme }: { entry: DocEntry; lang: string; theme: Theme }) {
+function ParamTable({ entry, theme }: { entry: DocEntry; theme: Theme }) {
   const { t } = useTranslation();
-  const isRu = lang.startsWith("ru");
   if (!entry.params || entry.params.length === 0) return null;
 
   const col: React.CSSProperties = {
@@ -134,7 +133,7 @@ function ParamTable({ entry, lang, theme }: { entry: DocEntry; lang: string; the
               </td>
               <td style={colMute}>{p.type}</td>
               <td style={{ ...colMute, fontFamily: theme.fontUI, fontSize: 12 }}>
-                {isRu ? p.ru : p.en}
+                {t(`docs.content.ref_${entry.id}_param_${p.name}`, p.en)}
               </td>
             </tr>
           ))}
@@ -145,7 +144,7 @@ function ParamTable({ entry, lang, theme }: { entry: DocEntry; lang: string; the
           <span style={{ fontWeight: theme.weightHeader }}>{t("docs.returns")}: </span>
           <span style={{ fontFamily: theme.fontMono, fontSize: 11, color: theme.accent }}>{entry.returns.type}</span>
           {" — "}
-          {isRu ? entry.returns.ru : entry.returns.en}
+          {t(`docs.content.ref_${entry.id}_returns`, entry.returns.en)}
         </div>
       )}
     </div>
@@ -215,10 +214,9 @@ function SwatchGrid({ swatches, theme }: { swatches: DocSwatch[]; theme: Theme }
   );
 }
 
-function AdvancedNote({ entry, lang, theme }: { entry: DocEntry; lang: string; theme: Theme }) {
+function AdvancedNote({ entry, theme }: { entry: DocEntry; theme: Theme }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
-  const isRu = lang.startsWith('ru');
   if (!entry.advanced) return null;
   return (
     <div style={{ marginTop: 8 }}>
@@ -238,7 +236,7 @@ function AdvancedNote({ entry, lang, theme }: { entry: DocEntry; lang: string; t
       </button>
       {open && (
         <div style={{ marginTop: 6, fontFamily: theme.fontUI, fontSize: 12.5, color: theme.panelTxtMute, lineHeight: 1.55 }}>
-          {isRu ? entry.advanced.ru : entry.advanced.en}
+          {t(`docs.content.ref_${entry.id}_advanced`, entry.advanced.en)}
         </div>
       )}
     </div>
@@ -249,20 +247,19 @@ function EntryRow({
   entry,
   isOpen,
   onToggle,
-  lang,
   theme,
   depth = 0,
 }: {
   entry: DocEntry;
   isOpen: boolean;
   onToggle: () => void;
-  lang: string;
   theme: Theme;
   depth?: number;
 }) {
-  const isRu = lang.startsWith("ru");
+  const { t } = useTranslation();
   const leftPad = 14 + depth * 14;
   const expandedLeftPad = 14 + depth * 14;
+  const descKey = `docs.content.ref_${entry.id}`;
   return (
     <div>
       <button
@@ -298,7 +295,7 @@ function EntryRow({
             {entry.signature}
           </div>
           <div style={{ fontFamily: theme.fontUI, fontSize: 12, color: theme.panelTxtMute, marginTop: 1 }}>
-            {isRu ? entry.ru : entry.en}
+            {t(descKey, entry.en)}
           </div>
         </div>
       </button>
@@ -311,12 +308,12 @@ function EntryRow({
           }}
         >
           <div style={{ fontFamily: theme.fontUI, fontSize: 13, color: theme.panelTxt, lineHeight: 1.5 }}>
-            {isRu ? entry.ru : entry.en}
+            {t(descKey, entry.en)}
           </div>
           {entry.example && <ExampleBlock code={entry.example} theme={theme} />}
           {entry.swatches && <SwatchGrid swatches={entry.swatches} theme={theme} />}
-          <ParamTable entry={entry} lang={lang} theme={theme} />
-          {entry.advanced && <AdvancedNote entry={entry} lang={lang} theme={theme} />}
+          <ParamTable entry={entry} theme={theme} />
+          {entry.advanced && <AdvancedNote entry={entry} theme={theme} />}
         </div>
       )}
     </div>
@@ -378,7 +375,6 @@ function CategorySection({
   onToggle,
   openEntry,
   onEntryToggle,
-  lang,
   theme,
 }: {
   category: DocCategory;
@@ -386,13 +382,13 @@ function CategorySection({
   onToggle: () => void;
   openEntry: string | null;
   onEntryToggle: (id: string) => void;
-  lang: string;
   theme: Theme;
 }) {
-  const isRu = lang.startsWith("ru");
+  const { t } = useTranslation();
+  const catKey = `docs.content.cat_${category.id}`;
   return (
     <div>
-      <SectionHeader label={isRu ? category.ru : category.en} isOpen={isOpen} onToggle={onToggle} theme={theme} />
+      <SectionHeader label={t(catKey, category.en)} isOpen={isOpen} onToggle={onToggle} theme={theme} />
       {isOpen && (
         <NestedGroup theme={theme}>
           {category.entries.map((entry) => (
@@ -401,7 +397,6 @@ function CategorySection({
               entry={entry}
               isOpen={openEntry === entry.id}
               onToggle={() => onEntryToggle(entry.id)}
-              lang={lang}
               theme={theme}
               depth={1}
             />
@@ -412,9 +407,10 @@ function CategorySection({
   );
 }
 
-function ConceptRow({ concept, isOpen, onToggle, lang, theme }: { concept: DocConcept; isOpen: boolean; onToggle: () => void; lang: string; theme: Theme }) {
-  const isRu = lang.startsWith("ru");
-  const side = isRu ? concept.ru : concept.en;
+function ConceptRow({ concept, isOpen, onToggle, theme }: { concept: DocConcept; isOpen: boolean; onToggle: () => void; theme: Theme }) {
+  const { t } = useTranslation();
+  const titleKey = `docs.content.concept_${concept.id}_title`;
+  const bodyKey = `docs.content.concept_${concept.id}_body`;
   return (
     <div>
       <button
@@ -434,11 +430,11 @@ function ConceptRow({ concept, isOpen, onToggle, lang, theme }: { concept: DocCo
         }}
       >
         <span style={{ marginTop: 3, color: theme.panelTxtMute, flexShrink: 0, transform: isOpen ? "rotate(90deg)" : "rotate(0deg)", display: "inline-block", fontSize: 10 }}>▶</span>
-        <span style={{ fontFamily: theme.fontUI, fontSize: 13, color: theme.panelTxt, fontWeight: theme.weightHeader }}>{side.title}</span>
+        <span style={{ fontFamily: theme.fontUI, fontSize: 13, color: theme.panelTxt, fontWeight: theme.weightHeader }}>{t(titleKey, concept.en.title)}</span>
       </button>
       {isOpen && (
         <div style={{ padding: "10px 14px 12px 14px", background: theme.surfacePanel, borderBottom: `1px solid ${theme.panelBorder}` }}>
-          <div style={{ fontFamily: theme.fontUI, fontSize: 13, color: theme.panelTxt, lineHeight: 1.55 }}>{side.body}</div>
+          <div style={{ fontFamily: theme.fontUI, fontSize: 13, color: theme.panelTxt, lineHeight: 1.55 }}>{t(bodyKey, concept.en.body)}</div>
           {concept.example && <ExampleBlock code={concept.example} theme={theme} />}
         </div>
       )}
@@ -453,7 +449,6 @@ function RecipeRow({
   openEntry,
   onEntryToggle,
   entryById,
-  lang,
   theme,
 }: {
   recipe: DocRecipe;
@@ -462,11 +457,11 @@ function RecipeRow({
   openEntry: string | null;
   onEntryToggle: (id: string) => void;
   entryById: Map<string, DocEntry>;
-  lang: string;
   theme: Theme;
 }) {
-  const isRu = lang.startsWith("ru");
-  const side = isRu ? recipe.ru : recipe.en;
+  const { t } = useTranslation();
+  const titleKey = `docs.content.recipe_${recipe.id}_title`;
+  const introKey = `docs.content.recipe_${recipe.id}_intro`;
   return (
     <div>
       <button
@@ -487,8 +482,8 @@ function RecipeRow({
       >
         <span style={{ marginTop: 3, color: theme.panelTxtMute, flexShrink: 0, transform: isOpen ? "rotate(90deg)" : "rotate(0deg)", display: "inline-block", fontSize: 10 }}>▶</span>
         <div style={{ minWidth: 0 }}>
-          <div style={{ fontFamily: theme.fontUI, fontSize: 13, color: theme.panelTxt, fontWeight: theme.weightHeader }}>{side.title}</div>
-          <div style={{ fontFamily: theme.fontUI, fontSize: 12, color: theme.panelTxtMute, marginTop: 1 }}>{side.intro}</div>
+          <div style={{ fontFamily: theme.fontUI, fontSize: 13, color: theme.panelTxt, fontWeight: theme.weightHeader }}>{t(titleKey, recipe.en.title)}</div>
+          <div style={{ fontFamily: theme.fontUI, fontSize: 12, color: theme.panelTxtMute, marginTop: 1 }}>{t(introKey, recipe.en.intro)}</div>
         </div>
       </button>
       {isOpen && (
@@ -502,7 +497,6 @@ function RecipeRow({
               entry={entry}
               isOpen={openEntry === `${recipe.id}:${eid}`}
               onToggle={() => onEntryToggle(`${recipe.id}:${eid}`)}
-              lang={lang}
               theme={theme}
               depth={2}
             />
@@ -516,11 +510,9 @@ function RecipeRow({
 
 export default function DocsPanel({
   theme,
-  lang,
   onClose,
 }: {
   theme: Theme;
-  lang: string;
   onClose: () => void;
 }) {
   const { t } = useTranslation();
@@ -568,7 +560,6 @@ export default function DocsPanel({
               concept={c}
               isOpen={openConcept === c.id}
               onToggle={() => setOpenConcept((prev) => (prev === c.id ? null : c.id))}
-              lang={lang}
               theme={theme}
             />
           ))}
@@ -580,7 +571,7 @@ export default function DocsPanel({
             return (
               <div key={section.id}>
                 <SectionHeader
-                  label={lang.startsWith("ru") ? section.ru : section.en}
+                  label={t(`docs.content.section_${section.id}`, section.en)}
                   isOpen={isOpen}
                   onToggle={() => toggleSection(section.id)}
                   theme={theme}
@@ -598,7 +589,6 @@ export default function DocsPanel({
                       openEntry={openRecipeEntry}
                       onEntryToggle={(eid) => setOpenRecipeEntry((prev) => (prev === eid ? null : eid))}
                       entryById={entryById}
-                      lang={lang}
                       theme={theme}
                     />
                   ))}
@@ -615,7 +605,6 @@ export default function DocsPanel({
               onToggle={() => toggleCategory(category.id)}
               openEntry={openEntry}
               onEntryToggle={(id) => setOpenEntry((prev) => (prev === id ? null : id))}
-              lang={lang}
               theme={theme}
             />
           ))}

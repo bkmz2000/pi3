@@ -12,6 +12,8 @@ import { createGraphicsExtensions, reconfigureGraphicsExtensions } from "./edito
 import Rail from "./SideMenu";
 import { useEditor, useIde } from "./state/IdeState";
 import { getProject, getComments, type ApiComment } from "./state/api";
+import { projectStorage } from "./utils/storage";
+import { useOnlineSync } from "./hooks/useOnlineSync";
 import FileBar from "./FileBar";
 import { useRunner } from "./runner/RunnerProvider";
 import CanvasWindow from "./CanvasWindow";
@@ -29,12 +31,73 @@ import { useThemeStore } from "./state/useTheme";
 import { ToastContainer } from "./components/ToastContainer";
 import { SaveErrorIndicator } from "./components/SaveErrorIndicator";
 import { githubLight, githubDark } from "@uiw/codemirror-theme-github";
+import { readAnonStash, clearAnonStash } from "./utils/anonStash";
 
 function SessionChecker() {
   const checkSession = useUser((s) => s.checkSession);
   useEffect(() => {
     checkSession();
   }, [checkSession]);
+  return null;
+}
+
+function AnonStashLoader() {
+  const changeCurrentProject = useEditor((s) => s.changeCurrentProject);
+  const currentProjectId = useEditor((s) => s.currentProjectId);
+  const ran = useRef(false);
+
+  useEffect(() => {
+    if (ran.current) return;
+    ran.current = true;
+
+    // Only restore if no project is already loaded (no URL param)
+    if (currentProjectId) return;
+
+    const stash = readAnonStash();
+    if (!stash) return;
+
+    const sessionId = stash.exampleName
+      ? `__example_session_${stash.exampleName}`
+      : "__example_session_untitled";
+
+    changeCurrentProject(stash.project, sessionId);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return null;
+}
+
+function ClaimOnLogin() {
+  const authState = useUser((s) => s.authState);
+  const changeCurrentProject = useEditor((s) => s.changeCurrentProject);
+  const forkExample = useIde((s) => s.forkExample);
+  const prevAuthState = useRef(authState);
+  const claimed = useRef(false);
+
+  useEffect(() => {
+    if (prevAuthState.current === 'logged_in' || authState !== 'logged_in') {
+      prevAuthState.current = authState;
+      return;
+    }
+    prevAuthState.current = authState;
+    if (claimed.current) return;
+    claimed.current = true;
+
+    const stash = readAnonStash();
+    if (!stash) return;
+
+    const name = stash.exampleName?.replace(/^__example_session_/, '') || 'untitled';
+
+    forkExample(name, stash.project, `${name} (saved work)`).then((forked) => {
+      if (forked) {
+        changeCurrentProject(
+          { ...stash.project, name: forked.name },
+          forked.id,
+        );
+        clearAnonStash();
+      }
+    }).catch(() => {});
+  }, [authState]); // eslint-disable-line react-hooks/exhaustive-deps
+
   return null;
 }
 
@@ -50,9 +113,21 @@ function ProjectLoader() {
     }
 
     let cancelled = false;
-    getProject(projectId)
-      .then((apiProject) => {
+
+    const loadFromApi = async () => {
+      try {
+        const apiProject = await getProject(projectId);
         if (cancelled) return;
+        // Cache full content locally
+        projectStorage.cacheProjectContent(projectId, {
+          files: apiProject.files,
+          assets: apiProject.assets,
+          tilemaps: apiProject.tilemaps ?? {},
+          animations: apiProject.animations ?? {},
+          sounds: apiProject.sounds ?? {},
+          sheet: apiProject.sheet,
+          currentFile: apiProject.current_file,
+        }).catch(() => {});
         changeCurrentProject(
           {
             name: apiProject.name,
@@ -65,12 +140,36 @@ function ProjectLoader() {
           projectId,
         );
         setLoaded(true);
-      })
-      .catch((err) => {
+      } catch (apiErr) {
         if (cancelled) return;
-        console.error("Failed to load project:", err);
+        // Try local cache as fallback
+        try {
+          const cached = await projectStorage.getCachedProjectContent(projectId);
+          if (cancelled) return;
+          if (cached) {
+            console.log("Loaded project from local cache");
+            changeCurrentProject(
+              {
+                name: projectId,
+                files: cached.files,
+                assets: cached.assets,
+                tilemaps: cached.tilemaps as Record<string, import("./state/IdeState").TilemapData>,
+                animations: cached.animations as Record<string, import("./state/IdeState").AnimationData>,
+                currentFile: cached.currentFile ?? Object.keys(cached.files)[0],
+              },
+              projectId,
+            );
+          } else {
+            console.error("Failed to load project, not in cache:", apiErr);
+          }
+        } catch (cacheErr) {
+          console.error("Failed to load project from cache:", cacheErr);
+        }
         setLoaded(true);
-      });
+      }
+    };
+
+    loadFromApi();
 
     return () => { cancelled = true; };
   }, [projectId, changeCurrentProject]);
@@ -81,6 +180,7 @@ function ProjectLoader() {
 
 
 function AppInner() {
+  useOnlineSync();
   const changeFile = useEditor((s) => s.changeFile);
   const currentFile = useEditor((s) => s.currentFile);
   const project = useEditor((s) => s.project);
@@ -107,6 +207,7 @@ function AppInner() {
   const [selectedLine, setSelectedLine] = useState<number | null>(null);
   const [anchorY, setAnchorY] = useState<number | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [savedFlash, setSavedFlash] = useState(false);
   const editorRef = useRef<ReactCodeMirrorRef>(null);
 
   useEffect(() => {
@@ -186,7 +287,13 @@ function AppInner() {
         const success = await saveCurrentProject();
         if (success) {
           markClean();
+          setSavedFlash(true);
+          setTimeout(() => setSavedFlash(false), 1200);
         }
+      } else if (currentProjectId) {
+        // Nothing to save, but give explicit feedback so Ctrl+S feels acknowledged.
+        setSavedFlash(true);
+        setTimeout(() => setSavedFlash(false), 1200);
       }
     }
   }, [currentProjectId, dirtyFiles, saveCurrentProject, markClean]);
@@ -383,6 +490,11 @@ function AppInner() {
           onSave={handleForkSave}
         />
       )}
+      {savedFlash && (
+        <div style={{ position: "fixed", bottom: 20, left: "50%", transform: "translateX(-50%)", zIndex: 9999, padding: "6px 14px", borderRadius: 6, fontSize: 12, color: "#fff", background: "rgba(40,140,90,0.95)", boxShadow: "0 2px 8px rgba(0,0,0,0.25)", pointerEvents: "none" }}>
+          Saved
+        </div>
+      )}
     </div>
   );
 }
@@ -391,6 +503,8 @@ export default function App() {
   return (
     <>
       <SessionChecker />
+      <AnonStashLoader />
+      <ClaimOnLogin />
       <Routes>
         <Route path="/projects" element={<ProjectsPage />} />
         <Route path="/teacher" element={<TeacherDashboard />} />

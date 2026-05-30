@@ -21,13 +21,13 @@ import ShipSvg from "../assets/examples/asteroids/assets/ship.svg?url";
 import BulletSvg from "../assets/examples/asteroids/assets/bullet.svg?url";
 import BigAsteroidSvg from "../assets/examples/asteroids/assets/big_asteroid.svg?url";
 import SmallAsteroidSvg from "../assets/examples/asteroids/assets/small_asteroid.svg?url";
-import { projectStorage } from "../utils/storage";
+import { projectStorage, isOnline } from "../utils/storage";
 import { importProjectFromFile as importZipFile } from "../utils/zip";
 import { getProjects, createProject as apiCreateProject, updateProject as apiUpdateProject, deleteProject as apiDeleteProject, saveProjectContent, Project as ApiProject } from "./api";
 import { toEditorProject } from "./projectNormalization";
 import { writeAnonStash } from "../utils/anonStash";
 
-export type PanelId = "projects" | "assets" | "tilemaps" | "animations" | "settings" | "docs" | null;
+export type PanelId = "projects" | "assets" | "settings" | "docs" | null;
 
 export type TilemapLayer = {
   name: string;
@@ -60,6 +60,7 @@ export type SheetAnimationStrip = {
   frameW: number;
   frameH: number;
   frameCount: number;
+  fps?: number;
 };
 
 export type SheetSpriteEntry = {
@@ -86,6 +87,12 @@ export function isExampleSessionId(id: string | null | undefined): boolean {
 
 export function exampleNameFromSessionId(id: string): string {
   return id.slice(EXAMPLE_SESSION_PREFIX.length);
+}
+
+function ensureSessionId(s: EditorState): { currentProjectId: string } | Record<string, never> {
+  if (s.currentProjectId !== null) return {};
+  const exampleName = Object.keys(Examples).find((key) => Examples[key] === s.project);
+  return { currentProjectId: exampleName ? `${EXAMPLE_SESSION_PREFIX}${exampleName}` : `${EXAMPLE_SESSION_PREFIX}untitled` };
 }
 
 export type Project = {
@@ -236,6 +243,15 @@ export const useEditor = create<EditorState>((set) => ({
           // Mark as cloned session so re-opens show fresh example
           return { project, dirtyFiles: dirty, currentProjectId: `${EXAMPLE_SESSION_PREFIX}${exampleName}` };
         }
+
+        // Non-example project (blank, ZIP import, etc.) — generate a session ID
+        // so saves persist to anonymous stash.
+        const sessionId = `${EXAMPLE_SESSION_PREFIX}untitled`;
+        const files = { ...s.project.files, [name]: text };
+        const project = { ...s.project, files };
+        const dirty = new Set(s.dirtyFiles);
+        dirty.add(name);
+        return { project, dirtyFiles: dirty, currentProjectId: sessionId };
       }
 
       const files = { ...s.project.files, [name]: text };
@@ -295,7 +311,7 @@ export const useEditor = create<EditorState>((set) => ({
       assets[name] = url;
       const dirty = new Set(s.dirtyFiles);
       dirty.add("*assets*");
-      return { project: { ...s.project, assets }, dirtyFiles: dirty };
+      return { project: { ...s.project, assets }, dirtyFiles: dirty, ...ensureSessionId(s) };
     }),
 
   toggleAsset: (name, url) =>
@@ -310,7 +326,7 @@ export const useEditor = create<EditorState>((set) => ({
       const dirty = new Set(s.dirtyFiles);
       dirty.add("*assets*");
 
-      return { ...s, project: { ...s.project, assets }, dirtyFiles: dirty };
+      return { ...s, project: { ...s.project, assets }, dirtyFiles: dirty, ...ensureSessionId(s) };
     }),
 
   addAssetInstance: (baseName, url) =>
@@ -325,7 +341,7 @@ export const useEditor = create<EditorState>((set) => ({
       assets[key] = url;
       const dirty = new Set(s.dirtyFiles);
       dirty.add("*assets*");
-      return { ...s, project: { ...s.project, assets }, dirtyFiles: dirty };
+      return { ...s, project: { ...s.project, assets }, dirtyFiles: dirty, ...ensureSessionId(s) };
     }),
 
   removeAsset: (instanceName) =>
@@ -334,7 +350,7 @@ export const useEditor = create<EditorState>((set) => ({
       delete assets[instanceName];
       const dirty = new Set(s.dirtyFiles);
       dirty.add("*assets*");
-      return { ...s, project: { ...s.project, assets }, dirtyFiles: dirty };
+      return { ...s, project: { ...s.project, assets }, dirtyFiles: dirty, ...ensureSessionId(s) };
     }),
 
   saveTilemap: (name, data) =>
@@ -342,7 +358,7 @@ export const useEditor = create<EditorState>((set) => ({
       const tilemaps = { ...(s.project.tilemaps ?? {}), [name]: data };
       const dirty = new Set(s.dirtyFiles);
       dirty.add("*tilemaps*");
-      return { project: { ...s.project, tilemaps }, dirtyFiles: dirty };
+      return { project: { ...s.project, tilemaps }, dirtyFiles: dirty, ...ensureSessionId(s) };
     }),
 
   deleteTilemap: (name) =>
@@ -351,7 +367,7 @@ export const useEditor = create<EditorState>((set) => ({
       delete tilemaps[name];
       const dirty = new Set(s.dirtyFiles);
       dirty.add("*tilemaps*");
-      return { project: { ...s.project, tilemaps }, dirtyFiles: dirty };
+      return { project: { ...s.project, tilemaps }, dirtyFiles: dirty, ...ensureSessionId(s) };
     }),
 
   saveAnimation: (name, data) =>
@@ -359,7 +375,7 @@ export const useEditor = create<EditorState>((set) => ({
       const animations = { ...(s.project.animations ?? {}), [name]: data };
       const dirty = new Set(s.dirtyFiles);
       dirty.add("*animations*");
-      return { project: { ...s.project, animations }, dirtyFiles: dirty };
+      return { project: { ...s.project, animations }, dirtyFiles: dirty, ...ensureSessionId(s) };
     }),
 
   deleteAnimation: (name) =>
@@ -368,7 +384,7 @@ export const useEditor = create<EditorState>((set) => ({
       delete animations[name];
       const dirty = new Set(s.dirtyFiles);
       dirty.add("*animations*");
-      return { project: { ...s.project, animations }, dirtyFiles: dirty };
+      return { project: { ...s.project, animations }, dirtyFiles: dirty, ...ensureSessionId(s) };
     }),
 
   addSound: (name, url) =>
@@ -385,7 +401,7 @@ export const useEditor = create<EditorState>((set) => ({
       sounds[key] = url;
       const dirty = new Set(s.dirtyFiles);
       dirty.add("*sounds*");
-      return { project: { ...s.project, sounds }, dirtyFiles: dirty };
+      return { project: { ...s.project, sounds }, dirtyFiles: dirty, ...ensureSessionId(s) };
     }),
 
   removeSound: (name) =>
@@ -394,14 +410,14 @@ export const useEditor = create<EditorState>((set) => ({
       delete sounds[name];
       const dirty = new Set(s.dirtyFiles);
       dirty.add("*sounds*");
-      return { project: { ...s.project, sounds }, dirtyFiles: dirty };
+      return { project: { ...s.project, sounds }, dirtyFiles: dirty, ...ensureSessionId(s) };
     }),
 
   setSheet: (data) =>
     set((s) => {
       const dirty = new Set(s.dirtyFiles);
       dirty.add("*sheet*");
-      return { project: { ...s.project, sheet: data }, dirtyFiles: dirty };
+      return { project: { ...s.project, sheet: data }, dirtyFiles: dirty, ...ensureSessionId(s) };
     }),
 
   markClean: () => set({ dirtyFiles: new Set() }),
@@ -433,7 +449,9 @@ type IdeState = {
   renameUserProject: (id: string, newName: string) => Promise<void>;
   forkExample: (exampleName: string, exampleProject: Project, newName?: string) => Promise<ApiProject>;
   saveCurrentProject: () => Promise<boolean>;
+  syncQueuedSaves: () => Promise<void>;
   downloadProject: (id: string) => Promise<void>;
+  downloadAsHtml: () => Promise<void>;
   importProjectFromFile: (file: File) => Promise<ApiProject>;
   setSaveError: (error: SaveError | null) => void;
   setShowHitboxes: (show: boolean) => void;
@@ -487,13 +505,13 @@ export const useIde = create<IdeState>((set, get) => ({
     try {
       const userProjects = await getProjects();
       set({ userProjects, loading: false, fromCache: false });
-      // Cache in IndexedDB for offline fallback
-      projectStorage.cacheProjects(userProjects as unknown as Record<string, unknown>[]).catch(() => {});
+      // Cache metadata in IndexedDB for offline fallback
+      projectStorage.cacheProjectMeta(userProjects as unknown as Record<string, unknown>[]).catch(() => {});
     } catch (error) {
       console.error("Failed to load user projects, trying cache:", error);
       // Fall back to IndexedDB cache
       try {
-        const cached = await projectStorage.getUserProjects();
+        const cached = await projectStorage.getCachedProjectMeta();
         set({ userProjects: cached as unknown as ApiProject[], loading: false, fromCache: true });
       } catch {
         set({ loading: false, fromCache: false });
@@ -549,7 +567,7 @@ export const useIde = create<IdeState>((set, get) => ({
   },
 
   saveCurrentProject: async () => {
-    const { currentProjectId, project } = useEditor.getState();
+    const { currentProjectId, project, currentFile } = useEditor.getState();
     if (!currentProjectId) return false;
 
     // Example-session: persist to the anonymous stash. No API call, no
@@ -563,33 +581,101 @@ export const useIde = create<IdeState>((set, get) => ({
       return true;
     }
 
+    // Always cache full content locally (offline resilience)
+    const content = {
+      files: project.files,
+      assets: project.assets,
+      tilemaps: project.tilemaps,
+      animations: project.animations,
+      sounds: project.sounds ?? {},
+      sheet: project.sheet,
+      currentFile,
+    };
+    projectStorage.cacheProjectContent(currentProjectId, content).catch(() => {});
+
+    // If offline, queue the save for later sync
+    if (!isOnline()) {
+      await projectStorage.queueSave({ id: currentProjectId, ...content, savedAt: Date.now() });
+      set({ saveError: { kind: "network", message: "Offline — saved locally, will sync when online" } });
+      return true;
+    }
+
     try {
-      await saveProjectContent(currentProjectId, {
-        files: project.files,
-        assets: project.assets,
-        tilemaps: project.tilemaps,
-        animations: project.animations,
-        sounds: project.sounds,
-        sheet: project.sheet,
-        currentFile: useEditor.getState().currentFile,
-      });
+      await saveProjectContent(currentProjectId, content);
 
       // Update the local cache
       const { userProjects } = get();
       set({
-        userProjects: userProjects.map((p) =>
-          p.id === currentProjectId
-            ? { ...p, files: project.files, assets: project.assets, updated_at: Date.now() }
-            : p
-        ),
+        userProjects: userProjects.map((p) => {
+          if (p.id !== currentProjectId) return p;
+          const updated: Record<string, unknown> = {
+            ...p,
+            files: project.files,
+            assets: project.assets,
+            tilemaps: project.tilemaps,
+            animations: project.animations,
+            updated_at: Date.now(),
+          };
+          if (project.sounds) updated.sounds = project.sounds;
+          if (project.sheet) updated.sheet = project.sheet;
+          return updated as unknown as ApiProject;
+        }),
         saveError: null,
       });
       return true;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Failed to save project";
-      const kind: SaveErrorKind = errorMessage === 'Unauthorized' ? 'auth' : 'network';
+      const kind: SaveErrorKind = errorMessage === "Unauthorized" ? "auth" : "network";
+      if (kind === "network") {
+        await projectStorage.queueSave({ id: currentProjectId, ...content, savedAt: Date.now() });
+      }
+      if (kind === "auth") {
+        // Not logged in — persist locally so work is never lost.
+        // IndexedDB cache was written above; also write to anonymous stash.
+        writeAnonStash({
+          exampleName: currentProjectId,
+          project,
+        });
+      }
       set({ saveError: { kind, message: errorMessage } });
-      return false;
+      // Return true for both network and auth — the local cache has the data.
+      return true;
+    }
+  },
+
+  syncQueuedSaves: async () => {
+    if (!isOnline()) return;
+    const queued = await projectStorage.getQueuedSaves();
+    if (queued.length === 0) return;
+
+    for (const q of queued) {
+      try {
+        await saveProjectContent(q.content.id, {
+          files: q.content.files,
+          assets: q.content.assets,
+          tilemaps: q.content.tilemaps,
+          animations: q.content.animations,
+          sounds: q.content.sounds,
+          sheet: q.content.sheet,
+          currentFile: q.content.currentFile,
+        });
+        await projectStorage.removeQueuedSave(q.id);
+      } catch (err) {
+        // If still failing (e.g. offline), stop trying
+        if (!isOnline() || (err instanceof Error && err.message === "Unauthorized")) break;
+        console.warn("Failed to sync queued save, will retry:", err);
+        break;
+      }
+    }
+
+    // Refresh userProjects after sync
+    const { currentProjectId } = useEditor.getState();
+    if (currentProjectId && !isExampleSessionId(currentProjectId)) {
+      try {
+        const refreshed = await getProjects();
+        set({ userProjects: refreshed });
+        projectStorage.cacheProjectMeta(refreshed as unknown as Record<string, unknown>[]).catch(() => {});
+      } catch { /* refresh failed, keep current state */ }
     }
   },
 
@@ -597,6 +683,41 @@ export const useIde = create<IdeState>((set, get) => ({
 
   downloadProject: async (id: string) => {
     await projectStorage.downloadProjectZip(id);
+  },
+
+  downloadAsHtml: async () => {
+    const editor = useEditor.getState();
+    const { currentProjectId, project } = editor;
+    const ide = get();
+    const id = currentProjectId || "untitled";
+    const name = currentProjectId
+      ? (ide.userProjects.find((p) => p.id === currentProjectId)?.name || project.name || "project")
+      : (project.name || "example");
+
+    const { generateHtmlExport } = await import("../utils/htmlExport");
+    const files = Object.entries(project.files).map(([fname, content]) => ({ name: fname, content }));
+    const html = await generateHtmlExport({
+      id,
+      name,
+      files,
+      assets: project.assets,
+      tilemaps: project.tilemaps,
+      animations: project.animations,
+      sounds: project.sounds || {},
+      sheet: project.sheet,
+      updatedAt: new Date().toISOString(),
+      currentFile: editor.currentFile,
+    });
+
+    const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${name.replace(/[^\w.-]+/g, "_")}.html`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
   },
 
   importProjectFromFile: async (file: File) => {
@@ -626,8 +747,11 @@ export const useIde = create<IdeState>((set, get) => ({
       name: importedProject.name,
       files,
       assets,
-      animations: {},
       currentFile: importedProject.currentFile,
+      tilemaps: importedProject.tilemaps || {},
+      animations: importedProject.animations || {},
+      sounds: importedProject.sounds || {},
+      sheet: importedProject.sheet,
     });
 
     const { userProjects } = get();

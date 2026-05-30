@@ -292,6 +292,9 @@ export type IconName =
   | "circle"
   | "line"
   | "pencil"
+  | "eraser"
+  | "darken"
+  | "lighten"
   | "polygon"
   | "text"
   | "undo"
@@ -306,7 +309,9 @@ export type IconName =
   | "frame"
   | "filter"
   | "hand"
-  | "camera";
+  | "camera"
+  | "save"
+  | "speaker";
 
 export function Icon({ name, ...props }: IconProps & { name: IconName }) {
   switch (name) {
@@ -327,6 +332,9 @@ export function Icon({ name, ...props }: IconProps & { name: IconName }) {
     case "circle": return <IconCircle {...props} />;
     case "line": return <IconLine {...props} />;
     case "pencil": return <IconPencil {...props} />;
+    case "eraser": return <IconEraser {...props} />;
+    case "darken": return <IconDarken {...props} />;
+    case "lighten": return <IconLighten {...props} />;
     case "polygon": return <IconPolygon {...props} />;
     case "text": return <IconText {...props} />;
     case "undo": return <IconUndo {...props} />;
@@ -342,7 +350,40 @@ export function Icon({ name, ...props }: IconProps & { name: IconName }) {
     case "filter": return <IconFilter {...props} />;
     case "hand": return <IconHand {...props} />;
     case "camera": return <IconCamera {...props} />;
+    case "save": return <IconSave {...props} />;
+    case "speaker": return <IconSpeaker {...props} />;
   }
+}
+
+export function IconEraser({ size = 22, ...rest }: IconProps) {
+  const c = rest.color || "currentColor";
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <path d="M3 19h18" stroke={c} strokeWidth="1.6" strokeLinecap="round" />
+      <path d="M5 19L3.5 14l7-7 7 7-3.5 5H5Z" stroke={c} strokeWidth="1.5" strokeLinejoin="round" />
+      <path d="M10.5 7l4 4M7 12.5l2.5 2" stroke={c} strokeWidth="1.2" strokeLinecap="round" opacity="0.5" />
+    </svg>
+  );
+}
+
+export function IconDarken({ size = 22, ...rest }: IconProps) {
+  const c = rest.color || "currentColor";
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <circle cx="12" cy="12" r="7.5" stroke={c} strokeWidth="1.5" />
+      <path d="M12 4.5 A7.5 7.5 0 0 1 12 19.5 Z" fill={c} />
+    </svg>
+  );
+}
+
+export function IconLighten({ size = 22, ...rest }: IconProps) {
+  const c = rest.color || "currentColor";
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <circle cx="12" cy="12" r="7.5" stroke={c} strokeWidth="1.5" />
+      <path d="M12 4.5 A7.5 7.5 0 0 0 12 19.5 Z" fill={c} />
+    </svg>
+  );
 }
 
 function IconCamera({ size = 22, ...rest }: IconProps) {
@@ -351,6 +392,26 @@ function IconCamera({ size = 22, ...rest }: IconProps) {
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <path d="M4 8h3l2-2h6l2 2h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z" stroke={c} strokeWidth="1.6" strokeLinejoin="round"/>
       <circle cx="12" cy="13" r="3.2" stroke={c} strokeWidth="1.6"/>
+    </svg>
+  );
+}
+
+function IconSave({ size = 22, ...rest }: IconProps) {
+  const c = rest.color || "currentColor";
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+      <polyline points="17 21 17 13 7 13 7 21" />
+      <polyline points="7 3 7 8 15 8" />
+    </svg>
+  );
+}
+
+function IconSpeaker({ size = 22, ...rest }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...s(rest)}>
+      <path d="M4 9v6h4l5 4V5L8 9H4Z" />
+      <path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8 8 0 0 1 0 12" />
     </svg>
   );
 }

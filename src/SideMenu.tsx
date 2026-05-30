@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, lazy, Suspense } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
-import { packAssetsByMeta, type Category, type Perspective } from "./state/assets";
+import { packAssetsByMeta, type Category, type Perspective, BUILTIN_SOUNDS } from "./state/assets";
 import { useIde, useEditor, type TilemapData } from "./state/IdeState";
 import { useRunner } from "./runner/RunnerProvider";
 import { useRunButton } from "./hooks/useRunButton";
@@ -143,12 +143,9 @@ export default function Rail() {
   const { ready } = useRunner();
   const { running, handleRunToggle } = useRunButton();
   const {
-    projects,
     userProjects,
     loading,
     loadUserProjects,
-    handleOpenExample,
-    handleForkExample,
     handleNewProject,
     handleDeleteProject,
     downloadProject,
@@ -311,27 +308,13 @@ export default function Rail() {
           </button>
         </div>
 
+        <div style={{ width: 26, height: 1, background: "rgba(148,210,216,0.22)", margin: "6px 0" }} />
+
         <RailButton
-          icon="sparkle"
+          icon="frame"
           label={t('sideMenu.assets')}
           active={isOpen("assets")}
           onClick={() => togglePanel("assets")}
-          theme={theme}
-        />
-
-        <RailButton
-          icon="grid"
-          label={t('sideMenu.tilemaps')}
-          active={isOpen("tilemaps")}
-          onClick={() => togglePanel("tilemaps")}
-          theme={theme}
-        />
-
-        <RailButton
-          icon="play"
-          label={t('sideMenu.animations')}
-          active={isOpen("animations")}
-          onClick={() => togglePanel("animations")}
           theme={theme}
         />
 
@@ -394,13 +377,10 @@ export default function Rail() {
           {activePanel === "projects" && (
             <ProjectsPanel
               theme={theme}
-              projects={projects}
               userProjects={userProjects}
               loading={loading}
               currentProjectId={currentProjectId}
               dirtyFiles={dirtyFiles}
-              onOpenExample={handleOpenExample}
-              onForkExample={handleForkExample}
               onOpenUserProject={handleOpenUserProject}
               onDeleteProject={handleDeleteProject}
               onExportProject={handleExportProject}
@@ -414,6 +394,8 @@ export default function Rail() {
               theme={theme}
               projectAssets={projectAssets}
               projectSounds={projectSounds ?? {}}
+              projectTilemaps={projectTilemaps ?? {}}
+              projectAnimations={projectAnimations ?? {}}
               onAddAsset={addAssetInstance}
               onRemoveAsset={removeAsset}
               onAddSound={addSound}
@@ -427,26 +409,12 @@ export default function Rail() {
                 setEditingAsset({ name, url });
                 setEditorMode('sprite');
               }}
-              onClose={closePanels}
-            />
-          )}
-          {activePanel === "tilemaps" && (
-            <TilemapsPanel
-              theme={theme}
-              tilemaps={projectTilemaps}
-              onOpen={(name) => { setEditingTilemap(name); setEditorMode('tilemap'); }}
-              onNew={() => { setEditingTilemap(null); setEditorMode('tilemap'); }}
-              onDelete={deleteTilemap}
-              onClose={closePanels}
-            />
-          )}
-          {activePanel === "animations" && (
-            <AnimationsPanel
-              theme={theme}
-              animations={projectAnimations ?? {}}
-              onEdit={(name, data) => { setEditingAnimation({ name, data }); setEditorMode('sprite-anim'); }}
-              onNew={() => { setEditingAnimation(null); setEditorMode('sprite-anim'); }}
-              onDelete={deleteAnimation}
+              onOpenTilemap={(name) => { setEditingTilemap(name); setEditorMode('tilemap'); }}
+              onNewTilemap={() => { setEditingTilemap(null); setEditorMode('tilemap'); }}
+              onDeleteTilemap={deleteTilemap}
+              onEditAnimation={(name, data) => { setEditingAnimation({ name, data }); setEditorMode('sprite-anim'); }}
+              onNewAnimation={() => { setEditingAnimation(null); setEditorMode('sprite-anim'); }}
+              onDeleteAnimation={deleteAnimation}
               onClose={closePanels}
             />
           )}
@@ -514,6 +482,7 @@ export default function Rail() {
         tilemapInitial={editingTilemap !== null ? { name: editingTilemap } : undefined}
         onSaveTilemap={(name, data) => {
           saveTilemap(name, data);
+          setEditingTilemap(name);
           closeEditor();
         }}
       />
@@ -587,13 +556,10 @@ function SectionLabel({
 // ── Projects Panel ─────────────────────────
 type ProjectsPanelProps = {
   theme: Theme;
-  projects: Record<string, { files: Record<string, string>; assets: Record<string, string> }>;
   userProjects: { id: string; name: string; files: Record<string, string>; assets: Record<string, string> }[];
   loading: boolean;
   currentProjectId: string | null;
   dirtyFiles: Set<string>;
-  onOpenExample: (name: string) => void;
-  onForkExample: (name: string) => void;
   onOpenUserProject: (project: { id: string; name: string; files: Record<string, string>; assets: Record<string, string> }) => void;
   onDeleteProject: (id: string) => void;
   onExportProject: (id: string) => void;
@@ -604,12 +570,10 @@ type ProjectsPanelProps = {
 
 function ProjectsPanel({
   theme,
-  projects,
   userProjects,
   loading,
   currentProjectId,
   dirtyFiles,
-  onOpenExample,
   onOpenUserProject,
   onDeleteProject,
   onExportProject,
@@ -618,27 +582,11 @@ function ProjectsPanel({
   onClose,
 }: ProjectsPanelProps) {
   const { t } = useTranslation();
-  const icons: IconName[] = ["cursor", "play", "square", "folder", "sparkle", "trash"];
 
   return (
     <>
       <PanelHeader title={t('sideMenu.projects')} theme={theme} onClose={onClose} />
       <div style={{ padding: "16px 16px 4px", overflowY: "auto", flex: 1 }}>
-        <SectionLabel theme={theme}>{t('sideMenu.examples')}</SectionLabel>
-        <div style={{ marginBottom: 18 }}>
-          {Object.keys(projects).map((name, i) => (
-            <ExampleRow
-              key={name}
-              name={name}
-              icon={icons[i % icons.length]}
-              theme={theme}
-              current={!currentProjectId && true}
-              startHere={name === "hello world"}
-              onClick={() => onOpenExample(name)}
-            />
-          ))}
-        </div>
-
         <div
           style={{
             display: "flex",
@@ -702,110 +650,6 @@ function ProjectsPanel({
         </div>
       </div>
     </>
-  );
-}
-
-function ExampleRow({
-  name,
-  icon,
-  theme,
-  current,
-  startHere,
-  onClick,
-}: {
-  name: string;
-  icon: IconName;
-  theme: Theme;
-  current?: boolean;
-  startHere?: boolean;
-  onClick: () => void;
-}) {
-  const { t } = useTranslation();
-  const [hover, setHover] = useState(false);
-  return (
-    <button
-      type="button"
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
-      onClick={onClick}
-      style={{
-        all: "unset",
-        cursor: "pointer",
-        display: "flex",
-        alignItems: "center",
-        gap: 12,
-        padding: "10px 12px",
-        borderRadius: theme.radiusButton,
-        background: current ? theme.chip : hover ? theme.chip : "transparent",
-        marginBottom: 2,
-        width: "100%",
-        boxSizing: "border-box",
-        transition: "background 0.15s",
-      }}
-    >
-      <div
-        style={{
-          width: 36,
-          height: 36,
-          borderRadius: 10,
-          background: current ? theme.accent + "22" : theme.chip,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          color: current ? theme.accent : theme.panelTxtMute,
-          flex: "none",
-        }}
-      >
-        <Icon name={icon} size={20} color="currentColor" />
-      </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div
-          style={{
-            fontFamily: theme.fontUI,
-            fontWeight: theme.weightUI + 100,
-            color: theme.panelTxt,
-            fontSize: 14,
-            lineHeight: 1.2,
-          }}
-        >
-          {name}
-        </div>
-      </div>
-      {startHere && !current && (
-        <span
-          style={{
-            padding: "3px 8px",
-            borderRadius: 999,
-            background: theme.accent + "33",
-            color: theme.accent,
-            fontFamily: theme.fontUI,
-            fontWeight: theme.weightUI + 100,
-            fontSize: 10.5,
-            letterSpacing: 0.4,
-            whiteSpace: "nowrap",
-          }}
-        >
-          Start Here
-        </span>
-      )}
-      {current && (
-        <span
-          style={{
-            padding: "3px 8px",
-            borderRadius: 999,
-            background: theme.successPill,
-            color: theme.successPillTxt,
-            fontFamily: theme.fontUI,
-            fontWeight: theme.weightUI + 100,
-            fontSize: 10.5,
-            textTransform: "uppercase",
-            letterSpacing: 0.6,
-          }}
-        >
-          {t('sideMenu.openBadge')}
-        </span>
-      )}
-    </button>
   );
 }
 
@@ -1153,22 +997,19 @@ function UsedSpriteTile({
 }
 
 // ── Tilemaps Panel ─────────────────────────
-function TilemapsPanel({
-  theme, tilemaps, onOpen, onNew, onDelete, onClose,
+function TilemapsSubPanel({
+  theme, tilemaps, onOpen, onNew, onDelete,
 }: {
   theme: Theme;
   tilemaps: Record<string, TilemapData>;
   onOpen: (name: string) => void;
   onNew: () => void;
   onDelete: (name: string) => void;
-  onClose: () => void;
 }) {
   const { t } = useTranslation();
   const names = Object.keys(tilemaps);
   return (
-    <>
-      <PanelHeader title={t('sideMenu.tilemaps')} theme={theme} onClose={onClose} />
-      <div style={{ padding: "12px 14px", display: "flex", flexDirection: "column", gap: 8 }}>
+    <div style={{ flex: 1, overflowY: "auto", padding: "12px 14px", display: "flex", flexDirection: "column", gap: 8 }}>
         <button
           type="button"
           onClick={onNew}
@@ -1219,28 +1060,24 @@ function TilemapsPanel({
             </button>
           </div>
         ))}
-      </div>
-    </>
+    </div>
   );
 }
 
-// ── Animations Panel ───────────────────────
-function AnimationsPanel({
-  theme, animations, onEdit, onNew, onDelete, onClose,
+// ── Animations Sub-Panel ───────────────────
+function AnimationsSubPanel({
+  theme, animations, onEdit, onNew, onDelete,
 }: {
   theme: Theme;
   animations: Record<string, import('./state/IdeState').AnimationData>;
   onEdit: (name: string, data: import('./state/IdeState').AnimationData) => void;
   onNew: () => void;
   onDelete: (name: string) => void;
-  onClose: () => void;
 }) {
   const { t } = useTranslation();
   const names = Object.keys(animations);
   return (
-    <>
-      <PanelHeader title={t('sideMenu.animations')} theme={theme} onClose={onClose} />
-      <div style={{ padding: "12px 14px", display: "flex", flexDirection: "column", gap: 8 }}>
+    <div style={{ flex: 1, overflowY: "auto", padding: "12px 14px", display: "flex", flexDirection: "column", gap: 8 }}>
         <button
           type="button"
           onClick={onNew}
@@ -1304,8 +1141,7 @@ function AnimationsPanel({
             </div>
           );
         })}
-      </div>
-    </>
+    </div>
   );
 }
 
@@ -1313,6 +1149,8 @@ type AssetsPanelProps = {
   theme: Theme;
   projectAssets: Record<string, string>;
   projectSounds: Record<string, string>;
+  projectTilemaps: Record<string, TilemapData>;
+  projectAnimations: Record<string, import('./state/IdeState').AnimationData>;
   onAddAsset: (baseName: string, url: string) => void;
   onRemoveAsset: (instanceName: string) => void;
   onAddSound: (name: string, url: string) => void;
@@ -1321,13 +1159,23 @@ type AssetsPanelProps = {
   onNewPixelSprite: () => void;
   onEditAsset: (name: string, url: string) => void;
   onEditSheet: () => void;
+  onOpenTilemap: (name: string) => void;
+  onNewTilemap: () => void;
+  onDeleteTilemap: (name: string) => void;
+  onEditAnimation: (name: string, data: import('./state/IdeState').AnimationData) => void;
+  onNewAnimation: () => void;
+  onDeleteAnimation: (name: string) => void;
   onClose: () => void;
 };
+
+type AssetsTab = "sprites" | "tilemaps" | "animations" | "sounds";
 
 function AssetsPanel({
   theme,
   projectAssets,
   projectSounds,
+  projectTilemaps,
+  projectAnimations,
   onAddAsset,
   onRemoveAsset,
   onAddSound,
@@ -1336,10 +1184,16 @@ function AssetsPanel({
   onNewPixelSprite,
   onEditAsset,
   onEditSheet,
+  onOpenTilemap,
+  onNewTilemap,
+  onDeleteTilemap,
+  onEditAnimation,
+  onNewAnimation,
+  onDeleteAnimation,
   onClose,
 }: AssetsPanelProps) {
   const { t } = useTranslation();
-  const [tab, setTab] = useState<"sprites" | "sounds">("sprites");
+  const [tab, setTab] = useState<AssetsTab>("sprites");
   const [query, setQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState<Category | null>(null);
   const [activePerspective, setActivePerspective] = useState<Perspective | null>(null);
@@ -1370,9 +1224,9 @@ function AssetsPanel({
   return (
     <>
       <PanelHeader title={t('sideMenu.assets')} theme={theme} onClose={onClose} />
-      {/* Sprites / Sounds tabs */}
-      <div style={{ display: "flex", gap: 4, padding: "8px 14px 0" }}>
-        {(["sprites", "sounds"] as const).map((id) => (
+      {/* Tabs */}
+      <div style={{ display: "flex", gap: 4, padding: "8px 14px 0", flexWrap: "wrap" }}>
+        {(["sprites", "tilemaps", "animations", "sounds"] as const).map((id) => (
           <button
             key={id}
             type="button"
@@ -1385,7 +1239,10 @@ function AssetsPanel({
               color: tab === id ? "#fff" : theme.panelTxtMute,
             }}
           >
-            {id === "sprites" ? t('sideMenu.tabSprites') : t('sideMenu.tabSounds')}
+            {id === "sprites" ? t('sideMenu.tabSprites')
+              : id === "tilemaps" ? t('sideMenu.tilemaps')
+              : id === "animations" ? t('sideMenu.animations')
+              : t('sideMenu.tabSounds')}
           </button>
         ))}
       </div>
@@ -1395,6 +1252,24 @@ function AssetsPanel({
           projectSounds={projectSounds}
           onAddSound={onAddSound}
           onRemoveSound={onRemoveSound}
+        />
+      )}
+      {tab === "tilemaps" && (
+        <TilemapsSubPanel
+          theme={theme}
+          tilemaps={projectTilemaps}
+          onOpen={onOpenTilemap}
+          onNew={onNewTilemap}
+          onDelete={onDeleteTilemap}
+        />
+      )}
+      {tab === "animations" && (
+        <AnimationsSubPanel
+          theme={theme}
+          animations={projectAnimations}
+          onEdit={onEditAnimation}
+          onNew={onNewAnimation}
+          onDelete={onDeleteAnimation}
         />
       )}
       {tab === "sprites" && (
@@ -1738,6 +1613,20 @@ function SoundsSubPanel({
             ))}
           </div>
         )}
+        {/* Built-in library */}
+        <div style={{ marginTop: 12, paddingTop: 8, borderTop: `1px solid ${theme.panelBorder}` }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: theme.panelTxtMute, marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.05em" }}>{t('sideMenu.soundLibrary')}</div>
+          {BUILTIN_SOUNDS.map(({ name, url }) => (
+            <div key={name} style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 8px", borderRadius: 4 }}>
+              <button type="button" onClick={() => play(url)}
+                style={{ all: "unset", cursor: "pointer", width: 24, height: 24, borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "center", color: theme.panelTxtMute }}>
+                <Icon name="play" size={12} color="currentColor" /></button>
+              <span style={{ flex: 1, fontSize: 12, fontFamily: theme.fontUI, color: theme.panelTxt, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t(`sounds.${name}`, name)}</span>
+              <button type="button" onClick={() => onAddSound(name, url)} title={t('sideMenu.duplicate')}
+                style={{ all: "unset", cursor: "pointer", width: 24, height: 24, borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "center", color: theme.accent, fontSize: 16 }}>+</button>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -2010,3 +1899,4 @@ function SettingsPanel({
     </>
   );
 }
+

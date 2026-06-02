@@ -17,17 +17,24 @@ import SpritePainter from "../assets/examples/sprite_painter/sprite_painter.py?r
 import GradientSky from "../assets/examples/gradient_sky/gradient_sky.py?raw";
 import RandomWalls from "../assets/examples/random_walls/random_walls.py?raw";
 import CaveGenerator from "../assets/examples/cave_generator/cave_generator.py?raw";
-import ShipSvg from "../assets/examples/asteroids/assets/ship.svg?url";
-import BulletSvg from "../assets/examples/asteroids/assets/bullet.svg?url";
-import BigAsteroidSvg from "../assets/examples/asteroids/assets/big_asteroid.svg?url";
-import SmallAsteroidSvg from "../assets/examples/asteroids/assets/small_asteroid.svg?url";
+import ColorFlood from "../assets/examples/color_flood/color_flood.py?raw";
+import Chameleon from "../assets/examples/chameleon/chameleon.py?raw";
+import AimTrainer from "../assets/examples/aim_trainer/aim_trainer.py?raw";
+import MazeRunner from "../assets/examples/maze_runner/maze_runner.py?raw";
+import CaveDiver from "../assets/examples/cave_diver/cave_diver.py?raw";
+import TopDownExplorer from "../assets/examples/top_down_explorer/main.py?raw";
+import RoomBuilder from "../assets/examples/room_builder/room_builder.py?raw";
+import SlimeRunner from "../assets/examples/slime_runner/slime_runner.py?raw";
+import CoinHop from "../assets/examples/coin_hop/coin_hop.py?raw";
+import { DEMO_SHEET } from "../assets/examples/sheet_demo_data";
+import { ASTEROIDS_SHEET } from "../assets/examples/asteroids/sheet_data";
 import { projectStorage, isOnline } from "../utils/storage";
-import { importProjectFromFile as importZipFile } from "../utils/zip";
+import { importProjectFromFile as importZipFile, downloadProjectZip } from "../utils/zip";
 import { getProjects, createProject as apiCreateProject, updateProject as apiUpdateProject, deleteProject as apiDeleteProject, saveProjectContent, Project as ApiProject } from "./api";
 import { toEditorProject } from "./projectNormalization";
 import { writeAnonStash } from "../utils/anonStash";
 
-export type PanelId = "projects" | "assets" | "settings" | "docs" | null;
+export type PanelId = "projects" | "settings" | "docs" | "examples" | null;
 
 export type TilemapLayer = {
   name: string;
@@ -47,11 +54,6 @@ export type TilemapData = {
   // Area name → cell-set. Names are validated as /^[a-z][a-z0-9_]*$/ in the
   // editor so they map cleanly to Python attribute access (`level.areas.X`).
   areas?: Record<string, TilemapArea>;
-};
-
-export type AnimationData = {
-  frames: string[];
-  fps: number;
 };
 
 export type SheetAnimationStrip = {
@@ -101,7 +103,6 @@ export type Project = {
   currentFile?: string;
   assets: Record<string, string>;
   tilemaps: Record<string, TilemapData>;
-  animations: Record<string, AnimationData>;
   sounds?: Record<string, string>;
   sheet?: SheetData;
 };
@@ -111,84 +112,120 @@ export { toEditorProject };
 
 
 const Examples: Record<string, Project> = {
-  "hello world": { files: { "main.py": HelloWorld }, assets: {}, tilemaps: {}, animations: {} },
-  input: { files: { "input.py": Input }, assets: {}, tilemaps: {}, animations: {} },
-  p5: { files: { "p5.py": P5 }, assets: {}, tilemaps: {}, animations: {} },
-  "bouncing actor": { files: { "main.py": BouncingActor }, assets: {}, tilemaps: {}, animations: {} },
+  "hello world": { files: { "main.py": HelloWorld }, assets: {}, tilemaps: {} },
+  input: { files: { "input.py": Input }, assets: {}, tilemaps: {} },
+  p5: { files: { "p5.py": P5 }, assets: {}, tilemaps: {} },
+  "bouncing actor": { files: { "main.py": BouncingActor }, assets: {}, tilemaps: {} },
   snake: {
     files: { "snake.py": Snake },
     assets: {},
     tilemaps: {},
-    animations: {},
   },
   sokoban: {
     files: { "sokoban.py": Sokoban },
     assets: {},
     tilemaps: {},
-    animations: {},
   },
   asteroids: {
     files: { "main.py": Asteroids },
-    assets: {
-      "ship.svg": ShipSvg,
-      "bullet.svg": BulletSvg,
-      "big_asteroid.svg": BigAsteroidSvg,
-      "small_asteroid.svg": SmallAsteroidSvg,
-    },
+    assets: {},
     tilemaps: {},
-    animations: {},
+    sheet: ASTEROIDS_SHEET,
   },
   catch: {
     files: { "catch.py": Catch },
     assets: {},
     tilemaps: {},
-    animations: {},
   },
   robot: {
     files: { "robot.py": Robot },
     assets: {},
     tilemaps: {},
-    animations: {},
   },
   swatches: {
     files: { "swatches.py": Swatches },
     assets: {},
     tilemaps: {},
-    animations: {},
   },
   dungeon: {
     files: { "dungeon.py": Dungeon },
     assets: {},
     tilemaps: {},
-    animations: {},
   },
   platformer: {
     files: { "platformer.py": Platformer },
     assets: {},
     tilemaps: {},
-    animations: {},
   },
   // Pixel-art switch showcase — small, focused demos of the new APIs.
   "color shifter": {
     files: { "color_shifter.py": ColorShifter },
-    assets: {}, tilemaps: {}, animations: {},
+    assets: {}, tilemaps: {},
   },
   "gradient sky": {
     files: { "gradient_sky.py": GradientSky },
-    assets: {}, tilemaps: {}, animations: {},
+    assets: {}, tilemaps: {},
   },
   "random walls": {
     files: { "random_walls.py": RandomWalls },
-    assets: {}, tilemaps: {}, animations: {},
+    assets: {}, tilemaps: {},
   },
   "cave generator": {
     files: { "cave_generator.py": CaveGenerator },
-    assets: {}, tilemaps: {}, animations: {},
+    assets: {}, tilemaps: {},
   },
   // Advanced — uses set_pixel/flood_fill/palette_swap; no beginner recipe yet
   "sprite painter": {
     files: { "sprite_painter.py": SpritePainter },
-    assets: {}, tilemaps: {}, animations: {},
+    assets: {}, tilemaps: {},
+  },
+
+  // Color
+  "color flood": {
+    files: { "color_flood.py": ColorFlood },
+    assets: {}, tilemaps: {},
+  },
+  chameleon: {
+    files: { "chameleon.py": Chameleon },
+    assets: {}, tilemaps: {},
+  },
+
+  // Input
+  "aim trainer": {
+    files: { "aim_trainer.py": AimTrainer },
+    assets: {}, tilemaps: {},
+  },
+
+  // Procedural Generation
+  "maze runner": {
+    files: { "maze_runner.py": MazeRunner },
+    assets: {}, tilemaps: {},
+  },
+  "cave diver": {
+    files: { "cave_diver.py": CaveDiver },
+    assets: {}, tilemaps: {},
+  },
+
+  // Tilemaps
+  "top-down explorer": {
+    files: { "main.py": TopDownExplorer },
+    assets: {}, tilemaps: {},
+  },
+  "room builder": {
+    files: { "room_builder.py": RoomBuilder },
+    assets: {}, tilemaps: {},
+  },
+
+  // Sprite sheets — hero/slime/coin sprites drawn in the sheet editor
+  "slime runner": {
+    files: { "slime_runner.py": SlimeRunner },
+    assets: {}, tilemaps: {},
+    sheet: DEMO_SHEET,
+  },
+  "coin hop": {
+    files: { "coin_hop.py": CoinHop },
+    assets: {}, tilemaps: {},
+    sheet: DEMO_SHEET,
   },
 };
 
@@ -210,12 +247,10 @@ type EditorState = {
   renameFile: (oldName: string, newName: string) => void;
   saveTilemap: (name: string, data: TilemapData) => void;
   deleteTilemap: (name: string) => void;
-  saveAnimation: (name: string, data: AnimationData) => void;
-  deleteAnimation: (name: string) => void;
   addSound: (name: string, url: string) => void;
   removeSound: (name: string) => void;
   setSheet: (data: SheetData) => void;
-  markClean: () => void;
+  markClean: (keys?: Iterable<string>) => void;
 };
 
 export const useEditor = create<EditorState>((set) => ({
@@ -370,23 +405,6 @@ export const useEditor = create<EditorState>((set) => ({
       return { project: { ...s.project, tilemaps }, dirtyFiles: dirty, ...ensureSessionId(s) };
     }),
 
-  saveAnimation: (name, data) =>
-    set((s) => {
-      const animations = { ...(s.project.animations ?? {}), [name]: data };
-      const dirty = new Set(s.dirtyFiles);
-      dirty.add("*animations*");
-      return { project: { ...s.project, animations }, dirtyFiles: dirty, ...ensureSessionId(s) };
-    }),
-
-  deleteAnimation: (name) =>
-    set((s) => {
-      const animations = { ...(s.project.animations ?? {}) };
-      delete animations[name];
-      const dirty = new Set(s.dirtyFiles);
-      dirty.add("*animations*");
-      return { project: { ...s.project, animations }, dirtyFiles: dirty, ...ensureSessionId(s) };
-    }),
-
   addSound: (name, url) =>
     set((s) => {
       const sounds = { ...(s.project.sounds ?? {}) };
@@ -420,10 +438,19 @@ export const useEditor = create<EditorState>((set) => ({
       return { project: { ...s.project, sheet: data }, dirtyFiles: dirty, ...ensureSessionId(s) };
     }),
 
-  markClean: () => set({ dirtyFiles: new Set() }),
+  // When `keys` is provided, only those entries are cleared. This prevents a
+  // race where an edit landed while a save was in flight: snapshotting before
+  // the save and clearing only what we actually persisted avoids wiping the
+  // dirty flag for a still-unsaved change.
+  markClean: (keys?: Iterable<string>) => set((s) => {
+    if (!keys) return { dirtyFiles: new Set() };
+    const next = new Set(s.dirtyFiles);
+    for (const k of keys) next.delete(k);
+    return { dirtyFiles: next };
+  }),
 }));
 
-export type SaveErrorKind = 'auth' | 'network';
+export type SaveErrorKind = 'auth' | 'network' | 'quota';
 export type SaveError = { kind: SaveErrorKind; message: string };
 
 type IdeState = {
@@ -439,6 +466,7 @@ type IdeState = {
   loadingProjectContent: boolean;
   saveError: SaveError | null;
   fromCache: boolean;
+  isSaving: boolean;
 
   setActivePanel: (panel: PanelId) => void;
   togglePanel: (panel: Exclude<PanelId, null>) => void;
@@ -474,6 +502,7 @@ export const useIde = create<IdeState>((set, get) => ({
   loadingProjectContent: false,
   saveError: null,
   fromCache: false,
+  isSaving: false,
 
   setActivePanel: (panel) => set({ activePanel: panel }),
   togglePanel: (panel) =>
@@ -525,7 +554,6 @@ export const useIde = create<IdeState>((set, get) => ({
       files: { "main.py": '# New project\nprint("Hello World!")' },
       assets: {},
       tilemaps: {},
-      animations: {},
     });
 
     const { userProjects } = get();
@@ -556,7 +584,6 @@ export const useIde = create<IdeState>((set, get) => ({
       files: exampleProject.files,
       assets: exampleProject.assets,
       tilemaps: exampleProject.tilemaps,
-      animations: exampleProject.animations,
       sounds: exampleProject.sounds,
       currentFile: exampleProject.currentFile,
     });
@@ -570,76 +597,89 @@ export const useIde = create<IdeState>((set, get) => ({
     const { currentProjectId, project, currentFile } = useEditor.getState();
     if (!currentProjectId) return false;
 
-    // Example-session: persist to the anonymous stash. No API call, no
-    // auth dependency. The user gets a chance to fork-and-claim on sign-in.
-    if (isExampleSessionId(currentProjectId)) {
-      writeAnonStash({
-        exampleName: exampleNameFromSessionId(currentProjectId),
-        project,
-      });
-      set({ saveError: null });
-      return true;
-    }
-
-    // Always cache full content locally (offline resilience)
-    const content = {
-      files: project.files,
-      assets: project.assets,
-      tilemaps: project.tilemaps,
-      animations: project.animations,
-      sounds: project.sounds ?? {},
-      sheet: project.sheet,
-      currentFile,
-    };
-    projectStorage.cacheProjectContent(currentProjectId, content).catch(() => {});
-
-    // If offline, queue the save for later sync
-    if (!isOnline()) {
-      await projectStorage.queueSave({ id: currentProjectId, ...content, savedAt: Date.now() });
-      set({ saveError: { kind: "network", message: "Offline — saved locally, will sync when online" } });
-      return true;
-    }
-
+    set({ isSaving: true });
     try {
-      await saveProjectContent(currentProjectId, content);
-
-      // Update the local cache
-      const { userProjects } = get();
-      set({
-        userProjects: userProjects.map((p) => {
-          if (p.id !== currentProjectId) return p;
-          const updated: Record<string, unknown> = {
-            ...p,
-            files: project.files,
-            assets: project.assets,
-            tilemaps: project.tilemaps,
-            animations: project.animations,
-            updated_at: Date.now(),
-          };
-          if (project.sounds) updated.sounds = project.sounds;
-          if (project.sheet) updated.sheet = project.sheet;
-          return updated as unknown as ApiProject;
-        }),
-        saveError: null,
-      });
-      return true;
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Failed to save project";
-      const kind: SaveErrorKind = errorMessage === "Unauthorized" ? "auth" : "network";
-      if (kind === "network") {
-        await projectStorage.queueSave({ id: currentProjectId, ...content, savedAt: Date.now() });
-      }
-      if (kind === "auth") {
-        // Not logged in — persist locally so work is never lost.
-        // IndexedDB cache was written above; also write to anonymous stash.
-        writeAnonStash({
-          exampleName: currentProjectId,
+      // Example-session: persist to the anonymous stash. No API call, no
+      // auth dependency. The user gets a chance to fork-and-claim on sign-in.
+      if (isExampleSessionId(currentProjectId)) {
+        const result = writeAnonStash({
+          exampleName: exampleNameFromSessionId(currentProjectId),
           project,
         });
+        if (!result.ok) {
+          // Storage full or blocked — let the user know their tinkering is no
+          // longer being persisted, so they can sign in (to save server-side)
+          // or clear space before they lose work.
+          const message = result.reason === "quota"
+            ? "Local storage full — sign in to save your work"
+            : "Local storage unavailable — sign in to save your work";
+          set({ saveError: { kind: "quota", message } });
+          return false;
+        }
+        set({ saveError: null });
+        return true;
       }
-      set({ saveError: { kind, message: errorMessage } });
-      // Return true for both network and auth — the local cache has the data.
-      return true;
+
+      // Always cache full content locally (offline resilience)
+      const content = {
+        files: project.files,
+        assets: project.assets,
+        tilemaps: project.tilemaps,
+        sounds: project.sounds ?? {},
+        sheet: project.sheet,
+        currentFile,
+      };
+      projectStorage.cacheProjectContent(currentProjectId, content).catch(() => {});
+
+      // If offline, queue the save for later sync
+      if (!isOnline()) {
+        await projectStorage.queueSave({ id: currentProjectId, ...content, savedAt: Date.now() });
+        set({ saveError: { kind: "network", message: "Offline — saved locally, will sync when online" } });
+        return true;
+      }
+
+      try {
+        await saveProjectContent(currentProjectId, content);
+
+        // Update the local cache
+        const { userProjects } = get();
+        set({
+          userProjects: userProjects.map((p) => {
+            if (p.id !== currentProjectId) return p;
+            const updated: Record<string, unknown> = {
+              ...p,
+              files: project.files,
+              assets: project.assets,
+              tilemaps: project.tilemaps,
+              updated_at: Date.now(),
+            };
+            if (project.sounds) updated.sounds = project.sounds;
+            if (project.sheet) updated.sheet = project.sheet;
+            return updated as unknown as ApiProject;
+          }),
+          saveError: null,
+        });
+        return true;
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : "Failed to save project";
+        const kind: SaveErrorKind = errorMessage === "Unauthorized" ? "auth" : "network";
+        if (kind === "network") {
+          await projectStorage.queueSave({ id: currentProjectId, ...content, savedAt: Date.now() });
+        }
+        if (kind === "auth") {
+          // Not logged in — persist locally so work is never lost.
+          // IndexedDB cache was written above; also write to anonymous stash.
+          writeAnonStash({
+            exampleName: currentProjectId,
+            project,
+          });
+        }
+        set({ saveError: { kind, message: errorMessage } });
+        // Return true for both network and auth — the local cache has the data.
+        return true;
+      }
+    } finally {
+      set({ isSaving: false });
     }
   },
 
@@ -654,7 +694,6 @@ export const useIde = create<IdeState>((set, get) => ({
           files: q.content.files,
           assets: q.content.assets,
           tilemaps: q.content.tilemaps,
-          animations: q.content.animations,
           sounds: q.content.sounds,
           sheet: q.content.sheet,
           currentFile: q.content.currentFile,
@@ -682,6 +721,25 @@ export const useIde = create<IdeState>((set, get) => ({
   setSaveError: (error) => set({ saveError: error }),
 
   downloadProject: async (id: string) => {
+    if (isExampleSessionId(id)) {
+      const { project } = useEditor.getState();
+      const ide = get();
+      const exampleKey = id.slice(EXAMPLE_SESSION_PREFIX.length);
+      const name = ide.userProjects.find((p) => p.id === id)?.name || project.name || exampleKey;
+      const files = Object.entries(project.files).map(([fname, content]) => ({ name: fname, content }));
+      await downloadProjectZip({
+        id,
+        name,
+        files,
+        assets: project.assets,
+        tilemaps: project.tilemaps,
+        sounds: project.sounds || {},
+        sheet: project.sheet,
+        updatedAt: new Date().toISOString(),
+        currentFile: useEditor.getState().currentFile,
+      });
+      return;
+    }
     await projectStorage.downloadProjectZip(id);
   },
 
@@ -702,7 +760,6 @@ export const useIde = create<IdeState>((set, get) => ({
       files,
       assets: project.assets,
       tilemaps: project.tilemaps,
-      animations: project.animations,
       sounds: project.sounds || {},
       sheet: project.sheet,
       updatedAt: new Date().toISOString(),
@@ -749,7 +806,6 @@ export const useIde = create<IdeState>((set, get) => ({
       assets,
       currentFile: importedProject.currentFile,
       tilemaps: importedProject.tilemaps || {},
-      animations: importedProject.animations || {},
       sounds: importedProject.sounds || {},
       sheet: importedProject.sheet,
     });

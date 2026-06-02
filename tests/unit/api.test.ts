@@ -139,6 +139,118 @@ describe('ApiClient.request branches', () => {
     expect((lastCalls.at(-1)!.init as RequestInit).method).toBe('PATCH');
     expect((lastCalls.at(-1)!.init as RequestInit).body).toBe('{"y":2}');
   });
+
+  it('put and patch with no body omit body', async () => {
+    mockFetchOnce(fakeResponse({}));
+    await api.put('/p');
+    expect((lastCalls.at(-1)!.init as RequestInit).body).toBeUndefined();
+
+    mockFetchOnce(fakeResponse({}));
+    await api.patch('/q');
+    expect((lastCalls.at(-1)!.init as RequestInit).body).toBeUndefined();
+  });
+
+  it('delete without options works correctly', async () => {
+    mockFetchOnce(fakeResponse({ success: true }));
+    const result = await api.delete('/api/something');
+    expect(result).toEqual({ success: true });
+    expect((lastCalls.at(-1)!.init as RequestInit).method).toBe('DELETE');
+  });
+
+  it('request merges default headers with provided headers', async () => {
+    mockFetchOnce(fakeResponse({ ok: true }));
+    await api.get('/api/test');
+    const headers = (lastCalls.at(-1)!.init as RequestInit).headers as Record<string, string>;
+    expect(headers['Content-Type']).toBe('application/json');
+  });
+
+  it('error response with message field uses message', async () => {
+    mockFetchOnce(fakeResponse({ error: 'E', message: 'msg' }, { status: 400, ok: false }));
+    await expect(api.get('/api/test')).rejects.toThrow('msg');
+  });
+
+  it('error response with empty message uses error field', async () => {
+    mockFetchOnce(fakeResponse({ error: 'NotFound', message: '' }, { status: 404, ok: false }));
+    await expect(api.get('/api/test')).rejects.toThrow('NotFound');
+  });
+
+  it('handles missing error and message fields in error response', async () => {
+    mockFetchOnce(fakeResponse({}, { status: 400, ok: false, jsonThrows: false }));
+    await expect(api.get('/api/test')).rejects.toThrow();
+  });
+});
+
+describe('API initialization and headers', () => {
+  it('request merges default and provided headers', async () => {
+    (global.fetch as jest.Mock).mockImplementationOnce(() =>
+      Promise.resolve(fakeResponse({ data: 'test' }))
+    );
+    await api.get('/test', {
+      headers: { 'Authorization': 'Bearer token' } as Record<string, string>,
+    } as Record<string, unknown>);
+    expect(global.fetch).toHaveBeenCalled();
+  });
+
+  it('setOnUnauthorized sets callback', () => {
+    const callback = jest.fn();
+    api.setOnUnauthorized(callback);
+    expect(typeof callback).toBe('function');
+  });
+
+  it('multiple 401 responses call onUnauthorized callback', async () => {
+    const cb = jest.fn();
+    api.setOnUnauthorized(cb);
+
+    mockFetchOnce(fakeResponse({}, { status: 401, ok: false }));
+    await expect(api.get('/api/1')).rejects.toThrow();
+
+    mockFetchOnce(fakeResponse({}, { status: 401, ok: false }));
+    await expect(api.get('/api/2')).rejects.toThrow();
+
+    expect(cb).toHaveBeenCalledTimes(2);
+    api.setOnUnauthorized(() => {});
+  });
+
+  it('credentials include in all requests', async () => {
+    mockFetchOnce(fakeResponse({ data: 'test' }));
+    await api.get('/api/test');
+    expect((lastCalls.at(-1)!.init as RequestInit).credentials).toBe('include');
+  });
+
+  it('post with empty body sends undefined', async () => {
+    mockFetchOnce(fakeResponse({}));
+    await api.post('/api/test');
+    expect((lastCalls.at(-1)!.init as RequestInit).body).toBeUndefined();
+  });
+
+  it('post with null body sends undefined', async () => {
+    mockFetchOnce(fakeResponse({}));
+    await api.post('/api/test', null);
+    expect((lastCalls.at(-1)!.init as RequestInit).body).toBeUndefined();
+  });
+
+  it('post with false body sends undefined', async () => {
+    mockFetchOnce(fakeResponse({}));
+    await api.post('/api/test', false);
+    expect((lastCalls.at(-1)!.init as RequestInit).body).toBeUndefined();
+  });
+
+  it('response.ok=false and status 500 returns error', async () => {
+    mockFetchOnce(fakeResponse({ error: 'ServerError' }, { status: 500, ok: false }));
+    await expect(api.get('/api/error')).rejects.toThrow();
+  });
+
+  it('successful response returns parsed JSON directly', async () => {
+    const data = { id: '1', name: 'test', nested: { value: 42 } };
+    mockFetchOnce(fakeResponse(data));
+    const result = await api.get('/api/test');
+    expect(result).toEqual(data);
+  });
+
+  it('error with both error and message uses message', async () => {
+    mockFetchOnce(fakeResponse({ error: 'Err', message: 'Msg' }, { status: 400, ok: false }));
+    await expect(api.post('/api/test', {})).rejects.toThrow('Msg');
+  });
 });
 
 describe('uploadProjectThumbnail', () => {

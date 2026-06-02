@@ -94,10 +94,13 @@ export function useProjects() {
     changeEditorCurrentProject(forkedProject, forkedApiProject.id);
   }, [projects, forkExample, changeEditorCurrentProject]);
 
-  const handleNewProject = useCallback(async (name: string) => {
-    const newProject = await createIdeProject(name);
-    changeEditorCurrentProject(newProject, newProject.id);
-  }, [createIdeProject, changeEditorCurrentProject]);
+  const handleNewProject = useCallback(() => {
+    changeEditorCurrentProject({
+      files: { "main.py": '# New project\nprint("Hello World!")' },
+      assets: {},
+      tilemaps: {},
+    }, undefined);
+  }, [changeEditorCurrentProject]);
 
   const handleDeleteProject = useCallback(async (projectId: string) => {
     await deleteUserProject(projectId);

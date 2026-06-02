@@ -31,7 +31,6 @@ describe('toEditorProject — API→editor adapter', () => {
       files: { 'main.py': 'print("hello")' },
       assets: { 'sprite.svg': 'data:image/svg...' },
       tilemaps: {},
-      animations: {},
       sounds: {},
       theme: undefined,
       currentFile: 'main.py',

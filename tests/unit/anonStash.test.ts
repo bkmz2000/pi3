@@ -6,6 +6,7 @@ const sampleProject: Project = {
   assets: {},
   tilemaps: {},
   animations: {},
+  sounds: {},
 };
 
 describe('anonStash', () => {
@@ -55,12 +56,14 @@ describe('anonStash', () => {
     expect(readAnonStash()).toBeNull();
   });
 
-  it('returns null when exampleName missing', () => {
+  it('accepts stash without exampleName', () => {
     localStorage.setItem(
       'pi3_anon_stash',
       JSON.stringify({ v: 1, project: sampleProject, lastModified: 0 })
     );
-    expect(readAnonStash()).toBeNull();
+    const stash = readAnonStash();
+    expect(stash).not.toBeNull();
+    expect(stash!.exampleName).toBeUndefined();
   });
 
   it('overwrites prior stash on subsequent write', () => {

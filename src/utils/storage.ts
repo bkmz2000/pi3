@@ -2,10 +2,39 @@ import {
   downloadProjectZip,
   StoredProject as ZipStoredProject,
 } from "./zip";
+import type { TilemapData, SheetData } from "../state/IdeState";
 
 const DB_NAME = "WebIDE";
-const DB_VERSION = 2;
-const STORE_NAME = "projects";
+const DB_VERSION = 3;
+const META_STORE = "projectMeta";
+const CONTENT_STORE = "projectContent";
+const SAVE_QUEUE_STORE = "saveQueue";
+
+export interface ProjectContent {
+  id: string;
+  files: Record<string, string>;
+  assets: Record<string, string>;
+  tilemaps: Record<string, TilemapData>;
+  sounds: Record<string, string>;
+  sheet: SheetData | undefined;
+  currentFile: string | undefined;
+  savedAt: number;
+}
+
+export interface QueuedSave {
+  id: number;
+  content: ProjectContent;
+  queuedAt: number;
+  attempts: number;
+}
+
+function txPromise<T>(tx: IDBTransaction, op: IDBRequest<T>): Promise<T> {
+  return new Promise((resolve, reject) => {
+    op.onsuccess = () => resolve(op.result);
+    op.onerror = () => reject(op.error);
+    tx.onerror = () => reject(tx.error);
+  });
+}
 
 class ProjectStorage {
   private db: IDBDatabase | null = null;
@@ -16,9 +45,7 @@ class ProjectStorage {
   }
 
   private async init(): Promise<void> {
-    if (this.initPromise) {
-      return this.initPromise;
-    }
+    if (this.initPromise) return this.initPromise;
 
     this.initPromise = new Promise((resolve, reject) => {
       const request = indexedDB.open(DB_NAME, DB_VERSION);
@@ -31,14 +58,22 @@ class ProjectStorage {
 
       request.onupgradeneeded = (event) => {
         const db = (event.target as IDBOpenDBRequest).result;
-        if (!db.objectStoreNames.contains(STORE_NAME)) {
-          db.createObjectStore(STORE_NAME, { keyPath: "id" });
-        } else {
-          // Clear old schema on version upgrade
-          const transaction = (event.target as IDBOpenDBRequest).transaction;
-          if (transaction) {
-            transaction.objectStore(STORE_NAME).clear();
-          }
+        // Drop old schema if present
+        if (db.objectStoreNames.contains("projects")) {
+          db.deleteObjectStore("projects");
+        }
+        if (!db.objectStoreNames.contains(META_STORE)) {
+          db.createObjectStore(META_STORE, { keyPath: "id" });
+        }
+        if (!db.objectStoreNames.contains(CONTENT_STORE)) {
+          db.createObjectStore(CONTENT_STORE, { keyPath: "id" });
+        }
+        if (!db.objectStoreNames.contains(SAVE_QUEUE_STORE)) {
+          const qStore = db.createObjectStore(SAVE_QUEUE_STORE, {
+            keyPath: "id",
+            autoIncrement: true,
+          });
+          qStore.createIndex("projectId", "projectId", { unique: false });
         }
       };
     });
@@ -48,82 +83,135 @@ class ProjectStorage {
 
   private async ensureDb(): Promise<IDBDatabase> {
     await this.init();
-    if (!this.db) {
-      throw new Error("Database not initialized");
-    }
+    if (!this.db) throw new Error("Database not initialized");
     return this.db;
   }
 
-  /** Cache API project list for offline fallback */
-  async cacheProjects(projects: Record<string, unknown>[]): Promise<void> {
-    const db = await this.ensureDb();
-    const transaction = db.transaction(STORE_NAME, "readwrite");
-    const store = transaction.objectStore(STORE_NAME);
+  // ── Project metadata cache ────────────────────────────────────────────────
 
-    for (const project of projects) {
-      store.put(project);
+  /** Cache API project list metadata for offline fallback */
+  async cacheProjectMeta(projects: Record<string, unknown>[]): Promise<void> {
+    const db = await this.ensureDb();
+    const tx = db.transaction(META_STORE, "readwrite");
+    const store = tx.objectStore(META_STORE);
+    store.clear();
+    for (const p of projects) store.put(p);
+    await txPromise(tx, store.getAll());
+  }
+
+  async getCachedProjectMeta(): Promise<Record<string, unknown>[]> {
+    const db = await this.ensureDb();
+    const tx = db.transaction(META_STORE, "readonly");
+    const store = tx.objectStore(META_STORE);
+    const results = await txPromise(tx, store.getAll()) as Record<string, unknown>[];
+    results.sort(
+      (a, b) =>
+        new Date((b.updated_at || b.updatedAt) as string).getTime() -
+        new Date((a.updated_at || a.updatedAt) as string).getTime(),
+    );
+    return results;
+  }
+
+  // ── Full project content cache (offline editing) ──────────────────────────
+
+  /** Cache full project content locally for offline access */
+  async cacheProjectContent(id: string, content: Omit<ProjectContent, "id" | "savedAt">): Promise<void> {
+    const db = await this.ensureDb();
+    const tx = db.transaction(CONTENT_STORE, "readwrite");
+    const store = tx.objectStore(CONTENT_STORE);
+    const entry = { ...content, id, savedAt: Date.now() };
+    await txPromise(tx, store.put(entry));
+  }
+
+  /** Get cached full project content. Returns null if not in cache. */
+  async getCachedProjectContent(id: string): Promise<ProjectContent | null> {
+    const db = await this.ensureDb();
+    const tx = db.transaction(CONTENT_STORE, "readonly");
+    const store = tx.objectStore(CONTENT_STORE);
+    return (await txPromise(tx, store.get(id))) as ProjectContent | null;
+  }
+
+  // ── Offline save queue ────────────────────────────────────────────────────
+
+  /** Queue a save to retry when online */
+  async queueSave(content: ProjectContent): Promise<void> {
+    const db = await this.ensureDb();
+    const tx = db.transaction(SAVE_QUEUE_STORE, "readwrite");
+    const store = tx.objectStore(SAVE_QUEUE_STORE);
+    const queued: Omit<QueuedSave, "id"> = {
+      content,
+      queuedAt: Date.now(),
+      attempts: 0,
+    };
+    await txPromise(tx, store.add(queued));
+  }
+
+  /** Get all queued saves that need syncing */
+  async getQueuedSaves(): Promise<QueuedSave[]> {
+    const db = await this.ensureDb();
+    const tx = db.transaction(SAVE_QUEUE_STORE, "readonly");
+    const store = tx.objectStore(SAVE_QUEUE_STORE);
+    return (await txPromise(tx, store.getAll())) as QueuedSave[];
+  }
+
+  /** Remove a queued save after successful sync */
+  async removeQueuedSave(id: number): Promise<void> {
+    const db = await this.ensureDb();
+    const tx = db.transaction(SAVE_QUEUE_STORE, "readwrite");
+    const store = tx.objectStore(SAVE_QUEUE_STORE);
+    await txPromise(tx, store.delete(id));
+  }
+
+  /** Remove all queued saves for a given project ID */
+  async removeQueuedSavesForProject(projectId: string): Promise<void> {
+    const db = await this.ensureDb();
+    const tx = db.transaction(SAVE_QUEUE_STORE, "readwrite");
+    const store = tx.objectStore(SAVE_QUEUE_STORE);
+    const all = await txPromise(tx, store.getAll()) as QueuedSave[];
+    for (const q of all) {
+      if (q.content.id === projectId) store.delete(q.id);
     }
-
-    return new Promise((resolve, reject) => {
-      transaction.oncomplete = () => resolve();
-      transaction.onerror = () => reject(transaction.error);
-    });
   }
 
-  async getUserProjects(): Promise<Record<string, unknown>[]> {
-    const db = await this.ensureDb();
-    return new Promise((resolve, reject) => {
-      const transaction = db.transaction(STORE_NAME, "readonly");
-      const store = transaction.objectStore(STORE_NAME);
-      const request = store.getAll();
-
-      request.onerror = () => reject(request.error);
-      request.onsuccess = () => {
-        const results = request.result as Record<string, unknown>[];
-        results.sort(
-          (a, b) =>
-            new Date((b.updated_at || b.updatedAt) as string).getTime() -
-            new Date((a.updated_at || a.updatedAt) as string).getTime(),
-        );
-        resolve(results);
-      };
-    });
-  }
+  // ── Zip export ────────────────────────────────────────────────────────────
 
   async downloadProjectZip(id: string, filename?: string): Promise<void> {
-    const db = await this.ensureDb();
-    const project = await new Promise<Record<string, unknown> | null>((resolve, reject) => {
-      const transaction = db.transaction(STORE_NAME, "readonly");
-      const store = transaction.objectStore(STORE_NAME);
-      const request = store.get(id);
-      request.onerror = () => reject(request.error);
-      request.onsuccess = () => resolve(request.result as Record<string, unknown> || null);
-    });
+    const content = await this.getCachedProjectContent(id);
+    if (!content) throw new Error(`Project ${id} not found in cache`);
 
-    if (!project) {
-      throw new Error(`Project ${id} not found in cache`);
-    }
-
-    const files = Object.entries((project?.files || {}) as Record<string, string>).map(([name, content]) => ({
-      name,
-      content,
-    }));
-
-    const assets = (project?.assets || {}) as Record<string, string>;
-    const name = (project?.name || "project") as string;
-    const currentFile = (project?.current_file || Object.keys(files)[0]) as string | undefined;
-
+    const files = Object.entries(content.files).map(([name, content]) => ({ name, content }));
     const zipProject: ZipStoredProject = {
       id,
-      name,
+      name: id,
       files,
-      assets,
+      assets: content.assets,
+      tilemaps: content.tilemaps as Record<string, import("./zip").TilemapData>,
+      sounds: content.sounds,
+      sheet: content.sheet as import("./zip").SheetData | undefined,
       updatedAt: new Date().toISOString(),
-      currentFile,
+      currentFile: content.currentFile,
     };
-
     await downloadProjectZip(zipProject, filename);
   }
 }
 
 export const projectStorage = new ProjectStorage();
+
+// ── Online status helpers ───────────────────────────────────────────────────
+
+let syncCallback: (() => void) | null = null;
+
+export function onOnline(cb: () => void): () => void {
+  syncCallback = cb;
+  const handler = () => { if (navigator.onLine) cb(); };
+  window.addEventListener("online", handler);
+  return () => window.removeEventListener("online", handler);
+}
+
+export function triggerSync(): void {
+  if (syncCallback) syncCallback();
+}
+
+export function isOnline(): boolean {
+  return typeof navigator !== "undefined" && navigator.onLine;
+}

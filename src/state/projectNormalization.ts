@@ -1,5 +1,5 @@
 import { Project as ApiProject } from "./api";
-import type { TilemapData, AnimationData, SheetData } from "./IdeState";
+import type { TilemapData, SheetData } from "./IdeState";
 
 export type EditorProject = {
   name?: string;
@@ -7,7 +7,6 @@ export type EditorProject = {
   currentFile?: string;
   assets: Record<string, string>;
   tilemaps: Record<string, TilemapData>;
-  animations: Record<string, AnimationData>;
   sounds?: Record<string, string>;
   sheet?: SheetData;
   theme?: string;
@@ -21,7 +20,6 @@ export function toEditorProject(api: ApiProject): EditorProject {
     currentFile: api.current_file,
     assets: api.assets,
     tilemaps: api.tilemaps ?? {},
-    animations: api.animations ?? {},
     sounds: api.sounds ?? {},
     sheet: api.sheet,
   };

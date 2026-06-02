@@ -10,16 +10,23 @@ export default function ForkDialog({ onClose, onSave }: ForkDialogProps) {
   const { t } = useTranslation();
   const [name, setName] = useState("");
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleSave = async () => {
     if (!name.trim() || saving) return;
     setSaving(true);
+    setError(null);
     try {
       await onSave(name.trim());
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setError(msg === "Unauthorized" ? "Sign in to save your project" : msg);
     } finally {
       setSaving(false);
     }
   };
+
+  const isAuthError = error === "Sign in to save your project";
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80">
@@ -34,7 +41,7 @@ export default function ForkDialog({ onClose, onSave }: ForkDialogProps) {
             <input
               type="text"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => { setName(e.target.value); setError(null); }}
               className="w-full px-3 py-2 bg-cyan-900 border border-cyan-700 rounded focus:outline-none focus:ring-2 focus:ring-cyan-500"
               placeholder={t('sideMenu.projectNamePlaceholder')}
               autoFocus
@@ -45,6 +52,16 @@ export default function ForkDialog({ onClose, onSave }: ForkDialogProps) {
               }}
             />
           </div>
+          {error && (
+            <div className="text-sm text-amber-300 bg-amber-900/40 border border-amber-700 rounded px-3 py-2">
+              {error}
+              {isAuthError && (
+                <a href="/api/auth/login" className="block mt-1 underline text-amber-200 hover:text-amber-100">
+                  Sign in
+                </a>
+              )}
+            </div>
+          )}
           <div className="flex justify-end gap-2">
             <button
               onClick={onClose}

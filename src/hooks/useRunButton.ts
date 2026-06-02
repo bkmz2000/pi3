@@ -2,7 +2,7 @@ import { useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useEditor, useIde } from "../state/IdeState";
 import { useRunner } from "../runner/RunnerProvider";
-import { LintDiagnostic } from "../runner/WorkerInterface";
+import { LintDiagnostic, type RuntimeError, type PerError } from "../runner/WorkerInterface";
 
 type UseRunButtonOptions = {
   onBeforeRun?: () => void;
@@ -18,7 +18,7 @@ export function useRunButton(options: UseRunButtonOptions = {}) {
   const saveCurrentProject = useIde((s) => s.saveCurrentProject);
   const enableLinting = useIde((s) => s.enableLinting);
 
-  const { running, run, interrupt, lint, clear, _appendOutput } = useRunner();
+  const { running, run, interrupt, lint, clear, _appendOutput, pushErrorCard } = useRunner();
 
   const isStartingRef = useRef(false);
 
@@ -49,17 +49,83 @@ export function useRunButton(options: UseRunButtonOptions = {}) {
       if (enableLinting) {
         _appendOutput("stdout", t('console.checking'));
         const diagnostics: LintDiagnostic[] = await lint(code, filename);
-        const errors = diagnostics.filter((d) => d.severity === "error");
 
-        if (errors.length > 0) {
-          _appendOutput("stderr", t('console.foundErrors', { count: errors.length }));
+        // Smart blocking: grammar/syntax errors block, naming/type/logic don't
+        const blockingErrors = diagnostics.filter(
+          (d) => d.severity === "error" && d.isBlocking !== false,
+        );
+        const nonBlockingErrors = diagnostics.filter(
+          (d) => d.severity === "error" && d.isBlocking === false,
+        );
+
+        if (blockingErrors.length > 0) {
+          _appendOutput("stderr", t('console.foundErrors', { count: blockingErrors.length }));
           return;
         }
 
+        // ── Multi-error batching: collect all errors into one card ──
+        const allErrors = diagnostics.filter(
+          (d) => d.severity === "error",
+        );
+        if (allErrors.length > 0) {
+          const codeLines = code.split("\n");
+
+          // Human-readable labels per error code
+          const LABELS: Record<string, string> = {
+            E101: "Indentation has tabs",
+            E111: "Indentation not multiple of 4",
+            E303: "Too many blank lines",
+            E501: "Line too long",
+            E999: "Syntax error",
+            E225: "Type mismatch",
+            E225Call: "Wrong argument type",
+            F401: "Unused import",
+            F821: "Undefined name",
+          };
+
+          const perErrors: PerError[] = allErrors.map((d) => {
+            const token = (d.messageArgs?.name as string) || undefined;
+            const line = d.row + 1; // 1-based
+            const snippet = codeLines[d.row]?.trim() ?? "";
+            const suggestions = d.suggestions?.[0]?.candidates ?? [];
+            const category = d.category ?? "logic";
+            const label = LABELS[d.code] ?? d.code;
+            return { code: d.code, category, label, token, line, snippet, suggestions };
+          });
+
+          const counts: Record<string, number> = {};
+          for (const e of perErrors) {
+            counts[e.category] = (counts[e.category] || 0) + 1;
+          }
+          const summary = Object.entries(counts)
+            .map(([cat, n]) => `${n} ${cat}`)
+            .join(", ");
+
+          const batchError: RuntimeError = {
+            category: "grammar", // dominant category for coloring
+            title: `${allErrors.length} issue${allErrors.length > 1 ? "s" : ""} found`,
+            message: `Fix ${summary} before running.`,
+            raw: "",
+            suggestions: allErrors
+              .filter((d) => d.suggestions?.length)
+              .flatMap((d) => d.suggestions!),
+            isBlocking: blockingErrors.length > 0,
+            perErrors,
+          };
+
+          pushErrorCard(batchError);
+          // lintErrors are already set in the store by the lint() call
+          return;
+        }
+
+        if (nonBlockingErrors.length > 0) {
+          _appendOutput("stdout", t('console.foundNonBlocking', { count: nonBlockingErrors.length }));
+        }
+
         const warnings = diagnostics.filter((d) => d.severity === "warning");
-        if (warnings.length > 0) {
+        if (warnings.length > 0 && nonBlockingErrors.length === 0) {
           _appendOutput("stdout", t('console.foundWarnings', { count: warnings.length }));
-        } else {
+        } else if (warnings.length === 0 && nonBlockingErrors.length === 0) {
           _appendOutput("stdout", t('console.noErrors'));
         }
       }
@@ -68,7 +134,7 @@ export function useRunButton(options: UseRunButtonOptions = {}) {
     } finally {
       isStartingRef.current = false;
     }
-  }, [running, project, currentFile, dirtyFiles, lint, clear, _appendOutput, run, interrupt, saveCurrentProject, markClean, options, t, enableLinting]);
+  }, [running, project, currentFile, dirtyFiles, lint, clear, _appendOutput, pushErrorCard, run, interrupt, saveCurrentProject, markClean, options, t, enableLinting]);
 
   return {
     running,

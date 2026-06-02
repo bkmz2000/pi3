@@ -17,6 +17,7 @@ import { useOnlineSync } from "./hooks/useOnlineSync";
 import FileBar from "./FileBar";
 import { useRunner } from "./runner/RunnerProvider";
 import CanvasWindow from "./CanvasWindow";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import LoadingScreen from "./components/LoadingScreen";
 import ConsolePanel from "./components/ConsolePanel";
 import { indentationGuideField, indentationGuides } from "./editor/theme";
@@ -123,7 +124,6 @@ function ProjectLoader() {
           files: apiProject.files,
           assets: apiProject.assets,
           tilemaps: apiProject.tilemaps ?? {},
-          animations: apiProject.animations ?? {},
           sounds: apiProject.sounds ?? {},
           sheet: apiProject.sheet,
           currentFile: apiProject.current_file,
@@ -134,7 +134,6 @@ function ProjectLoader() {
             files: apiProject.files,
             assets: apiProject.assets,
             tilemaps: apiProject.tilemaps ?? {},
-            animations: apiProject.animations ?? {},
             currentFile: apiProject.current_file,
           },
           projectId,
@@ -154,7 +153,6 @@ function ProjectLoader() {
                 files: cached.files,
                 assets: cached.assets,
                 tilemaps: cached.tilemaps as Record<string, import("./state/IdeState").TilemapData>,
-                animations: cached.animations as Record<string, import("./state/IdeState").AnimationData>,
                 currentFile: cached.currentFile ?? Object.keys(cached.files)[0],
               },
               projectId,
@@ -207,8 +205,18 @@ function AppInner() {
   const [selectedLine, setSelectedLine] = useState<number | null>(null);
   const [anchorY, setAnchorY] = useState<number | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
-  const [savedFlash, setSavedFlash] = useState(false);
   const editorRef = useRef<ReactCodeMirrorRef>(null);
+
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      if (dirtyFiles.size > 0) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [dirtyFiles]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -245,8 +253,8 @@ function AppInner() {
   useEffect(() => {
     const view = editorRef.current?.view;
     if (!view) return;
-    view.dispatch({ effects: reconfigureGraphicsExtensions(theme, lang, enableAutocomplete) });
-  }, [theme, lang, enableAutocomplete]);
+    view.dispatch({ effects: reconfigureGraphicsExtensions(theme, lang, enableAutocomplete, runner.requestCompletions) });
+  }, [theme, lang, enableAutocomplete, runner.requestCompletions]);
 
   useEffect(() => {
     const view = editorRef.current?.view;
@@ -284,16 +292,11 @@ function AppInner() {
       }
 
       if (dirtyFiles.size > 0 && currentProjectId) {
+        const snapshot = new Set(dirtyFiles);
         const success = await saveCurrentProject();
         if (success) {
-          markClean();
-          setSavedFlash(true);
-          setTimeout(() => setSavedFlash(false), 1200);
+          markClean(snapshot);
         }
-      } else if (currentProjectId) {
-        // Nothing to save, but give explicit feedback so Ctrl+S feels acknowledged.
-        setSavedFlash(true);
-        setTimeout(() => setSavedFlash(false), 1200);
       }
     }
   }, [currentProjectId, dirtyFiles, saveCurrentProject, markClean]);
@@ -428,7 +431,7 @@ function AppInner() {
                     EditorView.theme({ "&": { fontSize: fontSize + "px" } }),
                     EditorView.lineWrapping,
                     autocompletion({ defaultKeymap: false }),
-                    ...createGraphicsExtensions(theme, lang, enableAutocomplete),
+                    ...createGraphicsExtensions(theme, lang, enableAutocomplete, runner.requestCompletions),
                     lintGutter(),
                     Prec.high(keymap.of([
                       { key: "Tab", run: acceptCompletion },
@@ -480,7 +483,9 @@ function AppInner() {
 
             {showConsole && <ConsolePanel onRight={consoleOnRight} />}
           </div>
-          <CanvasWindow />
+          <ErrorBoundary label="Canvas">
+            <CanvasWindow />
+          </ErrorBoundary>
           </div>
         </div>
       </div>
@@ -489,11 +494,6 @@ function AppInner() {
           onClose={() => setShowForkDialog(false)}
           onSave={handleForkSave}
         />
-      )}
-      {savedFlash && (
-        <div style={{ position: "fixed", bottom: 20, left: "50%", transform: "translateX(-50%)", zIndex: 9999, padding: "6px 14px", borderRadius: 6, fontSize: 12, color: "#fff", background: "rgba(40,140,90,0.95)", boxShadow: "0 2px 8px rgba(0,0,0,0.25)", pointerEvents: "none" }}>
-          Saved
-        </div>
       )}
     </div>
   );

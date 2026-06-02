@@ -1364,27 +1364,13 @@ export default function SheetEditor({ onClose, initialSprite }: { onClose: () =>
       {showLibrary && (
         <div style={{ position: "fixed", inset: 0, zIndex: 500, display: "flex", alignItems: "center", justifyContent: "center" }}>
           <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.6)" }} onClick={() => setShowLibrary(false)} />
-          <div style={{ position: "relative", width: 720, maxHeight: "85vh", background: surfacePanel, border: `1px solid ${panelBorder}`, borderRadius: 12, boxShadow: "0 20px 60px rgba(0,0,0,0.6)", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+          <div style={{ position: "relative", width: 480, background: surfacePanel, border: `1px solid ${panelBorder}`, borderRadius: 12, boxShadow: "0 20px 60px rgba(0,0,0,0.6)", display: "flex", flexDirection: "column", overflow: "hidden" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", background: panelHeader, borderBottom: `1px solid ${panelBorder}` }}>
-              <span style={{ fontSize: 14, fontWeight: 700, color: panelTxt }}>Sprite Library — Desert Shooter</span>
+              <span style={{ fontSize: 14, fontWeight: 700, color: panelTxt }}>{t("comingSoon.title")}</span>
               <button onClick={() => setShowLibrary(false)} style={{ all: "unset", cursor: "pointer", color: panelTxtMute, fontSize: 18, width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 4 }}>×</button>
             </div>
-            <div style={{ display: "flex", gap: 0, padding: "6px 12px 0", background: panelHeader, overflowX: "auto", flexShrink: 0 }}>
-              {SPRITE_LIBRARY.map((folder, idx) => (
-                <button key={folder.name} onClick={() => setLibFolder(idx)}
-                  style={{ all: "unset", cursor: "pointer", padding: "6px 14px", borderRadius: "6px 6px 0 0", fontSize: 12, fontWeight: 600, fontFamily: fontUI, background: libFolder === idx ? surfacePanel : "transparent", color: libFolder === idx ? accent : panelTxtMute, whiteSpace: "nowrap" }}>{folder.name}</button>
-              ))}
-            </div>
-            <div style={{ flex: 1, overflowY: "auto", padding: "12px", background: surfacePanel }}>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(64px, 1fr))", gap: 6 }}>
-                {(SPRITE_LIBRARY[libFolder]?.entries ?? []).map((entry) => (
-                  <button key={entry.url} title={entry.name} onClick={() => handleLibraryPick(entry)}
-                    style={{ all: "unset", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, padding: 6, borderRadius: 6, background: chip, border: `1px solid ${panelBorder}` }}>
-                    <img src={entry.url} alt={entry.name} style={{ width: 48, height: 48, imageRendering: "pixelated", objectFit: "contain" }} />
-                    <span style={{ fontSize: 9, color: panelTxtMute, fontFamily: fontMono, textAlign: "center", wordBreak: "break-all", maxWidth: 60, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{entry.name}</span>
-                  </button>
-                ))}
-              </div>
+            <div style={{ padding: "48px 32px", textAlign: "center", color: panelTxtMute, fontSize: 13, fontFamily: fontUI, lineHeight: 1.5 }}>
+              {t("comingSoon.sprites")}
             </div>
           </div>
         </div>

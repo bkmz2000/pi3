@@ -12,6 +12,7 @@ import {
 } from "./state/assets";
 import { useRunnerStore, type Screenshot } from "./runner/RunnerProvider";
 import { uploadProjectThumbnail } from "./state/api";
+import { ComingSoonPlug } from "./ExamplesPanel";
 
 type Theme = ReturnType<typeof useThemeStore.getState>["theme"];
 
@@ -753,14 +754,11 @@ function LibraryPickerModal({
   const [category, setCategory] = useState<Category | null>(null);
   const [perspective, setPerspective] = useState<Perspective | null>(null);
 
-  const sprites = kind === 'sprites'
-    ? packAssetsByMeta(category ?? undefined, perspective ?? undefined)
-        .filter(({ name }) => name.includes(query.trim().toLowerCase()))
-    : [];
-
-  const sounds = kind === 'sounds'
-    ? BUILTIN_SOUNDS.filter(({ name }) => name.includes(query.trim().toLowerCase()))
-    : [];
+  // Asset list derivation removed pre-launch — the library content isn't
+  // shipped yet. Filter chips above stay wired so future re-enable is a
+  // straight restore of the deleted blocks.
+  void packAssetsByMeta; void BUILTIN_SOUNDS;
+  void category; void perspective; void query;
 
   const chipStyle = (active: boolean): React.CSSProperties => ({
     all: 'unset', cursor: 'pointer',
@@ -820,49 +818,13 @@ function LibraryPickerModal({
         </div>
 
         <div style={{ flex: 1, overflowY: 'auto', padding: 12 }}>
-          {kind === 'sprites' && (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))', gap: 8 }}>
-              {sprites.map(({ name, url }) => (
-                <button key={url} type="button" title={name} onClick={() => { onAddSprite(name, url); onClose(); }}
-                  style={{
-                    all: 'unset', cursor: 'pointer', display: 'flex', flexDirection: 'column',
-                    alignItems: 'center', gap: 4, padding: 8, borderRadius: 6,
-                    background: theme.chip, border: `1px solid ${theme.panelBorder}`,
-                  }}>
-                  <img src={url} alt={name} style={{ width: 48, height: 48, imageRendering: 'pixelated', objectFit: 'contain' }} />
-                  <span style={{
-                    fontSize: 9, color: theme.panelTxtMute, fontFamily: theme.fontMono, textAlign: 'center',
-                    maxWidth: 70, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                  }}>{name}</span>
-                </button>
-              ))}
-              {sprites.length === 0 && (
-                <div style={{ gridColumn: '1/-1', padding: 24, textAlign: 'center', color: theme.panelTxtMute, fontSize: 12 }}>
-                  {t('sideMenu.noSpritesMatch')}
-                </div>
-              )}
-            </div>
-          )}
-          {kind === 'sounds' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              {sounds.map(({ name, url }) => (
-                <div key={url} style={{
-                  display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px',
-                  borderRadius: 6, background: theme.chip,
-                }}>
-                  <button type="button" onClick={() => playAudio(url)} title={t('sideMenu.soundPlay')}
-                    style={{ all: 'unset', cursor: 'pointer', width: 24, height: 24, color: theme.panelTxtMute, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <Icon name="play" size={13} color="currentColor" />
-                  </button>
-                  <span style={{ flex: 1, fontSize: 12, fontFamily: theme.fontUI, color: theme.panelTxt }}>{name}</span>
-                  <button type="button" onClick={() => { onAddSound(name, url); onClose(); }}
-                    style={{ all: 'unset', cursor: 'pointer', padding: '4px 10px', borderRadius: 4, background: theme.accent, color: '#fff', fontSize: 11, fontFamily: theme.fontUI, fontWeight: 600 }}>
-                    {t('sideMenu.duplicate') || 'Add'}
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
+          {/* Pre-launch plug: sprite/sound asset packs aren't shipped yet.
+              Keeping the modal shell + the filter chips intact so the picker
+              feels real, but replacing the grid/list with a coming-soon hint. */}
+          <ComingSoonPlug
+            theme={theme}
+            message={kind === 'sprites' ? t('comingSoon.sprites') : t('comingSoon.sounds')}
+          />
         </div>
       </div>
     </div>

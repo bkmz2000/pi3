@@ -1,5 +1,5 @@
 import type { PyodideInterface } from "pyodide";
-import { WorkerCommand, WorkerEvent, LintDiagnostic, SheetRunPayload } from "./WorkerInterface";
+import { WorkerCommand, WorkerEvent, LintDiagnostic, SheetRunPayload, RuntimeError } from "./WorkerInterface";
 import { executeDrawCommands } from "./canvasRenderer";
 
 let pyodide: PyodideInterface | null = null;
@@ -10,7 +10,6 @@ let pendingOffscreen: OffscreenCanvas | null = null;
 
 // JS-side asset stores — ImageBitmaps never enter Pyodide
 let runAssets: Record<string, ImageBitmap> = {};
-let runAnimations: Record<string, { frames: ImageBitmap[]; fps: number }> = {};
 
 function post(e: WorkerEvent) {
   self.postMessage(e);
@@ -90,6 +89,7 @@ async function initPyodide(
   graphicsActors: string,
   graphicsAnimation: string,
   linter: string,
+  errorHook: string,
 ) {
   console.log("Worker: Writing modules to filesystem...");
 
@@ -107,6 +107,7 @@ async function initPyodide(
   p.FS.writeFile("/graphics/actors/__init__.py", graphicsActors);
   p.FS.writeFile("/graphics/animation.py", graphicsAnimation);
   p.FS.writeFile("/linter.py", linter);
+  p.FS.writeFile("/error_hook.py", errorHook);
 
   console.log("Worker: Files written, running Python initialization...");
 
@@ -129,8 +130,8 @@ async function initPyodide(
   });
   p.globals.set(
     "_ide_post_sound",
-    (action: "play" | "pause" | "loop" | "stop", name: string) => {
-      post({ type: "sound", action, name });
+    (action: "play" | "pause" | "loop" | "stop" | "volume", name: string, value?: number) => {
+      post({ type: "sound", action, name, value });
     },
   );
 
@@ -142,12 +143,27 @@ async function initPyodide(
     if (resolver) resolver(value);
   });
 
+  // _ide_post_runtime_error: called from Python _tick when the game loop catches an exception
+  p.globals.set("_ide_post_runtime_error", (errorJson: string) => {
+    try {
+      const error = JSON.parse(errorJson) as RuntimeError;
+      post({ type: "runtime_error", error });
+    } catch {
+      post({ type: "stderr", text: String(errorJson) });
+    }
+  });
+
+  // _ide_notify_loop_ended: called from _tick when the game loop exits normally (stop requested)
+  p.globals.set("_ide_notify_loop_ended", () => {
+    post({ type: "result" });
+  });
+
   // _ide_flush_draw_commands: called from Python each tick with to_js(_draw_commands)
   p.globals.set("_ide_flush_draw_commands", (commands: unknown[]) => {
     if (!offscreen) return;
     const ctx = offscreen.getContext("2d");
     if (!ctx) return;
-    executeDrawCommands(ctx, Array.from(commands as Iterable<unknown>), runAssets, runAnimations, offscreen.width, offscreen.height);
+    executeDrawCommands(ctx, Array.from(commands as Iterable<unknown>), runAssets, offscreen.width, offscreen.height);
   });
 
   // Expose all callbacks on the js module and inline stdout/input setup
@@ -163,6 +179,8 @@ js._ide_canvas_resize = _ide_canvas_resize
 js._ide_resolve_input = _ide_resolve_input
 js._ide_flush_draw_commands = _ide_flush_draw_commands
 js._ide_post_sound = _ide_post_sound
+js._ide_post_runtime_error = _ide_post_runtime_error
+js._ide_notify_loop_ended = _ide_notify_loop_ended
 
 class _Writer:
     def __init__(self, kind):
@@ -199,6 +217,7 @@ builtins.input = _async_input
 import sys
 sys.path.insert(0, "/")
 import linter
+import error_hook
     `);
     console.log("Worker: Python initialization completed successfully");
   } catch (err: unknown) {
@@ -213,6 +232,27 @@ import linter
   if (pendingOffscreen) {
     offscreen = pendingOffscreen;
     pendingOffscreen = null;
+  }
+
+  // Load Jedi for dot-completion (best-effort, non-fatal).
+  // parso is on the Pyodide CDN; jedi is not, so load it directly from PyPI.
+  // loadPackage accepts full URLs and skips lock-file integrity for them.
+  try {
+    const PYODIDE_CDN = "https://cdn.jsdelivr.net/pyodide/v0.26.4/full/";
+    const JEDI_PYPI = "https://files.pythonhosted.org/packages/c0/5a/9cac0c82afec3d09ccd97c8b6502d48f165f9124db81b4bcb90b4af974ee/jedi-0.19.2-py2.py3-none-any.whl";
+    await p.loadPackage([
+      `${PYODIDE_CDN}parso-0.8.4-py2.py3-none-any.whl`,
+      JEDI_PYPI,
+    ]);
+    await p.runPythonAsync(`
+import jedi as _jedi
+_jedi_project = _jedi.Project('/', added_sys_path=['/'])
+_jedi_available = True
+    `);
+    console.log("Worker: Jedi loaded");
+  } catch (err) {
+    console.warn("Worker: Jedi unavailable, dot completion disabled:", err);
+    await p.runPythonAsync(`_jedi_available = False`).catch(() => {});
   }
 }
 
@@ -235,12 +275,78 @@ function usesNewGraphics(code: string): boolean {
   return /^[^#'"]*\b(import graphics|from graphics)\b/m.test(code);
 }
 
+// ── Error handling: attempt structured classification, fall back to raw ──
+
+function handleExecutionError(err: unknown, p: PyodideInterface) {
+  // First: check if the Python error hook already produced a structured result
+  try {
+    const structuredJs = p.globals.get("_last_structured_error");
+    if (structuredJs) {
+      const error: RuntimeError = structuredJs.toJs({ dict_converter: Object.fromEntries });
+      p.globals.delete("_last_structured_error");
+      post({ type: "runtime_error", error });
+      return;
+    }
+  } catch {
+    // hook didn't fire or failed — fall through to JS-side classification
+  }
+
+  // Fallback: flat error (infrastructure, or hook crashed)
+  const raw = String(err);
+  post({ type: "error", error: raw });
+}
+
+// ── Register known symbols for error_hook suggestion engine ──
+
+async function registerKnownSymbols(p: PyodideInterface) {
+  await p.runPythonAsync(`
+import error_hook
+import graphics
+import builtins
+
+_symbols = set()
+
+# Graphics API surface
+for name in dir(graphics):
+    if not name.startswith("_"):
+        _symbols.add(name)
+
+# Colors.* names
+for name in dir(graphics.Colors):
+    if not name.startswith("_"):
+        _symbols.add(name)
+
+# Common Python builtins
+_builtin_names = [
+    "print", "input", "len", "range", "int", "str", "float", "bool",
+    "list", "dict", "set", "tuple", "type", "abs", "min", "max",
+    "sum", "round", "sorted", "reversed", "enumerate", "zip",
+    "open", "help", "dir", "id", "isinstance", "issubclass",
+    "True", "False", "None",
+]
+for name in _builtin_names:
+    _symbols.add(name)
+
+# Common stdlib modules for import-error suggestions
+_module_names = [
+    "random", "math", "json", "time", "os", "sys", "re",
+    "collections", "itertools", "functools", "datetime",
+    "statistics", "string", "copy",
+]
+for name in _module_names:
+    _symbols.add(name)
+
+error_hook.register_known_symbols(list(_symbols))
+  `);
+}
+
+// ── Execution wrappers with structured error handling ──
+
 async function runGraphicsScript(
   p: PyodideInterface,
   files: Record<string, string>,
   assets: Record<string, ImageBitmap>,
   tilemaps: Record<string, unknown> | undefined,
-  animations: Record<string, { frames: ImageBitmap[]; fps: number }> | undefined,
   soundNames: string[] | undefined,
   sheet: SheetRunPayload | undefined,
   entry: string,
@@ -258,7 +364,6 @@ async function runGraphicsScript(
 
   // Store assets JS-side only — do NOT pass bitmaps into Pyodide
   runAssets = assets;
-  runAnimations = animations ?? {};
 
   // Pass only names/metadata into Python (include bitmap dimensions so Actor anchor points work without a collider)
   p.globals.set(
@@ -285,10 +390,6 @@ async function runGraphicsScript(
     assetPixels.push([name, w, h, pixels]);
   }
   p.globals.set("_asset_pixels", assetPixels);
-  p.globals.set(
-    "_anim_meta",
-    Object.entries(animations ?? {}).map(([n, a]) => [n, a.frames.length, a.fps]),
-  );
   p.globals.set("_tilemap_data", JSON.stringify(tilemaps ?? {}));
   p.globals.set("_sound_names", soundNames ?? []);
 
@@ -353,19 +454,6 @@ for _row in _asset_pixels.to_py():
     _sheet_dict[_key] = graphics.Sprite(_aw, _ah, _apx)
 graphics.sheet = _sheet_dict
 
-# Build animations namespace from metadata
-_anim_ns = {}
-for _aname, _fcount, _fps in _anim_meta.to_py():
-    from graphics.animation import Animation
-    _frames_list = [{"done": True, "anim_name": _aname, "frame_idx": _i} for _i in range(_fcount)]
-    _anim_obj = Animation.__new__(Animation)
-    _anim_obj.name = _aname
-    _anim_obj.fps = _fps
-    _anim_obj._frames = _frames_list
-    _anim_obj._current_frame = 0
-    _anim_obj._last_tick = 0
-    _anim_ns[_aname] = _anim_obj
-
 # Build tilemaps from JSON data
 _tilemaps_dict = {}
 _raw_tm = json.loads(_tilemap_data)
@@ -396,7 +484,6 @@ for _sname in _sound_names.to_py():
 graphics.assets = SimpleNamespace(
     sprites=_sprites,
     tilemaps=SimpleNamespace(**_tilemaps_dict),
-    animations=SimpleNamespace(**_anim_ns),
     sounds=SimpleNamespace(**_sounds_ns),
     **_lib_namespaces,
 )
@@ -406,7 +493,7 @@ graphics.assets = SimpleNamespace(
   await p.runPythonAsync(`
 import json as _json
 
-if _sheet_pixels is not None:
+if _sheet_pixels:
     _sheet_raw = bytearray(_sheet_pixels.to_py())
     _sheet_meta_parsed = _json.loads(_sheet_meta)
     _sheet_ns_dict = {}
@@ -434,6 +521,9 @@ else:
     graphics.assets.sheet = graphics.SheetNamespace({})
   `);
 
+  // Register known symbols for the error hook's suggestion engine
+  await registerKnownSymbols(p);
+
   await p.runPythonAsync(`
 graphics._running = False
 graphics._stop_requested = False
@@ -441,13 +531,52 @@ graphics._reset_run_state()
   `);
 
   const code = files[entry] ?? "";
+  const filename = entry || "main.py";
+
+  // Give _tick access to user code so runtime errors can be classified friendlily
+  p.runPython(`import graphics as _g; _g._user_code = ${JSON.stringify(code)}; _g._user_filename = ${JSON.stringify(filename)}`);
+
   post({ type: "start", canvasActive: true });
 
-  try {
-    await p.runPythonAsync(code);
-  } catch (err: unknown) {
-    post({ type: "error", error: String(err) });
-    p.globals.set("_using_graphics", false);
+  // ── Execute user code with structured error wrapping ──
+  // Don't re-raise — let JS read _last_structured_error directly after
+  // p.runPythonAsync() completes. The re-raise approach caused p.runPythonAsync()
+  // to reject, and by the time the outer catch block called handleExecutionError,
+  // p.globals access could fail silently.
+  await p.runPythonAsync(`
+import error_hook
+import json as _json
+
+_errored = False
+try:
+    exec(${JSON.stringify(code)}, globals())
+except Exception as _err:
+    _errored = True
+    _structured = error_hook.classify_error(_err, ${JSON.stringify(code)}, ${JSON.stringify(filename)})
+    _last_structured_error = _structured
+    import sys
+    sys.stderr.write("\\n" + _structured.get("raw", str(_err)))
+  `);
+
+  // Check for structured error first
+  const structuredJs = p.globals.get("_last_structured_error");
+  if (structuredJs) {
+    try {
+      const error: RuntimeError = structuredJs.toJs({ dict_converter: Object.fromEntries });
+      p.globals.delete("_last_structured_error");
+      p.globals.set("_using_graphics", false);
+      post({ type: "runtime_error", error });
+      post({ type: "result" });
+      return;
+    } catch {
+      // fall through to raw error
+    }
+  }
+
+  // Only post result if the game loop didn't start — if it's running,
+  // _ide_notify_loop_ended will fire when the loop exits naturally.
+  const isLoopRunning = p.runPython("import graphics; graphics._running") as boolean;
+  if (!isLoopRunning) {
     post({ type: "result" });
   }
 }
@@ -457,7 +586,6 @@ async function runScript(
   files: Record<string, string>,
   assets: Record<string, ImageBitmap>,
   tilemaps: Record<string, unknown> | undefined,
-  animations: Record<string, { frames: ImageBitmap[]; fps: number }> | undefined,
   soundNames: string[] | undefined,
   sheet: SheetRunPayload | undefined,
   entry: string,
@@ -468,26 +596,55 @@ async function runScript(
   p.globals.set("_using_graphics", false);
 
   if (usesNewGraphics(code)) {
-    await runGraphicsScript(p, files, assets, tilemaps, animations, soundNames, sheet, entry, showHitboxes);
+    await runGraphicsScript(p, files, assets, tilemaps, soundNames, sheet, entry, showHitboxes);
     return;
   }
+
+  // Register known symbols for the error hook
+  await registerKnownSymbols(p);
 
   // Plain Python script — wrap in async def so input() suspends correctly.
-  // Pyodide's WebLoop can't re-enter run_until_complete, so we rewrite input(...)
-  // as (await _async_input(...)) and wrap the script in an async def.
-  // Paren-matching ensures nested calls like int(input("x")) work correctly.
   const transformed = rewriteInputCalls(code);
   const indented = transformed.split('\n').map((l) => '    ' + l).join('\n');
-  const asyncCode = `async def __run():\n${indented}\nawait __run()\n`;
+  const filename = entry || "main.py";
+
+  // Build async wrapper with error_hook integration (no re-raise — JS reads _last_structured_error)
+  const asyncCode = `
+import error_hook
+import json as _json
+
+async def __run():
+${indented}
+
+_errored = False
+try:
+    await __run()
+except Exception as _err:
+    _errored = True
+    _structured = error_hook.classify_error(_err, ${JSON.stringify(code)}, ${JSON.stringify(filename)})
+    _last_structured_error = _structured
+    import sys
+    sys.stderr.write("\\n" + _structured.get("raw", str(_err)))
+`;
 
   post({ type: "start", canvasActive: false });
-  try {
-    await p.runPythonAsync(asyncCode);
-  } catch (err: unknown) {
-    post({ type: "error", error: String(err) });
-    post({ type: "result" });
-    return;
+  await p.runPythonAsync(asyncCode);
+
+  // Check for structured error
+  const structuredJs = p.globals.get("_last_structured_error");
+  if (structuredJs) {
+    try {
+      const error: RuntimeError = structuredJs.toJs({ dict_converter: Object.fromEntries });
+      p.globals.delete("_last_structured_error");
+      p.globals.set("_using_graphics", false);
+      post({ type: "runtime_error", error });
+      post({ type: "result" });
+      return;
+    } catch {
+      // fall through
+    }
   }
+
   post({ type: "result" });
 }
 
@@ -499,7 +656,8 @@ self.onmessage = async (e: MessageEvent<WorkerCommand>) => {
       console.log("Worker: Initializing Pyodide...");
       const p = await ensurePyodide();
       console.log("Worker: Pyodide loaded, initializing modules...");
-      await initPyodide(p, msg.graphicsInit, msg.graphicsActors, msg.graphicsAnimation, msg.linter);
+      const errorHookSrc = msg.errorHook;
+      await initPyodide(p, msg.graphicsInit, msg.graphicsActors, msg.graphicsAnimation, msg.linter, errorHookSrc);
       console.log("Worker: Initialization complete, posting ready");
       post({ type: "ready" });
     } catch (err: unknown) {
@@ -512,9 +670,14 @@ self.onmessage = async (e: MessageEvent<WorkerCommand>) => {
   } else if (msg.cmd === "run") {
     try {
       const p = await ensurePyodide();
-      await runScript(p, msg.files, msg.assets, msg.tilemaps, msg.animations, msg.soundNames, msg.sheet, msg.entry, msg.showHitboxes);
+      await runScript(p, msg.files, msg.assets, msg.tilemaps, msg.soundNames, msg.sheet, msg.entry, msg.showHitboxes);
     } catch (err: unknown) {
-      post({ type: "error", error: String(err) });
+      const p = pyodide;
+      if (p) {
+        handleExecutionError(err, p);
+      } else {
+        post({ type: "error", error: String(err) });
+      }
       post({ type: "result" });
     }
   } else if (msg.cmd === "event") {
@@ -569,6 +732,34 @@ self.onmessage = async (e: MessageEvent<WorkerCommand>) => {
     } catch (err) {
       console.warn("Worker: Lint skipped —", err);
       post({ type: "lint", diagnostics: [], reqId });
+    }
+  } else if (msg.cmd === "complete") {
+    const { reqId, code, line, col } = msg;
+    if (!pyodide) { post({ type: "complete", reqId, completions: [] }); return; }
+    try {
+      pyodide.globals.set("_cq_code", code);
+      pyodide.globals.set("_cq_line", line);
+      pyodide.globals.set("_cq_col", col);
+      const result = await pyodide.runPythonAsync(`
+_cq_result = []
+if _jedi_available:
+    try:
+        _s = _jedi.Script(_cq_code, project=_jedi_project)
+        for _c in _s.complete(_cq_line, _cq_col):
+            if not _c.name.startswith('_'):
+                _cq_result.append({'name': _c.name, 'type': _c.type, 'description': _c.description})
+    except Exception:
+        pass
+_cq_result
+      `);
+      const completions = result.toJs({ dict_converter: Object.fromEntries }) as import("./WorkerInterface").JediCompletion[];
+      pyodide.globals.delete("_cq_code");
+      pyodide.globals.delete("_cq_line");
+      pyodide.globals.delete("_cq_col");
+      post({ type: "complete", reqId, completions: completions ?? [] });
+    } catch (err) {
+      console.warn("Worker: completion failed —", err);
+      post({ type: "complete", reqId, completions: [] });
     }
   } else if (msg.cmd === "screenshot") {
     const { reqId } = msg;

@@ -67,7 +67,7 @@ class FakeOffscreenCanvas {
 describe('executeDrawCommands', () => {
   it('background fills canvas with color reset to identity transform', () => {
     const ctx = makeCtx();
-    executeDrawCommands(ctx, [['background', [10, 20, 30]]], {}, {}, 100, 80);
+    executeDrawCommands(ctx, [['background', [10, 20, 30]]], {}, 100, 80);
     expect(ctx.save).toHaveBeenCalled();
     expect(ctx.setTransform).toHaveBeenCalledWith(1, 0, 0, 1, 0, 0);
     expect(ctx.fillRect).toHaveBeenCalledWith(0, 0, 100, 80);
@@ -82,7 +82,6 @@ describe('executeDrawCommands', () => {
       ctx,
       [['background_image', ['sky']]],
       { sky: bm },
-      {},
       200,
       150,
     );
@@ -91,7 +90,7 @@ describe('executeDrawCommands', () => {
 
   it('background_image no-ops when asset is missing', () => {
     const ctx = makeCtx();
-    executeDrawCommands(ctx, [['background_image', ['missing']]], {}, {}, 100, 80);
+    executeDrawCommands(ctx, [['background_image', ['missing']]], {}, 100, 80);
     expect(ctx.drawImage).not.toHaveBeenCalled();
   });
 
@@ -102,7 +101,6 @@ describe('executeDrawCommands', () => {
       ctx,
       [['image', ['ship', 10, 20, 30, 40]]],
       { 'ship.svg': bm },
-      {},
       100,
       80,
     );
@@ -116,7 +114,6 @@ describe('executeDrawCommands', () => {
       ctx,
       [['image', ['ship', 5, 6, null, null]]],
       { ship: bm },
-      {},
       100,
       80,
     );
@@ -130,7 +127,6 @@ describe('executeDrawCommands', () => {
       ctx,
       [['image_centered', ['s', 100, 50, null, null]]],
       { s: bm },
-      {},
       200,
       200,
     );
@@ -144,7 +140,6 @@ describe('executeDrawCommands', () => {
     executeDrawCommands(
       ctx,
       [['sprite', [pixels, 2, 1, 10, 20, null, null]]],
-      {},
       {},
       100,
       80,
@@ -164,7 +159,6 @@ describe('executeDrawCommands', () => {
       ctx,
       [['sprite', [pixels, 4, 4, 0, 0, 32, 32]]],
       {},
-      {},
       100,
       80,
     );
@@ -177,35 +171,6 @@ describe('executeDrawCommands', () => {
     executeDrawCommands(
       ctx,
       [['sprite', [pixels, 4, 4, 0, 0, null, null]]],
-      {},
-      {},
-      100,
-      80,
-    );
-    expect(ctx.drawImage).not.toHaveBeenCalled();
-  });
-
-  it('animation_frame draws frame from animation by index (modulo)', () => {
-    const ctx = makeCtx();
-    const f0 = fakeBitmap();
-    const f1 = fakeBitmap();
-    executeDrawCommands(
-      ctx,
-      [['animation_frame', ['run', 3, 10, 20, null, null]]],
-      {},
-      { run: { frames: [f0, f1], fps: 8 } },
-      100,
-      80,
-    );
-    expect(ctx.drawImage).toHaveBeenCalledWith(f1, 10, 20);
-  });
-
-  it('animation_frame no-ops on unknown animation', () => {
-    const ctx = makeCtx();
-    executeDrawCommands(
-      ctx,
-      [['animation_frame', ['nope', 0, 0, 0, null, null]]],
-      {},
       {},
       100,
       80,
@@ -224,7 +189,6 @@ describe('executeDrawCommands', () => {
         ['ellipse', [50, 50, 20, 10]],
         ['point', [3, 3]],
       ],
-      {},
       {},
       100,
       80,
@@ -248,7 +212,6 @@ describe('executeDrawCommands', () => {
         ['no_stroke', []],
       ],
       {},
-      {},
       100,
       80,
     );
@@ -269,7 +232,6 @@ describe('executeDrawCommands', () => {
         ['pop', []],
       ],
       {},
-      {},
       100,
       80,
     );
@@ -287,7 +249,6 @@ describe('executeDrawCommands', () => {
       ctx,
       [['tilemap_layer', [[[0, 0, 'stone'], [1, 0, 'stone', 0]], 32, 0, 0]]],
       { stone },
-      {},
       200,
       200,
     );
@@ -303,7 +264,6 @@ describe('executeDrawCommands', () => {
       ctx,
       [['tilemap_layer', [[[2, 3, 'stone', 90]], 32, 0, 0]]],
       { stone },
-      {},
       200,
       200,
     );
@@ -322,7 +282,6 @@ describe('executeDrawCommands', () => {
         ['text_align', ['center', 'middle']],
         ['text', ['hi', 50, 50]],
       ],
-      {},
       {},
       100,
       80,

@@ -104,10 +104,10 @@ export function executeDrawCommands(
   ctx: OffscreenCanvasRenderingContext2D,
   commands: unknown[],
   assets: Record<string, ImageBitmap>,
-  animations: Record<string, { frames: ImageBitmap[]; fps: number }>,
   canvasW: number,
   canvasH: number,
 ) {
+  ctx.imageSmoothingEnabled = false;
   for (const entry of commands) {
     const [cmd, args] = entry as [string, unknown[]];
     switch (cmd) {
@@ -272,27 +272,6 @@ export function executeDrawCommands(
         off.getContext("2d")!.putImageData(imageData, 0, 0);
         if (w != null) ctx.drawImage(off, x, y, w, h ?? w);
         else ctx.drawImage(off, x, y);
-        break;
-      }
-      case "animation_frame": {
-        const [animName, frameIdx, x, y, w, h] = args as [string, number, number, number, number | null, number | null];
-        const anim = animations[animName];
-        if (!anim) break;
-        const bm = anim.frames[frameIdx % anim.frames.length];
-        if (!bm) break;
-        if (w != null) ctx.drawImage(bm, x, y, w, h ?? w);
-        else ctx.drawImage(bm, x, y);
-        break;
-      }
-      case "animation_frame_centered": {
-        const [animName, frameIdx, x, y, w, h] = args as [string, number, number, number, number | null, number | null];
-        const anim = animations[animName];
-        if (!anim) break;
-        const bm = anim.frames[frameIdx % anim.frames.length];
-        if (!bm) break;
-        const dw = w ?? bm.width;
-        const dh = h ?? bm.height;
-        ctx.drawImage(bm, x - dw / 2, y - dh / 2, dw, dh);
         break;
       }
       case "tilemap_layer": {

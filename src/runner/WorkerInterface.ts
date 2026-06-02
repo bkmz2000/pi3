@@ -27,13 +27,12 @@ export type SheetRunPayload = {
 };
 
 export type WorkerCommand =
-  | { cmd: "init"; graphicsInit: string; graphicsActors: string; graphicsAnimation: string; linter: string }
+  | { cmd: "init"; graphicsInit: string; graphicsActors: string; graphicsAnimation: string; linter: string; errorHook: string }
   | {
       cmd: "run";
       files: Record<string, string>;
       assets: Record<string, ImageBitmap>;
       tilemaps?: Record<string, unknown>;
-      animations?: Record<string, { frames: ImageBitmap[]; fps: number }>;
       soundNames?: string[];
       sheet?: SheetRunPayload;
       entry: string;
@@ -45,7 +44,58 @@ export type WorkerCommand =
   | { cmd: "event"; kind: WorkerEventType; data: InputEventData }
   | { cmd: "input_response"; value: string }
   | { cmd: "lint"; code: string; filename: string; reqId: number }
+  | { cmd: "complete"; code: string; line: number; col: number; reqId: number }
   | { cmd: "screenshot"; reqId: number };
+
+// ── Friendly error types ──────────────────────────────────────────────────
+
+export type ErrorCategory =
+  | "naming"
+  | "types"
+  | "grammar"
+  | "missing"
+  | "logic"
+  | "api-misuse";
+
+export type ErrorSuggestion = {
+  token: string;         // the misspelled token, e.g. "bakcground"
+  candidates: string[];  // nearest matches, e.g. ["background"]
+};
+
+// A single sub-error within a batch — used when the linter finds multiple
+// errors before execution (any category, not just naming).
+export type PerError = {
+  code: string;            // e.g. "F821", "E225", "E999"
+  category: ErrorCategory;
+  label: string;           // human-readable short label, e.g. "Undefined name"
+  token?: string;          // the problematic name (if applicable)
+  line: number;            // 1-based line number
+  snippet: string;         // the line of code
+  suggestions: string[];   // nearest matches (if any)
+};
+
+// Structured runtime error — replaces flat "error" events for user-code exceptions.
+export type RuntimeError = {
+  category: ErrorCategory;
+  title: string;          // kid-friendly short label, e.g. "Naming mistake"
+  message: string;        // kid-friendly explanation
+  raw: string;            // original traceback string (for expand/collapse)
+  cleanRaw?: string;      // filtered traceback (Pyodide frames removed) for student view
+  suggestions: ErrorSuggestion[];
+  location?: {            // parsed from traceback when possible
+    row: number;
+    column: number;
+    endRow: number;
+    endColumn: number;
+  };
+  isBlocking: boolean;    // grammar/syntax errors block; naming/type/logic don't
+  codeSnippet?: string;   // the actual line of code that caused the error
+  codeLine?: number;      // 1-based line number
+  codeColumn?: number;    // 0-based column of the problematic token
+  perErrors?: PerError[]; // batch mode: multiple sub-errors from linter pre-scan
+};
+
+// ── Lint diagnostic (extended) ────────────────────────────────────────────
 
 export type LintDiagnostic = {
   code: string;
@@ -56,7 +106,21 @@ export type LintDiagnostic = {
   endRow: number;
   endColumn: number;
   severity: "error" | "warning";
+  // Enhanced fields for friendly errors
+  category?: ErrorCategory;
+  suggestions?: ErrorSuggestion[];
+  isBlocking?: boolean;
 };
+
+// ── Jedi completion item ──────────────────────────────────────────────────────
+
+export type JediCompletion = {
+  name: string;
+  type: string;
+  description: string;
+};
+
+// ── Worker events ─────────────────────────────────────────────────────────
 
 export type WorkerEvent =
   | { type: "ready" }
@@ -65,9 +129,11 @@ export type WorkerEvent =
   | { type: "stderr"; text: string }
   | { type: "result" }
   | { type: "error"; error: string }
+  | { type: "runtime_error"; error: RuntimeError }
   | { type: "input_request"; prompt: string }
   | { type: "lint"; diagnostics: LintDiagnostic[]; reqId: number }
+  | { type: "complete"; completions: JediCompletion[]; reqId: number }
   | { type: "interrupt_ack" }
   | { type: "canvas_resize"; width: number; height: number }
-  | { type: "sound"; action: "play" | "pause" | "loop" | "stop"; name: string }
+  | { type: "sound"; action: "play" | "pause" | "loop" | "stop" | "volume"; name: string; value?: number }
   | { type: "screenshot"; reqId: number; blob: Blob | null };

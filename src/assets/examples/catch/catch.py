@@ -1,13 +1,13 @@
 from graphics import *
 from graphics.actors import Rect, Circle, Group
 
-FRUIT_COLORS = [Colors.red, Colors.yellow, Colors.orange, Colors.pink, Colors.purple, Colors.green]
+FRUIT_COLORS = [Colors.red, Colors.yellow, Colors.orange, Colors.wine, Colors.lime]
 
 score = 0
 lives = 3
 frame = 0
 
-basket = Rect(x=250, y=370, width=80, height=20, color=Colors.brown)
+basket = Rect(x=250, y=370, width=80, height=20, color=Colors.orange)
 falling = Group()
 
 

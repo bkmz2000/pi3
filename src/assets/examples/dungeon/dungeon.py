@@ -5,8 +5,8 @@
 #   - Light.shade("candle") + Light.flicker(True): warm flickering torches
 #   - Actor.future_state.collides_any(walls): wall-stop without a sweep test;
 #     try each axis separately so the player slides along walls
-#   - Polar(speed, angle): build velocity from a speed + angle. angle is
-#     visual-only — motion comes from .vel
+#   - Polar(speed, angle): build velocity from a speed + angle (0°=up, 90°=right)
+#     angle is visual-only — motion comes from .vel
 
 from graphics import *
 

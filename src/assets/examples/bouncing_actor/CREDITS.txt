@@ -1,0 +1,13 @@
+bouncing_actor example — asset credits
+======================================
+
+This example currently uses only code-drawn shapes (no external assets).
+
+To add a bounce sound, drop a short CC0 .wav or .mp3 file named "bounce" into
+this directory as a project sound asset, then uncomment the
+  assets.sounds.bounce.play()
+line in main.py.
+
+Free CC0 sound sources:
+  https://freesound.org  (search "bounce", filter CC0)
+  https://opengameart.org

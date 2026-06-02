@@ -63,7 +63,7 @@ def tick():
     background(Colors.black)
 
     for gx, gy in goals:
-        fill(Colors.brown)
+        fill(Colors.wine)
         rect(gx * 30 + 7.5, gy * 30 + 7.5, 15, 15)
 
     for wx, wy in walls:
@@ -80,7 +80,7 @@ def tick():
             rect(bx * 30, by * 30, 30, 30)
             rect(bx * 30 + 7.5, by * 30 + 7.5, 15, 15)
         else:
-            fill(Colors.brown)
+            fill(Colors.wine)
             rect(bx * 30, by * 30, 30, 30)
             fill(Colors.black)
             rect(bx * 30 + 7.5, by * 30 + 7.5, 15, 15)

@@ -5,10 +5,10 @@ import random
 
 def create_asteroid(size="big", pos=None):
     if size == "big":
-        a = Actor(image=assets.sprites.big_asteroid)
+        a = Actor(image=assets.sheet.big_asteroid, scale=3)
         a.collider.set_circle(30)
     if size == "small":
-        a = Actor(image=assets.sprites.small_asteroid)
+        a = Actor(image=assets.sheet.small_asteroid, scale=2)
         a.collider.set_circle(10)
 
     if pos is None:
@@ -20,7 +20,7 @@ def create_asteroid(size="big", pos=None):
     asteroids.add(a)
 
 
-ship = Actor(image=assets.sprites.ship)
+ship = Actor(image=assets.sheet.ship, scale=3)
 ship.collider.set_circle(15)
 
 bullets = Group()
@@ -39,16 +39,18 @@ def tick():
     ship.draw()
 
     if Mouse.pressed:
-        b = Actor(image=assets.sprites.bullet)
-        b.collider.set_circle(10)
+        b = Actor()
+        b.collider.set_circle(4)
         b.move_to(ship.x, ship.y)
         b.angle = ship.angle
         b.move(10)
         bullets.add(b)
 
+    no_stroke()
+    fill(Colors.white)
     for b in bullets:
         b.move(10)
-        b.draw()
+        circle(b.x, b.y, 4)
         for a in asteroids:
             if b.collides_with(a):
                 if a not in asteroids:
@@ -71,5 +73,5 @@ def tick():
             stop()
 
 
-size(800, 800)
+size(500, 500)
 run(tick)

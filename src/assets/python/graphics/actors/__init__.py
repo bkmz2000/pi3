@@ -268,8 +268,8 @@ class Actor:
         if not self._alive:
             return
         rad = math.radians(self._angle)
-        self._x += distance * math.cos(rad)
-        self._y += distance * math.sin(rad)
+        self._x += distance * math.sin(rad)
+        self._y -= distance * math.cos(rad)
 
     def move_to(self, x, y):
         if not self._alive:
@@ -292,7 +292,7 @@ class Actor:
             return
         dx = x - self._x
         dy = y - self._y
-        self._angle = math.degrees(math.atan2(dy, dx)) % 360
+        self._angle = math.degrees(math.atan2(dx, -dy)) % 360
 
     def rotate(self, degrees):
         if not self._alive:
@@ -414,6 +414,48 @@ class Actor:
                 g._draw_commands.append(("stroke", ssc, {}) if ss else ("no_stroke", (), {}))
                 g._draw_commands.append(("stroke_width", (ssw,), {}))
             g.pop()
+
+    def reset(self):
+        """Restore all sprite frames to their original pixel data.
+
+        Useful to undo procedural pixel edits and re-apply them with a fresh
+        random seed::
+
+            sun.reset()
+            for pixel in sun:
+                if random.random() > 0.3:
+                    pixel.color = Colors.orange
+        """
+        import graphics as _g
+        image = object.__getattribute__(self, 'image')
+        if isinstance(image, _g.SpriteEntry):
+            for anim in image._animations.values():
+                for frame in anim._frames:
+                    frame.reset()
+        elif isinstance(image, _g.SheetAnimation):
+            for frame in image._frames:
+                frame.reset()
+        elif isinstance(image, _g.Sprite):
+            image.reset()
+
+    def __iter__(self):
+        """Iterate over pixels of the default sprite frame, yielding PixelView objects.
+
+            for pixel in sun:
+                if pixel == Colors.red:
+                    pixel.color = Colors.orange
+        """
+        import graphics as _g
+        image = object.__getattribute__(self, 'image')
+        sprite = None
+        if isinstance(image, _g.SpriteEntry):
+            sprite = image._default_sprite()
+        elif isinstance(image, _g.SheetAnimation):
+            sprite = image._default_sprite()
+        elif isinstance(image, _g.Sprite):
+            sprite = image
+        if sprite is not None:
+            yield from sprite
 
     def die(self):
         if not self._alive:

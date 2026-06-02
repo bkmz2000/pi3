@@ -1236,22 +1236,22 @@ test("Snapshot x matches post-_apply_velocity x", abs(pre_snap._x - runner._x) <
 test("Snapshot y matches post-_apply_velocity y", abs(pre_snap._y - runner._y) < 1e-9)
 
 # Polar(magnitude, angle_degrees) returns a Vector2 in screen coords:
-# 0° = east, 90° = south (y-down), 180° = west, 270° = north.
+# 0° = north (up, -y), 90° = east (+x), 180° = south (+y), 270° = west (-x).
 print("\n=== Runtime: Polar(magnitude, angle_degrees) ===")
 from graphics import Polar
 test("Polar in __all__", "Polar" in g.__all__)
-e = Polar(10, 0)
-test("Polar(10, 0) points east", abs(e.x - 10) < 1e-9 and abs(e.y) < 1e-9)
-s = Polar(10, 90)
-test("Polar(10, 90) points south (y-down)", abs(s.x) < 1e-9 and abs(s.y - 10) < 1e-9)
-w = Polar(10, 180)
-test("Polar(10, 180) points west", abs(w.x + 10) < 1e-9 and abs(w.y) < 1e-9)
+n = Polar(10, 0)
+test("Polar(10, 0) points north (up)", abs(n.x) < 1e-9 and abs(n.y + 10) < 1e-9)
+e = Polar(10, 90)
+test("Polar(10, 90) points east (+x)", abs(e.x - 10) < 1e-9 and abs(e.y) < 1e-9)
+s = Polar(10, 180)
+test("Polar(10, 180) points south (+y)", abs(s.x) < 1e-9 and abs(s.y - 10) < 1e-9)
 test("Polar returns a Vector2", isinstance(Polar(1, 0), Vector2))
 test("Polar magnitude is preserved", abs(Polar(7, 33).length - 7) < 1e-9)
-# Setting actor.vel = Polar(...) drives motion via _apply_velocity.
+# Setting actor.vel = Polar(5, 90) drives motion east via _apply_velocity.
 reset()
 mover = Rect(0, 0, 4, 4)
-mover.vel = Polar(5, 0)
+mover.vel = Polar(5, 90)
 mover._apply_velocity()
 test("actor.vel = Polar then apply moves east", abs(mover._x - 5) < 1e-9 and abs(mover._y) < 1e-9)
 

@@ -1001,6 +1001,7 @@ def lint(code: str, filename: str = "main.py") -> list[dict]:
                 e.offset if e.offset else 0,
             )
         )
+        _annotate_diagnostics(diagnostics, None, None)
         return diagnostics
 
     diagnostics.extend(_check_indentation(code, tree))
@@ -1021,4 +1022,74 @@ def lint(code: str, filename: str = "main.py") -> list[dict]:
 
     diagnostics.sort(key=lambda d: (d["row"], d["column"]))
 
+    # ── Post-processing: add category, isBlocking, and suggestions ──
+    _annotate_diagnostics(diagnostics, tree, scope_tracker)
+
     return diagnostics
+
+
+def _annotate_diagnostics(diagnostics, tree, scope_tracker):
+    """Add category, isBlocking, and suggestions fields to each diagnostic."""
+    # Determine what error codes map to what categories
+    _CATEGORY_MAP = {
+        "E101": "grammar",
+        "E111": "grammar",
+        "E303": "grammar",
+        "E999": "grammar",
+        "E225": "types",
+        "E225Call": "types",
+        "F401": "naming",
+        "F821": "naming",
+        "E501": "grammar",
+        "W001": "naming",
+        "W002": "naming",
+        "W003": "naming",
+        "W004": "naming",
+        "W005": "types",
+    }
+    _BLOCKING = {"grammar"}
+
+    # Collect all defined/used names from the scope tracker for suggestions
+    _known_names = set()
+    if scope_tracker:
+        for s in scope_tracker.scopes:
+            _known_names.update(s)
+        for s in scope_tracker.defined_in_scope:
+            _known_names.update(s)
+        _known_names.update(scope_tracker.used_names)
+        for s in scope_tracker.imports:
+            _known_names.update(s)
+        # Also include star-imported module names
+        _known_names.update(scope_tracker.star_imports)
+        # Add known star modules
+        _known_names.update(scope_tracker.known_star_modules)
+
+    for diag in diagnostics:
+        code = diag.get("code", "")
+        category = _CATEGORY_MAP.get(code, "logic")
+        diag["category"] = category
+        diag["isBlocking"] = category in _BLOCKING
+
+        # Add suggestions for F821 (undefined name) — reuse existing _levenshtein
+        if code == "F821" or (code == "E225Call" and "name" in diag.get("messageArgs", {})):
+            name = diag.get("messageArgs", {}).get("name", "")
+            if name and _known_names:
+                candidates = _compute_lint_suggestions(name, _known_names)
+                if candidates:
+                    diag["suggestions"] = [{"token": name, "candidates": candidates}]
+
+
+def _compute_lint_suggestions(token, candidates, max_distance=2):
+    """Return Levenshtein-distance-based suggestions (reuses linter's _levenshtein)."""
+    if not token or len(token) < 2:
+        return []
+    results = []
+    for c in candidates:
+        d = _levenshtein(token.lower(), c.lower())
+        if d == 0:
+            return []
+        if d <= max_distance:
+            results.append((d, c))
+    # Sort by raw distance — a 1-char typo always ranks above a 2-char typo
+    results.sort()
+    return [c for _, c in results[:5]]

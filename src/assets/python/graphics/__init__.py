@@ -45,6 +45,10 @@ _pending_timer_id = None
 _loop_generation = 0
 _show_hitboxes = False
 
+# Set by worker.ts before each run so _tick can classify runtime errors.
+_user_code = ""
+_user_filename = "main.py"
+
 # === COLORS ===
 
 # Sweetie 16 palette by GrafxKid (https://lospec.com/palette-list/sweetie-16).
@@ -248,11 +252,22 @@ class Sprite:
                     f"pixel buffer length {len(buf)} does not match {self.width}x{self.height}x4 = {n}"
                 )
             self.pixels = buf
+        self._original = bytearray(self.pixels)
 
     def _idx(self, x, y):
         if x < 0 or y < 0 or x >= self.width or y >= self.height:
             return -1
         return (y * self.width + x) * 4
+
+    def reset(self):
+        """Restore pixels to their original state (as loaded from the sheet or at creation time)."""
+        self.pixels[:] = self._original
+
+    def __iter__(self):
+        """Yield a PixelView for every pixel, left-to-right, top-to-bottom."""
+        for y in range(self.height):
+            for x in range(self.width):
+                yield PixelView(self, x, y)
 
     def __repr__(self):
         return f"Sprite({self.width}x{self.height})"
@@ -308,6 +323,75 @@ def set_pixel(sprite, x, y, color):
     p[i + 1] = g
     p[i + 2] = b
     p[i + 3] = 255
+
+
+class PixelView:
+    """Mutable reference to a single pixel inside a Sprite.
+
+    Yielded by iterating a Sprite or an Actor::
+
+        for pixel in sun:
+            if pixel == Colors.red:
+                pixel.color = Colors.orange  # writes back to the sprite
+
+    .. note::
+        ``pixel = Colors.orange`` only rebinds the loop variable in Python
+        and does **not** write back.  Use ``pixel.color = ...`` or
+        ``pixel.set(...)`` to mutate the sprite.
+
+    Comparison against any color value (tuple, hex string, palette name)
+    works on both sides::
+
+        pixel == Colors.red
+        Colors.red == pixel
+        pixel == (255, 0, 0)
+
+    Transparent pixels compare equal only to ``None``.
+    """
+
+    __slots__ = ("_sprite", "_x", "_y")
+
+    def __init__(self, sprite, x, y):
+        self._sprite = sprite
+        self._x = int(x)
+        self._y = int(y)
+
+    @property
+    def x(self):
+        return self._x
+
+    @property
+    def y(self):
+        return self._y
+
+    @property
+    def color(self):
+        """Current (r, g, b) color, or None if transparent."""
+        return get_pixel(self._sprite, self._x, self._y)
+
+    @color.setter
+    def color(self, value):
+        set_pixel(self._sprite, self._x, self._y, value)
+
+    def set(self, color):
+        """Write a new color (same as ``pixel.color = color``)."""
+        set_pixel(self._sprite, self._x, self._y, color)
+
+    def __eq__(self, other):
+        c = get_pixel(self._sprite, self._x, self._y)
+        if other is None:
+            return c is None
+        if c is None:
+            return False
+        r, g, b = c
+        try:
+            or_, og, ob = _to_rgb(other)
+        except Exception:
+            return NotImplemented
+        return r == or_ and g == og and b == ob
+
+    def __repr__(self):
+        return f"Pixel({self._x}, {self._y}, {self.color})"
 
 
 def palette_swap(sprite, old_color, new_color):
@@ -693,17 +777,16 @@ Point = Vector2
 def Polar(magnitude, angle_degrees):
     """Vector2 from a magnitude and angle in degrees.
 
-    Angle convention matches actor.angle and actor.move(): 0° = east (+x),
-    90° = south (+y) — counterclockwise increases in math but clockwise on
-    screen because the y axis points down.
+    Angle convention matches actor.angle and actor.move(): 0° = north (up, -y),
+    90° = east (+x), 180° = south (+y), 270° = west (-x) — clockwise on screen.
 
     Common uses:
         player.vel = Polar(120, 60)         # 120 px/frame at 60°
         bullet.vel = Polar(8, ship.angle)   # match the ship's facing
-        wind = Polar(2, 0)                  # blow east
+        wind = Polar(2, 90)                 # blow east
     """
     rad = math.radians(float(angle_degrees))
-    return Vector2(float(magnitude) * math.cos(rad), float(magnitude) * math.sin(rad))
+    return Vector2(float(magnitude) * math.sin(rad), -float(magnitude) * math.cos(rad))
 
 
 from graphics.actors import Actor, Rect, Circle, Group, Collider  # noqa: E402
@@ -1171,30 +1254,41 @@ class Sound:
     Usage:
         assets.sounds.pop.play()
         assets.sounds.music.loop()
+        assets.sounds.music.set_volume(0.5)
+        assets.sounds.music.pause()
         assets.sounds.music.stop()
     """
 
     def __init__(self, name):
         self.name = name
 
-    def _post(self, action):
+    def _post(self, action, value=None):
         try:
             import js
-            js._ide_post_sound(action, self.name)
+            js._ide_post_sound(action, self.name, value)
         except Exception:
             pass
 
     def play(self):
+        """Play the sound once. Multiple calls overlap."""
         self._post("play")
 
     def loop(self):
+        """Play the sound repeatedly until stopped."""
         self._post("loop")
 
     def pause(self):
+        """Pause all currently playing instances of this sound."""
         self._post("pause")
 
     def stop(self):
+        """Stop all currently playing instances and reset to the start."""
         self._post("stop")
+
+    def set_volume(self, value):
+        """Set volume for future plays (0.0 = silent, 1.0 = full).
+        Does not affect already-playing instances."""
+        self._post("volume", float(value))
 
 
 class Timer:
@@ -1250,6 +1344,11 @@ def _tick(main, my_generation):
         return
     if _stop_requested:
         _running = False
+        try:
+            from js import _ide_notify_loop_ended
+            _ide_notify_loop_ended()
+        except Exception:
+            pass
         return
 
     try:
@@ -1278,8 +1377,15 @@ def _tick(main, my_generation):
         _draw_commands.clear()
         frame_count += 1
 
-    except Exception:
-        traceback.print_exc()
+    except Exception as _exc:
+        try:
+            import json as _json
+            import error_hook as _eh
+            from js import _ide_post_runtime_error
+            _structured = _eh.classify_error(_exc, _user_code, _user_filename)
+            _ide_post_runtime_error(_json.dumps(_structured))
+        except Exception:
+            traceback.print_exc()
         _running = False
         return
 
@@ -1585,12 +1691,40 @@ class TilemapLayer:
         return TileGroup(self, set(cells))
 
 
+class TileCollision:
+    """Result of a tilemap collision check.
+
+    Truthy if a collision occurred; falsy (or None) otherwise.
+    Carries metadata about which area, tile, and grid cell was hit.
+    """
+
+    def __init__(self, rect, area_name, tile_name, col, row):
+        """
+        rect: The TileRef (collision object) that was hit
+        area_name: Name of the area ("ground", "spikes", etc.)
+        tile_name: Name of the tile at that position ("grass", "stone", etc.)
+        col, row: Grid coordinates of the hit cell
+        """
+        self.rect = rect
+        self.area = area_name
+        self.tile = tile_name
+        self.col = col
+        self.row = row
+
+    def __bool__(self):
+        """Truthy when a collision occurred."""
+        return self.rect is not None
+
+    def __repr__(self):
+        return f"TileCollision(area={self.area!r}, tile={self.tile!r}, grid=({self.col}, {self.row}))"
+
+
 class TileMap:
     """A collection of named TilemapLayers, drawn bottom-to-top.
 
     Named regions (cell-set zones brushed in the Tile Editor) are exposed as
     `tilemap.areas.<name>` — each is a Group of merged-rect colliders ready
-    for `collides_any`. Areas span the whole tilemap; they do not belong to
+    for collision checks. Areas span the whole tilemap; they do not belong to
     a specific layer.
     """
 
@@ -1631,6 +1765,55 @@ class TileMap:
         if cells is None:
             raise KeyError(f"No area named '{name}'")
         return TileGroup(self._layers[0], set(cells))
+
+    def collides_with(self, actor, area_name):
+        """Check if actor collides with a named area. Returns TileCollision or None.
+
+        If a collision occurs, the result carries rich metadata:
+          - result.area: The area name ("ground", "spikes", etc.)
+          - result.tile: The tile name at collision point ("grass", "stone", etc.)
+          - result.col, result.row: Grid coordinates of the hit cell
+          - result.rect: The underlying TileRef (collision object)
+
+        Usage:
+          hit = level.collides_with(hero, "ground")
+          if hit:
+              print(f"Touched {hit.tile} at grid ({hit.col}, {hit.row})")
+              hero.vy = 0
+        """
+        if not self._layers:
+            return None
+        try:
+            area_group = self.areas.__dict__[area_name]
+        except (KeyError, AttributeError):
+            raise KeyError(f"No area named '{area_name}'")
+
+        hit_rect = actor.collides_any(area_group)
+        if not hit_rect:
+            return None
+
+        # Resolve the grid cell and tile name from the collision rect
+        primary_layer = self._layers[0]
+        tile_size = primary_layer.tile_size
+        col = int(hit_rect.x / tile_size)
+        row = int(hit_rect.y / tile_size)
+        tile_name = primary_layer.get_tile(col, row)
+
+        return TileCollision(hit_rect, area_name, tile_name, col, row)
+
+    def collides_with_any(self, actor, area_names):
+        """Check actor against multiple areas. Returns first TileCollision found or None.
+
+        Useful for checking "collide with ground OR walls OR platform":
+          hit = level.collides_with_any(hero, ["ground", "walls", "platform"])
+          if hit:
+              # blocked by something solid
+        """
+        for area_name in area_names:
+            hit = self.collides_with(actor, area_name)
+            if hit:
+                return hit
+        return None
 
 
 from collections import namedtuple as _namedtuple
@@ -2125,7 +2308,7 @@ __all__ = [
     "random", "random_color",
     "Colors", "AnchorPoint",
     "lerp", "darker", "lighter", "saturated", "desaturated",
-    "Sprite", "create_sprite", "get_pixel", "set_pixel",
+    "Sprite", "PixelView", "create_sprite", "get_pixel", "set_pixel",
     "palette_swap", "flood_fill",
     "darken", "lighten", "saturate", "desaturate",
     "Vector2", "Point", "Polar",

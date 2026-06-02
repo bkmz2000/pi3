@@ -46,6 +46,9 @@ Thumbs.db
 # Claude agent files
 .claude/
 
+# Personal AI tool configs (not project code)
+opencode.json
+
 # Project-specific (not tracked)
 ./CLAUDE.md
 ./AGENTS.md

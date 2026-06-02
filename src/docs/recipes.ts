@@ -92,7 +92,7 @@ export const RECIPES: DocRecipe[] = [
     section: "actors",
     difficulty: "beginner",
     en: { title: "Use built-in actor shapes", intro: "Quick rectangles and circles that behave like actors." },
-    ru: { title: "Готовые фигуры-актёры", intro: "Быстрые прямоугольники и круги, ведущие себя как актёры." },
+    ru: { title: "Готовые фигуры-актёры", intro: "Быстрые прямоугольники и круги, которые работают как актёры." },
     entryIds: ["rect_actor", "circle_actor"],
   },
   {
@@ -100,7 +100,7 @@ export const RECIPES: DocRecipe[] = [
     section: "actors",
     difficulty: "beginner",
     en: { title: "Detect one collision", intro: "Check if two actors touch each other — the first step to making things react." },
-    ru: { title: "Обнаружить одно столкновение", intro: "Проверь, касаются ли два актёра — первый шаг к реакции объектов." },
+    ru: { title: "Обнаружить одно столкновение", intro: "Проверь, касаются ли два актёра — первый шаг к взаимодействию." },
     entryIds: ["actor_collider"],
   },
   {
@@ -242,10 +242,10 @@ export const RECIPES: DocRecipe[] = [
   {
     id: "tilemap_areas",
     section: "tilemaps",
-    difficulty: "advanced",
-    en: { title: "Mark areas for collision", intro: "Brush named zones (walls, floor, boss arena) onto the tilemap in the editor, then query them in Python." },
-    ru: { title: "Размечать области для столкновений", intro: "Нарисуй именованные зоны (стены, пол, арена босса) в редакторе тайловой карты и обращайся к ним из Python." },
-    entryIds: ["tilemap_areas"],
+    difficulty: "intermediate",
+    en: { title: "Detect tilemap collisions", intro: "Brush named zones (ground, walls, hazards) onto the tilemap in the editor, then check collisions in code with a single method call." },
+    ru: { title: "Обнаружить столкновения с тайловой картой", intro: "Нарисуй именованные зоны (земля, стены, опасности) в редакторе тайловой карты и проверяй столкновения в коде одним вызовом метода." },
+    entryIds: ["tilemap_areas", "tilemap_collides_with", "tilemap_collides_with_any"],
   },
 
   // ─── Window & utilities ──────────────────────────────────────────────────

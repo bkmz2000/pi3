@@ -311,7 +311,8 @@ export type IconName =
   | "hand"
   | "camera"
   | "save"
-  | "speaker";
+  | "speaker"
+  | "examples";
 
 export function Icon({ name, ...props }: IconProps & { name: IconName }) {
   switch (name) {
@@ -352,7 +353,19 @@ export function Icon({ name, ...props }: IconProps & { name: IconName }) {
     case "camera": return <IconCamera {...props} />;
     case "save": return <IconSave {...props} />;
     case "speaker": return <IconSpeaker {...props} />;
+    case "examples": return <IconExamples {...props} />;
   }
+}
+
+export function IconExamples({ size = 22, ...rest }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...s(rest)}>
+      <rect x="3" y="3" width="7" height="7" rx="1.5" />
+      <rect x="14" y="3" width="7" height="7" rx="1.5" />
+      <rect x="3" y="14" width="7" height="7" rx="1.5" />
+      <rect x="14" y="14" width="7" height="7" rx="1.5" />
+    </svg>
+  );
 }
 
 export function IconEraser({ size = 22, ...rest }: IconProps) {

@@ -186,23 +186,66 @@ export function libraryUrlMap(): Record<string, string> {
 
 // === SOUND LIBRARY PACK ===
 // Built-in sounds exposed to Python as `assets.sounds.<name>`.
-// Drop royalty-free clips anywhere under ../assets/sounds/ —
-// they are picked up by basename (subdirectories are searched recursively).
+// Files live in public/sounds/*.ogg and are served at /sounds/<name>.ogg.
 
-const PACK_SOUND_FILES = import.meta.glob(
-  "../assets/sounds/**/*.{mp3,ogg,wav}",
-  { query: "?url", import: "default", eager: true },
-) as Record<string, string>;
+export const BUILTIN_SOUNDS: { name: string; url: string }[] = [
+  { name: "belt",            url: "/sounds/belt.ogg" },
+  { name: "belt2",           url: "/sounds/belt2.ogg" },
+  { name: "book_close",      url: "/sounds/book_close.ogg" },
+  { name: "book_open",       url: "/sounds/book_open.ogg" },
+  { name: "book_place",      url: "/sounds/book_place.ogg" },
+  { name: "book_place2",     url: "/sounds/book_place2.ogg" },
+  { name: "book_place3",     url: "/sounds/book_place3.ogg" },
+  { name: "chop",            url: "/sounds/chop.ogg" },
+  { name: "click",           url: "/sounds/click.ogg" },
+  { name: "cloth",           url: "/sounds/cloth.ogg" },
+  { name: "cloth2",          url: "/sounds/cloth2.ogg" },
+  { name: "cloth3",          url: "/sounds/cloth3.ogg" },
+  { name: "cloth4",          url: "/sounds/cloth4.ogg" },
+  { name: "cloth_belt",      url: "/sounds/cloth_belt.ogg" },
+  { name: "cloth_belt2",     url: "/sounds/cloth_belt2.ogg" },
+  { name: "coins",           url: "/sounds/coins.ogg" },
+  { name: "coins2",          url: "/sounds/coins2.ogg" },
+  { name: "creak",           url: "/sounds/creak.ogg" },
+  { name: "creak2",          url: "/sounds/creak2.ogg" },
+  { name: "creak3",          url: "/sounds/creak3.ogg" },
+  { name: "door_close",      url: "/sounds/door_close.ogg" },
+  { name: "door_close2",     url: "/sounds/door_close2.ogg" },
+  { name: "door_close3",     url: "/sounds/door_close3.ogg" },
+  { name: "door_close4",     url: "/sounds/door_close4.ogg" },
+  { name: "door_open",       url: "/sounds/door_open.ogg" },
+  { name: "door_open2",      url: "/sounds/door_open2.ogg" },
+  { name: "drop",            url: "/sounds/drop.ogg" },
+  { name: "knife_draw",      url: "/sounds/knife_draw.ogg" },
+  { name: "knife_draw2",     url: "/sounds/knife_draw2.ogg" },
+  { name: "knife_draw3",     url: "/sounds/knife_draw3.ogg" },
+  { name: "knife_slice",     url: "/sounds/knife_slice.ogg" },
+  { name: "knife_slice2",    url: "/sounds/knife_slice2.ogg" },
+  { name: "latch",           url: "/sounds/latch.ogg" },
+  { name: "leather_pickup",  url: "/sounds/leather_pickup.ogg" },
+  { name: "leather_pickup2", url: "/sounds/leather_pickup2.ogg" },
+  { name: "page_turn",       url: "/sounds/page_turn.ogg" },
+  { name: "page_turn2",      url: "/sounds/page_turn2.ogg" },
+  { name: "page_turn3",      url: "/sounds/page_turn3.ogg" },
+  { name: "pot",             url: "/sounds/pot.ogg" },
+  { name: "pot2",            url: "/sounds/pot2.ogg" },
+  { name: "pot3",            url: "/sounds/pot3.ogg" },
+  { name: "step",            url: "/sounds/step.ogg" },
+  { name: "step2",           url: "/sounds/step2.ogg" },
+  { name: "step3",           url: "/sounds/step3.ogg" },
+  { name: "step4",           url: "/sounds/step4.ogg" },
+  { name: "step5",           url: "/sounds/step5.ogg" },
+  { name: "step6",           url: "/sounds/step6.ogg" },
+  { name: "step7",           url: "/sounds/step7.ogg" },
+  { name: "step8",           url: "/sounds/step8.ogg" },
+  { name: "step9",           url: "/sounds/step9.ogg" },
+  { name: "step10",          url: "/sounds/step10.ogg" },
+].sort((a, b) => a.name.localeCompare(b.name));
 
-export const PACK_SOUND_LIST: { name: string; url: string }[] = Object.entries(
-  PACK_SOUND_FILES,
-).map(([path, url]) => ({
-  name: path.split("/").pop()!.replace(/\.[^.]+$/, ""),
-  url,
-})).sort((a, b) => a.name.localeCompare(b.name));
+export const PACK_SOUND_LIST = BUILTIN_SOUNDS;
 
 export function librarySoundUrlMap(): Record<string, string> {
   const out: Record<string, string> = {};
-  for (const { name, url } of PACK_SOUND_LIST) out[name] = url;
+  for (const { name, url } of BUILTIN_SOUNDS) out[name] = url;
   return out;
 }

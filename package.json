@@ -64,6 +64,8 @@
     "i18next-browser-languagedetector": "^8.2.1",
     "jszip": "^3.10.1",
     "konva": "^10.2.1",
+    "lucide-react": "^1.16.0",
+    "opencode-model-router": "^1.1.16",
     "pyodide": "^0.29.3",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",

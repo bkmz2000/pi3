@@ -1,9 +1,10 @@
-import { type Completion, type CompletionContext } from "@codemirror/autocomplete";
+import { type Completion, type CompletionContext, type CompletionResult } from "@codemirror/autocomplete";
 import { pythonLanguage } from "@codemirror/lang-python";
 import { Compartment, StateField } from "@codemirror/state";
 import { EditorView, showTooltip, type Tooltip } from "@codemirror/view";
 import { DOCS, type DocEntry } from "../docs/graphicsDocs";
 import type { Theme } from "../state/useTheme";
+import type { JediCompletion } from "../runner/WorkerInterface";
 
 // ─── Lookup map ───────────────────────────────────────────────────────────────
 
@@ -68,15 +69,73 @@ function buildCompletions(lang: string): Completion[] {
   }));
 }
 
-function makeCompletionExtension(lang: string) {
-  const completions = buildCompletions(lang);
+function jediTypeToCodeMirror(type: string): string {
+  switch (type) {
+    case "function": return "function";
+    case "class":    return "class";
+    case "module":   return "namespace";
+    case "keyword":  return "keyword";
+    default:         return "variable";
+  }
+}
+
+function makeJediDotSource(
+  requestCompletions: (code: string, line: number, col: number) => Promise<JediCompletion[]>,
+) {
+  let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+
   return pythonLanguage.data.of({
+    autocomplete(context: CompletionContext): Promise<CompletionResult | null> | null {
+      const word = context.matchBefore(/\w*/);
+      if (!word) return null;
+      if (word.from === 0) return null;
+      if (context.state.doc.sliceString(word.from - 1, word.from) !== ".") return null;
+
+      const code = context.state.doc.toString();
+      const lineObj = context.state.doc.lineAt(context.pos);
+      const lineNum = lineObj.number;   // 1-based
+      const col = context.pos - lineObj.from; // 0-based
+
+      return new Promise((resolve) => {
+        if (debounceTimer !== null) clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(async () => {
+          debounceTimer = null;
+          if (context.aborted) { resolve(null); return; }
+          try {
+            const items = await requestCompletions(code, lineNum, col);
+            if (context.aborted) { resolve(null); return; }
+            const options: Completion[] = items
+              .filter((c) => !c.name.startsWith("_"))
+              .map((c) => ({
+                label: c.name,
+                type: jediTypeToCodeMirror(c.type),
+                detail: c.description || undefined,
+              }));
+            resolve(options.length > 0 ? { from: word.from, options, validFor: /^\w*$/ } : null);
+          } catch {
+            resolve(null);
+          }
+        }, 300);
+      });
+    },
+  });
+}
+
+type RequestCompletions = (code: string, line: number, col: number) => Promise<JediCompletion[]>;
+
+function makeCompletionExtension(lang: string, requestCompletions: RequestCompletions | null) {
+  const completions = buildCompletions(lang);
+  const globalSource = pythonLanguage.data.of({
     autocomplete(context: CompletionContext) {
       const word = context.matchBefore(/\w*/);
       if (!word || (word.from === word.to && !context.explicit)) return null;
+      // Yield to Jedi on member access
+      if (word.from > 0 && context.state.doc.sliceString(word.from - 1, word.from) === ".") return null;
       return { from: word.from, options: completions, validFor: /^\w*$/ };
     },
   });
+  if (!requestCompletions) return globalSource;
+  return [globalSource, makeJediDotSource(requestCompletions)];
 }
 
 export const completionCompartment = new Compartment();
@@ -299,24 +358,38 @@ function makeAutocompleteTheme(theme: Theme) {
       fontSize: "10px",
       paddingRight: "4px",
     },
-    ".cm-completionIcon-function::after": { content: '"ƒ"', color: accent },
+    ".cm-completionIcon-function::after":  { content: '"ƒ"', color: accent },
+    ".cm-completionIcon-method::after":   { content: '"ƒ"', color: accent },
     ".cm-completionIcon-class::after":    { content: '"⬡"', color: accent },
+    ".cm-completionIcon-namespace::after":{ content: '"⬡"', color: accent },
+    ".cm-completionIcon-variable::after": { content: '"·"', color: accent },
+    ".cm-completionIcon-keyword::after":  { content: '"k"', color: accent },
     // Lint gutter markers
     ".cm-gutter-lint .cm-gutterElement": { padding: "0 2px" },
   });
 }
 
-export function createGraphicsExtensions(theme: Theme, lang: string, enabled = true) {
+export function createGraphicsExtensions(
+  theme: Theme,
+  lang: string,
+  enabled = true,
+  requestCompletions: RequestCompletions | null = null,
+) {
   return [
-    completionCompartment.of(enabled ? makeCompletionExtension(lang) : []),
+    completionCompartment.of(enabled ? makeCompletionExtension(lang, requestCompletions) : []),
     signatureHelpCompartment.of(enabled ? makeSignatureHelpExtension(theme, lang) : []),
     autocompleteThemeCompartment.of(enabled ? makeAutocompleteTheme(theme) : []),
   ];
 }
 
-export function reconfigureGraphicsExtensions(theme: Theme, lang: string, enabled = true) {
+export function reconfigureGraphicsExtensions(
+  theme: Theme,
+  lang: string,
+  enabled = true,
+  requestCompletions: RequestCompletions | null = null,
+) {
   return [
-    completionCompartment.reconfigure(enabled ? makeCompletionExtension(lang) : []),
+    completionCompartment.reconfigure(enabled ? makeCompletionExtension(lang, requestCompletions) : []),
     signatureHelpCompartment.reconfigure(enabled ? makeSignatureHelpExtension(theme, lang) : []),
     autocompleteThemeCompartment.reconfigure(enabled ? makeAutocompleteTheme(theme) : []),
   ];

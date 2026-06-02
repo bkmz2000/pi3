@@ -19,10 +19,16 @@ if (typeof (globalThis as unknown as { ImageData: unknown }).ImageData === 'unde
     data: Uint8ClampedArray;
     width: number;
     height: number;
-    constructor(data: Uint8ClampedArray, width: number, height: number) {
-      this.data = data;
-      this.width = width;
-      this.height = height;
+    constructor(dataOrWidth: Uint8ClampedArray | number, width: number, height?: number) {
+      if (typeof dataOrWidth === 'number') {
+        this.width = dataOrWidth;
+        this.height = width;
+        this.data = new Uint8ClampedArray(dataOrWidth * width * 4);
+      } else {
+        this.data = dataOrWidth;
+        this.width = width;
+        this.height = height!;
+      }
     }
   }
   (globalThis as unknown as { ImageData: unknown }).ImageData = StubImageData;
@@ -143,10 +149,15 @@ Object.defineProperty(globalThis, 'import.meta', {
   },
 });
 
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const enTranslations = require('./src/i18n/en.json');
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const ruTranslations = require('./src/i18n/ru.json');
+
 i18n.use(initReactI18next).init({
   resources: {
-    en: { translation: {} },
-    ru: { translation: {} },
+    en: { translation: enTranslations },
+    ru: { translation: ruTranslations },
   },
   lng: 'en',
   fallbackLng: 'en',

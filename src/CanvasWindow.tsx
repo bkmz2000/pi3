@@ -1,13 +1,10 @@
 import { useEffect, useState, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { useRunner, useRunnerStore } from "./runner/RunnerProvider";
+import { useRunner, useRunnerStore, type Screenshot } from "./runner/RunnerProvider";
 import { useThemeStore } from "./state/useTheme";
 import { Icon } from "./components/Icons";
 import { useEditor, isExampleSessionId } from "./state/IdeState";
 import { uploadProjectThumbnail } from "./state/api";
-
-type Snap = { id: number; url: string; blob: Blob };
-const MAX_SNAPS = 5;
 
 export default function CanvasWindow() {
   const { t } = useTranslation();
@@ -15,39 +12,27 @@ export default function CanvasWindow() {
   const { attachCanvas, canvasActive, running, canvasWidth, canvasHeight, captureScreenshot } = useRunner();
   const projectId = useEditor((s) => s.currentProjectId);
   const canPersist = !!projectId && !isExampleSessionId(projectId);
-  const [snaps, setSnaps] = useState<Snap[]>([]);
+  const snaps = useRunnerStore((s) => s.screenshots);
+  const addScreenshot = useRunnerStore((s) => s.addScreenshot);
+  const clearScreenshots = useRunnerStore((s) => s.clearScreenshots);
   const [showHistory, setShowHistory] = useState(false);
   const [coverId, setCoverId] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const snapIdRef = useRef(0);
 
-  useEffect(() => {
-    return () => { snaps.forEach((s) => URL.revokeObjectURL(s.url)); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   // Reset history when project changes
   useEffect(() => {
-    setSnaps((cur) => {
-      cur.forEach((s) => URL.revokeObjectURL(s.url));
-      return [];
-    });
+    clearScreenshots();
     setCoverId(null);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
 
   const capture = async () => {
     const blob = await captureScreenshot();
     if (!blob) return;
     const url = URL.createObjectURL(blob);
-    const snap: Snap = { id: ++snapIdRef.current, url, blob };
-    setSnaps((cur) => {
-      const next = [snap, ...cur];
-      while (next.length > MAX_SNAPS) {
-        const dropped = next.pop()!;
-        URL.revokeObjectURL(dropped.url);
-      }
-      return next;
-    });
+    const snap: Screenshot = { id: ++snapIdRef.current, url, blob };
+    addScreenshot(snap);
     if (canPersist && projectId) {
       try {
         setBusy(true);
@@ -61,7 +46,7 @@ export default function CanvasWindow() {
     }
   };
 
-  const setAsCover = async (snap: Snap) => {
+  const setAsCover = async (snap: Screenshot) => {
     if (!canPersist || !projectId) return;
     try {
       setBusy(true);
@@ -88,11 +73,18 @@ export default function CanvasWindow() {
     return () => attachCanvas(null);
   }, [attachCanvas]);
 
-  // Clamp after canvas resize so the title bar never ends up above the viewport
+  // Clamp so the title bar never ends up outside the viewport (canvas resize or window resize)
   useEffect(() => {
-    if (!windowRef.current) return;
-    const rect = windowRef.current.getBoundingClientRect();
-    if (rect.top < 0) setPos(p => ({ x: p.x, y: p.y - rect.top }));
+    const clamp = () => {
+      if (!windowRef.current) return;
+      const rect = windowRef.current.getBoundingClientRect();
+      const dy = rect.top < 0 ? -rect.top : 0;
+      const dx = rect.left < 0 ? -rect.left : 0;
+      if (dx !== 0 || dy !== 0) setPos(p => ({ x: p.x + dx, y: p.y + dy }));
+    };
+    clamp();
+    window.addEventListener('resize', clamp);
+    return () => window.removeEventListener('resize', clamp);
   }, [canvasWidth, canvasHeight]);
 
   const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -181,7 +173,7 @@ export default function CanvasWindow() {
         overflow: "hidden",
         display: "flex",
         flexDirection: "column",
-        zIndex: 5,
+        zIndex: 20,
         transition: "opacity 0.3s",
         opacity: canvasActive ? 1 : 0,
         pointerEvents: canvasActive ? "auto" : "none",

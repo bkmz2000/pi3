@@ -1,17 +1,23 @@
 import { useCallback, useEffect } from "react";
 import { create } from "zustand";
-import { WorkerCommand, WorkerEvent, WorkerEventType, LintDiagnostic } from "./WorkerInterface";
-import { useIde, useEditor, type AnimationData } from "../state/IdeState";
+import { WorkerCommand, WorkerEvent, WorkerEventType, LintDiagnostic, type RuntimeError, type JediCompletion } from "./WorkerInterface";
+import { useIde, useEditor } from "../state/IdeState";
 import GraphicsInit from "../assets/python/graphics/__init__.py?raw";
 import GraphicsActors from "../assets/python/graphics/actors/__init__.py?raw";
 import GraphicsAnimation from "../assets/python/graphics/animation.py?raw";
 import Linter from "../assets/python/linter.py?raw";
+import ErrorHook from "../assets/python/error_hook.py?raw";
 import { libraryUrlMap, librarySoundUrlMap } from "../state/assets";
 
 type OutputLine = {
   kind: "stdout" | "stderr";
   text: string;
+} | {
+  kind: "error_card";
+  error: RuntimeError;
 };
+
+export type Screenshot = { id: number; url: string; blob: Blob };
 
 type RunnerState = {
   ready: boolean;
@@ -23,14 +29,19 @@ type RunnerState = {
   canvasHeight: number;
   canvasScale: number;
   lintErrors: LintDiagnostic[];
+  screenshots: Screenshot[];
 
   _onMessage: (msg: WorkerEvent) => void;
   _appendOutput: (kind: "stdout" | "stderr", text: string) => void;
   setRunning: (running: boolean) => void;
   clear: () => void;
   stop: () => void;
+  pushErrorCard: (error: RuntimeError) => void;
   respondToInput: (value: string) => void;
   setLintErrors: (errors: LintDiagnostic[]) => void;
+  applySuggestion: (token: string, replacement: string) => void;
+  addScreenshot: (snap: Screenshot) => void;
+  clearScreenshots: () => void;
 };
 
 export const useRunnerStore = create<RunnerState>((set) => ({
@@ -43,6 +54,17 @@ export const useRunnerStore = create<RunnerState>((set) => ({
   canvasHeight: 0,
   canvasScale: 1,
   lintErrors: [],
+  screenshots: [],
+
+  addScreenshot: (snap) => set((s) => {
+    const next = [snap, ...s.screenshots].slice(0, 5);
+    return { screenshots: next };
+  }),
+  clearScreenshots: () => {
+    const cur = useRunnerStore.getState().screenshots;
+    cur.forEach((s) => URL.revokeObjectURL(s.url));
+    set({ screenshots: [] });
+  },
 
   _appendOutput: (kind, text) =>
     set((s) => ({ output: [...s.output, { kind, text }] })),
@@ -83,6 +105,30 @@ export const useRunnerStore = create<RunnerState>((set) => ({
         }));
         break;
       }
+      case "runtime_error": {
+        set((s) => ({
+          running: false,
+          inputPrompt: null,
+          output: [...s.output, { kind: "error_card", error: msg.error }],
+          // Also push to lintErrors for inline gutter display if location available
+          lintErrors: msg.error.location
+            ? [...s.lintErrors, {
+                code: "RUNTIME",
+                messageKey: `friendlyError.${msg.error.category}.title`,
+                messageArgs: { name: msg.error.suggestions[0]?.token ?? "" },
+                row: msg.error.location.row,
+                column: msg.error.location.column,
+                endRow: msg.error.location.endRow,
+                endColumn: msg.error.location.endColumn,
+                severity: "error" as const,
+                category: msg.error.category,
+                suggestions: msg.error.suggestions,
+                isBlocking: msg.error.isBlocking,
+              }]
+            : s.lintErrors,
+        }));
+        break;
+      }
       case "start": {
         set({
           running: true,
@@ -100,7 +146,11 @@ export const useRunnerStore = create<RunnerState>((set) => ({
         break;
       }
       case "sound": {
-        handleSoundEvent(msg.action, msg.name);
+        handleSoundEvent(msg.action, msg.name, msg.value);
+        break;
+      }
+      case "complete": {
+        // Handled by per-request listener in requestCompletions()
         break;
       }
       case "screenshot": {
@@ -115,6 +165,9 @@ export const useRunnerStore = create<RunnerState>((set) => ({
   },
 
   setRunning: (running) => set({ running }),
+  pushErrorCard: (error) => set((s) => ({
+    output: [...s.output, { kind: "error_card", error }],
+  })),
   clear: () => {
     stopAllSounds();
     set({ output: [], inputPrompt: null, running: false, canvasActive: false, lintErrors: [], canvasWidth: 0, canvasHeight: 0, canvasScale: 1 });
@@ -131,6 +184,17 @@ export const useRunnerStore = create<RunnerState>((set) => ({
       value,
     } satisfies WorkerCommand);
   },
+
+  applySuggestion: (token, replacement) => {
+    const editor = useEditor.getState();
+    const code = editor.project.files[editor.currentFile] ?? "";
+    // Replace first occurrence — word-boundary-aware to avoid partial matches
+    const wordBoundary = new RegExp(`\\b${token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`);
+    const newCode = code.replace(wordBoundary, replacement);
+    if (newCode !== code) {
+      editor.changeFile(editor.currentFile, newCode);
+    }
+  },
 }));
 
 // --- Audio (main thread) ---
@@ -139,8 +203,9 @@ export const useRunnerStore = create<RunnerState>((set) => ({
 // so pause/stop can target the most recent invocation.
 let soundUrlMap: Record<string, string> = {};
 const activeByName: Map<string, Set<HTMLAudioElement>> = new Map();
+const volumeByName: Map<string, number> = new Map();
 
-function handleSoundEvent(action: "play" | "pause" | "loop" | "stop", name: string) {
+function handleSoundEvent(action: "play" | "pause" | "loop" | "stop" | "volume", name: string, value?: number) {
   if (action === "play" || action === "loop") {
     const url = soundUrlMap[name];
     if (!url) {
@@ -149,11 +214,17 @@ function handleSoundEvent(action: "play" | "pause" | "loop" | "stop", name: stri
     }
     const audio = new Audio(url);
     audio.loop = action === "loop";
+    const vol = volumeByName.get(name);
+    if (vol !== undefined) audio.volume = vol;
     let bucket = activeByName.get(name);
     if (!bucket) { bucket = new Set(); activeByName.set(name, bucket); }
     bucket.add(audio);
     audio.addEventListener("ended", () => bucket!.delete(audio));
     audio.play().catch((err) => console.warn(`[RunnerProvider] sound play failed:`, err));
+    return;
+  }
+  if (action === "volume") {
+    volumeByName.set(name, value ?? 1);
     return;
   }
   const bucket = activeByName.get(name);
@@ -253,6 +324,7 @@ function getWorker(): Worker {
     graphicsActors: GraphicsActors,
     graphicsAnimation: GraphicsAnimation,
     linter: Linter,
+    errorHook: ErrorHook,
   } satisfies WorkerCommand);
   return worker;
 }
@@ -298,7 +370,7 @@ function wireEvents(canvas: HTMLCanvasElement): () => void {
 }
 
 export function useRunner() {
-  const { ready, running, output, clear, inputPrompt, respondToInput, canvasActive, canvasWidth, canvasHeight, canvasScale, lintErrors, _appendOutput } =
+  const { ready, running, output, clear, pushErrorCard, inputPrompt, respondToInput, canvasActive, canvasWidth, canvasHeight, canvasScale, lintErrors, _appendOutput, applySuggestion } =
     useRunnerStore();
 
   useEffect(() => {
@@ -348,39 +420,6 @@ export function useRunner() {
     return { bitmaps, transferables };
   }, []);
 
-  const loadAnimations = useCallback(async (animations: Record<string, AnimationData>) => {
-    const result: Record<string, { frames: ImageBitmap[]; fps: number }> = {};
-    const transferables: ImageBitmap[] = [];
-    await Promise.all(
-      Object.entries(animations).map(async ([name, anim]) => {
-        const frames: ImageBitmap[] = new Array(anim.frames.length);
-        await Promise.all(
-          anim.frames.map(async (url, i) => {
-            try {
-              const img = new Image();
-              await new Promise<void>((resolve, reject) => {
-                img.onload = () => resolve();
-                img.onerror = () => reject(new Error(`Failed to load frame ${i} of ${name}`));
-                img.src = url;
-              });
-              const canvas = document.createElement("canvas");
-              canvas.width = img.width || 64;
-              canvas.height = img.height || 64;
-              canvas.getContext("2d")!.drawImage(img, 0, 0);
-              const bm = await createImageBitmap(canvas);
-              frames[i] = bm;
-              transferables.push(bm);
-            } catch (err) {
-              console.warn(`[RunnerProvider] could not load animation frame ${i} of ${name}:`, err);
-            }
-          }),
-        );
-        result[name] = { frames: frames.filter(Boolean), fps: anim.fps };
-      }),
-    );
-    return { animBitmaps: result, animTransferables: transferables };
-  }, []);
-
   const run = useCallback(
     async (
       files: Record<string, string>,
@@ -393,8 +432,6 @@ export function useRunner() {
       // Merge library packs into asset map (project names take precedence on conflict).
       const mergedUrls = { ...libraryUrlMap(), ...nameToUrl };
       const { bitmaps, transferables } = await loadAssets(mergedUrls);
-      const { animations } = useEditor.getState().project;
-      const { animBitmaps, animTransferables } = await loadAnimations(animations ?? {});
       const showHitboxes = useIde.getState().showHitboxes;
       const { tilemaps, sounds: projectSounds, sheet } = useEditor.getState().project;
       // Reset audio state for this run and build the URL map
@@ -409,15 +446,14 @@ export function useRunner() {
           entry,
           assets: bitmaps,
           tilemaps,
-          animations: animBitmaps,
           soundNames,
           sheet,
           showHitboxes,
         } satisfies WorkerCommand,
-        [...transferables, ...animTransferables],
+        transferables,
       );
     },
-    [loadAssets, loadAnimations],
+    [loadAssets],
   );
 
   const interrupt = useCallback((): Promise<void> => {
@@ -510,6 +546,27 @@ export function useRunner() {
     });
   }, []);
 
+  const requestCompletions = useCallback((code: string, line: number, col: number): Promise<JediCompletion[]> => {
+    return new Promise((resolve) => {
+      const w = getWorker();
+      const reqId = ++lintReqId;
+      let settled = false;
+      const finish = (items: JediCompletion[]) => {
+        if (settled) return;
+        settled = true;
+        w.removeEventListener("message", handler);
+        clearTimeout(timer);
+        resolve(items);
+      };
+      const handler = (e: MessageEvent<WorkerEvent>) => {
+        if (e.data.type === "complete" && e.data.reqId === reqId) finish(e.data.completions);
+      };
+      const timer = setTimeout(() => finish([]), 5000);
+      w.addEventListener("message", handler);
+      w.postMessage({ cmd: "complete", code, line, col, reqId } satisfies WorkerCommand);
+    });
+  }, []);
+
   return {
     ready,
     running,
@@ -527,6 +584,9 @@ export function useRunner() {
     lint,
     lintErrors,
     captureScreenshot,
+    requestCompletions,
     _appendOutput,
+    applySuggestion,
+    pushErrorCard,
   };
 }

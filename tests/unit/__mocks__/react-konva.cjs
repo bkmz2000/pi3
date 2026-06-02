@@ -103,6 +103,18 @@ const MockPolyline = React.forwardRef((props, ref) => {
 });
 MockPolyline.displayName = 'Polyline';
 
+const MockImage = React.forwardRef((props, ref) => {
+  const { children, image: _image, ...rest } = props;
+  return React.createElement('div', { ref, ...filterInvalidProps(rest) }, children);
+});
+MockImage.displayName = 'Image';
+
+const MockGroup = React.forwardRef((props, ref) => {
+  const { children, ...rest } = props;
+  return React.createElement('div', { ref, ...filterInvalidProps(rest) }, children);
+});
+MockGroup.displayName = 'Group';
+
 const MockTransformer = React.forwardRef((props, ref) => {
   const transformerRef = React.useRef({
     nodes: () => {},
@@ -125,6 +137,8 @@ module.exports = {
   Text: MockText,
   Circle: MockCircle,
   Polyline: MockPolyline,
+  Image: MockImage,
+  Group: MockGroup,
   Transformer: MockTransformer,
 };
 module.exports.default = module.exports;

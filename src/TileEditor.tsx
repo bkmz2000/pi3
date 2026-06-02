@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback, useMemo, type JSX } from "react";
-import { Stage, Layer, Rect as KRect, Image as KImage, Line as KLine } from "react-konva";
+import { useTranslation } from "react-i18next";
+import { Stage, Layer, Group, Rect as KRect, Image as KImage, Line as KLine } from "react-konva";
 import type Konva from "konva";
 import type { KonvaEventObject } from "konva/lib/Node";
 import { useThemeStore } from "./state/useTheme";
@@ -161,14 +162,15 @@ interface TileEditorProps {
 }
 
 export default function TileEditor({ open, initialName, onClose, onSave, onNewSprite, embedded = false }: TileEditorProps) {
+  const { t } = useTranslation();
   const theme = useThemeStore((s) => s.theme);
-  const projectAssets = useEditor((s) => s.project.assets);
+  const projectSheet = useEditor((s) => s.project.sheet);
   const projectTilemaps = useEditor((s) => s.project.tilemaps);
 
   // ── Tilemap state ──────────────────────────────────────────────────────────
   const [mapName, setMapName] = useState(initialName || "level1");
   const [layers, setLayers] = useState<TilemapLayer[]>(() => {
-    const existing = initialName ? projectTilemaps[initialName] : null;
+    const existing = initialName ? projectTilemaps?.[initialName] : null;
     return existing?.layers ?? [{ name: "ground", tileSize: 32, cells: {} }];
   });
   const [activeLayerIdx, setActiveLayerIdx] = useState(0);
@@ -183,7 +185,7 @@ export default function TileEditor({ open, initialName, onClose, onSave, onNewSp
   // ── Areas state ────────────────────────────────────────────────────────────
   const [mode, setMode] = useState<Mode>("tiles");
   const [areas, setAreas] = useState<Record<string, AreaCells>>(() => {
-    const existing = initialName ? projectTilemaps[initialName] : null;
+    const existing = initialName ? projectTilemaps?.[initialName] : null;
     const src = existing?.areas ?? {};
     const out: Record<string, AreaCells> = {};
     for (const [name, area] of Object.entries(src)) out[name] = areaCellsFromList(area.cells);
@@ -221,15 +223,45 @@ export default function TileEditor({ open, initialName, onClose, onSave, onNewSp
   const [spriteImages, setSpriteImages] = useState<Record<string, HTMLImageElement>>({});
   const [, forceRender] = useState(0);
 
-  // ── All available sprites (project assets only) ───────────────────────────
+  // ── All available sprites (from sheet) ─────────────────────────────────────
   const allSprites = useMemo(() => {
     const map: Record<string, string> = {};
-    for (const [name, url] of Object.entries(projectAssets)) {
-      const key = name.replace(/\.[^.]+$/, "");
-      map[key] = url;
+    if (!projectSheet) return map;
+
+    const raw = atob(projectSheet.pixels);
+    const pixels = new Uint8ClampedArray(raw.length);
+    for (let i = 0; i < raw.length; i++) pixels[i] = raw.charCodeAt(i);
+
+    for (const [spriteName, sentry] of Object.entries(projectSheet.sprites)) {
+      const firstStrip = Object.values(sentry.animations)[0];
+      if (!firstStrip) continue;
+
+      const { x, y, frameW, frameH } = firstStrip;
+      const frame = new Uint8ClampedArray(frameW * frameH * 4);
+      for (let row = 0; row < frameH; row++) {
+        frame.set(
+          pixels.subarray(
+            ((y + row) * projectSheet.width + x) * 4,
+            ((y + row) * projectSheet.width + x + frameW) * 4
+          ),
+          row * frameW * 4
+        );
+      }
+
+      // Use a regular canvas to get data URL synchronously
+      const tempCanvas = typeof document !== 'undefined' ? document.createElement('canvas') : null;
+      if (tempCanvas) {
+        tempCanvas.width = frameW;
+        tempCanvas.height = frameH;
+        const ctx = tempCanvas.getContext('2d');
+        if (ctx) {
+          ctx.putImageData(new ImageData(frame, frameW, frameH), 0, 0);
+          map[spriteName] = tempCanvas.toDataURL('image/png');
+        }
+      }
     }
     return map;
-  }, [projectAssets]);
+  }, [projectSheet]);
 
   // Load images
   useEffect(() => {
@@ -560,11 +592,83 @@ export default function TileEditor({ open, initialName, onClose, onSave, onNewSp
     <KLine key="oy" points={[pan.x, pan.y - 10, pan.x, pan.y + 10]} stroke="rgba(255,100,100,0.6)" strokeWidth={2} listening={false} />,
   );
 
+  // Memoize layer cell elements in local (un-panned) coords. Pan is applied by a
+  // Konva Group transform below, so panning no longer invalidates this memo or
+  // rebuilds thousands of React elements per mousemove.
+  const layerCellNodes = useMemo(() => {
+    return layers.map((layer, li) => {
+      if (layerVis[li] === false) return null;
+      const isActive = li === activeLayerIdx;
+      const opacity = isActive ? 1 : 0.35;
+      const lts = layer.tileSize;
+      const out: JSX.Element[] = [];
+      for (const [colStr, rows] of Object.entries(layer.cells)) {
+        const col = Number(colStr);
+        const lx = col * lts;
+        for (const [rowStr, spriteName] of Object.entries(rows)) {
+          const row = Number(rowStr);
+          const ly = row * lts;
+          const img = spriteImages[spriteName];
+          if (img) {
+            out.push(
+              <KImage
+                key={`${li}-${col}-${row}`}
+                image={img}
+                x={lx} y={ly} width={lts} height={lts}
+                opacity={opacity}
+                listening={false}
+              />,
+            );
+          } else {
+            out.push(
+              <KRect
+                key={`${li}-${col}-${row}`}
+                x={lx} y={ly} width={lts} height={lts}
+                fill="rgba(99,102,241,0.4)" stroke="rgba(99,102,241,0.7)" strokeWidth={1}
+                opacity={opacity}
+                listening={false}
+              />,
+            );
+          }
+        }
+      }
+      return <Group key={`layer-${li}`}>{out}</Group>;
+    });
+  }, [layers, layerVis, activeLayerIdx, spriteImages]);
+
+  const areaNodes = useMemo(() => {
+    const out: JSX.Element[] = [];
+    for (const [name, cells] of Object.entries(areas)) {
+      const active = mode === "areas" && name === activeAreaName;
+      const c = areaColor(name);
+      const baseOpacity = active ? 1 : mode === "areas" ? 0.4 : 0.5;
+      for (const [colStr, rows] of Object.entries(cells)) {
+        const col = Number(colStr);
+        const lx = col * ts;
+        for (const rowStr of Object.keys(rows)) {
+          const row = Number(rowStr);
+          out.push(
+            <KRect
+              key={`area-${name}-${col}-${row}`}
+              x={lx} y={row * ts} width={ts} height={ts}
+              fill={c.fill}
+              stroke={active ? c.stroke : undefined}
+              strokeWidth={active ? 1 : 0}
+              opacity={baseOpacity}
+              listening={false}
+            />,
+          );
+        }
+      }
+    }
+    return out;
+  }, [areas, mode, activeAreaName, ts]);
+
   const toolDefs = [
-    { id: "hand" as Tool, icon: "hand" as const, label: "Pan (H) — also Space+drag or middle mouse" },
-    { id: "paint" as Tool, icon: "pencil" as const, label: "Paint — Shift+drag for straight lines" },
-    { id: "erase" as Tool, icon: "square" as const, label: "Erase — Shift+drag for straight lines" },
-    { id: "fill" as Tool, icon: "bucket" as const, label: "Fill" },
+    { id: "hand" as Tool, icon: "hand" as const, label: t('tileEditor.panTool') },
+    { id: "paint" as Tool, icon: "pencil" as const, label: t('tileEditor.paintTool') },
+    { id: "erase" as Tool, icon: "square" as const, label: t('tileEditor.eraseTool') },
+    { id: "fill" as Tool, icon: "bucket" as const, label: t('tileEditor.fillTool') },
   ];
 
   const cursor = isPanning ? "grabbing" : tool === "hand" ? "grab" : "crosshair";
@@ -599,14 +703,14 @@ export default function TileEditor({ open, initialName, onClose, onSave, onNewSp
           display: "flex", alignItems: "center", gap: 8, flexShrink: 0,
           padding: "8px 12px", borderBottom: `1px solid ${theme.panelBorder}`,
         }}>
-          <span style={{ fontWeight: 700, fontSize: 14, color: theme.panelTxt, whiteSpace: "nowrap" }}>Tilemap Editor</span>
+          <span style={{ fontWeight: 700, fontSize: 14, color: theme.panelTxt, whiteSpace: "nowrap" }}>{t('tileEditor.title')}</span>
           <div style={{ width: 1, height: 20, background: theme.panelBorder, margin: "0 2px" }} />
           <div style={{
             display: "inline-flex", alignItems: "center", gap: 5,
             padding: "0 8px", height: 26,
             borderRadius: 4, border: `1px solid ${theme.panelBorder}`,
           }}>
-            <span style={{ fontSize: 11, color: theme.panelTxtMute }}>Name</span>
+            <span style={{ fontSize: 11, color: theme.panelTxtMute }}>{t('tileEditor.name')}</span>
             <input
               value={mapName}
               onChange={e => setMapName(e.target.value)}
@@ -631,7 +735,7 @@ export default function TileEditor({ open, initialName, onClose, onSave, onNewSp
                   color: mode === m ? "#fff" : theme.panelTxt,
                 }}
               >
-                {m === "tiles" ? "Tiles" : "Areas"}
+                {m === "tiles" ? t('tileEditor.tiles') : t('tileEditor.areas')}
               </button>
             ))}
           </div>
@@ -653,7 +757,7 @@ export default function TileEditor({ open, initialName, onClose, onSave, onNewSp
             }}
           >
             <Icon name="check" size={12} color="currentColor" />
-            Save
+            {t('tileEditor.save')}
           </button>
           <button
             type="button"
@@ -687,16 +791,16 @@ export default function TileEditor({ open, initialName, onClose, onSave, onNewSp
               </button>
             ))}
             <div style={{ height: 1, background: theme.panelBorder, margin: "6px 0", width: 28 }} />
-            <button type="button" title="Undo (Ctrl+Z)" onClick={undo} disabled={historyIdx < 0}
+            <button type="button" title={t('tileEditor.undoTitle')} onClick={undo} disabled={historyIdx < 0}
               style={sideBtn(false, historyIdx < 0)}>
               <Icon name="undo" size={16} color="currentColor" />
             </button>
-            <button type="button" title="Redo (Ctrl+Shift+Z)" onClick={redo} disabled={historyIdx >= history.length - 1}
+            <button type="button" title={t('tileEditor.redoTitle')} onClick={redo} disabled={historyIdx >= history.length - 1}
               style={sideBtn(false, historyIdx >= history.length - 1)}>
               <Icon name="redo" size={16} color="currentColor" />
             </button>
             <div style={{ height: 1, background: theme.panelBorder, margin: "6px 0", width: 28 }} />
-            <button type="button" title="Reset view"
+            <button type="button" title={t('tileEditor.resetView')}
               onClick={() => setPan({ x: stageSize.w / 2, y: stageSize.h / 2 })}
               style={sideBtn()}>
               <Icon name="frame" size={16} color="currentColor" />
@@ -722,102 +826,43 @@ export default function TileEditor({ open, initialName, onClose, onSave, onNewSp
               <Layer>
                 <KRect x={0} y={0} width={stageSize.w} height={stageSize.h} fill={theme.surface} listening={false} />
 
-                {layers.map((layer, li) => {
-                  if (layerVis[li] === false) return null;
-                  const isActive = li === activeLayerIdx;
-                  const opacity = isActive ? 1 : 0.35;
-                  const lts = layer.tileSize;
-                  return Object.entries(layer.cells).flatMap(([colStr, rows]) => {
-                    const col = Number(colStr);
-                    const sx = pan.x + col * lts;
-                    if (sx + lts < 0 || sx > stageSize.w) return [];
-                    return Object.entries(rows).map(([rowStr, spriteName]) => {
-                      const row = Number(rowStr);
-                      const sy = pan.y + row * lts;
-                      if (sy + lts < 0 || sy > stageSize.h) return null;
-                      const img = spriteImages[spriteName];
-                      if (img) {
-                        return (
-                          <KImage
-                            key={`${li}-${col}-${row}`}
-                            image={img}
-                            x={sx} y={sy} width={lts} height={lts}
-                            opacity={opacity}
-                            listening={false}
-                          />
-                        );
-                      }
-                      return (
-                        <KRect
-                          key={`${li}-${col}-${row}`}
-                          x={sx} y={sy} width={lts} height={lts}
-                          fill="rgba(99,102,241,0.4)" stroke="rgba(99,102,241,0.7)" strokeWidth={1}
-                          opacity={opacity}
-                          listening={false}
-                        />
-                      );
-                    }).filter(Boolean);
-                  });
-                })}
+                {/* Pan-transformed world content. Children use local (col*ts, row*ts) coords;
+                    panning only updates this single Group's x/y, not thousands of cell props. */}
+                <Group x={pan.x} y={pan.y}>
+                  {layerCellNodes}
+                  {areaNodes}
 
-                {gridLines}
+                  {ghostCell && mode === "areas" && activeAreaName && tool === "paint" && (() => {
+                    const c = areaColor(activeAreaName);
+                    return (
+                      <KRect
+                        x={ghostCell.col * ts} y={ghostCell.row * ts}
+                        width={ts} height={ts}
+                        fill={c.fill} stroke={c.stroke} strokeWidth={1}
+                        opacity={0.6}
+                        listening={false}
+                      />
+                    );
+                  })()}
 
-                {/* Area overlays — visible in both modes, more saturated for the active area */}
-                {Object.entries(areas).flatMap(([name, cells]) => {
-                  const active = mode === "areas" && name === activeAreaName;
-                  const c = areaColor(name);
-                  const baseOpacity = active ? 1 : mode === "areas" ? 0.4 : 0.5;
-                  return Object.entries(cells).flatMap(([colStr, rows]) => {
-                    const col = Number(colStr);
-                    const sx = pan.x + col * ts;
-                    if (sx + ts < 0 || sx > stageSize.w) return [];
-                    return Object.keys(rows).map(rowStr => {
-                      const row = Number(rowStr);
-                      const sy = pan.y + row * ts;
-                      if (sy + ts < 0 || sy > stageSize.h) return null;
-                      return (
-                        <KRect
-                          key={`area-${name}-${col}-${row}`}
-                          x={sx} y={sy} width={ts} height={ts}
-                          fill={c.fill}
-                          stroke={active ? c.stroke : undefined}
-                          strokeWidth={active ? 1 : 0}
-                          opacity={baseOpacity}
-                          listening={false}
-                        />
-                      );
-                    }).filter(Boolean);
-                  });
-                })}
-
-                {ghostCell && mode === "areas" && activeAreaName && tool === "paint" && (() => {
-                  const c = areaColor(activeAreaName);
-                  return (
+                  {ghostCell && mode === "tiles" && activeSprite && tool === "paint" && (() => {
+                    const img = spriteImages[activeSprite];
+                    const gx = ghostCell.col * ts;
+                    const gy = ghostCell.row * ts;
+                    if (img) return <KImage image={img} x={gx} y={gy} width={ts} height={ts} opacity={0.5} listening={false} />;
+                    return <KRect x={gx} y={gy} width={ts} height={ts} fill="rgba(99,102,241,0.3)" listening={false} />;
+                  })()}
+                  {ghostCell && tool === "erase" && (
                     <KRect
-                      x={pan.x + ghostCell.col * ts} y={pan.y + ghostCell.row * ts}
+                      x={ghostCell.col * ts} y={ghostCell.row * ts}
                       width={ts} height={ts}
-                      fill={c.fill} stroke={c.stroke} strokeWidth={1}
-                      opacity={0.6}
+                      fill="rgba(239,68,68,0.3)" stroke="rgba(239,68,68,0.7)" strokeWidth={1}
                       listening={false}
                     />
-                  );
-                })()}
+                  )}
+                </Group>
 
-                {ghostCell && mode === "tiles" && activeSprite && tool === "paint" && (() => {
-                  const img = spriteImages[activeSprite];
-                  const gx = pan.x + ghostCell.col * ts;
-                  const gy = pan.y + ghostCell.row * ts;
-                  if (img) return <KImage image={img} x={gx} y={gy} width={ts} height={ts} opacity={0.5} listening={false} />;
-                  return <KRect x={gx} y={gy} width={ts} height={ts} fill="rgba(99,102,241,0.3)" listening={false} />;
-                })()}
-                {ghostCell && tool === "erase" && (
-                  <KRect
-                    x={pan.x + ghostCell.col * ts} y={pan.y + ghostCell.row * ts}
-                    width={ts} height={ts}
-                    fill="rgba(239,68,68,0.3)" stroke="rgba(239,68,68,0.7)" strokeWidth={1}
-                    listening={false}
-                  />
-                )}
+                {gridLines}
               </Layer>
             </Stage>
           </div>
@@ -836,10 +881,10 @@ export default function TileEditor({ open, initialName, onClose, onSave, onNewSp
               display: "flex", alignItems: "center", justifyContent: "space-between",
               borderBottom: `1px solid ${theme.panelBorder}`,
             }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: theme.panelTxtMute, textTransform: "uppercase", letterSpacing: 0.5 }}>Layers</span>
+              <span style={{ fontSize: 11, fontWeight: 700, color: theme.panelTxtMute, textTransform: "uppercase", letterSpacing: 0.5 }}>{t('tileEditor.layers')}</span>
               <button
                 type="button"
-                title="Add layer"
+                title={t('tileEditor.addLayer')}
                 onClick={() => {
                   const newLayer: TilemapLayer = { name: `layer${layers.length + 1}`, tileSize: 32, cells: {} };
                   setLayers(prev => [...prev, newLayer]);
@@ -932,11 +977,11 @@ export default function TileEditor({ open, initialName, onClose, onSave, onNewSp
                   borderBottom: `1px solid ${theme.panelBorder}`,
                   display: "flex", alignItems: "center", justifyContent: "space-between",
                 }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: theme.panelTxtMute, textTransform: "uppercase", letterSpacing: 0.5 }}>Sprites</span>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: theme.panelTxtMute, textTransform: "uppercase", letterSpacing: 0.5 }}>{t('tileEditor.sprites')}</span>
                   {onNewSprite && (
                     <button
                       type="button"
-                      title="New sprite"
+                      title={t('tileEditor.newSprite')}
                       onClick={onNewSprite}
                       style={{ all: "unset", cursor: "pointer", display: "flex", alignItems: "center", color: theme.panelTxtMute }}
                     >
@@ -982,10 +1027,10 @@ export default function TileEditor({ open, initialName, onClose, onSave, onNewSp
                   borderBottom: `1px solid ${theme.panelBorder}`,
                   display: "flex", alignItems: "center", justifyContent: "space-between",
                 }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: theme.panelTxtMute, textTransform: "uppercase", letterSpacing: 0.5 }}>Areas</span>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: theme.panelTxtMute, textTransform: "uppercase", letterSpacing: 0.5 }}>{t('tileEditor.areas')}</span>
                   <button
                     type="button"
-                    title="Add area"
+                    title={t('tileEditor.addArea')}
                     onClick={() => {
                       const raw = window.prompt("Area name (snake_case, e.g. floor, boss_arena):");
                       if (!raw) return;
@@ -1065,11 +1110,11 @@ export default function TileEditor({ open, initialName, onClose, onSave, onNewSp
                         <span style={{ fontSize: 10, color: theme.panelTxtMute, fontFamily: theme.fontMono }}>{count}</span>
                         <button
                           type="button"
-                          title="Delete area"
+                          title={t('tileEditor.deleteArea')}
                           style={{ all: "unset", cursor: "pointer", color: "#ef4444", display: "flex" }}
                           onClick={e => {
                             e.stopPropagation();
-                            if (!window.confirm(`Delete area "${name}"?`)) return;
+                            if (!window.confirm(t('tileEditor.deleteAreaConfirm', { name }))) return;
                             setAreas(prev => {
                               const out = { ...prev };
                               delete out[name];

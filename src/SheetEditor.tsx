@@ -1,18 +1,19 @@
 import React, { useRef, useState, useEffect, useCallback, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { useEditor } from "./state/IdeState";
 import { useThemeStore } from "./state/useTheme";
 import type { SheetData, SheetSprites } from "./state/IdeState";
 import {
   Pencil, Eraser, PaintBucket, Undo2, Redo2, Grid2x2,
   Maximize, PanelRight, Square, Circle, Spline,
-  MousePointer2, SunDim, Sun, LayoutGrid, Stamp, Library,
+  MousePointer2, SunDim, Sun, LayoutGrid, Stamp, Library, Wand2,
 } from "lucide-react";
 import { SPRITE_LIBRARY, type SpriteLibraryEntry } from "./state/spriteLibrary";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const SHEET_W = 512;
-const SHEET_H = 512;
+const BLANK_W = 512;
+const BLANK_H = 512;
 const SHADE_STEP = 0.13;
 
 const BRUSH_SIZES = [
@@ -22,12 +23,18 @@ const BRUSH_SIZES = [
   { size: 8, dotPx: 15 },
 ];
 
+const GRID_SIZES = [1, 2, 4, 8, 16, 32, 64, 128];
+function prevGridSize(s: number): number { const i = GRID_SIZES.indexOf(s); return i > 0 ? GRID_SIZES[i - 1] : GRID_SIZES[0]; }
+function nextGridSize(s: number): number { const i = GRID_SIZES.indexOf(s); return i < GRID_SIZES.length - 1 ? GRID_SIZES[i + 1] : GRID_SIZES[GRID_SIZES.length - 1]; }
+
 const PALETTE = [
   "#1a1c2c", "#5d275d", "#b13e53", "#ef7d57",
   "#ffcd75", "#a7f070", "#38b764", "#257179",
   "#29366f", "#3b5dc9", "#41a6f6", "#73eff7",
   "#f4f4f4", "#94b0c2", "#566c86", "#333c57",
 ];
+
+export { PAL_NAMES } from './palette';
 
 const ACTOR_RESERVED = new Set([
   "x","y","angle","vx","vy","pos","vel","visible","collidable","image",
@@ -41,7 +48,7 @@ const ACTOR_RESERVED = new Set([
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type DrawTool = "pencil" | "eraser" | "darken" | "lighten";
-type Tool = DrawTool | "fill" | "line" | "rect" | "ellipse" | "region" | "select" | "tile";
+type Tool = DrawTool | "fill" | "line" | "rect" | "ellipse" | "region" | "select" | "tile" | "wand";
 type ShapeTool = "line" | "rect" | "ellipse";
 const SHAPE_TOOLS: ReadonlySet<ShapeTool> = new Set(["line", "rect", "ellipse"]);
 type SelectedFrame = { sprite: string; anim: string; idx: number };
@@ -70,13 +77,16 @@ function decodePixels(pixels: string): Uint8ClampedArray {
 }
 
 function encodePixels(buf: Uint8ClampedArray): string {
+  // Chunk to avoid stack overflow from spread; much faster than per-char concatenation.
+  const CHUNK = 0x8000;
   let s = "";
-  for (let i = 0; i < buf.length; i++) s += String.fromCharCode(buf[i]);
+  for (let i = 0; i < buf.length; i += CHUNK)
+    s += String.fromCharCode(...buf.subarray(i, i + CHUNK));
   return btoa(s);
 }
 
 function blankSheet(): SheetData {
-  return { pixels: encodePixels(new Uint8ClampedArray(SHEET_W * SHEET_H * 4)), width: SHEET_W, height: SHEET_H, sprites: {} };
+  return { pixels: encodePixels(new Uint8ClampedArray(BLANK_W * BLANK_H * 4)), width: BLANK_W, height: BLANK_H, sprites: {} };
 }
 
 function hexToRgb(hex: string): [number, number, number] {
@@ -160,6 +170,42 @@ function floodFill(buf: Uint8ClampedArray, w: number, h: number, px: number, py:
   }
 }
 
+// ── Smart select helpers ──────────────────────────────────────────────────────
+
+function connectedBounds(buf: Uint8ClampedArray, w: number, h: number, px: number, py: number): { x: number; y: number; w: number; h: number } | null {
+  if (px < 0 || py < 0 || px >= w || py >= h) return null;
+  if (buf[(py * w + px) * 4 + 3] === 0) return null;
+  let minX = px, minY = py, maxX = px, maxY = py;
+  const visited = new Uint8Array(w * h);
+  const stack = [py * w + px];
+  visited[py * w + px] = 1;
+  while (stack.length) {
+    const idx = stack.pop()!;
+    const cx = idx % w, cy = (idx / w) | 0;
+    if (cx < minX) minX = cx; else if (cx > maxX) maxX = cx;
+    if (cy < minY) minY = cy; else if (cy > maxY) maxY = cy;
+    for (let d = 0; d < 4; d++) {
+      const nx = cx + (d === 0 ? 1 : d === 1 ? -1 : 0);
+      const ny = cy + (d === 2 ? 1 : d === 3 ? -1 : 0);
+      if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
+      const ni = ny * w + nx;
+      if (visited[ni] || buf[ni * 4 + 3] === 0) continue;
+      visited[ni] = 1;
+      stack.push(ni);
+    }
+  }
+  return { x: minX, y: minY, w: maxX - minX + 1, h: maxY - minY + 1 };
+}
+
+function padBoundsToGrid(x: number, y: number, w: number, h: number, gridSize: number): { x: number; y: number; w: number; h: number } {
+  if (gridSize <= 1) return { x, y, w, h };
+  const x2 = Math.floor(x / gridSize) * gridSize;
+  const y2 = Math.floor(y / gridSize) * gridSize;
+  const x3 = Math.ceil((x + w) / gridSize) * gridSize;
+  const y3 = Math.ceil((y + h) / gridSize) * gridSize;
+  return { x: x2, y: y2, w: x3 - x2, h: y3 - y2 };
+}
+
 // ── Shape rasterizers ─────────────────────────────────────────────────────────
 
 function bresenhamLine(x0: number, y0: number, x1: number, y1: number, plot: (x: number, y: number) => void) {
@@ -223,6 +269,7 @@ function ColorPicker({ color, secondaryColor, onColor, onSecondary, onClose, the
   onColor: (c: string) => void; onSecondary: (c: string) => void;
   onClose: () => void; theme: Record<string, string>;
 }) {
+  const { t } = useTranslation();
   const { surfacePanel, panelTxtMute, panelBorder, accent } = theme;
   const [editing, setEditing] = useState<"a" | "b">("a");
   const activeColor = editing === "b" ? secondaryColor : color;
@@ -244,10 +291,10 @@ function ColorPicker({ color, secondaryColor, onColor, onSecondary, onClose, the
             style={{ width: 18, height: 18, borderRadius: 2, padding: 0, cursor: "pointer", background: c, border: `2px solid ${activeColor === c ? "#fff" : "transparent"}`, outline: activeColor === c ? `1px solid ${accent}` : "none" }} />
         ))}
       </div>
-      <div style={{ fontSize: 9, color: panelTxtMute, marginBottom: 4 }}>Lerp A→B</div>
+      <div style={{ fontSize: 9, color: panelTxtMute, marginBottom: 4 }}>{t('sheetEditor.lerpLabel')}</div>
       <div style={{ display: "flex", gap: 4, marginBottom: 4 }}>
-        <button title="Edit color A" onClick={() => setEditing("a")} style={{ flex: 1, height: 20, borderRadius: 3, cursor: "pointer", padding: 0, background: color, border: `2px solid ${editing === "a" ? "#fff" : panelBorder}`, outline: editing === "a" ? `1px solid ${accent}` : "none" }} />
-        <button title="Edit color B" onClick={() => setEditing("b")} style={{ flex: 1, height: 20, borderRadius: 3, cursor: "pointer", padding: 0, background: secondaryColor, border: `2px solid ${editing === "b" ? "#fff" : panelBorder}`, outline: editing === "b" ? `1px solid ${accent}` : "none" }} />
+        <button title={t('sheetEditor.editColorA')} onClick={() => setEditing("a")} style={{ flex: 1, height: 20, borderRadius: 3, cursor: "pointer", padding: 0, background: color, border: `2px solid ${editing === "a" ? "#fff" : panelBorder}`, outline: editing === "a" ? `1px solid ${accent}` : "none" }} />
+        <button title={t('sheetEditor.editColorB')} onClick={() => setEditing("b")} style={{ flex: 1, height: 20, borderRadius: 3, cursor: "pointer", padding: 0, background: secondaryColor, border: `2px solid ${editing === "b" ? "#fff" : panelBorder}`, outline: editing === "b" ? `1px solid ${accent}` : "none" }} />
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(10, 1fr)", gap: 2 }}>
         {lerpSteps.map((c, i) => (
@@ -266,6 +313,7 @@ function isBrushTool(t: Tool): t is DrawTool {
 
 function toolCursor(t: Tool): string {
   if (t === "select") return "default";
+  if (t === "wand") return "cell";
   if (t === "fill") return "cell";
   if (t === "tile") return "copy";
   return "crosshair";
@@ -273,6 +321,7 @@ function toolCursor(t: Tool): string {
 
 const TOOL_DEFS: { id: Tool; label: string; icon: React.ReactNode; group: number }[] = [
   { id: "select",  label: "Select / Move", icon: <MousePointer2 size={20} strokeWidth={1.5} />, group: 1 },
+  { id: "wand",    label: "Smart Select",  icon: <Wand2 size={20} strokeWidth={1.5} />, group: 1 },
   { id: "pencil",  label: "Pencil",       icon: <Pencil size={20} strokeWidth={1.5} />, group: 1 },
   { id: "eraser",  label: "Eraser",       icon: <Eraser size={20} strokeWidth={1.5} />, group: 1 },
   { id: "fill",    label: "Fill",         icon: <PaintBucket size={20} strokeWidth={1.5} />, group: 1 },
@@ -287,7 +336,8 @@ const TOOL_DEFS: { id: Tool; label: string; icon: React.ReactNode; group: number
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function SheetEditor({ onClose }: { onClose: () => void }) {
+export default function SheetEditor({ onClose, initialSprite }: { onClose: () => void; initialSprite?: string }) {
+  const { t } = useTranslation();
   const theme = useThemeStore((s) => s.theme);
   const project = useEditor((s) => s.project);
   const setSheet = useEditor((s) => s.setSheet);
@@ -296,6 +346,8 @@ export default function SheetEditor({ onClose }: { onClose: () => void }) {
   useEffect(() => { if (!project.sheet) setSheet(blankSheet()); }, [project.sheet, setSheet]);
 
   const sheet = project.sheet ?? blankSheet();
+  const sheetW = sheet.width;
+  const sheetH = sheet.height;
   const pixBuf = useRef<Uint8ClampedArray>(decodePixels(sheet.pixels));
   useEffect(() => { pixBuf.current = decodePixels(sheet.pixels); }, [sheet.pixels]);
 
@@ -308,7 +360,9 @@ export default function SheetEditor({ onClose }: { onClose: () => void }) {
 
   const undoStack = useRef<Uint8ClampedArray[]>([]);
   const redoStack = useRef<Uint8ClampedArray[]>([]);
+  const clipboardRef = useRef<{ pixels: Uint8ClampedArray; w: number; h: number } | null>(null);
   const renderCanvasRef = useRef<() => void>(() => {});
+  const imageDataRef = useRef<ImageData | null>(null);
 
   const [zoom, setZoom] = useState(2);
   const [tool, setTool] = useState<Tool>("pencil");
@@ -317,21 +371,25 @@ export default function SheetEditor({ onClose }: { onClose: () => void }) {
   const [lerpOverride, setLerpOverride] = useState<string | null>(null);
   useEffect(() => { setLerpOverride(null); }, [color]);
   const [brushSize, setBrushSize] = useState(1);
-  const [brushHover, setBrushHover] = useState<{ x: number; y: number } | null>(null);
+  const brushOverlayRef = useRef<HTMLDivElement>(null);
   const [colorPickerOpen, setColorPickerOpen] = useState(false);
   const [showGrid, setShowGrid] = useState(false);
   const [gridSize, setGridSize] = useState(1);
   const [selectedFrame, setSelectedFrame] = useState<SelectedFrame | null>(null);
   const [painting, setPainting] = useState(false);
-  const [regionDrag, setRegionDrag] = useState<RegionDrag | null>(null);
+  // These four were React state and triggered a full re-render on every pointer-move.
+  // They are now refs; canvas is painted imperatively so React never re-renders during a drag.
+  const regionDragRef = useRef<RegionDrag | null>(null);
+  const selectDragRef = useRef<SelectDrag>(null);
+  const selectDragOffRef = useRef<OffscreenCanvas | null>(null); // cached float canvas
+  const dragStartRef = useRef<{ x: number; y: number } | null>(null);
+  const dragNowRef = useRef<{ x: number; y: number } | null>(null);
+  const canvasRectRef = useRef<DOMRect | null>(null); // cached getBoundingClientRect
   const [pendingRegion, setPendingRegion] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
   const [pendingName, setPendingName] = useState("");
   const [pendingNameError, setPendingNameError] = useState("");
-  const [selectDrag, setSelectDrag] = useState<SelectDrag>(null);
-  const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(null);
-  const [dragNow, setDragNow] = useState<{ x: number; y: number } | null>(null);
 
-  useEffect(() => { setDragStart(null); setDragNow(null); }, [tool]);
+  useEffect(() => { dragStartRef.current = null; dragNowRef.current = null; }, [tool]);
 
   const [renamingSprite, setRenamingSprite] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
@@ -350,6 +408,15 @@ export default function SheetEditor({ onClose }: { onClose: () => void }) {
   const previewIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Focus on initialSprite when provided
+  useEffect(() => {
+    if (initialSprite && sheet.sprites[initialSprite]) {
+      const firstAnim = Object.keys(sheet.sprites[initialSprite].animations)[0] ?? 'default';
+      setSelectedFrame({ sprite: initialSprite, anim: firstAnim, idx: 0 });
+      setExpandedSprites(new Set([initialSprite]));
+    }
+  }, [initialSprite, sheet.sprites]);
+
   const startHoverPreview = useCallback((sn: string, an: string) => {
     if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
     hoverTimerRef.current = setTimeout(() => setPreviewAnim({ sprite: sn, anim: an }), 2000);
@@ -360,15 +427,24 @@ export default function SheetEditor({ onClose }: { onClose: () => void }) {
   }, []);
   const [moveSpriteDrag, setMoveSpriteDrag] = useState<MoveSpriteDrag>(null);
   const [resizeSpriteDrag, setResizeSpriteDrag] = useState<ResizeSpriteDrag>(null);
-  const [tilePreview, setTilePreview] = useState<{ x: number; y: number } | null>(null);
+  const tileOverlayRef = useRef<HTMLDivElement>(null);
   const [showLibrary, setShowLibrary] = useState(false);
   const [libFolder, setLibFolder] = useState(0);
 
-  useEffect(() => { zoomRef.current = zoom; }, [zoom]);
+  useEffect(() => { zoomRef.current = zoom; canvasRectRef.current = null; }, [zoom]);
   useEffect(() => {
     const adj = pendingScrollAdjust.current;
     if (adj && scrollRef.current) { scrollRef.current.scrollLeft = adj.left; scrollRef.current.scrollTop = adj.top; pendingScrollAdjust.current = null; }
   }, [zoom]);
+
+  // Invalidate cached canvas rect on scroll or window resize
+  useEffect(() => {
+    const el = scrollRef.current; if (!el) return;
+    const inv = () => { canvasRectRef.current = null; };
+    el.addEventListener("scroll", inv, { passive: true });
+    window.addEventListener("resize", inv, { passive: true });
+    return () => { el.removeEventListener("scroll", inv); window.removeEventListener("resize", inv); };
+  }, []);
 
   // Ctrl+wheel zoom, Shift+wheel horizontal scroll
   useEffect(() => {
@@ -377,7 +453,7 @@ export default function SheetEditor({ onClose }: { onClose: () => void }) {
       if (e.ctrlKey) {
         e.preventDefault();
         const cur = zoomRef.current;
-        const next = Math.max(0.25, Math.min(8, e.deltaY < 0 ? cur * 2 : cur / 2));
+        const next = Math.max(0.25, Math.min(16, e.deltaY < 0 ? cur * 2 : cur / 2));
         if (next === cur) return;
         const rect = el.getBoundingClientRect();
         const mx = e.clientX - rect.left, my = e.clientY - rect.top;
@@ -418,20 +494,59 @@ export default function SheetEditor({ onClose }: { onClose: () => void }) {
 
   // ── Keyboard shortcuts ───────────────────────────────────────────────────────
 
+  // Keep volatile closure deps in a ref so the keydown listener registers exactly once.
+  // Reading these from a ref avoids re-binding the global listener on every paint/state change,
+  // which was the dominant source of editor freezes during heavy drawing.
+  const kbRef = useRef({ color, secondaryColor, selectedFrame, sheet, sheetW, performUndo, performRedo, pushUndo, setSheet });
+  kbRef.current = { color, secondaryColor, selectedFrame, sheet, sheetW, performUndo, performRedo, pushUndo, setSheet };
+
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      const { color, secondaryColor, selectedFrame, sheet, sheetW, performUndo, performRedo, pushUndo, setSheet } = kbRef.current;
       if ((e.ctrlKey || e.metaKey) && !e.altKey) {
         if (e.key === "z" || e.key === "Z") { e.preventDefault(); if (e.shiftKey) performRedo(); else performUndo(); }
         else if (e.key === "y" || e.key === "Y") { e.preventDefault(); performRedo(); }
+        else if ((e.key === "c" || e.key === "C") && !e.shiftKey) {
+          if (selectedFrame) {
+            const strip = sheet.sprites[selectedFrame.sprite]?.animations[selectedFrame.anim];
+            if (strip) {
+              e.preventDefault();
+              const x = strip.x + selectedFrame.idx * strip.frameW, y = strip.y, w = strip.frameW, h = strip.frameH;
+              const pixels = new Uint8ClampedArray(w * h * 4);
+              for (let row = 0; row < h; row++) pixels.set(pixBuf.current.subarray(((y + row) * sheetW + x) * 4, ((y + row) * sheetW + x + w) * 4), row * w * 4);
+              clipboardRef.current = { pixels, w, h };
+            }
+          }
+        }
+        else if ((e.key === "v" || e.key === "V") && !e.shiftKey) {
+          if (clipboardRef.current && selectedFrame) {
+            const strip = sheet.sprites[selectedFrame.sprite]?.animations[selectedFrame.anim];
+            if (strip) {
+              e.preventDefault();
+              const { pixels, w, h } = clipboardRef.current;
+              const cx = strip.x + selectedFrame.idx * strip.frameW, cy = strip.y, cw = strip.frameW, ch = strip.frameH;
+              pushUndo();
+              for (let row = 0; row < Math.min(h, ch); row++)
+                for (let col = 0; col < Math.min(w, cw); col++) {
+                  const si = (row * w + col) * 4;
+                  if (pixels[si + 3] === 0) continue;
+                  const di = ((cy + row) * sheetW + cx + col) * 4;
+                  pixBuf.current[di] = pixels[si]; pixBuf.current[di+1] = pixels[si+1]; pixBuf.current[di+2] = pixels[si+2]; pixBuf.current[di+3] = pixels[si+3];
+                }
+              setSheet({ ...sheet, pixels: encodePixels(pixBuf.current) });
+              renderCanvasRef.current();
+            }
+          }
+        }
         return;
       }
       if (e.ctrlKey || e.metaKey || e.altKey) return;
-      const map: Record<string, Tool> = { v: "select", b: "pencil", e: "eraser", g: "fill", d: "darken", l: "lighten", n: "line", u: "rect", o: "ellipse", r: "region", t: "tile" };
+      const map: Record<string, Tool> = { v: "select", w: "wand", b: "pencil", e: "eraser", g: "fill", d: "darken", l: "lighten", n: "line", u: "rect", o: "ellipse", r: "region", t: "tile" };
       const k = e.key.toLowerCase();
       if (map[k]) setTool(map[k]);
       else if (k === "h") setPanelOpen((p) => !p);
-      else if (k === "x") { const a = color, b2 = secondaryColor; setColor(b2); setSecondaryColor(a); setLerpOverride(null); }
+      else if (k === "x") { setColor(secondaryColor); setSecondaryColor(color); setLerpOverride(null); }
       else if (e.key === "[" || e.key === "]") {
         if (!selectedFrame) return;
         const strip = sheet.sprites[selectedFrame.sprite]?.animations[selectedFrame.anim];
@@ -445,7 +560,7 @@ export default function SheetEditor({ onClose }: { onClose: () => void }) {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [performUndo, performRedo, color, secondaryColor, selectedFrame, sheet.sprites]);
+  }, []);
 
   // ── Canvas render ────────────────────────────────────────────────────────────
 
@@ -459,47 +574,48 @@ export default function SheetEditor({ onClose }: { onClose: () => void }) {
   const renderCanvas = useCallback(() => {
     const canvas = canvasRef.current; if (!canvas) return;
     const ctx = canvas.getContext("2d"); if (!ctx) return;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.imageSmoothingEnabled = false;
-    const off = new OffscreenCanvas(SHEET_W, SHEET_H);
-    const octx = off.getContext("2d")!;
-    const copy = new Uint8ClampedArray(pixBuf.current.length);
-    copy.set(pixBuf.current);
-    octx.putImageData(new ImageData(copy, SHEET_W, SHEET_H), 0, 0);
-    ctx.drawImage(off, 0, 0);
+    // Reuse a persistent ImageData to avoid per-frame allocations on the hot paint path.
+    // Recreate only when dimensions change (rare); hot path is just data.set + putImageData.
+    if (!imageDataRef.current || imageDataRef.current.width !== sheetW || imageDataRef.current.height !== sheetH) {
+      imageDataRef.current = new ImageData(new Uint8ClampedArray(sheetW * sheetH * 4), sheetW, sheetH);
+    }
+    imageDataRef.current.data.set(pixBuf.current);
+    ctx.putImageData(imageDataRef.current, 0, 0);
     if (clipRect) {
       ctx.strokeStyle = "#5fd4dc";
-      ctx.lineWidth = 1;
-      ctx.strokeRect(clipRect.x + 0.5, clipRect.y + 0.5, clipRect.w - 1, clipRect.h - 1);
+      ctx.lineWidth = 1 / zoomRef.current;
+      ctx.strokeRect(clipRect.x, clipRect.y, clipRect.w, clipRect.h);
     }
-    if (selectDrag) {
-      const nx = Math.max(0, Math.min(SHEET_W - selectDrag.origW, selectDrag.origX + selectDrag.dx));
-      const ny = Math.max(0, Math.min(SHEET_H - selectDrag.origH, selectDrag.origY + selectDrag.dy));
-      const floatOff = new OffscreenCanvas(selectDrag.origW, selectDrag.origH);
-      floatOff.getContext("2d")!.putImageData(new ImageData(new Uint8ClampedArray(selectDrag.pixels), selectDrag.origW, selectDrag.origH), 0, 0);
+    const sd = selectDragRef.current;
+    if (sd && selectDragOffRef.current) {
+      const nx = Math.max(0, Math.min(sheetW - sd.origW, sd.origX + sd.dx));
+      const ny = Math.max(0, Math.min(sheetH - sd.origH, sd.origY + sd.dy));
       ctx.globalAlpha = 0.9;
-      ctx.drawImage(floatOff, nx, ny);
+      ctx.drawImage(selectDragOffRef.current, nx, ny);
       ctx.globalAlpha = 1;
     }
-    if (regionDrag) {
-      const x = Math.min(regionDrag.sx, regionDrag.ex), y = Math.min(regionDrag.sy, regionDrag.ey);
-      const w = Math.abs(regionDrag.ex - regionDrag.sx), h = Math.abs(regionDrag.ey - regionDrag.sy);
-      ctx.strokeStyle = "#ef7d57"; ctx.lineWidth = 1; ctx.setLineDash([4, 4]);
+    const rd = regionDragRef.current;
+    if (rd) {
+      const x = Math.min(rd.sx, rd.ex), y = Math.min(rd.sy, rd.ey);
+      const w = Math.abs(rd.ex - rd.sx), h = Math.abs(rd.ey - rd.sy);
+      ctx.strokeStyle = "#ef7d57"; ctx.lineWidth = 1 / zoomRef.current; ctx.setLineDash([4 / zoomRef.current, 4 / zoomRef.current]);
       ctx.strokeRect(x, y, w, h); ctx.setLineDash([]);
     }
-    if (dragStart && dragNow && SHAPE_TOOLS.has(tool as ShapeTool)) {
+    const ds = dragStartRef.current, dn = dragNowRef.current;
+    if (ds && dn && SHAPE_TOOLS.has(tool as ShapeTool)) {
       const [r, g, b] = hexToRgb(lerpOverride ?? color);
       ctx.fillStyle = `rgba(${r},${g},${b},0.5)`;
       const stamp = (px: number, py: number) => {
-        if (px < 0 || py < 0 || px >= SHEET_W || py >= SHEET_H) return;
+        if (px < 0 || py < 0 || px >= sheetW || py >= sheetH) return;
         if (clipRect && !inClip(px, py, clipRect)) return;
         ctx.fillRect(px, py, 1, 1);
       };
-      if (tool === "line") bresenhamLine(dragStart.x, dragStart.y, dragNow.x, dragNow.y, stamp);
-      if (tool === "rect") rectOutline(dragStart.x, dragStart.y, dragNow.x, dragNow.y, stamp);
-      if (tool === "ellipse") ellipseOutline(dragStart.x, dragStart.y, dragNow.x, dragNow.y, stamp);
+      if (tool === "line") bresenhamLine(ds.x, ds.y, dn.x, dn.y, stamp);
+      if (tool === "rect") rectOutline(ds.x, ds.y, dn.x, dn.y, stamp);
+      if (tool === "ellipse") ellipseOutline(ds.x, ds.y, dn.x, dn.y, stamp);
     }
-  }, [clipRect, regionDrag, selectDrag, dragStart, dragNow, tool, lerpOverride, color]);
+  }, [clipRect, tool, lerpOverride, color, sheetW, sheetH]);
 
   useEffect(() => { renderCanvasRef.current = renderCanvas; }, [renderCanvas]);
   useEffect(() => { renderCanvas(); }, [renderCanvas]);
@@ -526,7 +642,7 @@ export default function SheetEditor({ onClose }: { onClose: () => void }) {
     const ctx = canvas.getContext("2d")!; ctx.imageSmoothingEnabled = false;
     const frameBuf = new Uint8ClampedArray(fw * fh * 4);
     for (let row = 0; row < fh; row++)
-      frameBuf.set(pixBuf.current.subarray(((fy + row) * SHEET_W + fx) * 4, ((fy + row) * SHEET_W + fx + fw) * 4), row * fw * 4);
+      frameBuf.set(pixBuf.current.subarray(((fy + row) * sheetW + fx) * 4, ((fy + row) * sheetW + fx + fw) * 4), row * fw * 4);
     const poff = new OffscreenCanvas(fw, fh);
     const pc = new Uint8ClampedArray(frameBuf.length); pc.set(frameBuf);
     poff.getContext("2d")!.putImageData(new ImageData(pc, fw, fh), 0, 0);
@@ -540,18 +656,19 @@ export default function SheetEditor({ onClose }: { onClose: () => void }) {
 
   const canvasCoords = useCallback((e: React.PointerEvent | React.MouseEvent) => {
     const canvas = canvasRef.current; if (!canvas) return null;
-    const rect = canvas.getBoundingClientRect();
+    if (!canvasRectRef.current) canvasRectRef.current = canvas.getBoundingClientRect();
+    const rect = canvasRectRef.current;
     const cx = Math.floor((e.clientX - rect.left) / zoom);
     const cy = Math.floor((e.clientY - rect.top) / zoom);
-    return { x: Math.max(0, Math.min(SHEET_W - 1, cx)), y: Math.max(0, Math.min(SHEET_H - 1, cy)) };
-  }, [zoom]);
+    return { x: Math.max(0, Math.min(sheetW - 1, cx)), y: Math.max(0, Math.min(sheetH - 1, cy)) };
+  }, [zoom, sheetW, sheetH]);
 
   const fitToView = useCallback(() => {
     const el = scrollRef.current; if (!el) return;
     const vw = el.clientWidth, vh = el.clientHeight;
-    const raw = Math.min(vw / (SHEET_W + 32), vh / (SHEET_H + 32));
-    setZoom(Math.max(0.25, Math.min(8, [0.25, 0.5, 1, 2, 4, 8].reduce((a, b) => Math.abs(b - raw) < Math.abs(a - raw) ? b : a))));
-  }, []);
+    const raw = Math.min(vw / (sheetW + 32), vh / (sheetH + 32));
+    setZoom(Math.max(0.25, Math.min(16, [0.25, 0.5, 1, 2, 4, 8, 16].reduce((a, b) => Math.abs(b - raw) < Math.abs(a - raw) ? b : a))));
+  }, [sheetW, sheetH]);
 
   // ── Library picker ───────────────────────────────────────────────────────────
 
@@ -567,7 +684,7 @@ export default function SheetEditor({ onClose }: { onClose: () => void }) {
       const sh = useEditor.getState().project.sheet; if (!sh) return;
       const sprites = sh.sprites;
       let foundX = 0, foundY = 0;
-      scan: for (let y = 0; y <= SHEET_H - ih; y += 8) for (let x = 0; x <= SHEET_W - iw; x += 8)
+      scan: for (let y = 0; y <= sh.height - ih; y += 8) for (let x = 0; x <= sh.width - iw; x += 8)
         if (!anyStripOverlaps(sprites, x, y, iw, ih)) { foundX = x; foundY = y; break scan; }
       const offCanvas = document.createElement("canvas");
       offCanvas.width = iw; offCanvas.height = ih;
@@ -576,7 +693,7 @@ export default function SheetEditor({ onClose }: { onClose: () => void }) {
       octx.drawImage(img, 0, 0, iw, ih);
       const srcData = octx.getImageData(0, 0, iw, ih);
       for (let row = 0; row < ih; row++) {
-        const srcOff = row * iw * 4, dstOff = ((foundY + row) * SHEET_W + foundX) * 4;
+        const srcOff = row * iw * 4, dstOff = ((foundY + row) * sh.width + foundX) * 4;
         for (let col = 0; col < iw; col++) {
           const si = srcOff + col * 4, di = dstOff + col * 4;
           if (srcData.data[si + 3] === 0) continue;
@@ -587,9 +704,9 @@ export default function SheetEditor({ onClose }: { onClose: () => void }) {
       const baseName = entry.name.replace(/\.png$/i, "").replace(/[^a-z0-9_]/gi, "_").toLowerCase();
       let spriteName = baseName || "sprite"; let counter = 2;
       while (spriteName in sprites || ACTOR_RESERVED.has(spriteName)) spriteName = `${baseName}_${counter++}`;
-      const newSheet = { ...sh, sprites: { ...sprites, [spriteName]: { animations: { idle: { x: foundX, y: foundY, frameW: iw, frameH: ih, frameCount: 1 } } } }, pixels: encodePixels(pixBuf.current) };
+      const newSheet = { ...sh, sprites: { ...sprites, [spriteName]: { animations: { default: { x: foundX, y: foundY, frameW: iw, frameH: ih, frameCount: 1 } } } }, pixels: encodePixels(pixBuf.current) };
       setSheet(newSheet);
-      setSelectedFrame({ sprite: spriteName, anim: "idle", idx: 0 });
+      setSelectedFrame({ sprite: spriteName, anim: "default", idx: 0 });
       setExpandedSprites((s) => new Set([...s, spriteName]));
       renderCanvasRef.current();
       setShowLibrary(false);
@@ -599,7 +716,7 @@ export default function SheetEditor({ onClose }: { onClose: () => void }) {
   // ── Pointer handlers ──────────────────────────────────────────────────────────
 
   const handleCanvasPointerDown = useCallback((e: React.PointerEvent) => {
-    if (e.button === 2) { const c = canvasCoords(e); if (c) { const idx = (c.y * SHEET_W + c.x) * 4; if (pixBuf.current[idx + 3] > 0) setColor(rgbToHex(pixBuf.current[idx], pixBuf.current[idx + 1], pixBuf.current[idx + 2])); } return; }
+    if (e.button === 2) { const c = canvasCoords(e); if (c) { const idx = (c.y * sheetW + c.x) * 4; if (pixBuf.current[idx + 3] > 0) setColor(rgbToHex(pixBuf.current[idx], pixBuf.current[idx + 1], pixBuf.current[idx + 2])); } return; }
     if (e.button !== 0) return;
     const coords = canvasCoords(e); if (!coords) return;
     if (tool === "select") {
@@ -607,8 +724,10 @@ export default function SheetEditor({ onClose }: { onClose: () => void }) {
         pushUndo();
         const { x: cx, y: cy, w: cw, h: ch } = clipRect;
         const pixels = new Uint8ClampedArray(cw * ch * 4);
-        for (let row = 0; row < ch; row++) { const src = ((cy + row) * SHEET_W + cx) * 4; pixels.set(pixBuf.current.subarray(src, src + cw * 4), row * cw * 4); pixBuf.current.fill(0, src, src + cw * 4); }
-        setSelectDrag({ sprite: selectedFrame!.sprite, origX: cx, origY: cy, origW: cw, origH: ch, pixels, px0: coords.x, py0: coords.y, dx: 0, dy: 0, freeMove: true });
+        for (let row = 0; row < ch; row++) { const src = ((cy + row) * sheetW + cx) * 4; pixels.set(pixBuf.current.subarray(src, src + cw * 4), row * cw * 4); pixBuf.current.fill(0, src, src + cw * 4); }
+        const off = new OffscreenCanvas(cw, ch); off.getContext("2d")!.putImageData(new ImageData(new Uint8ClampedArray(pixels), cw, ch), 0, 0);
+        selectDragOffRef.current = off;
+        selectDragRef.current = { sprite: selectedFrame!.sprite, origX: cx, origY: cy, origW: cw, origH: ch, pixels, px0: coords.x, py0: coords.y, dx: 0, dy: 0, freeMove: true };
         renderCanvas(); (e.target as Element).setPointerCapture(e.pointerId); return;
       }
       for (const [sn, se] of Object.entries(sheet.sprites)) {
@@ -618,54 +737,113 @@ export default function SheetEditor({ onClose }: { onClose: () => void }) {
         if (coords.x < ox || coords.x >= ox + ow || coords.y < oy || coords.y >= oy + oh) continue;
         pushUndo();
         const pixels = new Uint8ClampedArray(ow * oh * 4);
-        for (let row = 0; row < oh; row++) { const src = ((oy + row) * SHEET_W + ox) * 4; pixels.set(pixBuf.current.subarray(src, src + ow * 4), row * ow * 4); pixBuf.current.fill(0, src, src + ow * 4); }
-        setSelectDrag({ sprite: sn, origX: ox, origY: oy, origW: ow, origH: oh, pixels, px0: coords.x, py0: coords.y, dx: 0, dy: 0 });
+        for (let row = 0; row < oh; row++) { const src = ((oy + row) * sheetW + ox) * 4; pixels.set(pixBuf.current.subarray(src, src + ow * 4), row * ow * 4); pixBuf.current.fill(0, src, src + ow * 4); }
+        const off = new OffscreenCanvas(ow, oh); off.getContext("2d")!.putImageData(new ImageData(new Uint8ClampedArray(pixels), ow, oh), 0, 0);
+        selectDragOffRef.current = off;
+        selectDragRef.current = { sprite: sn, origX: ox, origY: oy, origW: ow, origH: oh, pixels, px0: coords.x, py0: coords.y, dx: 0, dy: 0 };
         renderCanvas(); (e.target as Element).setPointerCapture(e.pointerId); return;
       }
       return;
     }
-    if (tool === "region") { setRegionDrag({ sx: coords.x, sy: coords.y, ex: coords.x, ey: coords.y }); (e.target as Element).setPointerCapture(e.pointerId); return; }
+    if (tool === "wand") {
+      const bounds = connectedBounds(pixBuf.current, sheetW, sheetH, coords.x, coords.y);
+      if (!bounds) return;
+      const padSize = showGrid && gridSize > 1 ? gridSize : 1;
+      const { x: bx, y: by, w: bw, h: bh } = padBoundsToGrid(bounds.x, bounds.y, bounds.w, bounds.h, padSize);
+      const clampedX = Math.max(0, bx), clampedY = Math.max(0, by);
+      const clampedW = Math.min(bw, sheetW - clampedX), clampedH = Math.min(bh, sheetH - clampedY);
+      if (clampedW < 1 || clampedH < 1) return;
+      pushUndo();
+      const pixels = new Uint8ClampedArray(clampedW * clampedH * 4);
+      for (let row = 0; row < clampedH; row++) {
+        for (let col = 0; col < clampedW; col++) {
+          const si = ((clampedY + row) * sheetW + clampedX + col) * 4;
+          const di = (row * clampedW + col) * 4;
+          pixels[di] = pixBuf.current[si]; pixels[di+1] = pixBuf.current[si+1]; pixels[di+2] = pixBuf.current[si+2]; pixels[di+3] = pixBuf.current[si+3];
+          pixBuf.current[si] = 0; pixBuf.current[si+1] = 0; pixBuf.current[si+2] = 0; pixBuf.current[si+3] = 0;
+        }
+      }
+      const off = new OffscreenCanvas(clampedW, clampedH); off.getContext("2d")!.putImageData(new ImageData(new Uint8ClampedArray(pixels), clampedW, clampedH), 0, 0);
+      selectDragOffRef.current = off;
+      selectDragRef.current = { sprite: selectedFrame?.sprite ?? "", origX: clampedX, origY: clampedY, origW: clampedW, origH: clampedH, pixels, px0: coords.x, py0: coords.y, dx: 0, dy: 0, freeMove: true };
+      renderCanvas(); (e.target as Element).setPointerCapture(e.pointerId); return;
+    }
+    if (tool === "region") { regionDragRef.current = { sx: coords.x, sy: coords.y, ex: coords.x, ey: coords.y }; (e.target as Element).setPointerCapture(e.pointerId); return; }
     if (tool === "tile" && tileSprite && sheet.sprites[tileSprite]) {
       const strips = Object.values(sheet.sprites[tileSprite].animations); if (strips.length === 0) return;
       const strip = strips[0]; const tw = strip.frameW, th = strip.frameH;
       const spacing = tileSpacingRef.current >= 1 ? tileSpacingRef.current : tw;
       const tx = Math.round((coords.x + tw / 2) / spacing) * spacing - Math.floor(tw / 2);
       const ty = Math.round((coords.y + th / 2) / spacing) * spacing - Math.floor(th / 2);
-      pushUndo(); stampTile(pixBuf.current, SHEET_W, SHEET_H, pixBuf.current, SHEET_W, strip.x, strip.y, tw, th, tx, ty);
+      pushUndo(); stampTile(pixBuf.current, sheetW, sheetH, pixBuf.current, sheetW, strip.x, strip.y, tw, th, tx, ty);
       setPainting(true); (e.target as Element).setPointerCapture(e.pointerId); renderCanvas(); return;
     }
     if (SHAPE_TOOLS.has(tool as ShapeTool)) {
-      setDragStart({ x: coords.x, y: coords.y });
-      setDragNow({ x: coords.x, y: coords.y });
+      dragStartRef.current = { x: coords.x, y: coords.y };
+      dragNowRef.current = { x: coords.x, y: coords.y };
       (e.target as Element).setPointerCapture(e.pointerId);
       return;
     }
     pushUndo(); setPainting(true); (e.target as Element).setPointerCapture(e.pointerId);
     const paintColor = lerpOverride ?? color;
-    if (tool === "fill") floodFill(pixBuf.current, SHEET_W, SHEET_H, coords.x, coords.y, paintColor, clipRect);
-    else paintBrush(pixBuf.current, SHEET_W, SHEET_H, coords.x, coords.y, tool as DrawTool, paintColor, brushSize, clipRect);
+    if (tool === "fill") floodFill(pixBuf.current, sheetW, sheetH, coords.x, coords.y, paintColor, clipRect);
+    else paintBrush(pixBuf.current, sheetW, sheetH, coords.x, coords.y, tool as DrawTool, paintColor, brushSize, clipRect);
     renderCanvas();
-  }, [tool, color, lerpOverride, brushSize, clipRect, canvasCoords, sheet.sprites, selectedFrame, selectDrag, renderCanvas, pushUndo, tileSprite]);
+  }, [tool, color, lerpOverride, brushSize, clipRect, canvasCoords, sheet.sprites, selectedFrame, renderCanvas, pushUndo, tileSprite, showGrid, gridSize, sheetW, sheetH]);
 
   const handleCanvasPointerMove = useCallback((e: React.PointerEvent) => {
     const coords = canvasCoords(e); if (!coords) return;
     if (coordsBarRef.current) coordsBarRef.current.textContent = `abs ${coords.x}, ${coords.y}`;
-    if (isBrushTool(tool)) setBrushHover(coords); else setBrushHover(null);
+    // Update brush/tile overlays imperatively to avoid a React re-render on every pointermove
+    if (isBrushTool(tool)) {
+      const el = brushOverlayRef.current;
+      if (el) {
+        const r = Math.floor(brushSize / 2);
+        const z = zoomRef.current;
+        el.style.display = 'block';
+        el.style.left = `${(coords.x - r) * z}px`;
+        el.style.top = `${(coords.y - r) * z}px`;
+        el.style.width = `${brushSize * z}px`;
+        el.style.height = `${brushSize * z}px`;
+      }
+    } else {
+      if (brushOverlayRef.current) brushOverlayRef.current.style.display = 'none';
+    }
     if (tool === "tile" && tileSprite && sheet.sprites[tileSprite]) {
       const strip = Object.values(sheet.sprites[tileSprite].animations)[0];
       if (strip) {
         const spacing = tileSpacingRef.current >= 1 ? tileSpacingRef.current : strip.frameW;
         const cx = Math.round((coords.x + strip.frameW / 2) / spacing) * spacing - Math.floor(strip.frameW / 2);
         const cy = Math.round((coords.y + strip.frameH / 2) / spacing) * spacing - Math.floor(strip.frameH / 2);
-        setTilePreview({ x: Math.max(0, cx), y: Math.max(0, cy) });
+        const el = tileOverlayRef.current;
+        if (el) {
+          const z = zoomRef.current;
+          el.style.display = 'block';
+          el.style.left = `${Math.max(0, cx) * z}px`;
+          el.style.top = `${Math.max(0, cy) * z}px`;
+          el.style.width = `${strip.frameW * z}px`;
+          el.style.height = `${strip.frameH * z}px`;
+        }
       }
-    } else setTilePreview(null);
-    if (tool === "region" && regionDrag) { setRegionDrag((d) => d ? { ...d, ex: coords.x, ey: coords.y } : d); return; }
-    if (tool === "select" && selectDrag) { setSelectDrag((d) => d ? { ...d, dx: coords.x - d.px0, dy: coords.y - d.py0 } : d); return; }
-    if (SHAPE_TOOLS.has(tool as ShapeTool) && dragStart) {
-      setDragNow({ x: coords.x, y: coords.y });
-      renderCanvas();
-      return;
+    } else {
+      if (tileOverlayRef.current) tileOverlayRef.current.style.display = 'none';
+    }
+    if (tool === "region" && regionDragRef.current) {
+      regionDragRef.current = { ...regionDragRef.current, ex: coords.x, ey: coords.y };
+      renderCanvasRef.current(); return;
+    }
+    if (tool === "select" && selectDragRef.current) {
+      const sd = selectDragRef.current;
+      selectDragRef.current = { ...sd, dx: coords.x - sd.px0, dy: coords.y - sd.py0 };
+      renderCanvasRef.current(); return;
+    }
+    if (tool === "select" && !selectDragRef.current && !moveSpriteDrag) {
+      const canvas = canvasRef.current;
+      if (canvas) canvas.style.cursor = (clipRect && inClip(coords.x, coords.y, clipRect)) ? "move" : "default";
+    }
+    if (SHAPE_TOOLS.has(tool as ShapeTool) && dragStartRef.current) {
+      dragNowRef.current = { x: coords.x, y: coords.y };
+      renderCanvasRef.current(); return;
     }
     if (!painting) {
       // Hover preview: if over a sprite region, start timer
@@ -684,54 +862,71 @@ export default function SheetEditor({ onClose }: { onClose: () => void }) {
       const spacing = tileSpacingRef.current >= 1 ? tileSpacingRef.current : tw;
       const tx = Math.round((coords.x + tw / 2) / spacing) * spacing - Math.floor(tw / 2);
       const ty = Math.round((coords.y + th / 2) / spacing) * spacing - Math.floor(th / 2);
-      stampTile(pixBuf.current, SHEET_W, SHEET_H, pixBuf.current, SHEET_W, strip.x, strip.y, tw, th, tx, ty); renderCanvas(); return;
+      stampTile(pixBuf.current, sheetW, sheetH, pixBuf.current, sheetW, strip.x, strip.y, tw, th, tx, ty); renderCanvas(); return;
     }
-    paintBrush(pixBuf.current, SHEET_W, SHEET_H, coords.x, coords.y, tool as DrawTool, lerpOverride ?? color, brushSize, clipRect); renderCanvas();
-  }, [painting, tool, color, lerpOverride, brushSize, clipRect, canvasCoords, regionDrag, selectDrag, renderCanvas, tileSprite, sheet.sprites, dragStart]);
+    paintBrush(pixBuf.current, sheetW, sheetH, coords.x, coords.y, tool as DrawTool, lerpOverride ?? color, brushSize, clipRect); renderCanvas();
+  }, [painting, tool, color, lerpOverride, brushSize, clipRect, canvasCoords, renderCanvas, tileSprite, sheet.sprites, startHoverPreview, clearHoverPreview, moveSpriteDrag]);
 
   const handleCanvasPointerUp = useCallback(() => {
-    if (tool === "select" && selectDrag) {
-      const nx = Math.max(0, Math.min(SHEET_W - selectDrag.origW, selectDrag.origX + selectDrag.dx));
-      const ny = Math.max(0, Math.min(SHEET_H - selectDrag.origH, selectDrag.origY + selectDrag.dy));
-      for (let row = 0; row < selectDrag.origH; row++) pixBuf.current.set(selectDrag.pixels.subarray(row * selectDrag.origW * 4, (row + 1) * selectDrag.origW * 4), ((ny + row) * SHEET_W + nx) * 4);
-      if (selectDrag.freeMove) { setSelectDrag(null); setSheet({ ...sheet, pixels: encodePixels(pixBuf.current) }); }
+    const sd = selectDragRef.current;
+    if (tool === "select" && sd) {
+      const nx = Math.max(0, Math.min(sheetW - sd.origW, sd.origX + sd.dx));
+      const ny = Math.max(0, Math.min(sheetH - sd.origH, sd.origY + sd.dy));
+      for (let row = 0; row < sd.origH; row++) pixBuf.current.set(sd.pixels.subarray(row * sd.origW * 4, (row + 1) * sd.origW * 4), ((ny + row) * sheetW + nx) * 4);
+      selectDragRef.current = null; selectDragOffRef.current = null;
+      if (sd.freeMove) { setSheet({ ...sheet, pixels: encodePixels(pixBuf.current) }); }
       else {
-        const ddx = nx - selectDrag.origX, ddy = ny - selectDrag.origY;
-        const newSprites = { ...sheet.sprites }; const sentry = newSprites[selectDrag.sprite];
+        const ddx = nx - sd.origX, ddy = ny - sd.origY;
+        const newSprites = { ...sheet.sprites }; const sentry = newSprites[sd.sprite];
         if (sentry && (ddx !== 0 || ddy !== 0)) {
           const newAnims: typeof sentry.animations = {};
           for (const [an, st] of Object.entries(sentry.animations)) newAnims[an] = { ...st, x: st.x + ddx, y: st.y + ddy };
-          newSprites[selectDrag.sprite] = { animations: newAnims };
+          newSprites[sd.sprite] = { animations: newAnims };
         }
-        setSelectDrag(null); setSheet({ ...sheet, pixels: encodePixels(pixBuf.current), sprites: newSprites });
+        setSheet({ ...sheet, pixels: encodePixels(pixBuf.current), sprites: newSprites });
       }
       renderCanvas(); return;
     }
-    if (tool === "region" && regionDrag) {
-      const x = Math.min(regionDrag.sx, regionDrag.ex), y = Math.min(regionDrag.sy, regionDrag.ey);
-      const w = Math.abs(regionDrag.ex - regionDrag.sx), h = Math.abs(regionDrag.ey - regionDrag.sy);
-      setRegionDrag(null);
+    const rd = regionDragRef.current;
+    if (tool === "region" && rd) {
+      const x = Math.min(rd.sx, rd.ex), y = Math.min(rd.sy, rd.ey);
+      const w = Math.abs(rd.ex - rd.sx), h = Math.abs(rd.ey - rd.sy);
+      regionDragRef.current = null;
       if (w >= 4 && h >= 4) {
         if (anyStripOverlaps(sheet.sprites, x, y, w, h)) setPendingNameError("Overlaps existing region");
         else { setPendingRegion({ x, y, w, h }); setPendingName("hero"); setPendingNameError(""); }
+      } else {
+        // Single click: smart region — flood-fill connected pixels → padded bounding box
+        const bounds = connectedBounds(pixBuf.current, sheetW, sheetH, rd.sx, rd.sy);
+        if (bounds) {
+          const padSize = showGrid && gridSize > 1 ? gridSize : 1;
+          const padded = padBoundsToGrid(bounds.x, bounds.y, bounds.w, bounds.h, padSize);
+          const cx = Math.max(0, padded.x), cy = Math.max(0, padded.y);
+          const cw = Math.min(padded.w, sheetW - cx), ch = Math.min(padded.h, sheetH - cy);
+          if (cw >= 2 && ch >= 2) {
+            if (anyStripOverlaps(sheet.sprites, cx, cy, cw, ch)) setPendingNameError("Overlaps existing region");
+            else { setPendingRegion({ x: cx, y: cy, w: cw, h: ch }); setPendingName("hero"); setPendingNameError(""); }
+          }
+        }
       }
       return;
     }
-    if (SHAPE_TOOLS.has(tool as ShapeTool) && dragStart && dragNow) {
+    const ds = dragStartRef.current, dn = dragNowRef.current;
+    if (SHAPE_TOOLS.has(tool as ShapeTool) && ds && dn) {
       pushUndo();
       const paintColor = lerpOverride ?? color;
-      const plot = (px: number, py: number) => paintPixel(pixBuf.current, SHEET_W, SHEET_H, px, py, "pencil", paintColor, clipRect);
-      if (tool === "line") bresenhamLine(dragStart.x, dragStart.y, dragNow.x, dragNow.y, plot);
-      if (tool === "rect") rectOutline(dragStart.x, dragStart.y, dragNow.x, dragNow.y, plot);
-      if (tool === "ellipse") ellipseOutline(dragStart.x, dragStart.y, dragNow.x, dragNow.y, plot);
+      const plot = (px: number, py: number) => paintPixel(pixBuf.current, sheetW, sheetH, px, py, "pencil", paintColor, clipRect);
+      if (tool === "line") bresenhamLine(ds.x, ds.y, dn.x, dn.y, plot);
+      if (tool === "rect") rectOutline(ds.x, ds.y, dn.x, dn.y, plot);
+      if (tool === "ellipse") ellipseOutline(ds.x, ds.y, dn.x, dn.y, plot);
       setSheet({ ...sheet, pixels: encodePixels(pixBuf.current) });
-      setDragStart(null);
-      setDragNow(null);
+      dragStartRef.current = null;
+      dragNowRef.current = null;
       renderCanvas();
       return;
     }
     if (painting) { setPainting(false); setSheet({ ...sheet, pixels: encodePixels(pixBuf.current) }); }
-  }, [painting, tool, regionDrag, sheet, setSheet, selectDrag, renderCanvas, dragStart, dragNow, pushUndo, lerpOverride, color, clipRect]);
+  }, [painting, tool, sheet, setSheet, renderCanvas, pushUndo, lerpOverride, color, clipRect, showGrid, gridSize, sheetW, sheetH]);
 
   // ── Confirm pending region ────────────────────────────────────────────────────
 
@@ -743,9 +938,9 @@ export default function SheetEditor({ onClose }: { onClose: () => void }) {
     if (ACTOR_RESERVED.has(name)) { setPendingNameError("Reserved name"); return; }
     if (name in sheet.sprites) { setPendingNameError("Name already used"); return; }
     pushUndo();
-    const newSprites: SheetSprites = { ...sheet.sprites, [name]: { animations: { idle: { x: pendingRegion.x, y: pendingRegion.y, frameW: pendingRegion.w, frameH: pendingRegion.h, frameCount: 1 } } } };
+    const newSprites: SheetSprites = { ...sheet.sprites, [name]: { animations: { default: { x: pendingRegion.x, y: pendingRegion.y, frameW: pendingRegion.w, frameH: pendingRegion.h, frameCount: 1 } } } };
     setSheet({ ...sheet, sprites: newSprites });
-    setSelectedFrame({ sprite: name, anim: "idle", idx: 0 });
+    setSelectedFrame({ sprite: name, anim: "default", idx: 0 });
     setExpandedSprites((s) => new Set([...s, name]));
     setPendingRegion(null); setPendingName("");
   }, [pendingRegion, pendingName, sheet, setSheet, pushUndo]);
@@ -755,10 +950,10 @@ export default function SheetEditor({ onClose }: { onClose: () => void }) {
   const addFrame = useCallback((spriteName: string, animName: string) => {
     const strip = sheet.sprites[spriteName]?.animations[animName]; if (!strip) return;
     const newFx = strip.x + strip.frameCount * strip.frameW;
-    if (newFx + strip.frameW > SHEET_W) { setFrameError({ sprite: spriteName, anim: animName, msg: "No space (sheet edge)" }); setTimeout(() => setFrameError(null), 4000); return; }
+    if (newFx + strip.frameW > sheetW) { setFrameError({ sprite: spriteName, anim: animName, msg: "No space (sheet edge)" }); setTimeout(() => setFrameError(null), 4000); return; }
     pushUndo(); const buf = pixBuf.current;
     const lastFx = strip.x + (strip.frameCount - 1) * strip.frameW;
-    for (let row = 0; row < strip.frameH; row++) buf.set(buf.subarray(((strip.y + row) * SHEET_W + lastFx) * 4, ((strip.y + row) * SHEET_W + lastFx + strip.frameW) * 4), ((strip.y + row) * SHEET_W + newFx) * 4);
+    for (let row = 0; row < strip.frameH; row++) buf.set(buf.subarray(((strip.y + row) * sheetW + lastFx) * 4, ((strip.y + row) * sheetW + lastFx + strip.frameW) * 4), ((strip.y + row) * sheetW + newFx) * 4);
     setSheet({ ...sheet, sprites: { ...sheet.sprites, [spriteName]: { ...sheet.sprites[spriteName], animations: { ...sheet.sprites[spriteName].animations, [animName]: { ...strip, frameCount: strip.frameCount + 1 } } } }, pixels: encodePixels(buf) });
   }, [sheet, setSheet, pushUndo]);
 
@@ -766,10 +961,12 @@ export default function SheetEditor({ onClose }: { onClose: () => void }) {
     const sentry = sheet.sprites[spriteName]; if (!sentry) return;
     const anims = Object.values(sentry.animations); if (anims.length === 0) return;
     const first = anims[0]; const maxY = Math.max(...anims.map((s) => s.y + s.frameH));
-    if (maxY + first.frameH > SHEET_H) { setAnimAddError({ sprite: spriteName, msg: "No space (sheet edge)" }); setTimeout(() => setAnimAddError(null), 4000); return; }
+    if (maxY + first.frameH > sheetH) { setAnimAddError({ sprite: spriteName, msg: "No space (sheet edge)" }); setTimeout(() => setAnimAddError(null), 4000); return; }
     pushUndo(); const buf = pixBuf.current;
-    for (let row = 0; row < first.frameH; row++) buf.set(buf.subarray(((first.y + row) * SHEET_W + first.x) * 4, ((first.y + row) * SHEET_W + first.x + first.frameW) * 4), ((maxY + row) * SHEET_W + first.x) * 4);
-    let newName = "walk"; let counter = 2; const existing = new Set(Object.keys(sentry.animations));
+    for (let row = 0; row < first.frameH; row++) buf.set(buf.subarray(((first.y + row) * sheetW + first.x) * 4, ((first.y + row) * sheetW + first.x + first.frameW) * 4), ((maxY + row) * sheetW + first.x) * 4);
+    const existing = new Set(Object.keys(sentry.animations));
+    let newName = !existing.has("idle") ? "idle" : !existing.has("walk") ? "walk" : "anim_2";
+    let counter = 2;
     while (existing.has(newName) || ACTOR_RESERVED.has(newName)) newName = `anim_${counter++}`;
     setSheet({ ...sheet, sprites: { ...sheet.sprites, [spriteName]: { ...sentry, animations: { ...sentry.animations, [newName]: { x: first.x, y: maxY, frameW: first.frameW, frameH: first.frameH, frameCount: 1 } } } }, pixels: encodePixels(buf) });
   }, [sheet, setSheet, pushUndo]);
@@ -797,7 +994,7 @@ export default function SheetEditor({ onClose }: { onClose: () => void }) {
     const sentry = sheet.sprites[spriteName]; if (!sentry) return;
     pushUndo();
     for (const strip of Object.values(sentry.animations))
-      for (let row = 0; row < strip.frameH; row++) pixBuf.current.fill(0, ((strip.y + row) * SHEET_W + strip.x) * 4, ((strip.y + row) * SHEET_W + strip.x + strip.frameW * strip.frameCount) * 4);
+      for (let row = 0; row < strip.frameH; row++) pixBuf.current.fill(0, ((strip.y + row) * sheetW + strip.x) * 4, ((strip.y + row) * sheetW + strip.x + strip.frameW * strip.frameCount) * 4);
     const newSprites = { ...sheet.sprites }; delete newSprites[spriteName];
     setSheet({ ...sheet, sprites: newSprites, pixels: encodePixels(pixBuf.current) });
     if (selectedFrame?.sprite === spriteName) setSelectedFrame(null); renderCanvasRef.current();
@@ -807,7 +1004,7 @@ export default function SheetEditor({ onClose }: { onClose: () => void }) {
     const sentry = sheet.sprites[spriteName]; if (!sentry || Object.keys(sentry.animations).length <= 1) return;
     const strip = sentry.animations[animName]; if (!strip) return;
     pushUndo();
-    for (let row = 0; row < strip.frameH; row++) pixBuf.current.fill(0, ((strip.y + row) * SHEET_W + strip.x) * 4, ((strip.y + row) * SHEET_W + strip.x + strip.frameW * strip.frameCount) * 4);
+    for (let row = 0; row < strip.frameH; row++) pixBuf.current.fill(0, ((strip.y + row) * sheetW + strip.x) * 4, ((strip.y + row) * sheetW + strip.x + strip.frameW * strip.frameCount) * 4);
     const newAnims = { ...sentry.animations }; delete newAnims[animName];
     setSheet({ ...sheet, sprites: { ...sheet.sprites, [spriteName]: { ...sentry, animations: newAnims } }, pixels: encodePixels(pixBuf.current) });
     if (selectedFrame?.sprite === spriteName && selectedFrame?.anim === animName) setSelectedFrame(null); renderCanvasRef.current();
@@ -836,24 +1033,25 @@ export default function SheetEditor({ onClose }: { onClose: () => void }) {
       const dx = lastDx, dy = lastDy;
       if (dx !== 0 || dy !== 0) {
         const buf = pixBuf.current;
+        const sh = useEditor.getState().project.sheet;
+        const sw = sh?.width ?? BLANK_W, shh = sh?.height ?? BLANK_H;
         for (const orig of Object.values(moveSpriteDrag.origStrips)) {
           const fw = orig.frameW, fh = orig.frameH, fc = orig.frameCount;
           for (let fi = 0; fi < fc; fi++) {
             const sx = orig.x + fi * fw, sy = orig.y, nx = sx + dx, ny = sy + dy;
             const saved = new Uint8ClampedArray(fw * fh * 4);
-            for (let row = 0; row < fh; row++) { const so = ((sy + row) * SHEET_W + sx) * 4; saved.set(buf.subarray(so, so + fw * 4), row * fw * 4); buf.fill(0, so, so + fw * 4); }
+            for (let row = 0; row < fh; row++) { const so = ((sy + row) * sw + sx) * 4; saved.set(buf.subarray(so, so + fw * 4), row * fw * 4); buf.fill(0, so, so + fw * 4); }
             for (let row = 0; row < fh; row++) {
-              const nyr = ny + row; if (nyr < 0 || nyr >= SHEET_H) continue;
+              const nyr = ny + row; if (nyr < 0 || nyr >= shh) continue;
               for (let col = 0; col < fw; col++) {
-                const nxc = nx + col; if (nxc < 0 || nxc >= SHEET_W) continue;
+                const nxc = nx + col; if (nxc < 0 || nxc >= sw) continue;
                 const si = row * fw * 4 + col * 4; if (saved[si + 3] === 0) continue;
-                const di = (nyr * SHEET_W + nxc) * 4;
+                const di = (nyr * sw + nxc) * 4;
                 buf[di] = saved[si]; buf[di + 1] = saved[si + 1]; buf[di + 2] = saved[si + 2]; buf[di + 3] = saved[si + 3];
               }
             }
           }
         }
-        const sh = useEditor.getState().project.sheet;
         if (sh) setSheet({ ...sh, pixels: encodePixels(buf) });
       }
       setMoveSpriteDrag(null); renderCanvasRef.current();
@@ -886,7 +1084,7 @@ export default function SheetEditor({ onClose }: { onClose: () => void }) {
 
   // ── Layout values ─────────────────────────────────────────────────────────────
 
-  const canvasW = SHEET_W * zoom, canvasH = SHEET_H * zoom;
+  const canvasW = sheetW * zoom, canvasH = sheetH * zoom;
   const { surface, surfacePanel, panelHeader, panelTxt, panelTxtMute, panelBorder, accent, chip, fontUI, fontMono, canvasHud: teal } = theme;
 
   // ── Render ────────────────────────────────────────────────────────────────────
@@ -897,27 +1095,35 @@ export default function SheetEditor({ onClose }: { onClose: () => void }) {
 
       {/* ── Header ── */}
       <header style={{ height: 44, display: "flex", alignItems: "center", gap: 2, padding: "0 10px", background: panelHeader, borderBottom: `1px solid ${panelBorder}`, flexShrink: 0 }}>
-        <span style={{ fontWeight: 700, fontSize: "12.5px", color: accent, marginRight: 2, flexShrink: 0 }}>Sheet Editor</span>
+        <span style={{ fontWeight: 700, fontSize: "12.5px", color: accent, marginRight: 2, flexShrink: 0 }}>{t('sheetEditor.title')}</span>
         <div style={{ width: 1, height: 18, background: "rgba(148,210,216,0.22)", margin: "0 5px", flexShrink: 0 }} />
-        <button title="Add sprite from library" onClick={() => setShowLibrary(true)}
+        <button title={t('sheetEditor.library')} onClick={() => setShowLibrary(true)}
           style={{ all: "unset", display: "flex", alignItems: "center", justifyContent: "center", gap: 5, width: "auto", padding: "0 8px", height: 28, borderRadius: 5, cursor: "pointer", color: panelTxtMute, flexShrink: 0, fontSize: 11, fontFamily: fontUI }}>
-          <Library size={16} />Library</button>
+          <Library size={16} />{t('sheetEditor.library')}</button>
         <div style={{ width: 1, height: 18, background: "rgba(148,210,216,0.22)", margin: "0 5px", flexShrink: 0 }} />
-        <button title="Undo (Ctrl+Z)" onClick={performUndo} style={{ all: "unset", display: "flex", alignItems: "center", justifyContent: "center", width: 28, height: 28, borderRadius: 5, cursor: "pointer", color: panelTxtMute, flexShrink: 0 }}>
+        <button title={t('sheetEditor.undoTitle')} onClick={performUndo} style={{ all: "unset", display: "flex", alignItems: "center", justifyContent: "center", width: 28, height: 28, borderRadius: 5, cursor: "pointer", color: panelTxtMute, flexShrink: 0 }}>
           <Undo2 size={18} /></button>
-        <button title="Redo (Ctrl+Y)" onClick={performRedo} style={{ all: "unset", display: "flex", alignItems: "center", justifyContent: "center", width: 28, height: 28, borderRadius: 5, cursor: "pointer", color: panelTxtMute, flexShrink: 0 }}>
+        <button title={t('sheetEditor.redoTitle')} onClick={performRedo} style={{ all: "unset", display: "flex", alignItems: "center", justifyContent: "center", width: 28, height: 28, borderRadius: 5, cursor: "pointer", color: panelTxtMute, flexShrink: 0 }}>
           <Redo2 size={18} /></button>
         <div style={{ width: 1, height: 18, background: "rgba(148,210,216,0.22)", margin: "0 5px", flexShrink: 0 }} />
-        <button onClick={() => setPanelOpen((p) => !p)} title="Toggle sprite panel (H)" style={{ all: "unset", display: "flex", alignItems: "center", justifyContent: "center", width: 30, height: 28, borderRadius: 5, cursor: "pointer", color: panelOpen ? teal : panelTxtMute, background: panelOpen ? `${teal}11` : "transparent", flexShrink: 0 }}>
+        <button onClick={() => setPanelOpen((p) => !p)} title={t('sheetEditor.togglePanel')} style={{ all: "unset", display: "flex", alignItems: "center", justifyContent: "center", width: 30, height: 28, borderRadius: 5, cursor: "pointer", color: panelOpen ? teal : panelTxtMute, background: panelOpen ? `${teal}11` : "transparent", flexShrink: 0 }}>
           <PanelRight size={18} /></button>
-        <button onClick={() => { if (!showGrid) { setShowGrid(true); setGridSize(1); } else if (gridSize < 16) setGridSize(gridSize * 4); else setShowGrid(false); }}
-          title={`Grid: ${showGrid ? `${gridSize}px` : "off"}`}
-          style={{ all: "unset", display: "flex", alignItems: "center", justifyContent: "center", gap: 3, width: "auto", padding: "0 6px", height: 28, borderRadius: 5, cursor: "pointer", color: showGrid ? teal : panelTxtMute, background: showGrid ? `${teal}11` : "transparent", flexShrink: 0, fontSize: 11, fontFamily: fontUI }}>
-          <Grid2x2 size={16} />{showGrid && <span>{gridSize}</span>}</button>
-        <button onClick={fitToView} title="Fit canvas to view" style={{ all: "unset", display: "flex", alignItems: "center", justifyContent: "center", width: 30, height: 28, borderRadius: 5, cursor: "pointer", color: panelTxtMute, flexShrink: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 0, flexShrink: 0 }}>
+          <button onClick={() => setShowGrid((g) => !g)} title={`Grid: ${showGrid ? "on" : "off"}`}
+            style={{ all: "unset", display: "flex", alignItems: "center", justifyContent: "center", width: 28, height: 28, borderRadius: 5, cursor: "pointer", color: showGrid ? teal : panelTxtMute, background: showGrid ? `${teal}11` : "transparent" }}>
+            <Grid2x2 size={16} /></button>
+          {showGrid && <>
+            <button onClick={() => setGridSize((g) => prevGridSize(g))} title="Grid smaller"
+              style={{ all: "unset", display: "flex", alignItems: "center", justifyContent: "center", width: 16, height: 24, cursor: "pointer", color: panelTxtMute, fontSize: 14, fontFamily: fontUI }}>−</button>
+            <span style={{ fontSize: 10, color: teal, fontFamily: fontMono, minWidth: 30, textAlign: "center" }}>{gridSize}px</span>
+            <button onClick={() => setGridSize((g) => nextGridSize(g))} title="Grid larger"
+              style={{ all: "unset", display: "flex", alignItems: "center", justifyContent: "center", width: 16, height: 24, cursor: "pointer", color: panelTxtMute, fontSize: 14, fontFamily: fontUI }}>+</button>
+          </>}
+        </div>
+        <button onClick={fitToView} title={t('sheetEditor.fitCanvas')} style={{ all: "unset", display: "flex", alignItems: "center", justifyContent: "center", width: 30, height: 28, borderRadius: 5, cursor: "pointer", color: panelTxtMute, flexShrink: 0 }}>
           <Maximize size={18} /></button>
         <div style={{ flex: 1 }} />
-        <button onClick={onClose} style={{ all: "unset", padding: "4px 12px", borderRadius: 4, border: `1px solid ${panelBorder}`, cursor: "pointer", color: panelTxtMute, fontSize: 11, fontFamily: fontUI, flexShrink: 0 }}>Close</button>
+        <button onClick={onClose} style={{ all: "unset", padding: "4px 12px", borderRadius: 4, border: `1px solid ${panelBorder}`, cursor: "pointer", color: panelTxtMute, fontSize: 11, fontFamily: fontUI, flexShrink: 0 }}>{t('sheetEditor.close')}</button>
       </header>
 
       {/* ── Main row ── */}
@@ -944,20 +1150,15 @@ export default function SheetEditor({ onClose }: { onClose: () => void }) {
             <div style={{ padding: 80 }}>
               <div style={{ position: "relative", width: canvasW, height: canvasH }}>
                 <div style={{ position: "absolute", inset: 0, backgroundImage: "repeating-conic-gradient(#555 0% 25%, #444 0% 50%)", backgroundSize: "16px 16px" }} />
-                <canvas ref={canvasRef} width={SHEET_W} height={SHEET_H}
+                <canvas ref={canvasRef} width={sheetW} height={sheetH}
                   style={{ position: "absolute", inset: 0, width: canvasW, height: canvasH, cursor: toolCursor(tool), imageRendering: "pixelated" }}
-                  onPointerDown={handleCanvasPointerDown} onPointerMove={handleCanvasPointerMove} onPointerUp={handleCanvasPointerUp} onPointerLeave={() => setBrushHover(null)} onContextMenu={(e) => e.preventDefault()} />
+                  onPointerDown={handleCanvasPointerDown} onPointerMove={handleCanvasPointerMove} onPointerUp={handleCanvasPointerUp} onPointerLeave={() => { if (brushOverlayRef.current) brushOverlayRef.current.style.display = 'none'; }} onContextMenu={(e) => e.preventDefault()} />
 
-                {tilePreview && tileSprite && sheet.sprites[tileSprite] && (
-                  <div style={{ position: "absolute", left: tilePreview.x * zoom, top: tilePreview.y * zoom, width: (Object.values(sheet.sprites[tileSprite].animations)[0]?.frameW ?? 16) * zoom, height: (Object.values(sheet.sprites[tileSprite].animations)[0]?.frameH ?? 16) * zoom, border: "1px dashed rgba(255,255,255,0.4)", background: "rgba(247,182,122,0.2)", pointerEvents: "none", zIndex: 2 }} />
-                )}
+                <div ref={tileOverlayRef} style={{ display: "none", position: "absolute", border: "1px dashed rgba(255,255,255,0.4)", background: "rgba(247,182,122,0.2)", pointerEvents: "none", zIndex: 2 }} />
 
                 {showGrid && <div style={{ position: "absolute", inset: 0, pointerEvents: "none", backgroundImage: `repeating-linear-gradient(to right, rgba(255,255,255,0.22) 0 1px, transparent 1px ${gridSize * zoom}px), repeating-linear-gradient(to bottom, rgba(255,255,255,0.22) 0 1px, transparent 1px ${gridSize * zoom}px)`, backgroundSize: `${gridSize * zoom}px ${gridSize * zoom}px` }} />}
 
-                {isBrushTool(tool) && brushHover && (() => {
-                  const r = Math.floor(brushSize / 2);
-                  return <div style={{ position: "absolute", left: (brushHover.x - r) * zoom, top: (brushHover.y - r) * zoom, width: brushSize * zoom, height: brushSize * zoom, border: "1px solid rgba(255,255,255,0.9)", boxShadow: "0 0 0 1px rgba(0,0,0,0.6)", pointerEvents: "none", zIndex: 3 }} />;
-                })()}
+                <div ref={brushOverlayRef} style={{ display: "none", position: "absolute", border: "1px solid rgba(255,255,255,0.9)", boxShadow: "0 0 0 1px rgba(0,0,0,0.6)", pointerEvents: "none", zIndex: 3 }} />
 
                 {/* Sprite block overlays */}
                 {Object.entries(sheet.sprites).map(([spriteName, sentry]) => {
@@ -1001,27 +1202,21 @@ export default function SheetEditor({ onClose }: { onClose: () => void }) {
                                 style={{ width: strip.frameW * zoom, height: rowH, flexShrink: 0, boxSizing: "border-box", cursor: "pointer", background: "transparent", border: frameSel && selectedFrame?.idx === fi ? "2px solid #5fd4dc" : "1px solid rgba(95,212,220,0.22)", boxShadow: frameSel && selectedFrame?.idx === fi ? "inset 0 0 0 1px rgba(95,212,220,0.18), 0 0 12px rgba(95,212,220,0.12)" : "none" }} />
                             ))}
                             <div style={{ position: "relative", flexShrink: 0 }}>
-                              <button title="Add frame" onClick={() => addFrame(spriteName, animName)}
+                              <button title={t('sheetEditor.addFrame')} onClick={() => addFrame(spriteName, animName)}
                                 style={{ width: 16, height: rowH, pointerEvents: "auto", background: "rgba(6,22,26,0.6)", color: "rgba(255,255,255,0.45)", border: "1px dashed rgba(148,210,216,0.25)", cursor: "pointer", fontSize: 15, fontWeight: 300, lineHeight: `${rowH}px`, textAlign: "center", padding: 0 }}>+</button>
                               {frameError?.sprite === spriteName && frameError?.anim === animName && <span onClick={(e) => { e.stopPropagation(); setFrameError(null); }} style={{ position: "absolute", left: 20, top: "50%", transform: "translateY(-50%)", fontSize: 8, color: "#b13e53", background: "rgba(0,0,0,0.85)", padding: "2px 4px", borderRadius: 2, whiteSpace: "nowrap", pointerEvents: "auto", cursor: "pointer", zIndex: 10 }}>{frameError.msg}</span>}
                             </div>
-                            {rowH >= 28 && (
-                              <input type="number" title="FPS" min={1} max={60} value={strip.fps ?? 8}
-                                onChange={(e) => { const v = Math.max(1, Math.min(60, parseInt(e.target.value) || 8)); const s2 = sheet.sprites[spriteName]; if (!s2) return; setSheet({ ...sheet, sprites: { ...sheet.sprites, [spriteName]: { ...s2, animations: { ...s2.animations, [animName]: { ...strip, fps: v } } } } }); }}
-                                style={{ position: "absolute", right: 20, bottom: 4, width: 34, height: 16, background: "rgba(6,22,26,0.82)", color: "rgba(95,212,220,0.65)", border: "1px solid rgba(95,212,220,0.18)", borderRadius: 3, fontSize: "8.5px", fontFamily: fontMono, textAlign: "center", padding: "0 2px", outline: "none", pointerEvents: "auto", appearance: "textfield", MozAppearance: "textfield" }}
-                                onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()} />
-                            )}
                           </div>
                         );
                       })}
                       <div style={{ position: "absolute", top: Math.max(...animEntries.map(([, s]) => (s.y - firstStrip.y) * zoom + s.frameH * zoom)), left: 0, pointerEvents: "auto" }}>
                         <div style={{ position: "relative" }}>
-                          <button title="Add animation" onClick={() => addAnimation(spriteName)}
-                            style={{ height: 17, padding: "0 10px", pointerEvents: "auto", background: "rgba(6,22,26,0.6)", color: "rgba(255,255,255,0.4)", border: "1px dashed rgba(148,210,216,0.22)", cursor: "pointer", fontSize: 10, fontWeight: 500, fontFamily: fontUI, borderRadius: "0 0 4px 4px", whiteSpace: "nowrap" }}>+ animation</button>
+                          <button title={t('sheetEditor.addAnimTitle')} onClick={() => addAnimation(spriteName)}
+                            style={{ height: 17, padding: "0 10px", pointerEvents: "auto", background: "rgba(6,22,26,0.6)", color: "rgba(255,255,255,0.4)", border: "1px dashed rgba(148,210,216,0.22)", cursor: "pointer", fontSize: 10, fontWeight: 500, fontFamily: fontUI, borderRadius: "0 0 4px 4px", whiteSpace: "nowrap" }}>{t('sheetEditor.addAnim')}</button>
                           {animAddError?.sprite === spriteName && <span onClick={(e) => { e.stopPropagation(); setAnimAddError(null); }} style={{ position: "absolute", left: 0, top: 18, fontSize: 8, color: "#b13e53", background: "rgba(0,0,0,0.85)", padding: "2px 4px", borderRadius: 2, whiteSpace: "nowrap", pointerEvents: "auto", cursor: "pointer", zIndex: 10 }}>{animAddError.msg}</span>}
                         </div>
                       </div>
-                      <div title="Resize sprite"
+                      <div title={t('sheetEditor.resizeSprite')}
                         onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); const strip = animEntries[0]?.[1]; if (!strip) return; const canvas = canvasRef.current; if (!canvas) return; const rect = canvas.getBoundingClientRect(); setResizeSpriteDrag({ sprite: spriteName, anim: animEntries[0][0], origFrameW: strip.frameW, origFrameH: strip.frameH, px0: Math.round((e.clientX - rect.left) / zoom), py0: Math.round((e.clientY - rect.top) / zoom) }); }}
                         style={{ position: "absolute", right: -5, bottom: -5, width: 12, height: 12, background: "rgba(255,255,255,0.85)", border: "1px solid rgba(0,0,0,0.4)", borderRadius: 2, cursor: "nwse-resize", pointerEvents: "auto", zIndex: 5 }} />
                     </div>
@@ -1030,7 +1225,7 @@ export default function SheetEditor({ onClose }: { onClose: () => void }) {
 
                 {pendingRegion && (
                   <div style={{ position: "absolute", left: pendingRegion.x * zoom, top: Math.max(4, pendingRegion.y * zoom - 36), background: surfacePanel, border: `1px solid ${accent}`, borderRadius: 4, padding: "4px 6px", display: "flex", gap: 4, alignItems: "center", boxShadow: "0 2px 8px rgba(0,0,0,0.5)", zIndex: 10, pointerEvents: "auto" }}>
-                    <input autoFocus placeholder="sprite name" value={pendingName}
+                    <input autoFocus placeholder={t('sheetEditor.spriteName')} value={pendingName}
                       onChange={(e) => { setPendingName(e.target.value); setPendingNameError(""); }}
                       onKeyDown={(e) => { if (e.key === "Enter") confirmRegion(); if (e.key === "Escape") { setPendingRegion(null); setPendingName(""); } e.stopPropagation(); }}
                       style={{ background: surface, color: panelTxt, border: `1px solid ${panelBorder}`, borderRadius: 3, padding: "2px 6px", fontSize: 11, width: 100, outline: pendingNameError ? "1px solid #b13e53" : "none" }} />
@@ -1043,9 +1238,9 @@ export default function SheetEditor({ onClose }: { onClose: () => void }) {
           </div>
           {/* ── Zoom widget ── */}
           <div style={{ position: "absolute", bottom: 14, right: 14, display: "flex", gap: 2, alignItems: "center", background: surfacePanel, border: `1px solid ${panelBorder}`, borderRadius: 8, padding: "3px 5px", boxShadow: "0 4px 20px rgba(0,0,0,0.45)", zIndex: 10 }}>
-            <button onClick={() => setZoom((z) => Math.max(0.25, z / 2))} title="Zoom out" style={{ all: "unset", width: 24, height: 24, borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: panelTxtMute, fontSize: 16, lineHeight: 1 }}>−</button>
+            <button onClick={() => setZoom((z) => Math.max(0.25, z / 2))} title={t('sheetEditor.zoomOut')} style={{ all: "unset", width: 24, height: 24, borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: panelTxtMute, fontSize: 16, lineHeight: 1 }}>−</button>
             <span style={{ fontSize: "10.5px", color: panelTxtMute, minWidth: 30, textAlign: "center", fontFamily: fontMono }}>{zoom >= 1 ? `${Math.round(zoom)}\u00d7` : `1/${Math.round(1/zoom)}\u00d7`}</span>
-            <button onClick={() => setZoom((z) => Math.min(8, z * 2))} title="Zoom in" style={{ all: "unset", width: 24, height: 24, borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: panelTxtMute, fontSize: 16, lineHeight: 1 }}>+</button>
+            <button onClick={() => setZoom((z) => Math.min(16, z * 2))} title={t('sheetEditor.zoomIn')} style={{ all: "unset", width: 24, height: 24, borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: panelTxtMute, fontSize: 16, lineHeight: 1 }}>+</button>
           </div>
         </div>
 
@@ -1053,8 +1248,8 @@ export default function SheetEditor({ onClose }: { onClose: () => void }) {
         {panelOpen && (
           <aside style={{ width: 206, flexShrink: 0, display: "flex", flexDirection: "column", background: surfacePanel, borderLeft: `1px solid ${panelBorder}`, overflow: "hidden" }}>
             <div style={{ height: 34, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 10px", background: panelHeader, borderBottom: `1px solid ${panelBorder}`, flexShrink: 0 }}>
-              <span style={{ fontSize: "9.5px", fontWeight: 700, color: panelTxtMute, letterSpacing: "0.07em", textTransform: "uppercase" }}>Sprites</span>
-              <button title="Add region (R)" onClick={() => setTool("region")}
+              <span style={{ fontSize: "9.5px", fontWeight: 700, color: panelTxtMute, letterSpacing: "0.07em", textTransform: "uppercase" }}>{t('sheetEditor.spritesPanel')}</span>
+              <button title={t('sheetEditor.addRegion')} onClick={() => setTool("region")}
                 style={{ all: "unset", width: 22, height: 22, borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: panelTxtMute }}>+</button>
             </div>
             <div style={{ flex: 1, overflowY: "auto", padding: "4px 0" }}>
@@ -1075,7 +1270,7 @@ export default function SheetEditor({ onClose }: { onClose: () => void }) {
                         ctx.imageSmoothingEnabled = false;
                         const off = new OffscreenCanvas(firstStrip.frameW, firstStrip.frameH);
                         const frm = new Uint8ClampedArray(firstStrip.frameW * firstStrip.frameH * 4);
-                        for (let r2 = 0; r2 < firstStrip.frameH; r2++) frm.set(pixBuf.current.subarray(((firstStrip.y+r2)*SHEET_W + firstStrip.x)*4, ((firstStrip.y+r2)*SHEET_W + firstStrip.x + firstStrip.frameW)*4), r2*firstStrip.frameW*4);
+                        for (let r2 = 0; r2 < firstStrip.frameH; r2++) frm.set(pixBuf.current.subarray(((firstStrip.y+r2)*sheetW + firstStrip.x)*4, ((firstStrip.y+r2)*sheetW + firstStrip.x + firstStrip.frameW)*4), r2*firstStrip.frameW*4);
                         off.getContext("2d")!.putImageData(new ImageData(frm, firstStrip.frameW, firstStrip.frameH), 0, 0);
                         const scl = Math.min(tw / firstStrip.frameW, th / firstStrip.frameH, 4); const dw = Math.round(firstStrip.frameW*scl), dh = Math.round(firstStrip.frameH*scl);
                         ctx.drawImage(off, Math.round((tw-dw)/2), Math.round((th-dh)/2), dw, dh);
@@ -1092,9 +1287,15 @@ export default function SheetEditor({ onClose }: { onClose: () => void }) {
                           onContextMenu={(e) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, type: "anim", sprite: spriteName, anim: animName }); }}>
                           <div style={{ width: 5, height: 5, borderRadius: "50%", background: isActive ? teal : panelBorder, flexShrink: 0, boxShadow: isActive ? `0 0 4px ${teal}` : "none" }} />
                           <span style={{ flex: 1, fontSize: 11, color: isActive ? teal : panelTxtMute, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{animName}</span>
-                          <span style={{ fontSize: 9, color: panelTxtMute, background: chip, border: `1px solid ${panelBorder}`, borderRadius: 3, padding: "1px 4px", flexShrink: 0 }}>{strip.fps ?? 8}fps</span>
+                          <div style={{ display: "flex", alignItems: "center", background: chip, border: `1px solid ${panelBorder}`, borderRadius: 3, flexShrink: 0 }}>
+                            <input type="number" title="FPS" min={1} max={60} value={strip.fps ?? 8}
+                              onChange={(e) => { const v = Math.max(1, Math.min(60, parseInt(e.target.value) || 8)); const s2 = sheet.sprites[spriteName]; if (!s2) return; setSheet({ ...sheet, sprites: { ...sheet.sprites, [spriteName]: { ...s2, animations: { ...s2.animations, [animName]: { ...strip, fps: v } } } } }); }}
+                              onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}
+                              style={{ width: 22, fontSize: 9, color: panelTxtMute, background: "transparent", border: "none", padding: "1px 3px", textAlign: "right", outline: "none", appearance: "textfield", MozAppearance: "textfield" }} />
+                            <span style={{ fontSize: 9, color: panelTxtMute, paddingRight: 3 }}>fps</span>
+                          </div>
                           <span style={{ fontSize: 9, color: panelTxtMute, background: chip, border: `1px solid ${panelBorder}`, borderRadius: 3, padding: "1px 4px", flexShrink: 0 }}>{strip.frameCount}f</span>
-                          <button title="Delete animation" disabled={animEntries.length <= 1}
+                          <button title={t('sheetEditor.deleteAnim')} disabled={animEntries.length <= 1}
                             onClick={(e) => { e.stopPropagation(); deleteAnimation(spriteName, animName); }}
                             style={{ all: "unset", width: 16, height: 16, borderRadius: 3, display: "flex", alignItems: "center", justifyContent: "center", cursor: animEntries.length <= 1 ? "not-allowed" : "pointer", color: panelTxtMute, fontSize: 13, opacity: 0 }}>×</button>
                         </div>
@@ -1103,7 +1304,7 @@ export default function SheetEditor({ onClose }: { onClose: () => void }) {
                   </div>
                 );
               })}
-              {Object.keys(sheet.sprites).length === 0 && <div style={{ padding: "12px 8px", color: panelTxtMute, fontSize: 10 }}>No sprites yet. Use Region (R) to define one.</div>}
+              {Object.keys(sheet.sprites).length === 0 && <div style={{ padding: "12px 8px", color: panelTxtMute, fontSize: 10 }}>{t('sheetEditor.noSprites')}</div>}
             </div>
           </aside>
         )}
@@ -1112,9 +1313,9 @@ export default function SheetEditor({ onClose }: { onClose: () => void }) {
       {/* ── Status bar ── */}
       <footer style={{ height: 40, display: "flex", alignItems: "center", padding: "0 10px", background: panelHeader, borderTop: `1px solid ${panelBorder}`, flexShrink: 0, overflow: "hidden" }}>
         <div style={{ position: "relative", width: 38, height: 28, flexShrink: 0, marginRight: 10 }}>
-          <div title="Secondary color (X to swap)" onClick={(e) => { e.stopPropagation(); const a = color, b = secondaryColor; setColor(b); setSecondaryColor(a); setLerpOverride(null); }}
+          <div title={t('sheetEditor.colorSecondary')} onClick={(e) => { e.stopPropagation(); const a = color, b = secondaryColor; setColor(b); setSecondaryColor(a); setLerpOverride(null); }}
             style={{ position: "absolute", right: 0, bottom: 0, width: 17, height: 13, borderRadius: 3, cursor: "pointer", background: secondaryColor, border: "1.5px solid rgba(255,255,255,0.14)" }} />
-          <button title="Primary color — click to pick" onClick={(e) => { e.stopPropagation(); setColorPickerOpen((o) => !o); }}
+          <button title={t('sheetEditor.colorPrimary')} onClick={(e) => { e.stopPropagation(); setColorPickerOpen((o) => !o); }}
             style={{ position: "absolute", left: 0, top: 0, width: 22, height: 17, borderRadius: 3, cursor: "pointer", padding: 0, background: color, border: "2px solid rgba(255,255,255,0.26)", boxShadow: "0 2px 8px rgba(0,0,0,0.55)" }} />
           {colorPickerOpen && <ColorPicker color={color} secondaryColor={secondaryColor} onColor={setColor} onSecondary={setSecondaryColor} onClose={() => setColorPickerOpen(false)} theme={theme as unknown as Record<string, string>} />}
         </div>

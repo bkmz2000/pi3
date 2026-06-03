@@ -127,11 +127,12 @@ router.get('/login', (req: Request, res: Response): void => {
     });
   }
 
-  // No `prompt` param: standard OAuth/SSO behavior. If the user already has
-  // a Loginus session they get a code immediately; otherwise they see the
-  // credentials form. `prompt=login` raced with Loginus's own "already
-  // authenticated" handling and looped the user between authorize and the
-  // auth page.
+  // prompt=consent forces Loginus's consent screen. Both omitting prompt and
+  // using prompt=login put us into a /ru/auth ⇄ /api/v2/oauth/authorize loop
+  // whenever the user already had a live Loginus session — Loginus's auth-page
+  // SPA detected the session, redirected to authorize, and authorize bounced
+  // back to /ru/auth. Asking explicitly for consent breaks the loop by giving
+  // Loginus a defined interactive step to complete.
   const params = new URLSearchParams({
     client_id: CLIENT_ID,
     redirect_uri: REDIRECT_URI,
@@ -139,6 +140,7 @@ router.get('/login', (req: Request, res: Response): void => {
     scope: 'openid email profile',
     state,
     nonce,
+    prompt: 'consent',
   });
 
   res.redirect(`${DOMAIN}/api/v2/oauth/authorize?${params}`);

@@ -116,24 +116,15 @@ describe('useUser', () => {
     expect(useUser.getState().error).toBe('Signup failed');
   });
 
-  it('logout redirects to logoutUrl when provided', async () => {
+  it('logout clears local state after a successful server call', async () => {
     useUser.setState({ authState: 'logged_in', user: { id: '1' } as apiMod.User });
-    mockedApi.api.post.mockResolvedValueOnce({ ok: true, logoutUrl: 'https://idp/logout' });
-    await act(async () => {
-      await useUser.getState().logout();
-    });
-    expect(useUser.getState().authState).toBe('logged_out');
-    expect(useUser.getState().user).toBeNull();
-    expect(mockedApi.api.post).toHaveBeenCalledWith('/api/auth/logout');
-  });
-
-  it('logout clears state when server omits logoutUrl', async () => {
     mockedApi.api.post.mockResolvedValueOnce({ ok: true });
     await act(async () => {
       await useUser.getState().logout();
     });
     expect(useUser.getState().authState).toBe('logged_out');
     expect(useUser.getState().user).toBeNull();
+    expect(mockedApi.api.post).toHaveBeenCalledWith('/api/auth/logout');
   });
 
   it('logout still clears state when server call fails', async () => {

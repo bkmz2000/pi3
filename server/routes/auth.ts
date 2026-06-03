@@ -268,8 +268,15 @@ router.get('/callback', async (req: Request, res: Response): Promise<void> => {
 });
 
 // POST /api/auth/logout
+//
+// Local-only logout per the Loginus integration doc: destroy the server-side
+// session, clear the session cookie, rotate the api_token so any leaked bearer
+// stops working. We deliberately do NOT redirect to Loginus's end_session
+// endpoint — its post_logout_redirect_uri allowlist isn't configured for this
+// client, and the integration contract states logout must complete even if
+// Loginus is unavailable. Side-effect: the user stays signed in to Loginus
+// globally (standard SSO behavior).
 router.post('/logout', authMiddleware, (req: Request, res: Response): void => {
-  const idToken = req.session.idToken;
   const db = getDb();
   const newToken = uuidv4().replace(/-/g, '') + uuidv4().replace(/-/g, '');
   db.prepare('UPDATE users SET api_token = ?, updated_at = ? WHERE id = ?')
@@ -277,17 +284,7 @@ router.post('/logout', authMiddleware, (req: Request, res: Response): void => {
 
   req.session.destroy(() => {
     res.clearCookie('connect.sid');
-
-    if (idToken) {
-      const params = new URLSearchParams({
-        client_id: CLIENT_ID,
-        id_token_hint: idToken,
-        post_logout_redirect_uri: REDIRECT_URI.replace('/api/auth/callback', '/'),
-      });
-      res.json({ ok: true, logoutUrl: `${DOMAIN}/api/v2/oauth/end_session?${params}` });
-    } else {
-      res.json({ ok: true });
-    }
+    res.json({ ok: true });
   });
 });
 

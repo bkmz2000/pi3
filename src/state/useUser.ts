@@ -48,17 +48,12 @@ export const useUser = create<UserStore>((set) => ({
 
   logout: async () => {
     try {
-      const result = await api.post<{ ok: boolean; logoutUrl?: string }>('/api/auth/logout');
-      set({ authState: 'logged_out', user: null });
-      if (result.logoutUrl) {
-        window.location.href = result.logoutUrl;
-      } else {
-        window.location.href = '/';
-      }
+      await api.post<{ ok: boolean }>('/api/auth/logout');
     } catch {
-      set({ authState: 'logged_out', user: null });
-      window.location.href = '/';
+      // Swallow — logout must complete locally even if the server call fails.
     }
+    set({ authState: 'logged_out', user: null });
+    window.location.href = '/';
   },
 
   checkSession: async () => {

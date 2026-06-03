@@ -1,9 +1,9 @@
 """
-pi3 module
+graphics module
 
 Provides a simple graphics API for creating games and visualizations.
-Import as: import pi3 as g
-from pi3.actors import Actor, Rect, Circle, Group
+Import as: import graphics as g
+from graphics.actors import Actor, Rect, Circle, Group
 """
 
 import math
@@ -789,7 +789,7 @@ def Polar(magnitude, angle_degrees):
     return Vector2(float(magnitude) * math.sin(rad), -float(magnitude) * math.cos(rad))
 
 
-from pi3.actors import Actor, Rect, Circle, Group, Collider  # noqa: E402
+from graphics.actors import Actor, Rect, Circle, Group, Collider  # noqa: E402
 
 
 # === ANCHOR POINT ===
@@ -1336,7 +1336,7 @@ def _tick(main, my_generation):
     global _running, _stop_requested, _loop_generation
     from js import clearTimeout, setTimeout, _ide_flush_draw_commands
     from pyodide.ffi import create_proxy, to_js
-    from pi3.actors import Actor
+    from graphics.actors import Actor
 
     if _loop_generation != my_generation:
         return
@@ -1357,6 +1357,7 @@ def _tick(main, my_generation):
 
         for actor in Actor.all_actors():
             if actor.is_alive():
+                actor._apply_velocity()
                 actor.update()
 
         import sys as _sys
@@ -1501,7 +1502,7 @@ def _clear():
     global _fill_color, _stroke_color, _stroke_width, _width, _height
     global _current_fill, _current_stroke, _pending_timer_id
     from js import clearTimeout
-    from pi3.actors import Actor
+    from graphics.actors import Actor
 
     if _pending_timer_id is not None:
         clearTimeout(_pending_timer_id)
@@ -1934,7 +1935,7 @@ def _build_areas_namespace(areas: dict, layers: list):
     return SimpleNamespace(**built)
 
 
-from pi3.animation import Animation  # noqa: E402
+from graphics.animation import Animation  # noqa: E402
 
 
 # === CAMERA ===

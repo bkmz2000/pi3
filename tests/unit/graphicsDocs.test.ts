@@ -90,7 +90,7 @@ describe('graphicsDocs — tilemap + actor regression guards', () => {
     // The Python module must actually define these — drift between docs and
     // runtime is the bug this guard exists to catch.
     const py = readFileSync(
-      resolve(__dirname, '../../src/assets/python/pi3/__init__.py'),
+      resolve(__dirname, '../../src/assets/python/graphics/__init__.py'),
       'utf8',
     );
     for (const id of ids) {
@@ -124,7 +124,7 @@ describe('graphicsDocs — tilemap + actor regression guards', () => {
     expect(getPixel.en).toMatch(/None/);
 
     const py = readFileSync(
-      resolve(__dirname, '../../src/assets/python/pi3/__init__.py'),
+      resolve(__dirname, '../../src/assets/python/graphics/__init__.py'),
       'utf8',
     );
     expect(py).toMatch(/^class Sprite:/m);
@@ -158,7 +158,7 @@ describe('graphicsDocs — tilemap + actor regression guards', () => {
     expect(noise!.returns?.type).toBe('float');
 
     const py = readFileSync(
-      resolve(__dirname, '../../src/assets/python/pi3/__init__.py'),
+      resolve(__dirname, '../../src/assets/python/graphics/__init__.py'),
       'utf8',
     );
     expect(py).toMatch(/^class TileGroup:/m);
@@ -196,7 +196,7 @@ describe('graphicsDocs — tilemap + actor regression guards', () => {
 
     // Python module must define the new classes
     const py = readFileSync(
-      resolve(__dirname, '../../src/assets/python/pi3/__init__.py'),
+      resolve(__dirname, '../../src/assets/python/graphics/__init__.py'),
       'utf8',
     );
     for (const cls of ['SheetNamespace', 'SpriteEntry', 'SheetAnimation', 'AnimationController']) {

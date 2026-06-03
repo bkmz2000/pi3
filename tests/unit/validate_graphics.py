@@ -13,7 +13,7 @@ import sys
 import traceback
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../.."))
-GRAPHICS_DIR = os.path.join(ROOT, "src", "assets", "python", "pi3")
+GRAPHICS_DIR = os.path.join(ROOT, "src", "assets", "python", "graphics")
 EXAMPLES_DIR = os.path.join(ROOT, "src", "assets", "examples")
 
 errors = 0
@@ -231,11 +231,12 @@ actor_methods = get_class_body_names(atree, "Actor")
 test("Actor class exists", "Actor" in get_func_names(atree))
 
 expected_actor_methods = {
-    "move",
+    "move", "move_to", "change_x_by", "change_y_by",
     "point_towards", "rotate",
     "die", "is_alive",
     "update", "draw",
     "collides_with", "collides_any",
+    "_apply_velocity",
 }
 for m in expected_actor_methods:
     test(f"Actor.{m}() exists", m in actor_methods)
@@ -450,15 +451,6 @@ test("No apple_cfg import in IdeState.ts", "apple_cfg" not in ts_src)
 print("\n=== Runtime: graphics module ===")
 
 sys.path.insert(0, os.path.join(ROOT, "src", "assets", "python"))
-# Worker registers `graphics` as alias for pi3 in sys.modules; do the same here
-# so existing `import graphics` / `from graphics import ...` lines keep working.
-# Submodules need explicit aliases so isinstance() works across the boundary.
-import pi3 as _pi3_alias
-import pi3.actors as _pi3_actors_alias
-import pi3.animation as _pi3_anim_alias
-sys.modules['graphics'] = _pi3_alias
-sys.modules['graphics.actors'] = _pi3_actors_alias
-sys.modules['graphics.animation'] = _pi3_anim_alias
 import graphics as g
 from graphics.actors import Actor, Rect, Circle, Group, Collider
 from graphics import AnchorPoint
@@ -1129,7 +1121,7 @@ test("Camera translate centers on target",
 
 # lerp < 1 smooths
 reset()
-target._x, target._y = 100, 0
+target.move_to(100, 0)
 cam3 = Camera(0, 0)
 cam3.follow(target, lerp=0.5)
 with cam3:
@@ -1138,7 +1130,7 @@ test("Camera lerp halves toward target", cam3.x == 50 and cam3.y == 0)
 
 # unfollow stops snapping
 cam3.unfollow()
-target._x, target._y = 999, 999
+target.move_to(999, 999)
 with cam3:
     pass
 test("Camera unfollow holds pos", cam3.x == 50 and cam3.y == 0)
@@ -1233,15 +1225,15 @@ _ = mover.future_state.collides_any([wall_actor])
 test("Actor.x unchanged after snapshot use", mover._x == saved_x)
 test("Actor.y unchanged after snapshot use", mover._y == saved_y)
 
-# Snapshot pos equals next-frame actual pos after move()
+# Snapshot pos equals next-frame actual pos after _apply_velocity
 reset()
 runner = Rect(10, 20, 8, 8)
 runner._vx = 3
 runner._vy = -2
 pre_snap = runner.future_state
-runner.move()
-test("Snapshot x matches post-move() x", abs(pre_snap._x - runner._x) < 1e-9)
-test("Snapshot y matches post-move() y", abs(pre_snap._y - runner._y) < 1e-9)
+runner._apply_velocity()
+test("Snapshot x matches post-_apply_velocity x", abs(pre_snap._x - runner._x) < 1e-9)
+test("Snapshot y matches post-_apply_velocity y", abs(pre_snap._y - runner._y) < 1e-9)
 
 # Polar(magnitude, angle_degrees) returns a Vector2 in screen coords:
 # 0° = north (up, -y), 90° = east (+x), 180° = south (+y), 270° = west (-x).
@@ -1256,11 +1248,11 @@ s = Polar(10, 180)
 test("Polar(10, 180) points south (+y)", abs(s.x) < 1e-9 and abs(s.y - 10) < 1e-9)
 test("Polar returns a Vector2", isinstance(Polar(1, 0), Vector2))
 test("Polar magnitude is preserved", abs(Polar(7, 33).length - 7) < 1e-9)
-# Setting actor.vel = Polar(5, 90) drives motion east via move().
+# Setting actor.vel = Polar(5, 90) drives motion east via _apply_velocity.
 reset()
 mover = Rect(0, 0, 4, 4)
 mover.vel = Polar(5, 90)
-mover.move()
+mover._apply_velocity()
 test("actor.vel = Polar then apply moves east", abs(mover._x - 5) < 1e-9 and abs(mover._y) < 1e-9)
 
 

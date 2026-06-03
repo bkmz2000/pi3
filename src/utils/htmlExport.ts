@@ -9,9 +9,9 @@ import type { StoredProject } from "./zip";
 
 // Graphics __init__.py source — embedded so the standalone HTML doesn't
 // need to fetch it separately.  Inlined at build time via Vite ?raw.
-import graphicsInitSrc from "../assets/python/pi3/__init__.py?raw";
-import actorsInitSrc from "../assets/python/pi3/actors/__init__.py?raw";
-import animationSrc from "../assets/python/pi3/animation.py?raw";
+import graphicsInitSrc from "../assets/python/graphics/__init__.py?raw";
+import actorsInitSrc from "../assets/python/graphics/actors/__init__.py?raw";
+import animationSrc from "../assets/python/graphics/animation.py?raw";
 import linterSrc from "../assets/python/linter.py?raw";
 
 const PYODIDE_CDN = "https://cdn.jsdelivr.net/pyodide/v0.29.3/full/pyodide.js";
@@ -370,27 +370,18 @@ ${assetMapEntries.join(",\n")}
       log("Setting up graphics engine...");
 
       // Install Python modules into Pyodide's virtual FS
-      pyodide.FS.mkdirTree("/pi3/actors");
+      pyodide.FS.mkdirTree("/graphics/actors");
 
-      // Write our pi3 modules
+      // Write our graphics modules
       const graphicsSrc = ${pythonCodeLiteral(graphicsInitSrc)};
       const actorsSrc = ${pythonCodeLiteral(actorsInitSrc)};
       const animSrc = ${pythonCodeLiteral(animationSrc)};
       const lintSrc = ${pythonCodeLiteral(linterSrc)};
 
-      pyodide.FS.writeFile("/pi3/__init__.py", graphicsSrc);
-      pyodide.FS.writeFile("/pi3/actors/__init__.py", actorsSrc);
-      pyodide.FS.writeFile("/pi3/animation.py", animSrc);
+      pyodide.FS.writeFile("/graphics/__init__.py", graphicsSrc);
+      pyodide.FS.writeFile("/graphics/actors/__init__.py", actorsSrc);
+      pyodide.FS.writeFile("/graphics/animation.py", animSrc);
       pyodide.FS.writeFile("/linter.py", lintSrc);
-
-      // Register 'graphics' as alias for back-compat with older user projects.
-      // Submodules need explicit aliases too so isinstance() works.
-      pyodide.runPython([
-        "import sys, pi3, pi3.actors, pi3.animation",
-        "sys.modules['graphics'] = pi3",
-        "sys.modules['graphics.actors'] = pi3.actors",
-        "sys.modules['graphics.animation'] = pi3.animation",
-      ].join("\\n"));
 
       // ---- Wire stdout/stderr ----
       pyodide.setStdout({ batched: (text) => log(text, false) });

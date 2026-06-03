@@ -47,7 +47,7 @@ class Animation:
         """Advance the animation by one game tick. Call once per frame in main()."""
         if not self._playing or len(self._frames) <= 1:
             return
-        import pi3 as _g
+        import graphics as _g
         ticks_per_frame = max(1.0, _g._target_fps / self._fps)
         self._tick_accumulator += 1.0
         while self._tick_accumulator >= ticks_per_frame:

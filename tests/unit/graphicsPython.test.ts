@@ -2,7 +2,7 @@
  * Wires validate_graphics.py into the Jest pipeline.
  *
  * The Python tests exercise the graphics module runtime directly (no browser,
- * no Pyodide) using PYTHONPATH to import src/assets/python/pi3.  Jest
+ * no Pyodide) using PYTHONPATH to import src/assets/python/graphics.  Jest
  * runs this as a single test so CI fails loudly when any Python assertion
  * breaks, with the full PASS/FAIL output captured as the failure message.
  */

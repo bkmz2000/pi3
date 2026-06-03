@@ -300,7 +300,7 @@ export default function ConsolePanel({ onRight = false }: { onRight?: boolean })
   const sizeRef = useRef(size);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, [output, inputPrompt]);
 
   useEffect(() => {

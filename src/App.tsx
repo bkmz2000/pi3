@@ -14,6 +14,7 @@ import { useEditor, useIde } from "./state/IdeState";
 import { getProject, getComments, type ApiComment } from "./state/api";
 import { projectStorage } from "./utils/storage";
 import { encodeSheet, decodeSheet } from "./state/sheetCodec";
+import { toEditorProject } from "./state/projectNormalization";
 import { useOnlineSync } from "./hooks/useOnlineSync";
 import FileBar from "./FileBar";
 import { useRunner } from "./runner/RunnerProvider";
@@ -120,7 +121,7 @@ function ProjectLoader() {
       try {
         const apiProject = await getProject(projectId);
         if (cancelled) return;
-        // Cache full content locally
+        // Cache full content locally for offline reloads.
         projectStorage.cacheProjectContent(projectId, {
           files: apiProject.files,
           assets: apiProject.assets,
@@ -131,16 +132,10 @@ function ProjectLoader() {
           sheet: apiProject.sheet ? encodeSheet(decodeSheet(apiProject.sheet)!) : undefined,
           currentFile: apiProject.current_file,
         }).catch(() => {});
-        changeCurrentProject(
-          {
-            name: apiProject.name,
-            files: apiProject.files,
-            assets: apiProject.assets,
-            tilemaps: apiProject.tilemaps ?? {},
-            currentFile: apiProject.current_file,
-          },
-          projectId,
-        );
+        // toEditorProject decodes the sheet wire shape back into the in-memory
+        // flat-buffer SheetData every consumer (editor, worker, exporter)
+        // expects. Without this, sheet/sounds were silently dropped on load.
+        changeCurrentProject(toEditorProject(apiProject), projectId);
         setLoaded(true);
       } catch (apiErr) {
         if (cancelled) return;
@@ -155,7 +150,9 @@ function ProjectLoader() {
                 name: projectId,
                 files: cached.files,
                 assets: cached.assets,
-                tilemaps: cached.tilemaps as Record<string, import("./state/IdeState").TilemapData>,
+                tilemaps: cached.tilemaps,
+                sounds: cached.sounds,
+                sheet: decodeSheet(cached.sheet),
                 currentFile: cached.currentFile ?? Object.keys(cached.files)[0],
               },
               projectId,

@@ -106,6 +106,25 @@ export const useRunnerStore = create<RunnerState>((set) => ({
         break;
       }
       case "runtime_error": {
+        // Mirror the error to the server log so we can analyze user-side
+        // Python tracebacks from prod. Fire-and-forget; never surface failures.
+        try {
+          const editor = useEditor.getState();
+          fetch("/api/log/client-error", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({
+              projectId: editor.currentProjectId ?? "",
+              file: editor.currentFile ?? "",
+              category: msg.error.category,
+              title: msg.error.title,
+              message: msg.error.message,
+              traceback: msg.error.cleanRaw ?? msg.error.raw,
+            }),
+            keepalive: true,
+          }).catch(() => {});
+        } catch { /* swallow */ }
         set((s) => ({
           running: false,
           inputPrompt: null,

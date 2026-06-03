@@ -72,9 +72,47 @@ app.use(session({
   },
 }));
 
+const LOG_SKIP_PREFIXES = ['/assets/', '/pyodide/', '/icons/'];
+const LOG_SKIP_EXACT = new Set([
+  '/favicon.svg', '/favicon.ico', '/manifest.json', '/robots.txt', '/sw.js',
+  '/icon-192.svg', '/icon-maskable.svg',
+]);
+
 app.use((req, res, next) => {
-  console.log(`${new Date().toISOString()} ${req.method} ${req.url}`);
+  const path = req.path;
+  if (LOG_SKIP_EXACT.has(path) || LOG_SKIP_PREFIXES.some((p) => path.startsWith(p))) {
+    return next();
+  }
+  const start = process.hrtime.bigint();
+  res.on('finish', () => {
+    const ms = Number(process.hrtime.bigint() - start) / 1e6;
+    const userId = req.session?.userId ?? '-';
+    console.log(
+      `${new Date().toISOString()} ${req.method} ${req.url} ${res.statusCode} ${ms.toFixed(1)}ms user=${userId}`,
+    );
+  });
   next();
+});
+
+// Client-side runtime error sink. Browser worker posts Pyodide tracebacks here
+// so they land in the server log alongside HTTP traffic. Fail open: never let
+// a logging error break the client.
+app.post('/api/log/client-error', (req, res) => {
+  const userId = req.session?.userId ?? '-';
+  const body = req.body ?? {};
+  const truncate = (s: unknown, max: number) =>
+    typeof s === 'string' ? s.slice(0, max) : '';
+  const payload = {
+    user: userId,
+    project: truncate(body.projectId, 120),
+    file: truncate(body.file, 120),
+    category: truncate(body.category, 40),
+    title: truncate(body.title, 200),
+    message: truncate(body.message, 500),
+    traceback: truncate(body.traceback, 2000),
+  };
+  console.log(`[client-error] ${JSON.stringify(payload)}`);
+  res.status(204).end();
 });
 
 initDb();

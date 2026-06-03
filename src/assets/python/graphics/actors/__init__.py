@@ -398,7 +398,13 @@ class Actor:
                     g._draw_commands.append(("image_centered", (name, 0.0, 0.0, None, None), {}))
             else:
                 g._draw_commands.append(("image_centered", (str(img), 0.0, 0.0, None, None), {}))
+            g.pop()
             if g._show_hitboxes:
+                # Hitbox is drawn outside the scale transform: collider dimensions
+                # are in world units, so collision math and overlay must match.
+                g.push()
+                g.translate(self._x, self._y)
+                g.rotate(self._angle)
                 sf, sfc, ss, ssc, ssw = g._current_fill, g._fill_color, g._current_stroke, g._stroke_color, g._stroke_width
                 col = self.collider
                 g.no_fill()
@@ -413,7 +419,7 @@ class Actor:
                 g._draw_commands.append(("fill", sfc, {}) if sf else ("no_fill", (), {}))
                 g._draw_commands.append(("stroke", ssc, {}) if ss else ("no_stroke", (), {}))
                 g._draw_commands.append(("stroke_width", (ssw,), {}))
-            g.pop()
+                g.pop()
 
     def reset(self):
         """Restore all sprite frames to their original pixel data.

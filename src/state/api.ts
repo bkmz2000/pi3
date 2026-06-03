@@ -5,6 +5,15 @@ interface ApiError {
   message: string;
 }
 
+export class ApiHttpError extends Error {
+  status: number;
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = "ApiHttpError";
+    this.status = status;
+  }
+}
+
 class ApiClient {
   private onUnauthorized: (() => void) | null = null;
 
@@ -21,15 +30,32 @@ class ApiClient {
       ...(options.headers as Record<string, string>),
     };
 
+    // gzip large request bodies. Save payloads (assets, sheets, tilemaps) can
+    // be megabytes; raw JSON usually compresses 5-10x. Skip the overhead for
+    // small bodies and skip entirely if the browser lacks CompressionStream.
+    let body = options.body;
+    if (
+      typeof body === 'string' &&
+      body.length > 4096 &&
+      typeof CompressionStream !== 'undefined'
+    ) {
+      const compressed = await new Response(
+        new Blob([body]).stream().pipeThrough(new CompressionStream('gzip')),
+      ).blob();
+      body = compressed;
+      headers['Content-Encoding'] = 'gzip';
+    }
+
     const response = await fetch(`${API_BASE}${path}`, {
       ...options,
+      body,
       headers,
       credentials: 'include',
     });
 
     if (response.status === 401) {
       this.onUnauthorized?.();
-      throw new Error('Unauthorized');
+      throw new ApiHttpError(401, 'Unauthorized');
     }
 
     if (!response.ok) {
@@ -37,7 +63,7 @@ class ApiClient {
         error: 'Error',
         message: 'An error occurred',
       }));
-      throw new Error(error.message || error.error);
+      throw new ApiHttpError(response.status, error.message || error.error);
     }
 
     if (response.status === 204) {
@@ -98,7 +124,9 @@ export interface Project {
   assets: Record<string, string>;
   tilemaps: Record<string, import('./IdeState').TilemapData>;
   sounds: Record<string, string>;
-  sheet?: import('./IdeState').SheetData;
+  // sheet can arrive as either the sparse-chunk wire shape or the legacy
+  // single-buffer shape (older saved rows). Decoder handles both.
+  sheet?: import('./sheetCodec').SheetWire | import('./IdeState').SheetData;
   current_file: string;
   created_at: number;
   updated_at: number;
@@ -132,7 +160,7 @@ export async function getProjects(): Promise<Project[]> {
   return api.get<Project[]>('/api/projects');
 }
 
-export async function createProject(body: { name: string; description?: string; files?: Record<string, string>; assets?: Record<string, string>; tilemaps?: Record<string, import('./IdeState').TilemapData>; sounds?: Record<string, string>; sheet?: import('./IdeState').SheetData; currentFile?: string }): Promise<Project> {
+export async function createProject(body: { name: string; description?: string; files?: Record<string, string>; assets?: Record<string, string>; tilemaps?: Record<string, import('./IdeState').TilemapData>; sounds?: Record<string, string>; sheet?: import('./sheetCodec').SheetWire; currentFile?: string }): Promise<Project> {
   return api.post<Project>('/api/projects', body);
 }
 
@@ -144,7 +172,7 @@ export async function updateProject(id: string, data: { name?: string; descripti
   return api.put<Project>(`/api/projects/${id}`, data);
 }
 
-export async function saveProjectContent(id: string, data: { files?: Record<string, string>; assets?: Record<string, string>; tilemaps?: Record<string, import('./IdeState').TilemapData>; sounds?: Record<string, string>; sheet?: import('./IdeState').SheetData; currentFile?: string }): Promise<Project> {
+export async function saveProjectContent(id: string, data: { files?: Record<string, string>; assets?: Record<string, string>; tilemaps?: Record<string, import('./IdeState').TilemapData>; sounds?: Record<string, string>; sheet?: import('./sheetCodec').SheetWire; currentFile?: string }): Promise<Project> {
   return api.put<Project>(`/api/projects/${id}/save`, data);
 }
 

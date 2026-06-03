@@ -10,6 +10,7 @@ import projectsRouter from './routes/projects.js';
 import authRouter from './routes/auth.js';
 import { createGroupsRouter } from './routes/groups.js';
 import { createHelpRequestsRouter } from './routes/help-requests.js';
+import { decompressRequest } from './middleware/decompress.js';
 
 const PORT = process.env.PORT || 3001;
 const DIST_DIR = process.env.DIST_DIR || join(dirname(fileURLToPath(import.meta.url)), '../dist');
@@ -55,6 +56,9 @@ app.use(cors({
   credentials: true,
 }));
 app.use(cookieParser());
+// Inflate gzipped request bodies before express.json sees them. Clients only
+// gzip large payloads (saves), so most requests pass through untouched.
+app.use(decompressRequest);
 app.use(express.json({ limit: '10mb' }));
 app.use(session({
   secret: process.env.SESSION_SECRET || 'dev-secret-change-in-production',

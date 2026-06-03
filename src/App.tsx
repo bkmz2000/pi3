@@ -13,6 +13,7 @@ import Rail from "./SideMenu";
 import { useEditor, useIde } from "./state/IdeState";
 import { getProject, getComments, type ApiComment } from "./state/api";
 import { projectStorage } from "./utils/storage";
+import { encodeSheet, decodeSheet } from "./state/sheetCodec";
 import { useOnlineSync } from "./hooks/useOnlineSync";
 import FileBar from "./FileBar";
 import { useRunner } from "./runner/RunnerProvider";
@@ -125,7 +126,9 @@ function ProjectLoader() {
           assets: apiProject.assets,
           tilemaps: apiProject.tilemaps ?? {},
           sounds: apiProject.sounds ?? {},
-          sheet: apiProject.sheet,
+          // Server may return either wire or legacy sheet shape; normalize to
+          // wire so the cache row stays compact regardless.
+          sheet: apiProject.sheet ? encodeSheet(decodeSheet(apiProject.sheet)!) : undefined,
           currentFile: apiProject.current_file,
         }).catch(() => {});
         changeCurrentProject(

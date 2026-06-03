@@ -2,7 +2,8 @@ import {
   downloadProjectZip,
   StoredProject as ZipStoredProject,
 } from "./zip";
-import type { TilemapData, SheetData } from "../state/IdeState";
+import type { TilemapData } from "../state/IdeState";
+import { decodeSheet, type SheetWire } from "../state/sheetCodec";
 
 const DB_NAME = "WebIDE";
 const DB_VERSION = 3;
@@ -16,7 +17,9 @@ export interface ProjectContent {
   assets: Record<string, string>;
   tilemaps: Record<string, TilemapData>;
   sounds: Record<string, string>;
-  sheet: SheetData | undefined;
+  // Stored in the sparse-chunk wire shape so IndexedDB rows stay compact
+  // and queued saves can re-POST without re-encoding.
+  sheet: SheetWire | undefined;
   currentFile: string | undefined;
   savedAt: number;
 }
@@ -187,7 +190,9 @@ class ProjectStorage {
       assets: content.assets,
       tilemaps: content.tilemaps as Record<string, import("./zip").TilemapData>,
       sounds: content.sounds,
-      sheet: content.sheet as import("./zip").SheetData | undefined,
+      // Zip format carries the legacy flat-buffer SheetData. Decode before
+      // handing off so the export stays self-contained and human-inspectable.
+      sheet: decodeSheet(content.sheet) as import("./zip").SheetData | undefined,
       updatedAt: new Date().toISOString(),
       currentFile: content.currentFile,
     };

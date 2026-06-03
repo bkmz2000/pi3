@@ -1,5 +1,6 @@
 import { Project as ApiProject } from "./api";
 import type { TilemapData, SheetData } from "./IdeState";
+import { decodeSheet } from "./sheetCodec";
 
 export type EditorProject = {
   name?: string;
@@ -12,7 +13,9 @@ export type EditorProject = {
   theme?: string;
 };
 
-// Normalize ApiProject (snake_case) to editor Project (camelCase)
+// Normalize ApiProject (snake_case) to editor Project (camelCase).
+// `sheet` may arrive in either the sparse-chunk wire shape or the legacy
+// single-buffer shape; decodeSheet handles both.
 export function toEditorProject(api: ApiProject): EditorProject {
   return {
     name: api.name,
@@ -21,6 +24,6 @@ export function toEditorProject(api: ApiProject): EditorProject {
     assets: api.assets,
     tilemaps: api.tilemaps ?? {},
     sounds: api.sounds ?? {},
-    sheet: api.sheet,
+    sheet: decodeSheet(api.sheet),
   };
 }

@@ -67,6 +67,10 @@ export function SaveErrorIndicator() {
     return <Chip icon="local" text={saveError.message} bg="#c0392b" />;
   }
 
+  if (saveError?.kind === 'payload') {
+    return <Chip icon="local" text={saveError.message} bg="#c0392b" />;
+  }
+
   if (isExampleSessionId(currentProjectId)) {
     if (dirtyFiles.size > 0) {
       return <Chip icon="local" text="Local only — Ctrl+S to save" bg="rgba(80,80,80,0.7)" />;

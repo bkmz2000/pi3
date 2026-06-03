@@ -30,8 +30,9 @@ import { DEMO_SHEET } from "../assets/examples/sheet_demo_data";
 import { ASTEROIDS_SHEET } from "../assets/examples/asteroids/sheet_data";
 import { projectStorage, isOnline } from "../utils/storage";
 import { importProjectFromFile as importZipFile, downloadProjectZip } from "../utils/zip";
-import { getProjects, createProject as apiCreateProject, updateProject as apiUpdateProject, deleteProject as apiDeleteProject, saveProjectContent, Project as ApiProject } from "./api";
+import { getProjects, createProject as apiCreateProject, updateProject as apiUpdateProject, deleteProject as apiDeleteProject, saveProjectContent, Project as ApiProject, ApiHttpError } from "./api";
 import { toEditorProject } from "./projectNormalization";
+import { encodeSheet } from "./sheetCodec";
 import { writeAnonStash } from "../utils/anonStash";
 
 export type PanelId = "projects" | "settings" | "docs" | "examples" | null;
@@ -450,7 +451,7 @@ export const useEditor = create<EditorState>((set) => ({
   }),
 }));
 
-export type SaveErrorKind = 'auth' | 'network' | 'quota';
+export type SaveErrorKind = 'auth' | 'network' | 'quota' | 'payload';
 export type SaveError = { kind: SaveErrorKind; message: string };
 
 type IdeState = {
@@ -620,13 +621,15 @@ export const useIde = create<IdeState>((set, get) => ({
         return true;
       }
 
-      // Always cache full content locally (offline resilience)
+      // Always cache full content locally (offline resilience).
+      // Sheet is sparse-chunk-encoded for the wire and IndexedDB; empty regions
+      // are skipped, shrinking typical 512x512 sheets by 10-30x before gzip.
       const content = {
         files: project.files,
         assets: project.assets,
         tilemaps: project.tilemaps,
         sounds: project.sounds ?? {},
-        sheet: project.sheet,
+        sheet: project.sheet ? encodeSheet(project.sheet) : undefined,
         currentFile,
       };
       projectStorage.cacheProjectContent(currentProjectId, content).catch(() => {});
@@ -662,7 +665,17 @@ export const useIde = create<IdeState>((set, get) => ({
         return true;
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : "Failed to save project";
-        const kind: SaveErrorKind = errorMessage === "Unauthorized" ? "auth" : "network";
+        const status = error instanceof ApiHttpError ? error.status : 0;
+        // Any 4xx that isn't 401 is a permanent client-side problem (payload too
+        // large, validation failure, etc.) — retrying or queueing for later sync
+        // will just keep failing, so surface it and stop the auto-save loop.
+        const kind: SaveErrorKind =
+          status === 401 ? "auth"
+          : status >= 400 && status < 500 ? "payload"
+          : "network";
+        const message = kind === "payload" && status === 413
+          ? "Project too large to save — try removing large assets"
+          : errorMessage;
         if (kind === "network") {
           await projectStorage.queueSave({ id: currentProjectId, ...content, savedAt: Date.now() });
         }
@@ -674,9 +687,11 @@ export const useIde = create<IdeState>((set, get) => ({
             project,
           });
         }
-        set({ saveError: { kind, message: errorMessage } });
-        // Return true for both network and auth — the local cache has the data.
-        return true;
+        set({ saveError: { kind, message } });
+        // Network/auth: local cache has the data, treat as soft-success so the
+        // dirty set clears. Payload errors must keep files dirty so the user
+        // can retry after shrinking the project.
+        return kind !== "payload";
       }
     } finally {
       set({ isSaving: false });
@@ -807,7 +822,7 @@ export const useIde = create<IdeState>((set, get) => ({
       currentFile: importedProject.currentFile,
       tilemaps: importedProject.tilemaps || {},
       sounds: importedProject.sounds || {},
-      sheet: importedProject.sheet,
+      sheet: importedProject.sheet ? encodeSheet(importedProject.sheet) : undefined,
     });
 
     const { userProjects } = get();

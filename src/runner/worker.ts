@@ -94,18 +94,18 @@ async function initPyodide(
   console.log("Worker: Writing modules to filesystem...");
 
   try {
-    p.FS.mkdir("/graphics");
+    p.FS.mkdir("/pi3");
   } catch {
     /* already exists */
   }
   try {
-    p.FS.mkdir("/graphics/actors");
+    p.FS.mkdir("/pi3/actors");
   } catch {
     /* already exists */
   }
-  p.FS.writeFile("/graphics/__init__.py", graphicsInit);
-  p.FS.writeFile("/graphics/actors/__init__.py", graphicsActors);
-  p.FS.writeFile("/graphics/animation.py", graphicsAnimation);
+  p.FS.writeFile("/pi3/__init__.py", graphicsInit);
+  p.FS.writeFile("/pi3/actors/__init__.py", graphicsActors);
+  p.FS.writeFile("/pi3/animation.py", graphicsAnimation);
   p.FS.writeFile("/linter.py", linter);
   p.FS.writeFile("/error_hook.py", errorHook);
 
@@ -210,6 +210,18 @@ async def _async_input(prompt=""):
     return await fut
 
 builtins.input = _async_input
+
+# Back-compat: pi3 is the primary module name; 'graphics' is an alias so older
+# projects (and inline heredocs below) keep importing successfully. Submodules
+# must be aliased explicitly so 'from graphics.actors import X' resolves to the
+# same module object as 'from pi3.actors import X' (otherwise isinstance checks
+# across the boundary fail).
+import pi3 as _pi3
+import pi3.actors as _pi3_actors
+import pi3.animation as _pi3_anim
+sys.modules['graphics'] = _pi3
+sys.modules['graphics.actors'] = _pi3_actors
+sys.modules['graphics.animation'] = _pi3_anim
   `);
 
   try {
@@ -272,7 +284,7 @@ function prepareFiles(p: PyodideInterface, files: Record<string, string>) {
 }
 
 function usesNewGraphics(code: string): boolean {
-  return /^[^#'"]*\b(import graphics|from graphics)\b/m.test(code);
+  return /^[^#'"]*\b(import (graphics|pi3)|from (graphics|pi3))\b/m.test(code);
 }
 
 // ── Error handling: attempt structured classification, fall back to raw ──

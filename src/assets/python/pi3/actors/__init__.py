@@ -136,24 +136,24 @@ class Actor:
 
     @property
     def pos(self):
-        from graphics import Vector2
+        from pi3 import Vector2
         return Vector2(self._x, self._y)
 
     @pos.setter
     def pos(self, value):
-        from graphics import Vector2
+        from pi3 import Vector2
         v = value if isinstance(value, Vector2) else Vector2(value)
         self._x = v.x
         self._y = v.y
 
     @property
     def vel(self):
-        from graphics import Vector2
+        from pi3 import Vector2
         return Vector2(self._vx, self._vy)
 
     @vel.setter
     def vel(self, value):
-        from graphics import Vector2
+        from pi3 import Vector2
         v = value if isinstance(value, Vector2) else Vector2(value)
         self._vx = v.x
         self._vy = v.y
@@ -180,7 +180,7 @@ class Actor:
             return col.width / 2, col.height / 2
         # Fall back to sprite dimensions when no explicit collider is set.
         img = self.image
-        import graphics as _g
+        import pi3 as _g
         if isinstance(img, _g.SpriteEntry):
             sprite = img._default_sprite()
             if sprite is not None:
@@ -194,54 +194,54 @@ class Actor:
 
     @property
     def center(self):
-        from graphics import AnchorPoint
+        from pi3 import AnchorPoint
         return AnchorPoint(self._x, self._y, "center", "middle")
 
     @property
     def top(self):
-        from graphics import AnchorPoint
+        from pi3 import AnchorPoint
         _, hy = self._half_size()
         return AnchorPoint(self._x, self._y - hy, "center", "bottom")
 
     @property
     def bottom(self):
-        from graphics import AnchorPoint
+        from pi3 import AnchorPoint
         _, hy = self._half_size()
         return AnchorPoint(self._x, self._y + hy, "center", "top")
 
     @property
     def left(self):
-        from graphics import AnchorPoint
+        from pi3 import AnchorPoint
         hx, _ = self._half_size()
         return AnchorPoint(self._x - hx, self._y, "right", "middle")
 
     @property
     def right(self):
-        from graphics import AnchorPoint
+        from pi3 import AnchorPoint
         hx, _ = self._half_size()
         return AnchorPoint(self._x + hx, self._y, "left", "middle")
 
     @property
     def top_left(self):
-        from graphics import AnchorPoint
+        from pi3 import AnchorPoint
         hx, hy = self._half_size()
         return AnchorPoint(self._x - hx, self._y - hy, "right", "bottom")
 
     @property
     def top_right(self):
-        from graphics import AnchorPoint
+        from pi3 import AnchorPoint
         hx, hy = self._half_size()
         return AnchorPoint(self._x + hx, self._y - hy, "left", "bottom")
 
     @property
     def bottom_left(self):
-        from graphics import AnchorPoint
+        from pi3 import AnchorPoint
         hx, hy = self._half_size()
         return AnchorPoint(self._x - hx, self._y + hy, "right", "top")
 
     @property
     def bottom_right(self):
-        from graphics import AnchorPoint
+        from pi3 import AnchorPoint
         hx, hy = self._half_size()
         return AnchorPoint(self._x + hx, self._y + hy, "left", "top")
 
@@ -252,7 +252,7 @@ class Actor:
             image = object.__getattribute__(self, 'image')
         except AttributeError:
             raise AttributeError(f"'{type(self).__name__}' has no attribute '{name}'")
-        import graphics as _g
+        import pi3 as _g
         if isinstance(image, _g.SpriteEntry):
             anims = object.__getattribute__(image, '_animations')
             if name in anims:
@@ -264,28 +264,13 @@ class Actor:
 
     # --- movement ---
 
-    def move(self, distance):
+    def move(self):
+        """Advance position by current velocity (vx, vy). Call once per frame."""
         if not self._alive:
             return
-        rad = math.radians(self._angle)
-        self._x += distance * math.sin(rad)
-        self._y -= distance * math.cos(rad)
-
-    def move_to(self, x, y):
-        if not self._alive:
-            return
-        self._x = float(x)
-        self._y = float(y)
-
-    def change_x_by(self, dx):
-        if not self._alive:
-            return
-        self._x += float(dx)
-
-    def change_y_by(self, dy):
-        if not self._alive:
-            return
-        self._y += float(dy)
+        if self._vx != 0 or self._vy != 0:
+            self._x += self._vx
+            self._y += self._vy
 
     def point_towards(self, x, y):
         if not self._alive:
@@ -303,7 +288,7 @@ class Actor:
 
     def random_position(self):
         """Teleport so the full hitbox is inside the canvas."""
-        import graphics as g
+        import pi3 as g
         col = self.collider
         if col.shape == "circle":
             mx = my = col.radius
@@ -318,7 +303,7 @@ class Actor:
 
     def wrap_x(self):
         """If actor leaves left/right edge, appear on the opposite side."""
-        import graphics as g
+        import pi3 as g
         if self._x < 0:
             self._x += g._width
         elif self._x > g._width:
@@ -326,7 +311,7 @@ class Actor:
 
     def wrap_y(self):
         """If actor leaves top/bottom edge, appear on the opposite side."""
-        import graphics as g
+        import pi3 as g
         if self._y < 0:
             self._y += g._height
         elif self._y > g._height:
@@ -339,17 +324,8 @@ class Actor:
 
     def in_bounds(self) -> bool:
         """True if actor center is within the canvas."""
-        import graphics as g
+        import pi3 as g
         return 0 <= self._x <= g._width and 0 <= self._y <= g._height
-
-    # --- velocity (called by game loop) ---
-
-    def _apply_velocity(self):
-        if not self._alive:
-            return
-        if self._vx != 0 or self._vy != 0:
-            self._x += self._vx
-            self._y += self._vy
 
     # --- lifecycle ---
 
@@ -360,7 +336,7 @@ class Actor:
         if not self._alive or not self._visible:
             return
         if self.image:
-            import graphics as g
+            import pi3 as g
             g.push()
             g.translate(self._x, self._y)
             g.rotate(self._angle)
@@ -432,7 +408,7 @@ class Actor:
                 if random.random() > 0.3:
                     pixel.color = Colors.orange
         """
-        import graphics as _g
+        import pi3 as _g
         image = object.__getattribute__(self, 'image')
         if isinstance(image, _g.SpriteEntry):
             for anim in image._animations.values():
@@ -451,7 +427,7 @@ class Actor:
                 if pixel == Colors.red:
                     pixel.color = Colors.orange
         """
-        import graphics as _g
+        import pi3 as _g
         image = object.__getattribute__(self, 'image')
         sprite = None
         if isinstance(image, _g.SpriteEntry):
@@ -529,10 +505,10 @@ class Actor:
 
     @staticmethod
     def random_coords():
-        import graphics
+        import pi3
         try:
-            w = graphics.width() or 400
-            h = graphics.height() or 400
+            w = pi3.width() or 400
+            h = pi3.height() or 400
         except Exception:
             w = 400
             h = 400
@@ -543,8 +519,8 @@ class ActorSnapshot:
     """Read-only one-frame-lookahead view of an actor.
 
     Exposes `collides_with` and `collides_any` evaluated at the position the
-    source actor will occupy after one `_apply_velocity` step. Computation
-    mirrors `_apply_velocity` exactly so the prediction matches the next frame.
+    source actor will occupy after one `move()` step. Computation
+    mirrors `move()` exactly so the prediction matches the next frame.
     The source actor's state is unchanged by use of the snapshot.
     """
 
@@ -604,7 +580,7 @@ class Rect(Actor):
     def draw(self):
         if not self._alive or not self._visible:
             return
-        import graphics as g
+        import pi3 as g
         g.push()
         g.translate(self._x, self._y)
         g.rotate(self._angle)
@@ -648,7 +624,7 @@ class Circle(Actor):
     def draw(self):
         if not self._alive or not self._visible:
             return
-        import graphics as g
+        import pi3 as g
         g.push()
         g.translate(self._x, self._y)
         g.rotate(self._angle)

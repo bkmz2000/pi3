@@ -131,6 +131,16 @@ app.get('/api/config', (req, res) => {
   res.json({ allowPasswordAuth: ALLOW_PASSWORD_AUTH });
 });
 
+// Required for SharedArrayBuffer (Pyodide interrupt). Only set on app shell
+// responses — API routes are excluded to keep the change surface minimal.
+app.use((req, res, next) => {
+  if (!req.path.startsWith('/api/')) {
+    res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+    res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');
+  }
+  next();
+});
+
 app.use(express.static(DIST_DIR));
 
 // SPA fallback — only for non-file, non-API routes

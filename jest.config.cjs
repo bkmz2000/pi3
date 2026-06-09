@@ -13,6 +13,11 @@ const config = {
     // api.ts reads import.meta.env via apiBase.ts; ts-jest can't transform
     // import.meta, so swap it for a plain-string mock in tests.
     '^\\./apiBase$': '<rootDir>/tests/unit/__mocks__/apiBase.ts',
+    // workerFactory.ts uses import.meta.url (ESM-only); swap for a jest.fn() mock
+    // so RunnerProvider can be imported in jsdom tests.
+    '^\\./(workerFactory)$': '<rootDir>/tests/unit/__mocks__/workerFactory.ts',
+    // assets.ts uses import.meta.glob (Vite-only); swap for a stub.
+    '^.*/state/assets$': '<rootDir>/tests/unit/__mocks__/assets.ts',
   },
   transform: {
     '^.+\\.(ts|tsx)$': ['ts-jest', {
@@ -53,10 +58,10 @@ const config = {
       statements: 35,
     },
     './src/runner/': {
-      branches: 23,
-      functions: 3,
-      lines: 23,
-      statements: 22,
+      branches: 26,
+      functions: 15,
+      lines: 31,
+      statements: 29,
     },
   },
 };

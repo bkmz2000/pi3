@@ -88,7 +88,7 @@ for big features) is in the strategy plan
 - **Canvas**: Konva.js / react-konva; OffscreenCanvas rendered inside the worker
 
 ### Dev vs Production
-In dev, Vite proxies `/api` to `:3001`. The `Cross-Origin-Opener-Policy` / `Cross-Origin-Embedder-Policy` headers required for `SharedArrayBuffer` (Pyodide interrupt) are **only set in `vite preview`**, not in dev mode. Pyodide loads from a local `/pyodide/` bundle first, then falls back to `cdn.jsdelivr.net`.
+In dev, Vite proxies `/api` to `:3001`. The `Cross-Origin-Opener-Policy` / `Cross-Origin-Embedder-Policy` headers required for `SharedArrayBuffer` (Pyodide interrupt) are set in **both dev (`vite.config.ts` `server.headers`) and production (`server/index.ts` middleware before `express.static`)**. Pyodide loads from a local `/pyodide/` bundle first, then falls back to `cdn.jsdelivr.net`.
 
 ### Routes (src/App.tsx)
 | Path | Component | Purpose |
@@ -103,7 +103,7 @@ In dev, Vite proxies `/api` to `:3001`. The `Cross-Origin-Opener-Policy` / `Cros
 - **`useUser`** — Auth state (`loading` / `logged_out` / `logged_in`). Flow: localStorage token → `checkSession()` on mount → Bearer token on API calls.
 - **`useEditor`** (`IdeState.ts`) — Current project content (files, assets, currentFile), dirty tracking, file CRUD, save/fork/import/export. Built-in `Examples` map keyed by name.
 - **`useIde`** (`IdeState.ts`) — UI state: active panel, project list.
-- **`useRunnerStore`** (`RunnerProvider.tsx`) — Pyodide worker state: `ready`, `running`, `output`, `lintErrors`, canvas dimensions.
+- **`useRunnerStore`** (`RunnerProvider.tsx`) — Pyodide worker state: `ready`, `running`, `output`, `lintErrors`, canvas dimensions, `workerEpoch` (increments on hard-kill to force canvas remount).
 
 ### Python Runner (src/runner/)
 `worker.ts` runs in a Web Worker. Communication uses strongly-typed `WorkerCommand` / `WorkerEvent` unions in `WorkerInterface.ts`. Key commands: `init` (write Python modules to Pyodide FS), `run` (execute entry file with assets as `ImageBitmap`s), `interrupt`, `lint`, `event` (mouse/keyboard forwarded to Python).

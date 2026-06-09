@@ -43,6 +43,8 @@ const editorState = {
 
 jest.mock('../../src/state/IdeState', () => ({
   useEditor: (selector: (s: unknown) => unknown) => selector(editorState),
+  useIde: jest.fn(() => ({})),
+  isExampleSessionId: jest.fn(() => false),
 }));
 
 jest.mock('../../src/state/assets', () => ({

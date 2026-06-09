@@ -25,6 +25,10 @@ export default defineConfig({
         changeOrigin: true,
       },
     },
+    headers: {
+      "Cross-Origin-Opener-Policy": "same-origin",
+      "Cross-Origin-Embedder-Policy": "require-corp",
+    },
   },
   optimizeDeps: {
     include: ["jszip"]

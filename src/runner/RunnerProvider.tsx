@@ -8,6 +8,7 @@ import GraphicsAnimation from "../assets/python/graphics/animation.py?raw";
 import Linter from "../assets/python/linter.py?raw";
 import ErrorHook from "../assets/python/error_hook.py?raw";
 import { libraryUrlMap, librarySoundUrlMap } from "../state/assets";
+import { createRunnerWorker } from "./workerFactory";
 
 type OutputLine = {
   kind: "stdout" | "stderr";
@@ -30,9 +31,11 @@ type RunnerState = {
   canvasScale: number;
   lintErrors: LintDiagnostic[];
   screenshots: Screenshot[];
+  workerEpoch: number;
 
   _onMessage: (msg: WorkerEvent) => void;
   _appendOutput: (kind: "stdout" | "stderr", text: string) => void;
+  _bumpEpoch: () => void;
   setRunning: (running: boolean) => void;
   clear: () => void;
   stop: () => void;
@@ -55,6 +58,7 @@ export const useRunnerStore = create<RunnerState>((set) => ({
   canvasScale: 1,
   lintErrors: [],
   screenshots: [],
+  workerEpoch: 0,
 
   addScreenshot: (snap) => set((s) => {
     const next = [snap, ...s.screenshots].slice(0, 5);
@@ -183,6 +187,7 @@ export const useRunnerStore = create<RunnerState>((set) => ({
     }
   },
 
+  _bumpEpoch: () => set((s) => ({ workerEpoch: s.workerEpoch + 1 })),
   setRunning: (running) => set({ running }),
   pushErrorCard: (error) => set((s) => ({
     output: [...s.output, { kind: "error_card", error }],
@@ -310,12 +315,23 @@ function initInterruptBuffer(w: Worker) {
   }
 }
 
+function hardKillWorker() {
+  worker?.terminate();
+  worker = null;
+  canvasTransferred = false;
+  interruptBuffer = null;
+  stopAllSounds();
+  // reset UI state: stop() clears running/inputPrompt/canvasActive; also mark not ready
+  useRunnerStore.getState().stop();
+  useRunnerStore.setState({ ready: false });
+  // bump epoch so CanvasWindow remounts a fresh <canvas> element for re-transfer
+  useRunnerStore.getState()._bumpEpoch();
+}
+
 function getWorker(): Worker {
   if (worker) return worker;
 
-  worker = new Worker(new URL("./worker.ts", import.meta.url), {
-    type: "module",
-  });
+  worker = createRunnerWorker();
 
   worker.onmessage = (e: MessageEvent<WorkerEvent>) => {
     const msg = e.data;
@@ -477,30 +493,43 @@ export function useRunner() {
 
   const interrupt = useCallback((): Promise<void> => {
     return new Promise((resolve) => {
-      const worker = getWorker();
+      // No SAB → worker is stuck and can't receive messages → go straight to hard kill
+      if (!interruptBuffer) {
+        hardKillWorker();
+        resolve();
+        return;
+      }
+
+      const w = getWorker();
       let settled = false;
 
-      const finish = () => {
+      const finish = (hard: boolean) => {
         if (settled) return;
         settled = true;
         clearTimeout(timer);
-        worker.removeEventListener("message", handleMessage);
-        if (interruptBuffer) interruptBuffer[0] = 0;
-        useRunnerStore.getState().stop();
+        w.removeEventListener("message", handleMessage);
+        if (hard) {
+          hardKillWorker();
+        } else {
+          interruptBuffer![0] = 0;
+          useRunnerStore.getState().stop();
+        }
         resolve();
       };
 
       const handleMessage = (e: MessageEvent) => {
-        if (e.data?.type === "interrupt_ack") finish();
+        if (e.data?.type === "interrupt_ack") finish(false);
       };
 
-      worker.addEventListener("message", handleMessage);
-      worker.postMessage({ cmd: "interrupt" } satisfies WorkerCommand);
+      // Declare timer before postMessage so clearTimeout() in finish() is safe
+      // even if the mock delivers the ack synchronously (during postMessage).
+      let timer: ReturnType<typeof setTimeout>;
+      w.addEventListener("message", handleMessage);
+      interruptBuffer[0] = 2;
+      w.postMessage({ cmd: "interrupt" } satisfies WorkerCommand);
 
-      if (interruptBuffer) interruptBuffer[0] = 2;
-
-      // Fallback: resolve after 150ms if no ack arrives (e.g. no SAB in dev)
-      const timer = setTimeout(finish, 150);
+      // 500ms: if no ack (busy loop blocked the message handler), hard-kill
+      timer = setTimeout(() => finish(true), 500);
     });
   }, []);
 

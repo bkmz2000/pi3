@@ -10,6 +10,7 @@ export default function CanvasWindow() {
   const { t } = useTranslation();
   const theme = useThemeStore((s) => s.theme);
   const { attachCanvas, canvasActive, running, canvasWidth, canvasHeight, captureScreenshot } = useRunner();
+  const workerEpoch = useRunnerStore((s) => s.workerEpoch);
   const projectId = useEditor((s) => s.currentProjectId);
   const canPersist = !!projectId && !isExampleSessionId(projectId);
   const snaps = useRunnerStore((s) => s.screenshots);
@@ -298,6 +299,7 @@ export default function CanvasWindow() {
         }}
       >
         <canvas
+          key={workerEpoch}
           ref={ref}
           width={w}
           height={h}

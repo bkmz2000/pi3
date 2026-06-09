@@ -7,7 +7,6 @@ export function useProjects() {
   const userProjects = useIde((s) => s.userProjects);
   const loading = useIde((s) => s.loading);
   const loadUserProjects = useIde((s) => s.loadUserProjects);
-  const createIdeProject = useIde((s) => s.createNewProject);
   const deleteUserProject = useIde((s) => s.deleteUserProject);
   const forkExample = useIde((s) => s.forkExample);
   const downloadProject = useIde((s) => s.downloadProject);

@@ -45,6 +45,7 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 function Fallback({ label, error, onReset }: { label?: string; error: Error; onReset: () => void }) {
   const theme = useThemeStore((s) => s.theme);
   return (

@@ -8,7 +8,6 @@ import {
   Maximize, PanelRight, Square, Circle, Spline,
   MousePointer2, SunDim, Sun, LayoutGrid, Stamp, Library, Wand2,
 } from "lucide-react";
-import { SPRITE_LIBRARY, type SpriteLibraryEntry } from "./state/spriteLibrary";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -341,7 +340,6 @@ export default function SheetEditor({ onClose, initialSprite }: { onClose: () =>
   const theme = useThemeStore((s) => s.theme);
   const project = useEditor((s) => s.project);
   const setSheet = useEditor((s) => s.setSheet);
-  const addAssetInstance = useEditor((s) => s.addAssetInstance);
 
   useEffect(() => { if (!project.sheet) setSheet(blankSheet()); }, [project.sheet, setSheet]);
 
@@ -429,7 +427,6 @@ export default function SheetEditor({ onClose, initialSprite }: { onClose: () =>
   const [resizeSpriteDrag, setResizeSpriteDrag] = useState<ResizeSpriteDrag>(null);
   const tileOverlayRef = useRef<HTMLDivElement>(null);
   const [showLibrary, setShowLibrary] = useState(false);
-  const [libFolder, setLibFolder] = useState(0);
 
   useEffect(() => { zoomRef.current = zoom; canvasRectRef.current = null; }, [zoom]);
   useEffect(() => {
@@ -669,49 +666,6 @@ export default function SheetEditor({ onClose, initialSprite }: { onClose: () =>
     const raw = Math.min(vw / (sheetW + 32), vh / (sheetH + 32));
     setZoom(Math.max(0.25, Math.min(16, [0.25, 0.5, 1, 2, 4, 8, 16].reduce((a, b) => Math.abs(b - raw) < Math.abs(a - raw) ? b : a))));
   }, [sheetW, sheetH]);
-
-  // ── Library picker ───────────────────────────────────────────────────────────
-
-  const handleLibraryPick = useCallback(async (entry: SpriteLibraryEntry) => {
-    try {
-      const resp = await fetch(entry.url); const blob = await resp.blob();
-      const img = new Image();
-      const dataUrl = await new Promise<string>((resolve) => { const r = new FileReader(); r.onloadend = () => resolve(r.result as string); r.readAsDataURL(blob); });
-      img.src = dataUrl;
-      await new Promise<void>((resolve) => { img.onload = () => resolve(); });
-      addAssetInstance(entry.name, dataUrl);
-      const iw = img.naturalWidth, ih = img.naturalHeight;
-      const sh = useEditor.getState().project.sheet; if (!sh) return;
-      const sprites = sh.sprites;
-      let foundX = 0, foundY = 0;
-      scan: for (let y = 0; y <= sh.height - ih; y += 8) for (let x = 0; x <= sh.width - iw; x += 8)
-        if (!anyStripOverlaps(sprites, x, y, iw, ih)) { foundX = x; foundY = y; break scan; }
-      const offCanvas = document.createElement("canvas");
-      offCanvas.width = iw; offCanvas.height = ih;
-      const octx = offCanvas.getContext("2d")!;
-      octx.imageSmoothingEnabled = false;
-      octx.drawImage(img, 0, 0, iw, ih);
-      const srcData = octx.getImageData(0, 0, iw, ih);
-      for (let row = 0; row < ih; row++) {
-        const srcOff = row * iw * 4, dstOff = ((foundY + row) * sh.width + foundX) * 4;
-        for (let col = 0; col < iw; col++) {
-          const si = srcOff + col * 4, di = dstOff + col * 4;
-          if (srcData.data[si + 3] === 0) continue;
-          pixBuf.current[di] = srcData.data[si]; pixBuf.current[di + 1] = srcData.data[si + 1];
-          pixBuf.current[di + 2] = srcData.data[si + 2]; pixBuf.current[di + 3] = srcData.data[si + 3];
-        }
-      }
-      const baseName = entry.name.replace(/\.png$/i, "").replace(/[^a-z0-9_]/gi, "_").toLowerCase();
-      let spriteName = baseName || "sprite"; let counter = 2;
-      while (spriteName in sprites || ACTOR_RESERVED.has(spriteName)) spriteName = `${baseName}_${counter++}`;
-      const newSheet = { ...sh, sprites: { ...sprites, [spriteName]: { animations: { default: { x: foundX, y: foundY, frameW: iw, frameH: ih, frameCount: 1 } } } }, pixels: encodePixels(pixBuf.current) };
-      setSheet(newSheet);
-      setSelectedFrame({ sprite: spriteName, anim: "default", idx: 0 });
-      setExpandedSprites((s) => new Set([...s, spriteName]));
-      renderCanvasRef.current();
-      setShowLibrary(false);
-    } catch { console.warn("Failed to load sprite:", entry.url); }
-  }, [addAssetInstance, setSheet]);
 
   // ── Pointer handlers ──────────────────────────────────────────────────────────
 

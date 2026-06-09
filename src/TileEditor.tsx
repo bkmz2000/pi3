@@ -565,32 +565,8 @@ export default function TileEditor({ open, initialName, onClose, onSave, onNewSp
 
   const handleContextMenu = (e: KonvaEventObject<MouseEvent>) => e.evt.preventDefault();
 
-  if (!open) return null;
-
   const activeLayer = layers[activeLayerIdx];
   const ts = activeLayer?.tileSize ?? 32;
-
-  // Derive grid line range to cover the visible canvas
-  const colMin = Math.floor((-pan.x) / ts) - 1;
-  const colMax = Math.ceil((stageSize.w - pan.x) / ts) + 1;
-  const rowMin = Math.floor((-pan.y) / ts) - 1;
-  const rowMax = Math.ceil((stageSize.h - pan.y) / ts) + 1;
-
-  const gridLines: JSX.Element[] = [];
-  for (let c = colMin; c <= colMax; c++) {
-    const x = pan.x + c * ts;
-    gridLines.push(<KLine key={`v${c}`} points={[x, 0, x, stageSize.h]} stroke="rgba(128,128,128,0.25)" strokeWidth={1} listening={false} />);
-  }
-  for (let r = rowMin; r <= rowMax; r++) {
-    const y = pan.y + r * ts;
-    gridLines.push(<KLine key={`h${r}`} points={[0, y, stageSize.w, y]} stroke="rgba(128,128,128,0.25)" strokeWidth={1} listening={false} />);
-  }
-
-  // Origin cross
-  gridLines.push(
-    <KLine key="ox" points={[pan.x - 10, pan.y, pan.x + 10, pan.y]} stroke="rgba(255,100,100,0.6)" strokeWidth={2} listening={false} />,
-    <KLine key="oy" points={[pan.x, pan.y - 10, pan.x, pan.y + 10]} stroke="rgba(255,100,100,0.6)" strokeWidth={2} listening={false} />,
-  );
 
   // Memoize layer cell elements in local (un-panned) coords. Pan is applied by a
   // Konva Group transform below, so panning no longer invalidates this memo or
@@ -663,6 +639,30 @@ export default function TileEditor({ open, initialName, onClose, onSave, onNewSp
     }
     return out;
   }, [areas, mode, activeAreaName, ts]);
+
+  if (!open) return null;
+
+  // Derive grid line range to cover the visible canvas
+  const colMin = Math.floor((-pan.x) / ts) - 1;
+  const colMax = Math.ceil((stageSize.w - pan.x) / ts) + 1;
+  const rowMin = Math.floor((-pan.y) / ts) - 1;
+  const rowMax = Math.ceil((stageSize.h - pan.y) / ts) + 1;
+
+  const gridLines: JSX.Element[] = [];
+  for (let c = colMin; c <= colMax; c++) {
+    const x = pan.x + c * ts;
+    gridLines.push(<KLine key={`v${c}`} points={[x, 0, x, stageSize.h]} stroke="rgba(128,128,128,0.25)" strokeWidth={1} listening={false} />);
+  }
+  for (let r = rowMin; r <= rowMax; r++) {
+    const y = pan.y + r * ts;
+    gridLines.push(<KLine key={`h${r}`} points={[0, y, stageSize.w, y]} stroke="rgba(128,128,128,0.25)" strokeWidth={1} listening={false} />);
+  }
+
+  // Origin cross
+  gridLines.push(
+    <KLine key="ox" points={[pan.x - 10, pan.y, pan.x + 10, pan.y]} stroke="rgba(255,100,100,0.6)" strokeWidth={2} listening={false} />,
+    <KLine key="oy" points={[pan.x, pan.y - 10, pan.x, pan.y + 10]} stroke="rgba(255,100,100,0.6)" strokeWidth={2} listening={false} />,
+  );
 
   const toolDefs = [
     { id: "hand" as Tool, icon: "hand" as const, label: t('tileEditor.panTool') },

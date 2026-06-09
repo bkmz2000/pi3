@@ -12,7 +12,6 @@ type Props = {
   onClose: () => void;
   // Kept in the signature to avoid touching the SideMenu call site; will be
   // wired back up once the catalog returns.
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   onOpen: (name: string) => void;
 };
 

@@ -759,6 +759,7 @@ function LibraryPickerModal({
   // straight restore of the deleted blocks.
   void packAssetsByMeta; void BUILTIN_SOUNDS;
   void category; void perspective; void query;
+  void onAddSprite; void onAddSound;
 
   const chipStyle = (active: boolean): React.CSSProperties => ({
     all: 'unset', cursor: 'pointer',

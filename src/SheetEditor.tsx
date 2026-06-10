@@ -645,7 +645,7 @@ export default function SheetEditor({ onClose, initialSprite }: { onClose: () =>
     poff.getContext("2d")!.putImageData(new ImageData(pc, fw, fh), 0, 0);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.drawImage(poff, 0, 0, fw * 3, fh * 3);
-  }, [previewAnim, previewFrame, sheet.sprites]);
+  }, [previewAnim, previewFrame, sheet.sprites, sheetW]);
 
   useEffect(() => { if (!panelOpen || !selectedFrame) return; panelRowRefs.current.get(`${selectedFrame.sprite}::${selectedFrame.anim}`)?.scrollIntoView({ block: "nearest" }); }, [selectedFrame, panelOpen]);
 
@@ -819,7 +819,7 @@ export default function SheetEditor({ onClose, initialSprite }: { onClose: () =>
       stampTile(pixBuf.current, sheetW, sheetH, pixBuf.current, sheetW, strip.x, strip.y, tw, th, tx, ty); renderCanvas(); return;
     }
     paintBrush(pixBuf.current, sheetW, sheetH, coords.x, coords.y, tool as DrawTool, lerpOverride ?? color, brushSize, clipRect); renderCanvas();
-  }, [painting, tool, color, lerpOverride, brushSize, clipRect, canvasCoords, renderCanvas, tileSprite, sheet.sprites, startHoverPreview, clearHoverPreview, moveSpriteDrag]);
+  }, [painting, tool, color, lerpOverride, brushSize, clipRect, canvasCoords, renderCanvas, tileSprite, sheet.sprites, startHoverPreview, clearHoverPreview, moveSpriteDrag, sheetW, sheetH]);
 
   const handleCanvasPointerUp = useCallback(() => {
     const sd = selectDragRef.current;
@@ -909,7 +909,7 @@ export default function SheetEditor({ onClose, initialSprite }: { onClose: () =>
     const lastFx = strip.x + (strip.frameCount - 1) * strip.frameW;
     for (let row = 0; row < strip.frameH; row++) buf.set(buf.subarray(((strip.y + row) * sheetW + lastFx) * 4, ((strip.y + row) * sheetW + lastFx + strip.frameW) * 4), ((strip.y + row) * sheetW + newFx) * 4);
     setSheet({ ...sheet, sprites: { ...sheet.sprites, [spriteName]: { ...sheet.sprites[spriteName], animations: { ...sheet.sprites[spriteName].animations, [animName]: { ...strip, frameCount: strip.frameCount + 1 } } } }, pixels: encodePixels(buf) });
-  }, [sheet, setSheet, pushUndo]);
+  }, [sheet, setSheet, pushUndo, sheetW]);  // addFrame
 
   const addAnimation = useCallback((spriteName: string) => {
     const sentry = sheet.sprites[spriteName]; if (!sentry) return;
@@ -923,7 +923,7 @@ export default function SheetEditor({ onClose, initialSprite }: { onClose: () =>
     let counter = 2;
     while (existing.has(newName) || ACTOR_RESERVED.has(newName)) newName = `anim_${counter++}`;
     setSheet({ ...sheet, sprites: { ...sheet.sprites, [spriteName]: { ...sentry, animations: { ...sentry.animations, [newName]: { x: first.x, y: maxY, frameW: first.frameW, frameH: first.frameH, frameCount: 1 } } } }, pixels: encodePixels(buf) });
-  }, [sheet, setSheet, pushUndo]);
+  }, [sheet, setSheet, pushUndo, sheetW, sheetH]);
 
   // ── Rename / Delete ──────────────────────────────────────────────────────────
 
@@ -952,7 +952,7 @@ export default function SheetEditor({ onClose, initialSprite }: { onClose: () =>
     const newSprites = { ...sheet.sprites }; delete newSprites[spriteName];
     setSheet({ ...sheet, sprites: newSprites, pixels: encodePixels(pixBuf.current) });
     if (selectedFrame?.sprite === spriteName) setSelectedFrame(null); renderCanvasRef.current();
-  }, [sheet, setSheet, selectedFrame, pushUndo]);
+  }, [sheet, setSheet, selectedFrame, pushUndo, sheetW]);
 
   const deleteAnimation = useCallback((spriteName: string, animName: string) => {
     const sentry = sheet.sprites[spriteName]; if (!sentry || Object.keys(sentry.animations).length <= 1) return;
@@ -962,7 +962,7 @@ export default function SheetEditor({ onClose, initialSprite }: { onClose: () =>
     const newAnims = { ...sentry.animations }; delete newAnims[animName];
     setSheet({ ...sheet, sprites: { ...sheet.sprites, [spriteName]: { ...sentry, animations: newAnims } }, pixels: encodePixels(pixBuf.current) });
     if (selectedFrame?.sprite === spriteName && selectedFrame?.anim === animName) setSelectedFrame(null); renderCanvasRef.current();
-  }, [sheet, setSheet, selectedFrame, pushUndo]);
+  }, [sheet, setSheet, selectedFrame, pushUndo, sheetW]);
 
   // ── Move / Resize sprite drags ───────────────────────────────────────────────
 

@@ -21,7 +21,7 @@ describe('useThemeStore', () => {
     const { result } = renderHook(() => useThemeStore());
     const originalThemeId = result.current.themeId;
 
-    const newThemeId = originalThemeId === 'midnight' ? 'daylight' : 'midnight';
+    const newThemeId = originalThemeId === 'midnight' ? 'studio' : 'midnight';
 
     act(() => {
       result.current.setTheme(newThemeId);
@@ -110,7 +110,7 @@ describe('useThemeStore', () => {
 
   it('themeId is valid theme name', () => {
     const { result } = renderHook(() => useThemeStore());
-    const validThemes = ['studio', 'midnight', 'daylight'];
+    const validThemes = ['studio', 'midnight'];
     expect(validThemes).toContain(result.current.themeId);
   });
 
@@ -142,7 +142,7 @@ describe('useThemeStore', () => {
     const initialTheme = result.current.theme;
 
     act(() => {
-      const newThemeId = initialThemeId === 'midnight' ? 'daylight' : 'midnight';
+      const newThemeId = initialThemeId === 'midnight' ? 'studio' : 'midnight';
       result.current.setTheme(newThemeId);
     });
 

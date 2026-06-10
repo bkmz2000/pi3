@@ -84,7 +84,7 @@ function ErrorCard({ error }: { error: RuntimeError }) {
         </span>
         {error.isBlocking && (
           <span style={{ fontSize: 10, color: colors.text, opacity: 0.6, marginLeft: "auto" }}>
-            (blocks running)
+            {t("friendlyError.blocksRunning")}
           </span>
         )}
       </div>
@@ -316,7 +316,7 @@ export default function ConsolePanel({ onRight = false }: { onRight?: boolean })
   const handleCopyConsole = () => {
     const text = output
       .map((l) => {
-        if (l.kind === "error_card") return `[${l.error.title}] ${l.error.message}`;
+        if (l.kind === "error_card") return `[${l.error.title ?? l.error.titleKey}] ${l.error.message ?? l.error.messageKey ?? ""}`;
         return l.text;
       })
       .join("\n");

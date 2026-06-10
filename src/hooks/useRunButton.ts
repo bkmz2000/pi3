@@ -70,27 +70,15 @@ export function useRunButton(options: UseRunButtonOptions = {}) {
         if (allErrors.length > 0) {
           const codeLines = code.split("\n");
 
-          // Human-readable labels per error code
-          const LABELS: Record<string, string> = {
-            E101: "Indentation has tabs",
-            E111: "Indentation not multiple of 4",
-            E303: "Too many blank lines",
-            E501: "Line too long",
-            E999: "Syntax error",
-            E225: "Type mismatch",
-            E225Call: "Wrong argument type",
-            F401: "Unused import",
-            F821: "Undefined name",
-          };
-
           const perErrors: PerError[] = allErrors.map((d) => {
             const token = (d.messageArgs?.name as string) || undefined;
             const line = d.row + 1; // 1-based
             const snippet = codeLines[d.row]?.trim() ?? "";
             const suggestions = d.suggestions?.[0]?.candidates ?? [];
             const category = d.category ?? "logic";
-            const label = LABELS[d.code] ?? d.code;
-            return { code: d.code, category, label, token, line, snippet, suggestions };
+            const messageKey = `linter.${d.code}`;
+            const label = t(`linter.${d.code}Label`, d.code);
+            return { code: d.code, category, label, messageKey, token, line, snippet, suggestions };
           });
 
           const counts: Record<string, number> = {};
@@ -98,13 +86,14 @@ export function useRunButton(options: UseRunButtonOptions = {}) {
             counts[e.category] = (counts[e.category] || 0) + 1;
           }
           const summary = Object.entries(counts)
-            .map(([cat, n]) => `${n} ${cat}`)
+            .map(([cat, n]) => `${n} ${t(`errorCategory.${cat}`, cat)}`)
             .join(", ");
 
           const batchError: RuntimeError = {
             category: "grammar", // dominant category for coloring
-            title: `${allErrors.length} issue${allErrors.length > 1 ? "s" : ""} found`,
-            message: `Fix ${summary} before running.`,
+            titleKey: "friendlyError.grammar.title",
+            messageKey: "console.foundErrorsBatch",
+            messageArgs: { count: allErrors.length, summary },
             raw: "",
             suggestions: allErrors
               .filter((d) => d.suggestions?.length)

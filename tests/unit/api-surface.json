@@ -1,0 +1,55 @@
+{
+  "_comment": "API v1 surface snapshot. Regenerated when __all__ or public surfaces change. Update procedure: run `npm run test:snapshot` to verify; if CI fails, update this file and docs/api-v1.md together.",
+  "_version": "1.0",
+  "__all__": [
+    "_version", "size", "width", "height",
+    "circle", "rect", "ellipse", "line", "point",
+    "text", "text_size", "text_align",
+    "say",
+    "fill", "no_fill", "stroke", "no_stroke", "stroke_width",
+    "background",
+    "image",
+    "frame_rate", "frame_count",
+    "random", "random_color",
+    "clamp", "randint", "pick",
+    "Colors", "AnchorPoint",
+    "lerp", "darker", "lighter", "saturated", "desaturated",
+    "Sprite", "PixelView", "create_sprite", "get_pixel", "set_pixel",
+    "palette_swap", "flood_fill",
+    "darken", "lighten", "saturate", "desaturate",
+    "Vector2", "Point", "Polar",
+    "Mouse", "Keyboard", "Window",
+    "Actor", "Rect", "Circle", "Group", "Collider",
+    "Camera",
+    "TilemapLayer", "TileMap", "TileRef",
+    "TileGroup", "Cell", "Bounds", "noise",
+    "Light",
+    "Animation",
+    "SheetAnimation", "SpriteEntry", "SheetNamespace", "AnimationController",
+    "Timer",
+    "State",
+    "run", "stop",
+    "assets",
+    "sheet"
+  ],
+  "Actor": {
+    "properties": ["x", "y", "angle", "vx", "vy", "pos", "vel", "visible", "scale", "flip_x", "flip_y", "image", "collider", "state"],
+    "methods": ["init", "update", "draw", "move", "forward", "move_to", "rotate", "point_towards", "die", "is_alive", "wrap", "wrap_x", "wrap_y", "in_bounds", "bounce", "keep_in_bounds", "distance_to", "random_position"],
+    "anchors": ["center", "top", "bottom", "left", "right", "top_left", "top_right", "bottom_left", "bottom_right"]
+  },
+  "Mouse": {
+    "properties": ["x", "y", "pos", "pressed", "down", "released"]
+  },
+  "Keyboard": {
+    "properties": ["arrow_up", "arrow_down", "arrow_left", "arrow_right", "space", "enter", "escape", "tab", "backspace", "delete", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", "key_0", "key_1", "key_2", "key_3", "key_4", "key_5", "key_6", "key_7", "key_8", "key_9"]
+  },
+  "Window": {
+    "properties": ["width", "height", "top_left", "top_right", "bottom_left", "bottom_right", "center", "top", "bottom", "left", "right"]
+  },
+  "State": {
+    "description": "Mutable namespace for module-level game state. Attributes are unrestricted."
+  },
+  "Group": {
+    "methods": ["add", "remove", "clear", "__iter__", "__len__", "__contains__"]
+  }
+}

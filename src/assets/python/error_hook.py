@@ -45,16 +45,6 @@ _ERROR_CATEGORIES = {
     "MemoryError": "logic",
 }
 
-# Kid-friendly short labels per category.
-_FRIENDLY_TITLES = {
-    "naming": "Naming mistake",
-    "types": "Type mix-up",
-    "grammar": "Grammar problem",
-    "missing": "Something missing",
-    "logic": "Logic error",
-    "api-misuse": "API mistake",
-}
-
 # Grammar/syntax errors block running; everything else allows it.
 _BLOCKING_CATEGORIES = {"grammar"}
 
@@ -155,97 +145,82 @@ def _parse_traceback_location(tb_text: str) -> Optional[dict]:
     return None
 
 
-def _build_friendly_message(
+def _build_error_keys(
     exc: Exception, category: str, token: Optional[str], suggestions: list
-) -> str:
-    """Build a kid-friendly plain-English explanation string."""
-    exc_name = type(exc).__name__
+) -> tuple[Optional[str], dict]:
+    """Build structured i18n messageKey and messageArgs from an exception."""
     msg = str(exc)
 
     if category == "naming":
+        args = {}
         if token:
-            base = f"The name '{token}' isn't recognized."
-            if suggestions and suggestions[0].get("candidates"):
-                candidates = suggestions[0]["candidates"]
-                if len(candidates) == 1:
-                    base += f" Did you mean '{candidates[0]}'?"
-                else:
-                    names = "', '".join(candidates)
-                    base += f" Did you mean one of: '{names}'?"
+            args["name"] = token
+        if suggestions and suggestions[0].get("candidates"):
+            candidates = suggestions[0]["candidates"]
+            if len(candidates) == 1:
+                args["candidate"] = candidates[0]
             else:
-                base += " Check your spelling — Python is case-sensitive!"
-            return base
+                args["candidates"] = ", ".join(candidates[:3])
+        return ("friendlyError.naming.undefined", args) if token else (None, {})
 
     if category == "types":
-        # Strip module paths for readability
         clean = re.sub(r"<class '(\w+)'>", r"\1", msg)
-
-        # Common TypeError patterns — give actionable advice
         if "unsupported operand type" in clean and "+" in clean:
             m = re.search(r"unsupported operand type.*for\s+\+:\s*'(\w+)'\s+and\s+'(\w+)'", clean)
             if m:
-                a, b = m.group(1), m.group(2)
-                if a == "int" and b == "str":
-                    return f"You tried to add a number and text together. Try converting one: str(N) + 'text' or N + int('5')."
-                if a == "str" and b == "int":
-                    return f"You tried to add text and a number together. Try converting: 'text' + str(N) or int('5') + N."
-                return f"You can't add a {a} and a {b} together. Try converting one to the other type."
+                return ("friendlyError.types.badOperator", {"op": "+", "left": m.group(1), "right": m.group(2)})
         if "object is not callable" in clean:
-            return "You're using parentheses on something that isn't a function. Did you mean to access a property instead?"
+            return ("friendlyError.types.notCallable", {})
         if "missing" in clean and "required positional argument" in clean:
-            return f"Not enough information! {clean}"
+            return ("friendlyError.types.missingArg", {"details": clean.strip().split('\n')[-1]})
         if "takes" in clean and "argument" in clean and "given" in clean:
-            return f"Wrong number of arguments: {clean}"
-
-        lines = clean.strip().split("\n")
-        return lines[-1] if lines else clean
+            return ("friendlyError.types.wrongArgCount", {"details": clean.strip().split('\n')[-1]})
+        return ("friendlyError.types.badOperator", {"op": "?", "left": "", "right": ""})
 
     if category == "grammar":
         if "expected ':'" in msg or "expected ':'" in str(exc):
-            return "A ':' (colon) is missing at the end of a line."
+            return ("friendlyError.grammar.missingColon", {})
         if "indentation" in msg.lower() or isinstance(exc, IndentationError):
-            return "The spacing (indentation) isn't right. Make sure each line starts at the correct position."
+            return ("friendlyError.grammar.indentation", {})
         if "unexpected EOF" in msg:
-            return "Python reached the end of your code but expected more. Check for missing closing brackets or parentheses."
-        return "Python can't understand this line. Check for typos or missing symbols."
+            return ("friendlyError.grammar.unexpectedEOF", {})
+        return ("friendlyError.grammar.syntaxError", {})
 
     if category == "missing":
         if isinstance(exc, ImportError) or isinstance(exc, ModuleNotFoundError):
-            name = token or msg.split("'")[1] if "'" in msg else "that"
-            base = f"Can't find '{name}'. Make sure you spelled it correctly."
+            name = token or (msg.split("'")[1] if "'" in msg else "that")
+            args = {"module": name}
             if suggestions and suggestions[0].get("candidates"):
                 candidates = suggestions[0]["candidates"]
                 if len(candidates) == 1:
-                    base += f" Did you mean '{candidates[0]}'?"
+                    args["candidate"] = candidates[0]
                 else:
-                    names = "', '".join(candidates)
-                    base += f" Did you mean one of: '{names}'?"
-            return base
+                    args["candidates"] = ", ".join(candidates[:3])
+            return ("friendlyError.missing.importError", args)
         if isinstance(exc, KeyError):
-            return f"The key '{msg}' doesn't exist. Check your spelling."
-        return msg.split("\n")[-1] if "\n" in msg else msg
+            return ("friendlyError.missing.keyError", {"key": msg})
+        return ("friendlyError.missing.missingFallback", {})
 
     if category == "logic":
         if isinstance(exc, ZeroDivisionError):
-            return "You tried to divide by zero — that's not possible!"
+            return ("friendlyError.logic.zeroDivision", {})
         if isinstance(exc, IndexError):
             pos = msg.split()[-1] if msg.split() else "?"
-            return f"You tried to reach position {pos} but it doesn't exist. Remember: counting starts at 0, so a list with 3 items has positions 0, 1, and 2."
+            return ("friendlyError.logic.indexError", {"index": pos})
         if isinstance(exc, ValueError):
-            return f"The value you used doesn't work here: {msg}"
+            return ("friendlyError.logic.valueError", {})
         if isinstance(exc, MemoryError):
-            return "Your program ran out of memory. Try using smaller lists or fewer sprites."
+            return ("friendlyError.logic.memoryError", {})
         if isinstance(exc, RecursionError):
-            return "Your function called itself too many times — it went into an infinite loop!"
+            return ("friendlyError.logic.recursionError", {})
         if isinstance(exc, AssertionError):
-            return f"An 'assert' check failed: {msg}"
-        return msg.split("\n")[-1] if "\n" in msg else msg
+            return ("friendlyError.logic.assertionError", {"message": msg.split('\n')[-1]})
+        return (None, {})
 
     if category == "api-misuse":
-        return msg.split("\n")[-1] if "\n" in msg else msg
+        return ("friendlyError.apiMisuse.fallback", {})
 
-    # Fallback
-    return msg.split("\n")[-1] if "\n" in msg else msg
+    return (None, {})
 
 
 def _extract_user_names(code: str) -> set[str]:
@@ -312,9 +287,7 @@ def classify_error(
         location = _parse_traceback_location(raw)
         return {
             "category": category,
-            "title": _FRIENDLY_TITLES.get(category, "Error"),
             "titleKey": title_key,
-            "message": exc.message_key,  # fallback; frontend prefers messageKey
             "messageKey": exc.message_key,
             "messageArgs": exc.message_args,
             "raw": raw,
@@ -329,7 +302,7 @@ def classify_error(
 
     exc_name = type(exc).__name__
     category = _ERROR_CATEGORIES.get(exc_name, "logic")
-    title = _FRIENDLY_TITLES.get(category, "Error")
+    title_key = f"friendlyError.{category}.title"
     is_blocking = category in _BLOCKING_CATEGORIES
 
     # Full traceback for the "show details" expand/collapse
@@ -340,16 +313,29 @@ def classify_error(
     # Extract the problematic token and compute suggestions
     token = _extract_name_from_error(exc)
     suggestions = []
+    message_key_override = None
+    message_args_override = {}
     if token:
         # Merge KNOWN_SYMBOLS with user-defined names for a complete candidate pool
         user_names = _extract_user_names(user_code)
         all_candidates = KNOWN_SYMBOLS | user_names
-        candidates = _compute_suggestions(token, all_candidates)
-        if candidates:
-            suggestions = [{"token": token, "candidates": candidates}]
+        # Check for Cyrillic homoglyphs first (wrong keyboard layout)
+        from syntax_hints import check_homoglyph
+        homo_key, homo_args = check_homoglyph(token, all_candidates)
+        if homo_key:
+            message_key_override = homo_key
+            message_args_override = homo_args
+            suggestions = [{"token": token, "candidates": [homo_args["fixed"]]}]
+        else:
+            candidates = _compute_suggestions(token, all_candidates)
+            if candidates:
+                suggestions = [{"token": token, "candidates": candidates}]
 
-    # Build kid-friendly message
-    message = _build_friendly_message(exc, category, token, suggestions)
+    # Build structured i18n keys
+    message_key, message_args = _build_error_keys(exc, category, token, suggestions)
+    if message_key_override:
+        message_key = message_key_override
+        message_args = message_args_override
 
     # Parse location from traceback
     location = _parse_traceback_location(raw)
@@ -366,8 +352,9 @@ def classify_error(
 
     return {
         "category": category,
-        "title": title,
-        "message": message,
+        "titleKey": title_key,
+        "messageKey": message_key,
+        "messageArgs": message_args,
         "raw": raw,
         "cleanRaw": clean_raw,
         "suggestions": suggestions,

@@ -11,6 +11,7 @@ import GraphicsState from "../assets/python/graphics/_state_ns.py?raw";
 import Linter from "../assets/python/linter.py?raw";
 import ErrorHook from "../assets/python/error_hook.py?raw";
 import InputTransform from "../assets/python/input_transform.py?raw";
+import SyntaxHints from "../assets/python/syntax_hints.py?raw";
 import { libraryUrlMap, librarySoundUrlMap } from "../state/assets";
 import { createRunnerWorker } from "./workerFactory";
 
@@ -126,8 +127,8 @@ export const useRunnerStore = create<RunnerState>((set) => ({
               projectId: editor.currentProjectId ?? "",
               file: editor.currentFile ?? "",
               category: msg.error.category,
-              title: msg.error.title,
-              message: msg.error.message,
+              title: msg.error.title ?? msg.error.titleKey,
+              message: msg.error.message ?? msg.error.messageKey ?? "",
               traceback: msg.error.cleanRaw ?? msg.error.raw,
             }),
             keepalive: true,
@@ -368,6 +369,7 @@ function getWorker(): Worker {
     linter: Linter,
     errorHook: ErrorHook,
     inputTransform: InputTransform,
+    syntaxHints: SyntaxHints,
   } satisfies WorkerCommand);
   return worker;
 }

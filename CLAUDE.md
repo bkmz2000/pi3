@@ -163,6 +163,26 @@ Service worker at `public/sw.js` (cache name `webide-v4`). Caches Pyodide CDN as
 - Password auth can be enabled via `ALLOW_PASSWORD_AUTH=true` environment variable
 - See `LOGINUS_AUTH_INTEGRATION_UNIVERSAL.md` for complete OAuth integration guide
 
+### API Surface Snapshot
+
+`tests/unit/api-surface.json` is a checked-in snapshot of the graphics library's public API surface (derived from `_manifest.py EXPORTED_NAMES`). The test at `tests/unit/apiSurfaceSnapshot.test.ts` asserts it matches the live manifest. **Any future add/remove of a public name turns CI red** until the snapshot and docs are updated.
+
+Update procedure:
+1. Edit `graphics/__init__.py` `__all__` and `_manifest.py` `EXPORTED_NAMES`
+2. Update `tests/unit/api-surface.json` to match
+3. Update `docs/api-v1.md` changelog
+4. Run `npm test` to verify the snapshot test passes
+
+### Error System (Phases D-E, 2026-06-10)
+
+All library-raised teaching errors now use structured i18n keys through `FriendlyError` (`src/assets/python/graphics/_errors.py`). The frontend renders all text through i18next for bilingual support.
+
+- **error_hook.py** — Classifies Python exceptions into structured `{messageKey, messageArgs, titleKey}` dicts. No longer produces English prose.
+- **syntax_hints.py** — Shared pattern engine for syntax error classification (smart quotes, empty imports, missing dots, homoglyphs, etc.). Called by both `linter.py` and `error_hook.py`.
+- **ALL_MESSAGE_KEYS** in `_errors.py` — Registry of every i18n key the Python side can emit. Enforced by `tests/unit/friendlyErrorI18n.test.ts`.
+- **Key files**: `_errors.py`, `error_hook.py`, `syntax_hints.py`, `linter.py`, `en.json`, `ru.json`, `WorkerInterface.ts`, `ConsolePanel.tsx`, `useRunButton.ts`
+- **Tests**: `tests/unit/friendlyErrorI18n.test.ts` (key existence + parity), `tests/unit/linterI18n.test.ts` (linter keys), `tests/unit/apiSurfaceSnapshot.test.ts` (API freeze)
+
 **Recent Fix (2026-05-20):**
 Fixed critical OAuth cookie path validation issue. OAuth state/return cookies were scoped to `/api/auth/callback` instead of `/`, preventing proper callback verification. Changed to `path: '/'` per OAuth 2.0 specification. This fixed:
 - Login redirecting to Loginus dashboard instead of app callback

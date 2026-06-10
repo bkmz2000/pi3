@@ -972,25 +972,29 @@ def lint(code: str, filename: str = "main.py") -> list[dict]:
     try:
         tree = ast.parse(code, filename)
     except SyntaxError as e:
-        # Categorize common syntax errors for better translation
-        msg = e.msg
-        msg_key = "linter.E999"
-        msg_args = {}
+        # Use shared syntax classifier for better translation
+        from syntax_hints import classify_syntax_error
+        result = classify_syntax_error(code, e)
+        msg_key = result["messageKey"]
+        msg_args = result.get("messageArgs", {})
 
-        if "expected ':'" in msg:
-            msg_key = "linter.E999Colon"
-        elif "was never closed" in msg:
-            msg_key = "linter.E999Unclosed"
-        elif "unterminated string" in msg:
-            msg_key = "linter.E999Unterminated"
-        elif "invalid syntax" in msg:
-            msg_key = "linter.E999Invalid"
-        elif "EOL" in msg or "EOF" in msg:
-            msg_key = "linter.E999EOL"
-        elif "unmatched" in msg:
-            msg_key = "linter.E999Unmatched"
-        elif "can't assign to" in msg:
-            msg_key = "linter.E999Assign"
+        # Fallback to legacy classification if the classifier returned default
+        if msg_key == "linter.E999":
+            msg = e.msg
+            if "expected ':'" in msg:
+                msg_key = "linter.E999Colon"
+            elif "was never closed" in msg:
+                msg_key = "linter.E999Unclosed"
+            elif "unterminated string" in msg:
+                msg_key = "linter.E999Unterminated"
+            elif "invalid syntax" in msg:
+                msg_key = "linter.E999Invalid"
+            elif "EOL" in msg or "EOF" in msg:
+                msg_key = "linter.E999EOL"
+            elif "unmatched" in msg:
+                msg_key = "linter.E999Unmatched"
+            elif "can't assign to" in msg:
+                msg_key = "linter.E999Assign"
 
         diagnostics.append(
             _make_diagnostic(
@@ -1070,13 +1074,21 @@ def _annotate_diagnostics(diagnostics, tree, scope_tracker):
         diag["category"] = category
         diag["isBlocking"] = category in _BLOCKING
 
-        # Add suggestions for F821 (undefined name) — reuse existing _levenshtein
+        # Add suggestions for F821 (undefined name) — check homoglyphs first, then Levenshtein
         if code == "F821" or (code == "E225Call" and "name" in diag.get("messageArgs", {})):
             name = diag.get("messageArgs", {}).get("name", "")
             if name and _known_names:
-                candidates = _compute_lint_suggestions(name, _known_names)
-                if candidates:
-                    diag["suggestions"] = [{"token": name, "candidates": candidates}]
+                # Check for Cyrillic homoglyphs (wrong keyboard layout)
+                from syntax_hints import check_homoglyph
+                homo_key, homo_args = check_homoglyph(name, _known_names)
+                if homo_key:
+                    diag["messageKey"] = homo_key
+                    diag["messageArgs"] = homo_args
+                    diag["suggestions"] = [{"token": name, "candidates": [homo_args["fixed"]]}]
+                else:
+                    candidates = _compute_lint_suggestions(name, _known_names)
+                    if candidates:
+                        diag["suggestions"] = [{"token": name, "candidates": candidates}]
 
 
 def _compute_lint_suggestions(token, candidates, max_distance=2):

@@ -207,6 +207,7 @@
     "foundNonBlocking": "{{count}} issue(s) found. Running anyway — you'll see errors if they happen.",
     "foundWarnings": "{{count}} warning(s). Starting anyway...",
     "noErrors": "No errors found. Starting...",
+    "foundErrorsBatch": "{{count}} issue(s) ({{summary}}) — fix before running",
     "errorFormat": "  {{message}} ({{line}})"
   },
   "linter": {
@@ -218,6 +219,12 @@
     "E999EOL": "Syntax error: premature end of line",
     "E999Unmatched": "Syntax error: unmatched brackets or parentheses",
     "E999Assign": "Syntax error: cannot assign to this expression",
+    "E999SmartQuotes": "Found a typographic quote '{{char}}'. Use straight quotes \" or ' instead.",
+    "E999ImportEmpty": "Empty import — what do you want to import? Try adding * for everything.",
+    "E999MissingDot": "Did you mean '{{obj}}.{{attr}}'? Add a dot between them.",
+    "E999AssignInCondition": "Use == to compare, not =. A single = assigns a value.",
+    "E999MissingCallParens": "'{{func}}' is a function — add parentheses: {{func}}()",
+    "E999DefParens": "Missing parentheses after '{{name}}'. Write 'def {{name}}():' instead.",
     "E101": "Indentation contains tabs",
     "E111": "Indentation not multiple of 4 (found {{found}})",
     "E225": "Unsupported operand types for {{op}}: '{{left}}' and '{{right}}'",
@@ -230,7 +237,23 @@
     "W002": "'{{name}}' is a non-descriptive variable name",
     "W003": "'{{name}}' looks like a random name — use a descriptive name",
     "W004": "'{{name}}' is very similar to '{{other}}' — possible typo or copy-paste",
-    "W005": "'{{name}}' was {{fromType}}, now reassigned to {{toType}}"
+    "W005": "'{{name}}' was {{fromType}}, now reassigned to {{toType}}",
+    "E999Label": "Syntax",
+    "E101Label": "Tabs",
+    "E111Label": "Indent",
+    "E303Label": "Blanks",
+    "E501Label": "Long",
+    "E225Label": "Types",
+    "E225CallLabel": "Args",
+    "F401Label": "Unused",
+    "F821Label": "Name"
+  },
+  "errorCategory": {
+    "naming": "naming",
+    "types": "types",
+    "grammar": "grammar",
+    "missing": "missing",
+    "logic": "logic"
   },
   "docs": {
     "title": "Reference",
@@ -984,13 +1007,17 @@
       "noSprite": "The sheet has no sprite '{{name}}'. Available: {{available}}.",
       "actorSealed": "'{{actor}}' has no attribute '{{name}}'. Did you declare it in __init__ or the init() hook?",
       "actorUnknown": "'{{actor}}' has no attribute '{{name}}'.",
-      "actorKwargTypo": "Unknown argument '{{name}}' — did you mean '{{nearest}}'?"
+      "actorKwargTypo": "Unknown argument '{{name}}' — did you mean '{{nearest}}'?",
+      "wrongLayout": "Looks like '{{got}}' was typed in a different keyboard layout. Did you mean '{{fixed}}'?"
     },
     "types": {
       "title": "Type mix-up",
       "badOperator": "Can't {{op}} a {{left}} with a {{right}}.",
       "wrongArgType": "{{func}}() expects {{expected}}, not {{found}}.",
-      "badColorType": "Expected a color (tuple, hex string, or palette name), not {{type}}."
+      "badColorType": "Expected a color (tuple, hex string, or palette name), not {{type}}.",
+      "notCallable": "You're using parentheses on something that isn't a function. Did you mean to access a property instead?",
+      "missingArg": "Not enough information! {{details}}",
+      "wrongArgCount": "Wrong number of arguments: {{details}}"
     },
     "grammar": {
       "title": "Grammar problem",
@@ -1002,7 +1029,8 @@
     "missing": {
       "title": "Something missing",
       "importError": "Can't find '{{module}}'. Is the name spelled correctly?",
-      "keyError": "'{{key}}' doesn't exist."
+      "keyError": "'{{key}}' doesn't exist.",
+      "missingFallback": "Something is missing or can't be found."
     },
     "logic": {
       "title": "Logic error",
@@ -1010,14 +1038,19 @@
       "valueError": "This value doesn't work here.",
       "zeroDivision": "You can't divide by zero.",
       "spriteNoFrames": "This animation has no frames.",
-      "emptySequence": "pick() was called on an empty list — there's nothing to pick from."
+      "emptySequence": "pick() was called on an empty list — there's nothing to pick from.",
+      "memoryError": "Your program ran out of memory. Try using smaller lists or fewer sprites.",
+      "recursionError": "Your function called itself too many times — it went into an infinite loop!",
+      "assertionError": "An 'assert' check failed: {{message}}"
     },
     "apiMisuse": {
-      "title": "API mistake"
+      "title": "API mistake",
+      "fallback": "The API was used in a way that isn't supported."
     },
     "rawTraceback": "Full error details",
     "showRaw": "Show details",
-    "hideRaw": "Hide details"
+    "hideRaw": "Hide details",
+    "blocksRunning": "blocks running"
   },
   "assetEditor": {
     "cancel": "Cancel",

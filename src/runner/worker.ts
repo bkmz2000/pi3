@@ -58,6 +58,7 @@ async function initPyodide(
   linter: string,
   errorHook: string,
   inputTransform: string,
+  syntaxHints: string,
 ) {
   console.log("Worker: Writing modules to filesystem...");
 
@@ -80,6 +81,7 @@ async function initPyodide(
   p.FS.writeFile("/linter.py", linter);
   p.FS.writeFile("/error_hook.py", errorHook);
   p.FS.writeFile("/input_transform.py", inputTransform);
+  p.FS.writeFile("/syntax_hints.py", syntaxHints);
 
   console.log("Worker: Files written, running Python initialization...");
 
@@ -633,7 +635,7 @@ self.onmessage = async (e: MessageEvent<WorkerCommand>) => {
       const p = await ensurePyodide();
       console.log("Worker: Pyodide loaded, initializing modules...");
       const errorHookSrc = msg.errorHook;
-      await initPyodide(p, msg.graphicsInit, msg.graphicsActors, msg.graphicsAnimation, msg.graphicsManifest, msg.graphicsErrors, msg.graphicsState, msg.linter, errorHookSrc, msg.inputTransform);
+      await initPyodide(p, msg.graphicsInit, msg.graphicsActors, msg.graphicsAnimation, msg.graphicsManifest, msg.graphicsErrors, msg.graphicsState, msg.linter, errorHookSrc, msg.inputTransform, msg.syntaxHints);
       console.log("Worker: Initialization complete, posting ready");
       post({ type: "ready" });
     } catch (err: unknown) {

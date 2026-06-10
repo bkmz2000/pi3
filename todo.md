@@ -3,12 +3,15 @@
 ## Brainstorm (2026-04-16)
 
 ### Movement Interface Rework
-- [ ] Clear distinction: velocity (continuous drift) vs one-shot movement
-- [ ] `set_velocity(dx, dy)` — continuous sliding motion
-- [ ] `move_forward(distance)` — one-shot in facing direction, ignores velocity
-- [ ] `move_to(x, y)` — teleport
-- [ ] `move_by(dx, dy)` — absolute x/y movement (not polar)
-- [ ] `move(distance)` always calls `move_forward`, never uses velocity
+- [x] Clear distinction: velocity (continuous drift) vs one-shot movement — DONE (Phase B)
+- [x] `set_velocity(dx, dy)` — DONE: `actor.vx`/`actor.vy` properties
+- [x] `move_forward(distance)` — DONE: renamed to `forward(distance)`
+- [x] `move_to(x, y)` — DONE: unchanged
+- [x] `move_by(dx, dy)` — REMOVED: use `actor.x += dx` or `actor.move_to()`
+- [x] `move(distance)` — REMOVED: `move()` now applies vx/vy; `forward(distance)` for directional
+- [x] Removed names from __all__: push, pop, translate, rotate, scale, change_x_by, change_y_by, Window.size/run/stop
+- [x] Actor sealing: custom attrs closed after init(); Kwarg typo detection
+- [x] State class, clamp, randint, pick, Mouse.pos, bounce, keep_in_bounds, distance_to
 
 ### Remove Linter from Release
 - [ ] Linter is dev-only, not bundled in student release

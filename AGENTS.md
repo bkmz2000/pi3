@@ -442,6 +442,18 @@ assets, sheet,
 
 ---
 
+## API Surface Snapshot
+
+`tests/unit/api-surface.json` freezes the public graphics API surface. Any
+add/remove of a name in `__all__` must update the snapshot and `docs/api-v1.md`
+in the same commit. CI fails if they diverge.
+
+Update procedure:
+1. Edit `graphics/__init__.py` `__all__` and `_manifest.py` `EXPORTED_NAMES`
+2. Update `tests/unit/api-surface.json` to match
+3. Update `docs/api-v1.md` changelog
+4. Run `npm test` to verify
+
 ## Stack
 
 - **React 19 + TypeScript + Vite 7** — frontend

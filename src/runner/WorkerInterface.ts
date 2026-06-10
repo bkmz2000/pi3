@@ -27,7 +27,7 @@ export type SheetRunPayload = {
 };
 
 export type WorkerCommand =
-  | { cmd: "init"; graphicsInit: string; graphicsActors: string; graphicsAnimation: string; graphicsManifest: string; graphicsErrors: string; graphicsState: string; linter: string; errorHook: string; inputTransform: string }
+  | { cmd: "init"; graphicsInit: string; graphicsActors: string; graphicsAnimation: string; graphicsManifest: string; graphicsErrors: string; graphicsState: string; linter: string; errorHook: string; inputTransform: string; syntaxHints: string }
   | {
       cmd: "run";
       files: Record<string, string>;
@@ -67,7 +67,9 @@ export type ErrorSuggestion = {
 export type PerError = {
   code: string;            // e.g. "F821", "E225", "E999"
   category: ErrorCategory;
-  label: string;           // human-readable short label, e.g. "Undefined name"
+  label: string;           // human-readable short label (legacy; prefer messageKey)
+  messageKey?: string;     // i18n key, e.g. "linter.F821"
+  messageArgs?: Record<string, string | number>;
   token?: string;          // the problematic name (if applicable)
   line: number;            // 1-based line number
   snippet: string;         // the line of code
@@ -77,9 +79,9 @@ export type PerError = {
 // Structured runtime error — replaces flat "error" events for user-code exceptions.
 export type RuntimeError = {
   category: ErrorCategory;
-  title: string;          // kid-friendly short label, e.g. "Naming mistake"
-  titleKey?: string;      // i18n key for title, e.g. "friendlyError.naming.title"
-  message: string;        // kid-friendly explanation (legacy; prefer messageKey)
+  title?: string;         // legacy; prefer titleKey
+  titleKey: string;       // i18n key for title, e.g. "friendlyError.naming.title"
+  message?: string;       // legacy; prefer messageKey
   messageKey?: string;    // i18n key, e.g. "friendlyError.naming.unknownKey"
   messageArgs?: Record<string, string | number>; // interpolation args for messageKey
   raw: string;            // original traceback string (for expand/collapse)

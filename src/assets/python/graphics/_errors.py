@@ -66,3 +66,53 @@ def _compute_suggestions(token: str, candidates, max_distance: int = 2) -> list:
             results.append((d, c))
     results.sort()
     return [c for _, c in results[:5]]
+
+
+# Registry of every i18n key the Python side can emit.
+# Used by the Jest test to assert en.json and ru.json cover every key.
+# When adding a new FriendlyError call site, add its key here.
+ALL_MESSAGE_KEYS = [
+    # Naming
+    "friendlyError.naming.title",
+    "friendlyError.naming.undefined",
+    "friendlyError.naming.unknownKey",
+    "friendlyError.naming.badColor",
+    "friendlyError.naming.noAnimation",
+    "friendlyError.naming.noSprite",
+    "friendlyError.naming.actorSealed",
+    "friendlyError.naming.actorUnknown",
+    "friendlyError.naming.actorKwargTypo",
+    "friendlyError.naming.wrongLayout",
+    # Types
+    "friendlyError.types.title",
+    "friendlyError.types.badOperator",
+    "friendlyError.types.wrongArgType",
+    "friendlyError.types.badColorType",
+    "friendlyError.types.notCallable",
+    "friendlyError.types.missingArg",
+    "friendlyError.types.wrongArgCount",
+    # Grammar
+    "friendlyError.grammar.title",
+    "friendlyError.grammar.syntaxError",
+    "friendlyError.grammar.missingColon",
+    "friendlyError.grammar.indentation",
+    "friendlyError.grammar.unexpectedEOF",
+    # Missing
+    "friendlyError.missing.title",
+    "friendlyError.missing.importError",
+    "friendlyError.missing.keyError",
+    "friendlyError.missing.missingFallback",
+    # Logic
+    "friendlyError.logic.title",
+    "friendlyError.logic.indexError",
+    "friendlyError.logic.valueError",
+    "friendlyError.logic.zeroDivision",
+    "friendlyError.logic.memoryError",
+    "friendlyError.logic.recursionError",
+    "friendlyError.logic.assertionError",
+    "friendlyError.logic.emptySequence",
+    "friendlyError.logic.spriteNoFrames",
+    # API misuse
+    "friendlyError.apiMisuse.title",
+    "friendlyError.apiMisuse.fallback",
+]

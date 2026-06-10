@@ -503,10 +503,14 @@ export function useRunner() {
       const w = getWorker();
       let settled = false;
 
+      // Object ref keeps clearTimeout safe even when finish() is called
+      // synchronously inside postMessage (before the setTimeout assignment).
+      const timerRef: { id: ReturnType<typeof setTimeout> | undefined } = { id: undefined };
+
       const finish = (hard: boolean) => {
         if (settled) return;
         settled = true;
-        clearTimeout(timer);
+        clearTimeout(timerRef.id);
         w.removeEventListener("message", handleMessage);
         if (hard) {
           hardKillWorker();
@@ -521,15 +525,12 @@ export function useRunner() {
         if (e.data?.type === "interrupt_ack") finish(false);
       };
 
-      // Declare timer before postMessage so clearTimeout() in finish() is safe
-      // even if the mock delivers the ack synchronously (during postMessage).
-      let timer: ReturnType<typeof setTimeout>;
       w.addEventListener("message", handleMessage);
       interruptBuffer[0] = 2;
       w.postMessage({ cmd: "interrupt" } satisfies WorkerCommand);
 
       // 500ms: if no ack (busy loop blocked the message handler), hard-kill
-      timer = setTimeout(() => finish(true), 500);
+      timerRef.id = setTimeout(() => finish(true), 500);
     });
   }, []);
 

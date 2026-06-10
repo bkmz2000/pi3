@@ -64,7 +64,7 @@ src/
 ├── state/
 │   └── IdeState.ts           # Zustand state management
 ├── runner/
-│   ├── worker.ts             # Pyodide + Ruff Web Worker
+│   ├── worker.ts             # Pyodide + Python linter Web Worker
 │   └── RunnerProvider.tsx    # Worker interface
 ├── components/               # Reusable UI components
 │   ├── Backdrop.tsx

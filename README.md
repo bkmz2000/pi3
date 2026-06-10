@@ -22,38 +22,24 @@ from graphics.actors import Actor
 
 
 def draw(self):
-    x, y = self.get_coords()
     fill(self.color)
     stroke("white")
-    rect(x - 50, y - 50, 100, 100)
+    rect(self.x - 50, self.y - 50, 100, 100)
 
 
 box = Actor(draw=draw, color="red")
 
 
-@setup
-def start():
-    size(700, 410)
-    box.set_coords(350, 205)
-
-
-@on_mouse_move
-def on_mouse_move(x, y):
-    box.set_coords(x, y)
-
-
-@on_mouse_click
-def on_mouse_click(x, y):
-    box.color = random_color()
-
-
-@every(1)
-def loop():
+def tick():
+    if Mouse.pressed:
+        box.color = random_color()
+    box.move_to(Mouse.x, Mouse.y)
     background("black")
     box.draw()
 
 
-run()
+size(700, 410)
+run(tick)
 ```
 
 ### Use Actors for Game Objects
@@ -62,19 +48,20 @@ The `Actor` system makes game objects easy:
 
 ```python
 from graphics import *
-
-size(800, 800)
+from graphics.actors import Actor
 
 ship = Actor(image=assets.sprites.ship, radius=20)
 
-@every(1)
-def loop():
+
+def tick():
     background("black")
-    ship.point_to(mouse_x(), mouse_y())
-    ship.move_forward(5)
+    ship.point_towards(Mouse.x, Mouse.y)
+    ship.move(5)
     ship.draw()
 
-run()
+
+size(800, 800)
+run(tick)
 ```
 
 ### Create Sprites

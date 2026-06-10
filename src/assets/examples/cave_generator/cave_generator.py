@@ -14,7 +14,6 @@ CELL = 8
 COLS = W // CELL
 ROWS = H // CELL
 
-seed = 42
 WALL_THRESHOLD = 0.55
 
 
@@ -44,31 +43,29 @@ def step(grid):
     return out
 
 
-grid = seed_grid(seed)
-# Smooth a few times so caves carve out naturally
+_g = seed_grid(42)
 for _ in range(4):
-    grid = step(grid)
+    _g = step(_g)
+state = State(seed=42, grid=_g)
 
 
 def tick():
-    global grid, seed
-
     if Keyboard.space.pressed:
-        seed = (seed * 31 + 17) % 9973
-        grid = seed_grid(seed)
+        state.seed = (state.seed * 31 + 17) % 9973
+        state.grid = seed_grid(state.seed)
         for _ in range(4):
-            grid = step(grid)
+            state.grid = step(state.grid)
 
     if Keyboard.s.pressed:
-        grid = step(grid)
+        state.grid = step(state.grid)
 
     background(8, 10, 16)
     no_stroke()
     for r in range(ROWS):
         for c in range(COLS):
-            if grid[r][c]:
+            if state.grid[r][c]:
                 # Wall — pick shade from noise so it isn't flat
-                t = noise(c, r, scale=0.4, seed=seed + 99)
+                t = noise(c, r, scale=0.4, seed=state.seed + 99)
                 fill(lerp(Colors.slate, Colors.gray, t))
                 rect(c * CELL, r * CELL, CELL, CELL)
 
@@ -76,7 +73,7 @@ def tick():
     fill(220, 220, 230)
     text_size(12)
     text_align("left", "top")
-    text("seed " + str(seed) + "    space new    s step", 10, 10)
+    text("seed " + str(state.seed) + "    space new    s step", 10, 10)
 
 
 run(tick)

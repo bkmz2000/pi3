@@ -10,8 +10,7 @@ for py in range(SIZE):
     for px in range(SIZE):
         set_pixel(board, px, py, PALETTE[int(random(len(PALETTE)))])
 
-moves = 0
-done = False
+state = State(moves=0, done=False)
 
 
 def all_same():
@@ -20,7 +19,6 @@ def all_same():
 
 
 def tick():
-    global moves, done
     background(Colors.slate)
 
     no_stroke()
@@ -31,19 +29,19 @@ def tick():
 
     fill(Colors.white)
     text_size(14)
-    text(f"Moves: {moves} / {MAX_MOVES}", Window.top_right)
+    text(f"Moves: {state.moves} / {MAX_MOVES}", Window.top_right)
 
     for i, c in enumerate(PALETTE):
         bx = 20 + i * 64
         by = SIZE * CELL + 30
         fill(c)
         rect(bx, by, 56, 34)
-        if not done and Mouse.pressed and bx <= Mouse.x <= bx + 56 and by <= Mouse.y <= by + 34:
+        if not state.done and Mouse.pressed and bx <= Mouse.x <= bx + 56 and by <= Mouse.y <= by + 34:
             flood_fill(board, 0, 0, c)
-            moves += 1
-            done = all_same() or moves >= MAX_MOVES
+            state.moves += 1
+            state.done = all_same() or state.moves >= MAX_MOVES
 
-    if done:
+    if state.done:
         text_size(24)
         fill(Colors.lime if all_same() else Colors.red)
         text("You win!" if all_same() else "No moves left!", Window.center)

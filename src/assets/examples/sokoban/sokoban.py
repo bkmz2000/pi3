@@ -29,23 +29,21 @@ for x in range(10):
         elif tile == 3:
             goals.append([x, y])
 
-px = 7
-py = 4
+state = State(px=7, py=4)
 
 
 def try_move(dx, dy):
-    global px, py
-    target = [px + dx, py + dy]
+    target = [state.px + dx, state.py + dy]
     if target not in boxes and target not in walls:
-        px += dx
-        py += dy
+        state.px += dx
+        state.py += dy
     elif target in boxes:
-        push = [px + 2 * dx, py + 2 * dy]
+        push = [state.px + 2 * dx, state.py + 2 * dy]
         if push not in boxes and push not in walls:
             boxes.remove(target)
             boxes.append(push)
-            px += dx
-            py += dy
+            state.px += dx
+            state.py += dy
 
 
 def tick():
@@ -71,7 +69,7 @@ def tick():
         rect(wx * 30, wy * 30, 30, 30)
 
     fill(Colors.blue)
-    rect(px * 30, py * 30, 30, 30)
+    rect(state.px * 30, state.py * 30, 30, 30)
 
     left = 0
     for bx, by in boxes:

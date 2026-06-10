@@ -28,11 +28,7 @@ coins = [
     Actor(assets.sheet.coin, x=750, y=GROUND - 30, scale=2),
 ]
 
-vy = 0
-on_ground = True
-score = 0
-alive = True
-distance = 0
+state = State(vy=0, on_ground=True, score=0, alive=True, distance=0)
 
 
 def reset_actor(actor, base_y, spread=400):
@@ -41,8 +37,6 @@ def reset_actor(actor, base_y, spread=400):
 
 
 def tick():
-    global vy, on_ground, score, alive, distance
-
     background(Colors.sky)
 
     # Scrolling ground
@@ -51,22 +45,22 @@ def tick():
     fill(Colors.lime)
     rect(0, GROUND + 28, W, 8)
 
-    if alive:
-        distance += 1
+    if state.alive:
+        state.distance += 1
 
         # Physics
-        vy += GRAVITY
-        hero.y += vy
+        state.vy += GRAVITY
+        hero.y += state.vy
 
         if hero.y >= GROUND:
             hero.y = GROUND
-            vy = 0
-            on_ground = True
+            state.vy = 0
+            state.on_ground = True
         else:
-            on_ground = False
+            state.on_ground = False
 
-        if (Keyboard.space.pressed or Keyboard.arrow_up.pressed) and on_ground:
-            vy = JUMP_V
+        if (Keyboard.space.pressed or Keyboard.arrow_up.pressed) and state.on_ground:
+            state.vy = JUMP_V
 
         # Scroll obstacles & coins
         for s in obstacles:
@@ -83,12 +77,12 @@ def tick():
         for c in list(coins):
             if c.is_alive() and hero.collides_with(c):
                 c.die()
-                score += 5
+                state.score += 5
 
         # Collision with slimes
         for s in obstacles:
             if hero.collides_with(s):
-                alive = False
+                state.alive = False
 
     # Draw coins (spinning)
     for c in coins:
@@ -102,12 +96,12 @@ def tick():
         s.draw()
 
     # Hero animation based on state
-    if not alive:
+    if not state.alive:
         hero.jump.tick()          # slumped pose
         hero.flip_y = True
-    elif not on_ground:
+    elif not state.on_ground:
         hero.jump.tick()
-    elif distance % 2 == 0:       # run at half-tick rate looks better at scale=2
+    elif state.distance % 2 == 0:  # run at half-tick rate looks better at scale=2
         hero.run.tick()
     else:
         hero.idle.tick()
@@ -118,16 +112,16 @@ def tick():
     no_stroke()
     fill(Colors.white)
     text_size(14)
-    text(f"Score: {score}", 8, 20)
-    text(f"Distance: {distance // 60}m", 8, 40)
+    text(f"Score: {state.score}", 8, 20)
+    text(f"Distance: {state.distance // 60}m", 8, 40)
 
-    if not alive:
+    if not state.alive:
         fill(Colors.red)
         text_size(22)
         text("Game Over!", Window.center)
         text_size(13)
         fill(Colors.white)
-        text("Press R to restart", Window.center_bottom)
+        text("Press R to restart", Window.bottom)
         if Keyboard.r.pressed:
             stop()
 

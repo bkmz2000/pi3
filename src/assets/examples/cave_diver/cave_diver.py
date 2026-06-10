@@ -4,7 +4,6 @@ W, H = 480, 400
 CELL = 16
 COLS = W // CELL
 ROWS = H // CELL
-seed = 7
 
 
 def smooth(g):
@@ -41,78 +40,70 @@ def place_gems(g, n=8):
     return gems
 
 
-grid = gen_cave(seed)
-gems = place_gems(grid)
-px, py = COLS // 2, 1
-air = 100.0
-score = 0
-done = False
-win = False
+_g = gen_cave(7)
+state = State(seed=7, grid=_g, gems=place_gems(_g),
+              px=COLS // 2, py=1, air=100.0, score=0, done=False, win=False)
 
 
 def try_move(dc, dr):
-    global px, py
-    nc, nr = px + dc, py + dr
-    if 0 <= nc < COLS and 0 <= nr < ROWS and not grid[nr][nc]:
-        px, py = nc, nr
+    nc, nr = state.px + dc, state.py + dr
+    if 0 <= nc < COLS and 0 <= nr < ROWS and not state.grid[nr][nc]:
+        state.px, state.py = nc, nr
 
 
 def reset():
-    global grid, gems, px, py, air, score, done, win, seed
-    seed = (seed * 31 + 17) % 9973
-    grid = gen_cave(seed)
-    gems = place_gems(grid)
-    px, py = COLS // 2, 1
-    air, score, done, win = 100.0, 0, False, False
+    state.seed = (state.seed * 31 + 17) % 9973
+    state.grid = gen_cave(state.seed)
+    state.gems = place_gems(state.grid)
+    state.px, state.py = COLS // 2, 1
+    state.air, state.score, state.done, state.win = 100.0, 0, False, False
 
 
 def tick():
-    global air, score, done, win
-
-    if done and Keyboard.r.pressed:
+    if state.done and Keyboard.r.pressed:
         reset()
         return
 
-    if not done:
+    if not state.done:
         if Keyboard.arrow_left.pressed or Keyboard.a.pressed:  try_move(-1,  0)
         if Keyboard.arrow_right.pressed or Keyboard.d.pressed: try_move( 1,  0)
         if Keyboard.arrow_up.pressed or Keyboard.w.pressed:    try_move( 0, -1)
         if Keyboard.arrow_down.pressed or Keyboard.s.pressed:  try_move( 0,  1)
-        air -= 0.25
-        for g in gems[:]:
-            if g[0] == px and g[1] == py:
-                gems.remove(g)
-                air = min(100, air + 25)
-                score += 10
-        if air <= 0 or py >= ROWS - 2:
-            done = True
-            win = py >= ROWS - 2
+        state.air -= 0.25
+        for g in state.gems[:]:
+            if g[0] == state.px and g[1] == state.py:
+                state.gems.remove(g)
+                state.air = min(100, state.air + 25)
+                state.score += 10
+        if state.air <= 0 or state.py >= ROWS - 2:
+            state.done = True
+            state.win = state.py >= ROWS - 2
 
     background(8, 10, 16)
     no_stroke()
     for r in range(ROWS):
         for c in range(COLS):
-            if grid[r][c]:
-                fill(lerp(Colors.slate, Colors.navy, noise(c, r, scale=0.4, seed=seed)))
+            if state.grid[r][c]:
+                fill(lerp(Colors.slate, Colors.navy, noise(c, r, scale=0.4, seed=state.seed)))
                 rect(c * CELL, r * CELL, CELL, CELL)
-    for g in gems:
+    for g in state.gems:
         fill(Colors.cyan)
         circle(g[0] * CELL + CELL // 2, g[1] * CELL + CELL // 2, CELL // 3)
     fill(Colors.lime)
-    circle(px * CELL + CELL // 2, py * CELL + CELL // 2, CELL // 2 - 2)
+    circle(state.px * CELL + CELL // 2, state.py * CELL + CELL // 2, CELL // 2 - 2)
 
     fill(Colors.navy)
     rect(8, 8, 104, 12)
-    fill(lerp(Colors.red, Colors.sky, max(0, air / 100)))
-    rect(8, 8, int(air), 12)
+    fill(lerp(Colors.red, Colors.sky, max(0, state.air / 100)))
+    rect(8, 8, int(state.air), 12)
     fill(Colors.white)
     text_size(11)
-    text(f"Air   Score: {score}", 118, 8)
+    text(f"Air   Score: {state.score}", 118, 8)
 
-    if done:
+    if state.done:
         text_size(26)
-        fill(Colors.lime if win else Colors.red)
-        text(f"{'Surface!' if win else 'Suffocated!'}  Score {score}  R retry", Window.center)
+        fill(Colors.lime if state.win else Colors.red)
+        text(f"{'Surface!' if state.win else 'Suffocated!'}  Score {state.score}  R retry", Window.center)
 
 
 size(W, H)

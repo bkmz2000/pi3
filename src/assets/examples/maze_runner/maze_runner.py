@@ -4,9 +4,6 @@ W, H = 480, 360
 CELL = 24
 COLS = W // CELL
 ROWS = H // CELL
-seed = 42
-
-
 def gen(s):
     g = [[0] * COLS for _ in range(ROWS)]
     for r in range(ROWS):
@@ -18,54 +15,49 @@ def gen(s):
     return g
 
 
-grid = gen(seed)
-px, py = 1, 1
-won = False
+state = State(seed=42, grid=gen(42), px=1, py=1, won=False)
 
 
-def move(dc, dr):
-    global px, py, won
-    nc, nr = px + dc, py + dr
-    if 0 <= nc < COLS and 0 <= nr < ROWS and not grid[nr][nc]:
-        px, py = nc, nr
-        if (px, py) == (COLS - 2, ROWS - 2):
-            won = True
+def step(dc, dr):
+    nc, nr = state.px + dc, state.py + dr
+    if 0 <= nc < COLS and 0 <= nr < ROWS and not state.grid[nr][nc]:
+        state.px, state.py = nc, nr
+        if (state.px, state.py) == (COLS - 2, ROWS - 2):
+            state.won = True
 
 
 def tick():
-    global grid, seed, px, py, won
+    if Keyboard.r.pressed or (state.won and Keyboard.space.pressed):
+        state.seed = (state.seed * 31 + 17) % 9973
+        state.grid = gen(state.seed)
+        state.px, state.py = 1, 1
+        state.won = False
 
-    if Keyboard.r.pressed or (won and Keyboard.space.pressed):
-        seed = (seed * 31 + 17) % 9973
-        grid = gen(seed)
-        px, py = 1, 1
-        won = False
-
-    if not won:
-        if Keyboard.arrow_left.pressed or Keyboard.a.pressed:  move(-1,  0)
-        if Keyboard.arrow_right.pressed or Keyboard.d.pressed: move( 1,  0)
-        if Keyboard.arrow_up.pressed or Keyboard.w.pressed:    move( 0, -1)
-        if Keyboard.arrow_down.pressed or Keyboard.s.pressed:  move( 0,  1)
+    if not state.won:
+        if Keyboard.arrow_left.pressed or Keyboard.a.pressed:  step(-1,  0)
+        if Keyboard.arrow_right.pressed or Keyboard.d.pressed: step( 1,  0)
+        if Keyboard.arrow_up.pressed or Keyboard.w.pressed:    step( 0, -1)
+        if Keyboard.arrow_down.pressed or Keyboard.s.pressed:  step( 0,  1)
 
     background(8, 10, 16)
     no_stroke()
     for r in range(ROWS):
         for c in range(COLS):
-            if grid[r][c]:
-                fill(lerp(Colors.slate, Colors.gray, noise(c, r, scale=0.4, seed=seed + 7)))
+            if state.grid[r][c]:
+                fill(lerp(Colors.slate, Colors.gray, noise(c, r, scale=0.4, seed=state.seed + 7)))
                 rect(c * CELL, r * CELL, CELL, CELL)
 
     ex, ey = (COLS - 2) * CELL + CELL // 2, (ROWS - 2) * CELL + CELL // 2
     fill(Colors.yellow)
     circle(ex, ey, CELL // 2)
     fill(Colors.cyan)
-    circle(px * CELL + CELL // 2, py * CELL + CELL // 2, CELL // 2 - 2)
+    circle(state.px * CELL + CELL // 2, state.py * CELL + CELL // 2, CELL // 2 - 2)
 
     fill(Colors.silver)
     text_size(11)
     text("Arrows/WASD move   R new maze", Window.bottom_left)
 
-    if won:
+    if state.won:
         fill(Colors.yellow)
         text_size(28)
         text("You escaped!  Space new maze", Window.center)

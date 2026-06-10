@@ -2,9 +2,7 @@ from graphics import *
 
 W, H = 600, 420
 targets = []   # [x, y, radius, max_radius, decay]
-score = 0
-streak = 0
-missed = 0
+state = State(score=0, streak=0, missed=0)
 MAX_MISSED = 5
 
 
@@ -21,8 +19,6 @@ spawn()
 
 
 def tick():
-    global score, streak, missed
-
     background(Colors.black)
     clicked = Mouse.pressed
     hit = False
@@ -31,8 +27,8 @@ def tick():
         t[2] -= t[4]
         if t[2] <= 0:
             targets.remove(t)
-            missed += 1
-            streak = 0
+            state.missed += 1
+            state.streak = 0
             spawn()
             continue
 
@@ -44,8 +40,8 @@ def tick():
         if clicked and not hit:
             dist = ((Mouse.x - t[0]) ** 2 + (Mouse.y - t[1]) ** 2) ** 0.5
             if dist < t[2]:
-                score += 1
-                streak += 1
+                state.score += 1
+                state.streak += 1
                 targets.remove(t)
                 spawn()
                 hit = True
@@ -56,14 +52,14 @@ def tick():
     fill(Colors.white)
     no_stroke()
     text_size(16)
-    text(f"Score: {score}   Streak: {streak}", Window.top_left)
+    text(f"Score: {state.score}   Streak: {state.streak}", Window.top_left)
     fill(Colors.red)
-    text("✕" * missed + "○" * (MAX_MISSED - missed), Window.top_right)
+    text("✕" * state.missed + "○" * (MAX_MISSED - state.missed), Window.top_right)
 
-    if missed >= MAX_MISSED:
+    if state.missed >= MAX_MISSED:
         fill(Colors.orange)
         text_size(30)
-        text(f"Final score: {score}", Window.center)
+        text(f"Final score: {state.score}", Window.center)
         stop()
 
 

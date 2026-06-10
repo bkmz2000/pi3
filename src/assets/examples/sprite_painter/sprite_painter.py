@@ -44,20 +44,17 @@ def build_face():
     return s
 
 
-face = build_face()
-active = 1
+state = State(face=build_face(), active=1)
 
 
 def tick():
-    global face, active
-
     # Poll number keys — press → rebuild + recolor
     for k, (new_inner, new_ink) in PALS.items():
         if Keyboard[k].pressed:
-            face = build_face()
-            palette_swap(face, INNER, new_inner)
-            palette_swap(face, INK,   new_ink)
-            active = int(k)
+            state.face = build_face()
+            palette_swap(state.face, INNER, new_inner)
+            palette_swap(state.face, INK,   new_ink)
+            state.active = int(k)
 
     background(28, 30, 38)
     no_stroke()
@@ -65,10 +62,10 @@ def tick():
     text_size(12)
     text_align("left", "top")
     text("Press 1 / 2 / 3 / 4 to recolor", 16, 16)
-    text("palette " + str(active), 16, 36)
+    text("palette " + str(state.active), 16, 36)
 
     # Sprite shown at 8x scale (256 px), centred-ish
-    image(face, 112, 48, 256, 256)
+    image(state.face, 112, 48, 256, 256)
 
 
 run(tick)

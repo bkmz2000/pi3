@@ -3,9 +3,7 @@ from graphics.actors import Rect, Circle, Group
 
 FRUIT_COLORS = [Colors.red, Colors.yellow, Colors.orange, Colors.wine, Colors.lime]
 
-score = 0
-lives = 3
-frame = 0
+state = State(score=0, lives=3, frame=0)
 
 basket = Rect(x=250, y=370, width=80, height=20, color=Colors.orange)
 falling = Group()
@@ -19,8 +17,7 @@ def spawn():
 
 
 def tick():
-    global score, lives, frame
-    frame += 1
+    state.frame += 1
 
     background(Colors.black)
 
@@ -30,15 +27,16 @@ def tick():
         basket.x += 5
     basket.x = max(40, min(460, basket.x))
 
-    if frame % 50 == 0:
+    if state.frame % 50 == 0:
         spawn()
 
     for fruit in falling:
+        fruit.move()
         if basket.collides_with(fruit):
-            score += 1
+            state.score += 1
             fruit.die()
         elif fruit.y > height() + 20:
-            lives -= 1
+            state.lives -= 1
             fruit.die()
         else:
             fruit.draw()
@@ -48,10 +46,10 @@ def tick():
     no_stroke()
     text_size(18)
     fill(Colors.white)
-    text(f"Score: {score}", Window.top_left)
-    text(f"{'♥' * lives}", Window.top_right)
+    text(f"Score: {state.score}", Window.top_left)
+    text(f"{'♥' * state.lives}", Window.top_right)
 
-    if lives <= 0:
+    if state.lives <= 0:
         text_size(32)
         fill(Colors.red)
         text("Game Over!", Window.center)

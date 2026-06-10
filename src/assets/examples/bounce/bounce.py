@@ -16,6 +16,7 @@ ball = Ball(x=200, y=100, radius=20, color=g.Colors.cyan)
 
 def tick():
     g.background("black")
+    ball.move()
     ball.bounce()
     ball.draw()
 

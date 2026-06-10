@@ -17,17 +17,13 @@ coins = [Actor(assets.platformer.coin, x=x, y=340, scale=0.4)
          for x in range(300, 1500, 200)]
 
 cam = Camera(hero)
-vy = 0
-on_ground = False
-score = 0
+state = State(vy=0, on_ground=False, score=0)
 
 
 def main():
-    global vy, on_ground, score
-
     # Gravity
-    vy += 0.6
-    hero.y += vy
+    state.vy += 0.6
+    hero.y += state.vy
 
     # Horizontal input
     if Keyboard.arrow_left.down:
@@ -38,16 +34,16 @@ def main():
         hero.flip_x = False
 
     # Jump
-    if Keyboard.space.pressed and on_ground:
-        vy = -12
+    if Keyboard.space.pressed and state.on_ground:
+        state.vy = -12
 
     # Ground collision
-    on_ground = False
+    state.on_ground = False
     for t in ground:
         if hero.collides_with(t):
             hero.y = t.y - 42
-            vy = 0
-            on_ground = True
+            state.vy = 0
+            state.on_ground = True
             break
 
     # Coin pickup
@@ -55,7 +51,7 @@ def main():
         if hero.collides_with(c):
             c.die()
             coins.remove(c)
-            score += 1
+            state.score += 1
 
     # Draw
     background(60, 140, 220)
@@ -68,7 +64,7 @@ def main():
 
     fill(255)
     text_size(20)
-    text(f"Coins: {score}", 20, 30)
+    text(f"Coins: {state.score}", 20, 30)
 
 
 run(main)

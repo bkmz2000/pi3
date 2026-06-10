@@ -6,23 +6,21 @@ phrases = [
     "I love making games!",
     "Python is awesome!",
 ]
-current = 0
+state = State(current=0)
 
 head = Circle(x=250, y=155, radius=38, color=Colors.cyan)
 body = Rect(x=250, y=245, width=72, height=90, color=Colors.blue)
 
 
 def tick():
-    global current
-
     background(Colors.black)
 
     if Keyboard.key_1.pressed:
-        current = 0
+        state.current = 0
     elif Keyboard.key_2.pressed:
-        current = 1
+        state.current = 1
     elif Keyboard.key_3.pressed:
-        current = 2
+        state.current = 2
 
     body.draw()
     head.draw()
@@ -44,7 +42,7 @@ def tick():
 
     # Speech bubble above the robot's head
     no_stroke()
-    say(phrases[current], head.top)
+    say(phrases[state.current], head.top)
 
     # Hint at the bottom
     fill(Colors.gray)

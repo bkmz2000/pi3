@@ -9,22 +9,23 @@ ball = Circle(x=200, y=200, radius=18, color=COLORS[0])
 ball.vx = SPEED
 ball.vy = SPEED
 
-tick_count = 0
+state = State(tick_count=0)
 
 
 def tick():
-    global tick_count
-    tick_count += 1
+    state.tick_count += 1
 
     background(Colors.black)
 
-    # Arrow-key control — takes effect next frame via _apply_velocity
+    ball.move()
+
+    # Arrow-key control
     if Keyboard.arrow_left.down:   ball.vx = -SPEED
     if Keyboard.arrow_right.down:  ball.vx = SPEED
     if Keyboard.arrow_up.down:     ball.vy = -SPEED
     if Keyboard.arrow_down.down:   ball.vy = SPEED
 
-    # Bounce off edges (position already updated by _apply_velocity before tick)
+    # Bounce off edges
     bounced = False
     if ball.x < ball.radius or ball.x > W - ball.radius:
         ball.vx = -ball.vx
@@ -40,7 +41,7 @@ def tick():
         # assets.sounds.bounce.play()  # add a bounce.wav to hear the hit
     else:
         # Cycle through COLORS every 8 ticks to animate
-        ball.color = COLORS[(tick_count // 8) % len(COLORS)]
+        ball.color = COLORS[(state.tick_count // 8) % len(COLORS)]
 
     ball.draw()
 

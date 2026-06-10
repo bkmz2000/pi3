@@ -27,16 +27,10 @@ coins = [
                  (160, GROUND - 90), (240, GROUND - 90)]
 ]
 
-vy = 0
-on_ground = True
-won = False
-lost = False
-moving = False
+state = State(vy=0, on_ground=True, won=False, lost=False, moving=False)
 
 
 def tick():
-    global vy, on_ground, won, lost, moving
-
     background(Colors.midnight)
 
     # Ground platform
@@ -45,32 +39,32 @@ def tick():
     fill(Colors.sky)
     rect(0, GROUND + 28, W, 5)
 
-    if not won and not lost:
+    if not state.won and not state.lost:
         # Horizontal movement
-        moving = False
+        state.moving = False
         if Keyboard.arrow_left.down:
             hero.x -= WALK
             hero.flip_x = True
-            moving = True
+            state.moving = True
         if Keyboard.arrow_right.down:
             hero.x += WALK
             hero.flip_x = False
-            moving = True
+            state.moving = True
 
         hero.x = max(16, min(W - 16, hero.x))
 
         # Jump
-        vy += GRAVITY
-        hero.y += vy
+        state.vy += GRAVITY
+        hero.y += state.vy
         if hero.y >= GROUND:
             hero.y = GROUND
-            vy = 0
-            on_ground = True
+            state.vy = 0
+            state.on_ground = True
         else:
-            on_ground = False
+            state.on_ground = False
 
-        if (Keyboard.space.pressed or Keyboard.arrow_up.pressed) and on_ground:
-            vy = JUMP_V
+        if (Keyboard.space.pressed or Keyboard.arrow_up.pressed) and state.on_ground:
+            state.vy = JUMP_V
 
         # Slime follows hero
         if hero.x > slime.x:
@@ -85,8 +79,8 @@ def tick():
             if c.is_alive() and hero.collides_with(c):
                 c.die()
 
-        won  = all(not c.is_alive() for c in coins)
-        lost = slime.collides_with(hero)
+        state.won  = all(not c.is_alive() for c in coins)
+        state.lost = slime.collides_with(hero)
 
     # Draw coins
     for c in coins:
@@ -99,9 +93,9 @@ def tick():
     slime.draw()
 
     # Hero animation
-    if not on_ground:
+    if not state.on_ground:
         hero.jump.tick()
-    elif moving:
+    elif state.moving:
         hero.run.tick()
     else:
         hero.idle.tick()
@@ -113,11 +107,11 @@ def tick():
     text_size(13)
     text(f"Coins left: {remaining}", 8, 18)
 
-    if won:
+    if state.won:
         fill(Colors.lime)
         text_size(22)
         text("You win!", Window.center)
-    elif lost:
+    elif state.lost:
         fill(Colors.red)
         text_size(22)
         text("Caught!", Window.center)

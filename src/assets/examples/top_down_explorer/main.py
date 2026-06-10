@@ -36,16 +36,13 @@ level = TileMap([layer], {"ground": layer}, {
 })
 
 hero = Rect(TILE + TILE // 2, TILE + TILE // 2, 22, 22, color=Colors.cyan)
-score = 0
-lives = 3
+state = State(score=0, lives=3)
 
 COLORS = {"wall": Colors.slate, "floor": Colors.navy,
           "coin": Colors.yellow, "spike": Colors.red}
 
 
 def tick():
-    global score, lives
-
     speed = 2
     vx = (1 if Keyboard.arrow_right.down or Keyboard.d.down else 0) \
        - (1 if Keyboard.arrow_left.down  or Keyboard.a.down else 0)
@@ -59,16 +56,18 @@ def tick():
         hero.vy = 0
 
     if level.collides_with(hero.future_state, "spikes"):
-        lives -= 1
+        state.lives -= 1
         hero.x = TILE + TILE // 2
         hero.y = TILE + TILE // 2
-        if lives <= 0:
+        if state.lives <= 0:
             stop()
+
+    hero.move()
 
     col = int(hero.x / TILE)
     row = int(hero.y / TILE)
     if layer.tile_at(hero.x, hero.y) == "coin":
-        score += 1
+        state.score += 1
         layer.set(col, row, "floor")
 
     background(Colors.black)
@@ -83,8 +82,8 @@ def tick():
 
     fill(Colors.white)
     text_size(14)
-    text(f"★ {score}  ♥ {lives}  WASD to move", Window.top_left)
-    if lives <= 0:
+    text(f"★ {state.score}  ♥ {state.lives}  WASD to move", Window.top_left)
+    if state.lives <= 0:
         fill(Colors.red)
         text_size(28)
         text("Game Over!", Window.center)

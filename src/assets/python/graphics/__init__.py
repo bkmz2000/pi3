@@ -1426,6 +1426,10 @@ def _tick(main, my_generation):
         _draw_commands.clear()
         frame_count += 1
 
+    except KeyboardInterrupt:
+        # forceful stop via interrupt buffer — no error output
+        _running = False
+        return
     except Exception as _exc:
         try:
             import json as _json

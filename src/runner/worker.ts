@@ -523,7 +523,9 @@ import json as _json
 _errored = False
 try:
     exec(${JSON.stringify(code)}, globals())
-except Exception as _err:
+except KeyboardInterrupt:
+    pass  # stop signal — no error output, no traceback
+except BaseException as _err:
     _errored = True
     _structured = error_hook.classify_error(_err, ${JSON.stringify(code)}, ${JSON.stringify(filename)})
     _last_structured_error = _structured

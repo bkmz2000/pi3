@@ -52,6 +52,9 @@ async function initPyodide(
   graphicsInit: string,
   graphicsActors: string,
   graphicsAnimation: string,
+  graphicsManifest: string,
+  graphicsErrors: string,
+  graphicsState: string,
   linter: string,
   errorHook: string,
   inputTransform: string,
@@ -71,6 +74,9 @@ async function initPyodide(
   p.FS.writeFile("/graphics/__init__.py", graphicsInit);
   p.FS.writeFile("/graphics/actors/__init__.py", graphicsActors);
   p.FS.writeFile("/graphics/animation.py", graphicsAnimation);
+  p.FS.writeFile("/graphics/_manifest.py", graphicsManifest);
+  p.FS.writeFile("/graphics/_errors.py", graphicsErrors);
+  p.FS.writeFile("/graphics/_state_ns.py", graphicsState);
   p.FS.writeFile("/linter.py", linter);
   p.FS.writeFile("/error_hook.py", errorHook);
   p.FS.writeFile("/input_transform.py", inputTransform);
@@ -627,7 +633,7 @@ self.onmessage = async (e: MessageEvent<WorkerCommand>) => {
       const p = await ensurePyodide();
       console.log("Worker: Pyodide loaded, initializing modules...");
       const errorHookSrc = msg.errorHook;
-      await initPyodide(p, msg.graphicsInit, msg.graphicsActors, msg.graphicsAnimation, msg.linter, errorHookSrc, msg.inputTransform);
+      await initPyodide(p, msg.graphicsInit, msg.graphicsActors, msg.graphicsAnimation, msg.graphicsManifest, msg.graphicsErrors, msg.graphicsState, msg.linter, errorHookSrc, msg.inputTransform);
       console.log("Worker: Initialization complete, posting ready");
       post({ type: "ready" });
     } catch (err: unknown) {

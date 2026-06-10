@@ -977,12 +977,20 @@
       "undefined": "The name '{{name}}' isn't recognized. Did you mean '{{candidate}}'?",
       "noAttribute": "'{{object}}' has no '{{attr}}'.",
       "didYouMean": "Did you mean '{{candidate}}'?",
-      "didYouMeanMany": "Did you mean one of: {{candidates}}?"
+      "didYouMeanMany": "Did you mean one of: {{candidates}}?",
+      "unknownKey": "Unknown key '{{name}}'. Try Keyboard.arrow_left, Keyboard.space, Keyboard.a, or Keyboard.key_1.",
+      "badColor": "Unknown color '{{color}}'. Use a name like Colors.red or Colors.blue, or a hex like '#ff0000'.",
+      "noAnimation": "Sprite '{{sprite}}' has no animation '{{name}}'. Available: {{available}}.",
+      "noSprite": "The sheet has no sprite '{{name}}'. Available: {{available}}.",
+      "actorSealed": "'{{actor}}' has no attribute '{{name}}'. Did you declare it in __init__ or the init() hook?",
+      "actorUnknown": "'{{actor}}' has no attribute '{{name}}'.",
+      "actorKwargTypo": "Unknown argument '{{name}}' — did you mean '{{nearest}}'?"
     },
     "types": {
       "title": "Type mix-up",
       "badOperator": "Can't {{op}} a {{left}} with a {{right}}.",
-      "wrongArgType": "{{func}}() expects {{expected}}, not {{found}}."
+      "wrongArgType": "{{func}}() expects {{expected}}, not {{found}}.",
+      "badColorType": "Expected a color (tuple, hex string, or palette name), not {{type}}."
     },
     "grammar": {
       "title": "Grammar problem",
@@ -1000,7 +1008,9 @@
       "title": "Logic error",
       "indexError": "You tried to reach position {{index}} but it doesn't exist.",
       "valueError": "This value doesn't work here.",
-      "zeroDivision": "You can't divide by zero."
+      "zeroDivision": "You can't divide by zero.",
+      "spriteNoFrames": "This animation has no frames.",
+      "emptySequence": "pick() was called on an empty list — there's nothing to pick from."
     },
     "apiMisuse": {
       "title": "API mistake"

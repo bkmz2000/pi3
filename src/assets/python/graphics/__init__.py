@@ -11,6 +11,9 @@ import traceback
 from types import SimpleNamespace
 from typing import Any, Callable, Optional, Union
 
+from graphics._errors import FriendlyError, FriendlyAttrError
+from graphics._state_ns import State
+
 _version = "1.0"
 
 # === GLOBAL STATE ===
@@ -123,8 +126,16 @@ def _to_rgb(c):
                 return (int(s[0:2], 16), int(s[2:4], 16), int(s[4:6], 16))
             except ValueError:
                 pass
-        raise ValueError(f"Unknown color: {c!r}")
-    raise TypeError(f"Expected color tuple, hex string, or color name; got {type(c).__name__}")
+        raise FriendlyError(
+            "friendlyError.naming.badColor",
+            {"color": str(c)},
+            raw=f"Unknown color: {c!r}",
+        )
+    raise FriendlyError(
+        "friendlyError.types.badColorType",
+        {"type": type(c).__name__},
+        raw=f"Expected color tuple, hex string, or color name; got {type(c).__name__}",
+    )
 
 
 def lerp(a, b, t):
@@ -508,7 +519,10 @@ class SheetAnimation:
 
     def __getitem__(self, idx):
         if not self._frames:
-            raise IndexError("SheetAnimation has no frames")
+            raise FriendlyError(
+                "friendlyError.logic.spriteNoFrames",
+                raw="SheetAnimation has no frames",
+            )
         return self._frames[int(idx) % len(self._frames)]
 
     def __len__(self):
@@ -546,9 +560,10 @@ class SpriteEntry:
         anim = self._animations.get(name)
         if anim is None:
             avail = list(self._animations.keys())
-            raise AttributeError(
-                f"Sprite '{self._name}' has no animation '{name}'. "
-                f"Available: {avail}"
+            raise FriendlyAttrError(
+                "friendlyError.naming.noAnimation",
+                {"sprite": self._name, "name": name, "available": ", ".join(avail) or "none"},
+                raw=f"Sprite '{self._name}' has no animation '{name}'. Available: {avail}",
             )
         return anim
 
@@ -571,8 +586,10 @@ class SheetNamespace:
         entry = self._entries.get(name)
         if entry is None:
             avail = list(self._entries.keys())
-            raise AttributeError(
-                f"Sheet has no sprite '{name}'. Available: {avail}"
+            raise FriendlyAttrError(
+                "friendlyError.naming.noSprite",
+                {"name": name, "available": ", ".join(avail) or "none"},
+                raw=f"Sheet has no sprite '{name}'. Available: {avail}",
             )
         return entry
 
@@ -838,6 +855,10 @@ class _Mouse:
         return _mouse_y
 
     @property
+    def pos(self):
+        return Vector2(_mouse_x, _mouse_y)
+
+    @property
     def pressed(self):
         return _mouse_clicked
 
@@ -877,7 +898,11 @@ class _Keyboard:
     def __getattr__(self, name):
         code = _KEY_CODES.get(name.lower(), 0)
         if code == 0:
-            raise AttributeError(f"Unknown key: {name!r}. Try Keyboard.arrow_left, Keyboard.space, Keyboard.a, Keyboard.key_1, etc.")
+            raise FriendlyAttrError(
+                "friendlyError.naming.unknownKey",
+                {"name": name},
+                raw=f"Unknown key: {name!r}. Try Keyboard.arrow_left, Keyboard.space, Keyboard.a, Keyboard.key_1, etc.",
+            )
         return _Key(code)
 
     def __getitem__(self, name: str) -> _Key:
@@ -894,7 +919,7 @@ Keyboard = _Keyboard()
 
 
 class _Window:
-    """Canvas window singleton. Access size, anchors, and run the game loop."""
+    """Canvas window singleton. Access canvas size and anchor points."""
 
     @property
     def width(self):
@@ -903,15 +928,6 @@ class _Window:
     @property
     def height(self):
         return _height
-
-    def size(self, w, h):
-        _size(w, h)
-
-    def run(self, main=None, fps=60):
-        _run(main, fps)
-
-    def stop(self):
-        _stop()
 
     # --- anchor points ---
 
@@ -1239,6 +1255,40 @@ def random_color() -> tuple:
     return _random.choice(list(COLOR_NAMES.values()))
 
 
+def clamp(value, lo, hi):
+    """Clamp `value` between `lo` and `hi` (inclusive).
+
+        x = clamp(x, 0, 300)   # keep x inside the canvas
+        vol = clamp(vol, 0, 1)  # keep volume in [0, 1]
+    """
+    return max(lo, min(hi, value))
+
+
+def randint(a, b) -> int:
+    """Random integer between a and b inclusive.
+
+        x = randint(0, 300)
+    """
+    import random as _random
+    return _random.randint(int(a), int(b))
+
+
+def pick(seq):
+    """Pick a random item from a sequence.
+
+        color = pick([Colors.red, Colors.blue, Colors.green])
+        tile  = pick(["grass", "sand", "stone"])
+    """
+    import random as _random
+    items = list(seq)
+    if not items:
+        raise FriendlyError(
+            "friendlyError.logic.emptySequence",
+            raw="pick() called on empty sequence",
+        )
+    return _random.choice(items)
+
+
 def frame_rate(fps) -> None:
     global _target_fps
     _target_fps = int(fps)
@@ -1357,7 +1407,6 @@ def _tick(main, my_generation):
 
         for actor in Actor.all_actors():
             if actor.is_alive():
-                actor._apply_velocity()
                 actor.update()
 
         import sys as _sys
@@ -2302,10 +2351,10 @@ __all__ = [
     "say",
     "fill", "no_fill", "stroke", "no_stroke", "stroke_width",
     "background",
-    "push", "pop", "translate", "rotate", "scale",
     "image",
     "frame_rate", "frame_count",
     "random", "random_color",
+    "clamp", "randint", "pick",
     "Colors", "AnchorPoint",
     "lerp", "darker", "lighter", "saturated", "desaturated",
     "Sprite", "PixelView", "create_sprite", "get_pixel", "set_pixel",
@@ -2320,6 +2369,8 @@ __all__ = [
     "Light",
     "Animation",
     "SheetAnimation", "SpriteEntry", "SheetNamespace", "AnimationController",
+    "Timer",
+    "State",
     "run", "stop",
     "assets",
     "sheet",

@@ -977,12 +977,20 @@
       "undefined": "Имя '{{name}}' не распознано. Ты имеешь в виду '{{candidate}}'?",
       "noAttribute": "'{{object}}' не имеет '{{attr}}'.",
       "didYouMean": "Ты имеешь в виду '{{candidate}}'?",
-      "didYouMeanMany": "Ты имеешь в виду один из: {{candidates}}?"
+      "didYouMeanMany": "Ты имеешь в виду один из: {{candidates}}?",
+      "unknownKey": "Неизвестная клавиша '{{name}}'. Попробуй Keyboard.arrow_left, Keyboard.space, Keyboard.a или Keyboard.key_1.",
+      "badColor": "Неизвестный цвет '{{color}}'. Используй название вроде Colors.red или Colors.blue, или hex-код '#ff0000'.",
+      "noAnimation": "У спрайта '{{sprite}}' нет анимации '{{name}}'. Доступные: {{available}}.",
+      "noSprite": "На листе нет спрайта '{{name}}'. Доступные: {{available}}.",
+      "actorSealed": "У '{{actor}}' нет атрибута '{{name}}'. Ты объявил его в __init__ или в методе init()?",
+      "actorUnknown": "У '{{actor}}' нет атрибута '{{name}}'.",
+      "actorKwargTypo": "Неизвестный аргумент '{{name}}' — ты имел в виду '{{nearest}}'?"
     },
     "types": {
       "title": "Ошибка типа",
       "badOperator": "Нельзя применять {{op}} к {{left}} и {{right}}.",
-      "wrongArgType": "{{func}}() ожидает {{expected}}, а не {{found}}."
+      "wrongArgType": "{{func}}() ожидает {{expected}}, а не {{found}}.",
+      "badColorType": "Ожидался цвет (кортеж, hex-строка или название), а не {{type}}."
     },
     "grammar": {
       "title": "Грамматическая проблема",
@@ -1000,7 +1008,9 @@
       "title": "Логическая ошибка",
       "indexError": "Ты попытался обратиться к позиции {{index}}, которой нет.",
       "valueError": "Это значение здесь не работает.",
-      "zeroDivision": "Ты не можешь делить на ноль."
+      "zeroDivision": "Ты не можешь делить на ноль.",
+      "spriteNoFrames": "В этой анимации нет кадров.",
+      "emptySequence": "pick() вызван на пустом списке — выбирать не из чего."
     },
     "apiMisuse": {
       "title": "Ошибка API"

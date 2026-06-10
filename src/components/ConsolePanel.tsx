@@ -80,7 +80,7 @@ function ErrorCard({ error }: { error: RuntimeError }) {
             letterSpacing: "0.04em",
           }}
         >
-          {error.title}
+          {error.titleKey ? t(error.titleKey) : error.title}
         </span>
         {error.isBlocking && (
           <span style={{ fontSize: 10, color: colors.text, opacity: 0.6, marginLeft: "auto" }}>
@@ -97,7 +97,7 @@ function ErrorCard({ error }: { error: RuntimeError }) {
           lineHeight: 1.45,
         }}
       >
-        {error.message}
+        {error.messageKey ? t(error.messageKey, error.messageArgs) : error.message}
       </div>
 
       {/* Batch mode: per-error listing */}

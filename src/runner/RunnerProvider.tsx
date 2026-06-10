@@ -5,6 +5,9 @@ import { useIde, useEditor } from "../state/IdeState";
 import GraphicsInit from "../assets/python/graphics/__init__.py?raw";
 import GraphicsActors from "../assets/python/graphics/actors/__init__.py?raw";
 import GraphicsAnimation from "../assets/python/graphics/animation.py?raw";
+import GraphicsManifest from "../assets/python/graphics/_manifest.py?raw";
+import GraphicsErrors from "../assets/python/graphics/_errors.py?raw";
+import GraphicsState from "../assets/python/graphics/_state_ns.py?raw";
 import Linter from "../assets/python/linter.py?raw";
 import ErrorHook from "../assets/python/error_hook.py?raw";
 import InputTransform from "../assets/python/input_transform.py?raw";
@@ -359,6 +362,9 @@ function getWorker(): Worker {
     graphicsInit: GraphicsInit,
     graphicsActors: GraphicsActors,
     graphicsAnimation: GraphicsAnimation,
+    graphicsManifest: GraphicsManifest,
+    graphicsErrors: GraphicsErrors,
+    graphicsState: GraphicsState,
     linter: Linter,
     errorHook: ErrorHook,
     inputTransform: InputTransform,

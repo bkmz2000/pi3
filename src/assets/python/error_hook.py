@@ -14,6 +14,8 @@ import re
 import traceback
 from typing import Optional
 
+from graphics._errors import FriendlyError, _levenshtein, _compute_suggestions
+
 # Populated at runtime from worker.ts after graphics module init.
 KNOWN_SYMBOLS: set[str] = set()
 
@@ -95,45 +97,6 @@ def _extract_name_from_error(exc: Exception) -> Optional[str]:
     return None
 
 
-def _levenshtein(a: str, b: str) -> int:
-    """Simple Levenshtein distance — O(n*m) but fine for <200 symbols."""
-    if len(a) < len(b):
-        return _levenshtein(b, a)
-    if len(b) == 0:
-        return len(a)
-
-    prev = list(range(len(b) + 1))
-    for i, ca in enumerate(a):
-        curr = [i + 1]
-        for j, cb in enumerate(b):
-            curr.append(
-                min(
-                    prev[j + 1] + 1,  # deletion
-                    curr[j] + 1,  # insertion
-                    prev[j] + (ca != cb),  # substitution
-                )
-            )
-        prev = curr
-    return prev[-1]
-
-
-def _compute_suggestions(token: str, candidates: set[str], max_distance: int = 2) -> list[str]:
-    """Return candidates within Levenshtein distance, sorted nearest-first."""
-    if not token or len(token) < 4:
-        return []
-
-    results: list[tuple[int, str]] = []
-    for c in candidates:
-        d = _levenshtein(token.lower(), c.lower())
-        # Exact match means token was found — no suggestion needed
-        if d == 0:
-            return []
-        if d <= max_distance:
-            results.append((d, c))
-
-    # Sort by raw distance — a 1-char typo always ranks above a 2-char typo
-    results.sort()
-    return [c for _, c in results[:5]]
 
 
 _SKIP_PATHS = ("graphics/", "error_hook.py", "/pyodide/", "<exec>")
@@ -338,6 +301,32 @@ def classify_error(
     Returns a dict suitable for JSON serialization and posting as a
     'runtime_error' worker event.
     """
+    # FriendlyError: key/args already computed by the library; pass straight through.
+    if isinstance(exc, FriendlyError):
+        raw_tb = traceback.format_exception(type(exc), exc, exc.__traceback__)
+        raw = "".join(raw_tb)
+        key_parts = exc.message_key.split(".")
+        # key format: friendlyError.<category>.<name>  →  extract category
+        category = key_parts[1] if len(key_parts) >= 2 else "api-misuse"
+        title_key = f"friendlyError.{category}.title"
+        location = _parse_traceback_location(raw)
+        return {
+            "category": category,
+            "title": _FRIENDLY_TITLES.get(category, "Error"),
+            "titleKey": title_key,
+            "message": exc.message_key,  # fallback; frontend prefers messageKey
+            "messageKey": exc.message_key,
+            "messageArgs": exc.message_args,
+            "raw": raw,
+            "cleanRaw": _clean_traceback(raw),
+            "suggestions": exc.suggestions,
+            "location": location,
+            "isBlocking": category in _BLOCKING_CATEGORIES,
+            "codeSnippet": None,
+            "codeLine": None,
+            "codeColumn": None,
+        }
+
     exc_name = type(exc).__name__
     category = _ERROR_CATEGORIES.get(exc_name, "logic")
     title = _FRIENDLY_TITLES.get(category, "Error")

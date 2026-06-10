@@ -8,6 +8,24 @@ Group for managing collections of actors, and Collider for hitbox configuration.
 import math
 import random
 
+from graphics._errors import FriendlyError, FriendlyAttrError, _compute_suggestions
+
+# Valid kwargs for Actor (and broadly for Rect/Circle) — used for typo detection.
+_ACTOR_KWARG_ATTRS = frozenset([
+    'x', 'y', 'vx', 'vy', 'angle', 'image', 'scale', 'flip_x', 'flip_y',
+    'pos', 'vel', 'visible',
+    'width', 'height', 'radius', 'color', 'stroke_color', 'stroke_width',
+])
+
+# Per-class cache for suggestion candidates.
+_CLASS_ATTRS_CACHE: dict = {}
+
+
+def _get_class_attrs(cls):
+    if cls not in _CLASS_ATTRS_CACHE:
+        _CLASS_ATTRS_CACHE[cls] = frozenset(n for n in dir(cls) if not n.startswith('_'))
+    return _CLASS_ATTRS_CACHE[cls]
+
 
 class Collider:
     """Hitbox for an actor. Attach via actor.collider.set_circle() or set_rect()."""
@@ -51,46 +69,132 @@ class Actor:
     _id_counter = 0
 
     def __init__(self, asset=None, **kwargs):
+        # Check for kwarg typos BEFORE anything else.
+        for key in kwargs:
+            if key not in _ACTOR_KWARG_ATTRS:
+                sug = _compute_suggestions(key, _ACTOR_KWARG_ATTRS, max_distance=1)
+                if sug:
+                    raise FriendlyError(
+                        "friendlyError.naming.actorKwargTypo",
+                        {"name": key, "nearest": sug[0]},
+                        raw=f"Unknown Actor keyword argument '{key}'. Did you mean '{sug[0]}'?",
+                    )
+
         Actor._id_counter += 1
-        self._id = Actor._id_counter
+        # All builtin attrs are set via object.__setattr__ to bypass the sealing hook.
+        object.__setattr__(self, '_id', Actor._id_counter)
+        object.__setattr__(self, '_sealed', False)
+        object.__setattr__(self, '_x', 0.0)
+        object.__setattr__(self, '_y', 0.0)
+        object.__setattr__(self, '_angle', 0.0)
+        object.__setattr__(self, '_vx', 0.0)
+        object.__setattr__(self, '_vy', 0.0)
+        object.__setattr__(self, '_visible', True)
+        object.__setattr__(self, '_alive', True)
+        object.__setattr__(self, 'image', None)
+        object.__setattr__(self, 'scale', 1.0)
+        object.__setattr__(self, 'flip_x', False)
+        object.__setattr__(self, 'flip_y', False)
+        object.__setattr__(self, 'collider', Collider(self))
+        object.__setattr__(self, '_anim_controllers', {})
+        object.__setattr__(self, '_active_anim_ctrl', None)
+        object.__setattr__(self, '_last_active_anim', None)
 
-        self._x = 0.0
-        self._y = 0.0
-        self._angle = 0.0
-        self._vx = 0.0
-        self._vy = 0.0
-        self._visible = True
-        self._alive = True
-        self.image = None
-        self.scale = 1.0
-        self.flip_x = False
-        self.flip_y = False
-        self.collider = Collider(self)
-        self._anim_controllers = {}
-        self._active_anim_ctrl = None
-        self._last_active_anim = None
-
-        # First positional arg can be an asset dict (sprite/animation result)
         if asset is not None:
-            self.image = asset
+            object.__setattr__(self, 'image', asset)
             if isinstance(asset, dict):
                 w = asset.get("width")
                 h = asset.get("height")
                 if w and h:
                     self.collider.set_rect(float(w), float(h))
 
+        # Process kwargs: properties via their setter, plain attrs via object.__setattr__.
         for key, value in kwargs.items():
-            if hasattr(self.__class__, key) and isinstance(
-                getattr(self.__class__, key), property
-            ):
-                setattr(self, key, value)
+            cls_attr = None
+            for cls in type(self).__mro__:
+                if key in cls.__dict__:
+                    cls_attr = cls.__dict__[key]
+                    break
+            if isinstance(cls_attr, property):
+                if cls_attr.fset:
+                    cls_attr.fset(self, value)
             else:
                 object.__setattr__(self, key, value)
 
         Actor._registry.append(self)
 
-        if hasattr(self, "init"):
+        # Call init() (if defined on a subclass) BEFORE sealing so it can
+        # declare custom attrs via self.xxx = yyy.
+        _init_fn = getattr(type(self), 'init', None)
+        if _init_fn is not None:
             self.init()
+
+        object.__setattr__(self, '_sealed', True)
+
+    # --- attribute access hooks ---
+
+    def __setattr__(self, name, value):
+        if name.startswith('_'):
+            object.__setattr__(self, name, value)
+            return
+        # Property descriptor check.
+        for cls in type(self).__mro__:
+            if name in cls.__dict__:
+                d = cls.__dict__[name]
+                if isinstance(d, property):
+                    if d.fset:
+                        d.fset(self, value)
+                    return
+                break
+        # Sealed: only allow attrs that already exist in the instance dict.
+        sealed = object.__getattribute__(self, '_sealed')
+        if sealed and name not in self.__dict__:
+            class_attrs = _get_class_attrs(type(self))
+            instance_attrs = {k for k in self.__dict__ if not k.startswith('_')}
+            candidates = list(class_attrs | instance_attrs)
+            sug = _compute_suggestions(name, candidates)
+            raise FriendlyAttrError(
+                "friendlyError.naming.actorSealed",
+                {"actor": type(self).__name__, "name": name},
+                suggestions=[{"token": name, "candidates": sug}] if sug else [],
+                raw=f"'{type(self).__name__}' actor has no attribute '{name}'",
+            )
+        object.__setattr__(self, name, value)
+
+    def __getattr__(self, name):
+        if name.startswith('_'):
+            raise AttributeError(name)
+        # Animation controller lookup.
+        try:
+            image = object.__getattribute__(self, 'image')
+        except AttributeError:
+            image = None
+        if image is not None:
+            import graphics as _g
+            if isinstance(image, _g.SpriteEntry):
+                anims = object.__getattribute__(image, '_animations')
+                if name in anims:
+                    ctrl_map = object.__getattribute__(self, '_anim_controllers')
+                    if name not in ctrl_map:
+                        ctrl_map[name] = _g.AnimationController(self, name)
+                    return ctrl_map[name]
+        # Sealed attribute error with suggestions.
+        try:
+            sealed = object.__getattribute__(self, '_sealed')
+        except AttributeError:
+            sealed = False
+        if sealed:
+            class_attrs = _get_class_attrs(type(self))
+            instance_attrs = {k for k in self.__dict__ if not k.startswith('_')}
+            candidates = list(class_attrs | instance_attrs)
+            sug = _compute_suggestions(name, candidates)
+            raise FriendlyAttrError(
+                "friendlyError.naming.actorUnknown",
+                {"actor": type(self).__name__, "name": name},
+                suggestions=[{"token": name, "candidates": sug}] if sug else [],
+                raw=f"'{type(self).__name__}' has no attribute '{name}'",
+            )
+        raise AttributeError(f"'{type(self).__name__}' has no attribute '{name}'")
 
     # --- properties ---
 
@@ -245,26 +349,14 @@ class Actor:
         hx, hy = self._half_size()
         return AnchorPoint(self._x + hx, self._y + hy, "left", "top")
 
-    def __getattr__(self, name):
-        if name.startswith('_'):
-            raise AttributeError(name)
-        try:
-            image = object.__getattribute__(self, 'image')
-        except AttributeError:
-            raise AttributeError(f"'{type(self).__name__}' has no attribute '{name}'")
-        import graphics as _g
-        if isinstance(image, _g.SpriteEntry):
-            anims = object.__getattribute__(image, '_animations')
-            if name in anims:
-                ctrl_map = object.__getattribute__(self, '_anim_controllers')
-                if name not in ctrl_map:
-                    ctrl_map[name] = _g.AnimationController(self, name)
-                return ctrl_map[name]
-        raise AttributeError(f"'{type(self).__name__}' has no attribute '{name}'")
-
     # --- movement ---
 
-    def move(self, distance):
+    def move(self):
+        """Apply vx/vy to position once — the manual physics step."""
+        self._apply_velocity()
+
+    def forward(self, distance):
+        """Move along the current facing direction."""
         if not self._alive:
             return
         rad = math.radians(self._angle)
@@ -276,16 +368,6 @@ class Actor:
             return
         self._x = float(x)
         self._y = float(y)
-
-    def change_x_by(self, dx):
-        if not self._alive:
-            return
-        self._x += float(dx)
-
-    def change_y_by(self, dy):
-        if not self._alive:
-            return
-        self._y += float(dy)
 
     def point_towards(self, x, y):
         if not self._alive:
@@ -300,6 +382,46 @@ class Actor:
         self._angle = (self._angle + float(degrees)) % 360
 
     # --- spatial helpers ---
+
+    def distance_to(self, other):
+        """Distance in pixels from this actor's center to another actor or (x, y)."""
+        if isinstance(other, Actor):
+            dx = other._x - self._x
+            dy = other._y - self._y
+        else:
+            dx = float(other[0]) - self._x
+            dy = float(other[1]) - self._y
+        return math.sqrt(dx * dx + dy * dy)
+
+    def bounce(self):
+        """Reverse vx/vy when the actor's hitbox touches a canvas edge."""
+        import graphics as g
+        col = self.collider
+        if col.shape == "circle":
+            mx = my = col.radius
+        elif col.shape == "rect":
+            mx = col.width / 2
+            my = col.height / 2
+        else:
+            mx = my = 0.0
+        if self._x - mx < 0 or self._x + mx > g._width:
+            self._vx = -self._vx
+        if self._y - my < 0 or self._y + my > g._height:
+            self._vy = -self._vy
+
+    def keep_in_bounds(self):
+        """Clamp position so the actor stays fully inside the canvas."""
+        import graphics as g
+        col = self.collider
+        if col.shape == "circle":
+            mx = my = col.radius
+        elif col.shape == "rect":
+            mx = col.width / 2
+            my = col.height / 2
+        else:
+            mx = my = 0.0
+        self._x = max(mx, min(g._width - mx, self._x))
+        self._y = max(my, min(g._height - my, self._y))
 
     def random_position(self):
         """Teleport so the full hitbox is inside the canvas."""
@@ -342,7 +464,7 @@ class Actor:
         import graphics as g
         return 0 <= self._x <= g._width and 0 <= self._y <= g._height
 
-    # --- velocity (called by game loop) ---
+    # --- velocity ---
 
     def _apply_velocity(self):
         if not self._alive:
@@ -400,8 +522,6 @@ class Actor:
                 g._draw_commands.append(("image_centered", (str(img), 0.0, 0.0, None, None), {}))
             g.pop()
             if g._show_hitboxes:
-                # Hitbox is drawn outside the scale transform: collider dimensions
-                # are in world units, so collision math and overlay must match.
                 g.push()
                 g.translate(self._x, self._y)
                 g.rotate(self._angle)
@@ -422,16 +542,7 @@ class Actor:
                 g.pop()
 
     def reset(self):
-        """Restore all sprite frames to their original pixel data.
-
-        Useful to undo procedural pixel edits and re-apply them with a fresh
-        random seed::
-
-            sun.reset()
-            for pixel in sun:
-                if random.random() > 0.3:
-                    pixel.color = Colors.orange
-        """
+        """Restore all sprite frames to their original pixel data."""
         import graphics as _g
         image = object.__getattribute__(self, 'image')
         if isinstance(image, _g.SpriteEntry):
@@ -445,12 +556,7 @@ class Actor:
             image.reset()
 
     def __iter__(self):
-        """Iterate over pixels of the default sprite frame, yielding PixelView objects.
-
-            for pixel in sun:
-                if pixel == Colors.red:
-                    pixel.color = Colors.orange
-        """
+        """Iterate over pixels of the default sprite frame, yielding PixelView objects."""
         import graphics as _g
         image = object.__getattribute__(self, 'image')
         sprite = None
@@ -543,8 +649,8 @@ class ActorSnapshot:
     """Read-only one-frame-lookahead view of an actor.
 
     Exposes `collides_with` and `collides_any` evaluated at the position the
-    source actor will occupy after one `_apply_velocity` step. Computation
-    mirrors `_apply_velocity` exactly so the prediction matches the next frame.
+    source actor will occupy after one `move()` step. Computation mirrors
+    `_apply_velocity` exactly so the prediction matches the next frame.
     The source actor's state is unchanged by use of the snapshot.
     """
 
@@ -560,7 +666,6 @@ class ActorSnapshot:
         self._alive = actor._alive
 
     def collides_with(self, other):
-        # Temporarily reposition the actor, reuse its collision math, restore.
         actor = self._actor
         ox, oy = actor._x, actor._y
         try:
@@ -593,12 +698,14 @@ class Rect(Actor):
 
     def __init__(self, x=0, y=0, width=60, height=40, color="white",
                  stroke_color=None, stroke_width=0, **kwargs):
+        # Pre-set Rect attrs before super().__init__() so init() can access them
+        # and _sealed check finds them already in __dict__.
+        object.__setattr__(self, 'width', float(width))
+        object.__setattr__(self, 'height', float(height))
+        object.__setattr__(self, 'color', color)
+        object.__setattr__(self, 'stroke_color', stroke_color)
+        object.__setattr__(self, 'stroke_width', float(stroke_width))
         super().__init__(x=x, y=y, **kwargs)
-        self.width = float(width)
-        self.height = float(height)
-        self.color = color
-        self.stroke_color = stroke_color
-        self.stroke_width = float(stroke_width)
         self.collider.set_rect(self.width, self.height)
 
     def draw(self):
@@ -638,11 +745,12 @@ class Circle(Actor):
 
     def __init__(self, x=0, y=0, radius=30, color="white",
                  stroke_color=None, stroke_width=0, **kwargs):
+        # Pre-set Circle attrs before super().__init__() so init() can access them.
+        object.__setattr__(self, 'radius', float(radius))
+        object.__setattr__(self, 'color', color)
+        object.__setattr__(self, 'stroke_color', stroke_color)
+        object.__setattr__(self, 'stroke_width', float(stroke_width))
         super().__init__(x=x, y=y, **kwargs)
-        self.radius = float(radius)
-        self.color = color
-        self.stroke_color = stroke_color
-        self.stroke_width = float(stroke_width)
         self.collider.set_circle(self.radius)
 
     def draw(self):

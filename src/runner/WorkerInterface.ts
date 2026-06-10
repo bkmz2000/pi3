@@ -27,7 +27,7 @@ export type SheetRunPayload = {
 };
 
 export type WorkerCommand =
-  | { cmd: "init"; graphicsInit: string; graphicsActors: string; graphicsAnimation: string; linter: string; errorHook: string; inputTransform: string }
+  | { cmd: "init"; graphicsInit: string; graphicsActors: string; graphicsAnimation: string; graphicsManifest: string; graphicsErrors: string; graphicsState: string; linter: string; errorHook: string; inputTransform: string }
   | {
       cmd: "run";
       files: Record<string, string>;
@@ -78,7 +78,10 @@ export type PerError = {
 export type RuntimeError = {
   category: ErrorCategory;
   title: string;          // kid-friendly short label, e.g. "Naming mistake"
-  message: string;        // kid-friendly explanation
+  titleKey?: string;      // i18n key for title, e.g. "friendlyError.naming.title"
+  message: string;        // kid-friendly explanation (legacy; prefer messageKey)
+  messageKey?: string;    // i18n key, e.g. "friendlyError.naming.unknownKey"
+  messageArgs?: Record<string, string | number>; // interpolation args for messageKey
   raw: string;            // original traceback string (for expand/collapse)
   cleanRaw?: string;      // filtered traceback (Pyodide frames removed) for student view
   suggestions: ErrorSuggestion[];

@@ -231,8 +231,9 @@ actor_methods = get_class_body_names(atree, "Actor")
 test("Actor class exists", "Actor" in get_func_names(atree))
 
 expected_actor_methods = {
-    "move", "move_to", "change_x_by", "change_y_by",
+    "move", "forward", "move_to",
     "point_towards", "rotate",
+    "distance_to", "bounce", "keep_in_bounds",
     "die", "is_alive",
     "update", "draw",
     "collides_with", "collides_any",
@@ -454,6 +455,7 @@ sys.path.insert(0, os.path.join(ROOT, "src", "assets", "python"))
 import graphics as g
 from graphics.actors import Actor, Rect, Circle, Group, Collider
 from graphics import AnchorPoint
+from graphics._errors import FriendlyError
 
 def cmd(): return g._draw_commands[-1]
 def cmds(): return list(g._draw_commands)
@@ -630,6 +632,13 @@ try:
     test("Keyboard['invalid'] raises KeyError", False)
 except KeyError:
     test("Keyboard['invalid'] raises KeyError", True)
+
+try:
+    _ = g.Keyboard.totally_invalid_key_xyz
+    test("Keyboard.invalid raises FriendlyError", False)
+except FriendlyError as e:
+    test("Keyboard.invalid raises FriendlyError", e.message_key == "friendlyError.naming.unknownKey")
+    test("Keyboard.invalid FriendlyError has name arg", e.message_args.get("name") == "totally_invalid_key_xyz")
 
 
 # --- Window singleton ---
@@ -1461,9 +1470,9 @@ test("SheetAnimation._default_sprite() is frames[0]", sa._default_sprite() is sa
 sa_empty = SheetAnimation([])
 try:
     _ = sa_empty[0]
-    test("Empty SheetAnimation: index raises IndexError", False)
-except IndexError:
-    test("Empty SheetAnimation: index raises IndexError", True)
+    test("Empty SheetAnimation: index raises FriendlyError", False)
+except FriendlyError as e:
+    test("Empty SheetAnimation: index raises FriendlyError", e.message_key == "friendlyError.logic.spriteNoFrames")
 test("Empty SheetAnimation._default_sprite() is None", sa_empty._default_sprite() is None)
 
 # SpriteEntry: attribute access
@@ -1474,9 +1483,9 @@ test("SpriteEntry.idle returns correct SheetAnimation", se.idle is idle_anim)
 test("SpriteEntry.run returns correct SheetAnimation", se.run is run_anim)
 try:
     _ = se.fly
-    test("SpriteEntry: unknown animation raises AttributeError", False)
-except AttributeError as e:
-    test("SpriteEntry: unknown animation raises AttributeError", "fly" in str(e))
+    test("SpriteEntry: unknown animation raises FriendlyError", False)
+except FriendlyError as e:
+    test("SpriteEntry: unknown animation raises FriendlyError", e.message_args.get("name") == "fly")
 try:
     _ = se._private
     test("SpriteEntry: _private raises AttributeError", False)
@@ -1493,9 +1502,9 @@ test("SheetNamespace.hero returns correct SpriteEntry", ns.hero is hero_entry)
 test("SheetNamespace.enemy returns correct SpriteEntry", ns.enemy is enemy_entry)
 try:
     _ = ns.ghost
-    test("SheetNamespace: unknown sprite raises AttributeError", False)
-except AttributeError as e:
-    test("SheetNamespace: unknown sprite raises AttributeError", "ghost" in str(e))
+    test("SheetNamespace: unknown sprite raises FriendlyError", False)
+except FriendlyError as e:
+    test("SheetNamespace: unknown sprite raises FriendlyError", e.message_args.get("name") == "ghost")
 try:
     _ = ns._private
     test("SheetNamespace: _private raises AttributeError", False)
@@ -1665,7 +1674,12 @@ try:
     _ = act4.fly
     test("actor.<unknown_anim> raises AttributeError", False)
 except AttributeError as e:
-    test("actor.<unknown_anim> raises AttributeError", "fly" in str(e) or "wizard" in str(e))
+    # FriendlyAttrError (subclass of AttributeError) uses message_args; plain AttributeError uses str.
+    from graphics._errors import FriendlyAttrError as _FAttrErr
+    if isinstance(e, _FAttrErr):
+        test("actor.<unknown_anim> raises AttributeError", e.message_args.get("name") == "fly")
+    else:
+        test("actor.<unknown_anim> raises AttributeError", "fly" in str(e) or "wizard" in str(e))
 
 # draw() without tick: uses _default_sprite() fallback
 g._draw_commands.clear()
@@ -1715,6 +1729,66 @@ run_c.tick()   # wrap: back to frame 0
 adv_actor._active_anim_ctrl = run_c
 g._draw_commands.clear(); adv_actor.draw()
 test("Frame wraps to 0 after third frame", run_c.frame_idx == 0)
+
+
+# === 8: Manifest self-check ===
+
+print("\n=== Manifest: _manifest.py vs live module ===")
+
+from graphics._manifest import EXPORTED_NAMES, NAMESPACE_ATTRS, ACTOR_BUILTIN_ATTRS
+
+# Every name in EXPORTED_NAMES must exist in the live graphics module.
+for name in EXPORTED_NAMES:
+    test(f"manifest '{name}' exists in graphics module", hasattr(g, name))
+
+# Every name in graphics.__all__ must appear in EXPORTED_NAMES.
+manifest_set = set(EXPORTED_NAMES)
+for name in g.__all__:
+    test(f"__all__ '{name}' in EXPORTED_NAMES", name in manifest_set)
+
+# NAMESPACE_ATTRS has the expected namespaces.
+for ns_name in ("Mouse", "Keyboard", "Window", "Colors", "state"):
+    test(f"NAMESPACE_ATTRS has '{ns_name}'", ns_name in NAMESPACE_ATTRS)
+
+# Keyboard keys in NAMESPACE_ATTRS match live _KEY_CODES.
+live_keys = set(g._KEY_CODES.keys())
+manifest_keys = set(NAMESPACE_ATTRS["Keyboard"])
+test("NAMESPACE_ATTRS Keyboard keys match _KEY_CODES", live_keys == manifest_keys)
+
+# Color names in NAMESPACE_ATTRS match live COLOR_NAMES.
+live_colors = set(g.COLOR_NAMES.keys())
+manifest_colors = set(NAMESPACE_ATTRS["Colors"])
+test("NAMESPACE_ATTRS Colors match COLOR_NAMES", live_colors == manifest_colors)
+
+# ACTOR_BUILTIN_ATTRS should include core Actor properties/methods.
+for attr in ("x", "y", "vx", "vy", "pos", "vel", "angle", "visible", "move", "forward", "die", "is_alive",
+             "collides_with", "collides_any", "update", "draw", "wrap", "in_bounds",
+             "distance_to", "bounce", "keep_in_bounds"):
+    test(f"ACTOR_BUILTIN_ATTRS has '{attr}'", attr in ACTOR_BUILTIN_ATTRS)
+
+# FriendlyError self-check: _to_rgb bad color raises FriendlyError.
+try:
+    g._to_rgb("not_a_real_color_xyz")
+    test("_to_rgb unknown name raises FriendlyError", False)
+except FriendlyError as e:
+    test("_to_rgb unknown name raises FriendlyError", e.message_key == "friendlyError.naming.badColor")
+    test("_to_rgb badColor has color arg", e.message_args.get("color") == "not_a_real_color_xyz")
+
+try:
+    g._to_rgb(42)
+    test("_to_rgb wrong type raises FriendlyError", False)
+except FriendlyError as e:
+    test("_to_rgb wrong type raises FriendlyError", e.message_key == "friendlyError.types.badColorType")
+    test("_to_rgb badColorType has type arg", e.message_args.get("type") == "int")
+
+# error_hook.classify_error passes FriendlyError straight through.
+import error_hook as _eh
+fe = FriendlyError("friendlyError.naming.unknownKey", {"name": "qq"})
+result = _eh.classify_error(fe, "", "test.py")
+test("classify_error: FriendlyError category extracted", result["category"] == "naming")
+test("classify_error: FriendlyError messageKey preserved", result["messageKey"] == "friendlyError.naming.unknownKey")
+test("classify_error: FriendlyError messageArgs preserved", result["messageArgs"] == {"name": "qq"})
+test("classify_error: FriendlyError not blocking (naming)", result["isBlocking"] is False)
 
 
 # === Summary ===

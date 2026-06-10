@@ -652,13 +652,20 @@ self.onmessage = async (e: MessageEvent<WorkerCommand>) => {
       const p = await ensurePyodide();
       await runScript(p, msg.files, msg.assets, msg.tilemaps, msg.soundNames, msg.sheet, msg.entry, msg.showHitboxes);
     } catch (err: unknown) {
-      const p = pyodide;
-      if (p) {
-        handleExecutionError(err, p);
+      const errStr = String(err);
+      // KeyboardInterrupt (stop button) — not an error, just a clean stop
+      if (errStr.includes("KeyboardInterrupt")) {
+        post({ type: "stdout", text: "Program stopped." });
+        post({ type: "result" });
       } else {
-        post({ type: "error", error: String(err) });
+        const p = pyodide;
+        if (p) {
+          handleExecutionError(err, p);
+        } else {
+          post({ type: "error", error: errStr });
+        }
+        post({ type: "result" });
       }
-      post({ type: "result" });
     }
   } else if (msg.cmd === "event") {
     if (!pyodide) return;

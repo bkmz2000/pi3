@@ -46,43 +46,6 @@ async function ensurePyodide(): Promise<PyodideInterface> {
   throw new Error("Failed to load Pyodide");
 }
 
-// Rewrite `input(...)` → `(await _async_input(...))` using paren matching so that
-// chained calls like `input("x").strip()` become `(await _async_input("x")).strip()`.
-// Skips occurrences inside string literals and comments (best-effort).
-function rewriteInputCalls(code: string): string {
-  const INPUT_RE = /\binput\s*\(/g;
-  let result = '';
-  let last = 0;
-  let m: RegExpExecArray | null;
-  while ((m = INPUT_RE.exec(code)) !== null) {
-    const start = m.index;
-    // Skip if inside a string or comment (simple heuristic: count unescaped quotes before)
-    const before = code.slice(0, start);
-    const singles = (before.match(/(?<!\\)'/g) ?? []).length;
-    const doubles = (before.match(/(?<!\\)"/g) ?? []).length;
-    if (singles % 2 !== 0 || doubles % 2 !== 0) continue; // inside a string literal
-
-    const parenStart = start + m[0].length - 1; // position of the '('
-    // Find matching ')' by counting depth
-    let depth = 1;
-    let j = parenStart + 1;
-    while (j < code.length && depth > 0) {
-      const ch = code[j];
-      if (ch === '(') depth++;
-      else if (ch === ')') depth--;
-      j++;
-    }
-    // j is now one past the matching ')'
-    const innerContent = code.slice(parenStart + 1, j - 1);
-    result += code.slice(last, start);
-    result += `(await _async_input(${innerContent}))`;
-    last = j;
-    INPUT_RE.lastIndex = j;
-  }
-  result += code.slice(last);
-  return result;
-}
-
 
 async function initPyodide(
   p: PyodideInterface,
@@ -91,6 +54,7 @@ async function initPyodide(
   graphicsAnimation: string,
   linter: string,
   errorHook: string,
+  inputTransform: string,
 ) {
   console.log("Worker: Writing modules to filesystem...");
 
@@ -109,6 +73,7 @@ async function initPyodide(
   p.FS.writeFile("/graphics/animation.py", graphicsAnimation);
   p.FS.writeFile("/linter.py", linter);
   p.FS.writeFile("/error_hook.py", errorHook);
+  p.FS.writeFile("/input_transform.py", inputTransform);
 
   console.log("Worker: Files written, running Python initialization...");
 
@@ -604,7 +569,12 @@ async function runScript(
   await registerKnownSymbols(p);
 
   // Plain Python script — wrap in async def so input() suspends correctly.
-  const transformed = rewriteInputCalls(code);
+  // Use AST-based transform so string literals and comments are never touched.
+  p.globals.set("_transform_source", code);
+  const transformed: string = await p.runPythonAsync(
+    `import input_transform; input_transform.transform(_transform_source)`
+  );
+  p.globals.delete("_transform_source");
   const indented = transformed.split('\n').map((l) => '    ' + l).join('\n');
   const filename = entry || "main.py";
 
@@ -657,7 +627,7 @@ self.onmessage = async (e: MessageEvent<WorkerCommand>) => {
       const p = await ensurePyodide();
       console.log("Worker: Pyodide loaded, initializing modules...");
       const errorHookSrc = msg.errorHook;
-      await initPyodide(p, msg.graphicsInit, msg.graphicsActors, msg.graphicsAnimation, msg.linter, errorHookSrc);
+      await initPyodide(p, msg.graphicsInit, msg.graphicsActors, msg.graphicsAnimation, msg.linter, errorHookSrc, msg.inputTransform);
       console.log("Worker: Initialization complete, posting ready");
       post({ type: "ready" });
     } catch (err: unknown) {

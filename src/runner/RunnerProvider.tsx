@@ -7,6 +7,7 @@ import GraphicsActors from "../assets/python/graphics/actors/__init__.py?raw";
 import GraphicsAnimation from "../assets/python/graphics/animation.py?raw";
 import Linter from "../assets/python/linter.py?raw";
 import ErrorHook from "../assets/python/error_hook.py?raw";
+import InputTransform from "../assets/python/input_transform.py?raw";
 import { libraryUrlMap, librarySoundUrlMap } from "../state/assets";
 import { createRunnerWorker } from "./workerFactory";
 
@@ -360,6 +361,7 @@ function getWorker(): Worker {
     graphicsAnimation: GraphicsAnimation,
     linter: Linter,
     errorHook: ErrorHook,
+    inputTransform: InputTransform,
   } satisfies WorkerCommand);
   return worker;
 }

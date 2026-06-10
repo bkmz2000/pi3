@@ -133,10 +133,11 @@ Rail-based layout. Most panel content is inline in `SideMenu.tsx`; `DocsPanel` i
 - SQLite via better-sqlite3 at `server/db/index.ts`; migrations in `server/db/migrations/`
 - Schema: `users` (id, api_token, name, role), `projects` (files/assets stored as JSON strings), `project_shares` (owner/editor/viewer roles)
 - Auth: `Bearer <api_token>` header, checked in `server/middleware/`
+- Session store: `SqliteSessionStore` (`server/db/sessionStore.ts`) writes to `sessions.db` in the same directory as `pi3.db` (derived from `DB_PATH`). Tests use the default in-memory MemoryStore (gated by `NODE_ENV !== 'test'`).
 - Test DB: in-memory SQLite created in `server/tests/setup.ts`
 
 ### PWA
-Service worker at `public/sw.js` (cache name `webide-v2`). Caches Pyodide CDN assets and app shell on install.
+Service worker at `public/sw.js` (cache name `webide-v4`). Caches Pyodide CDN assets and app shell on install.
 
 ### OAuth & Authentication
 

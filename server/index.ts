@@ -5,6 +5,7 @@ import session from 'express-session';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { initDb } from './db/index.js';
+import { SqliteSessionStore } from './db/sessionStore.js';
 import { createUsersRouter } from './routes/users.js';
 import projectsRouter from './routes/projects.js';
 import authRouter from './routes/auth.js';
@@ -36,6 +37,19 @@ if (process.env.NODE_ENV === 'production') {
   }
 }
 
+// Persist sessions in SQLite (same directory as pi3.db). Gate on NODE_ENV so
+// test suites keep the default MemoryStore and need no file I/O.
+let sessionStore: SqliteSessionStore | undefined;
+if (process.env.NODE_ENV !== 'test') {
+  const dbDir = process.env.DB_PATH
+    ? dirname(process.env.DB_PATH)
+    : process.cwd();
+  const sessionDbPath = join(dbDir, 'sessions.db');
+  sessionStore = new SqliteSessionStore(sessionDbPath);
+  // Prune expired rows once per hour
+  setInterval(() => sessionStore!.prune(), 60 * 60 * 1000).unref();
+}
+
 const app = express();
 
 app.set('trust proxy', 1);
@@ -64,6 +78,7 @@ app.use(session({
   secret: process.env.SESSION_SECRET || 'dev-secret-change-in-production',
   resave: false,
   saveUninitialized: false,
+  store: sessionStore,
   cookie: {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',

@@ -84,7 +84,7 @@ for big features) is in the strategy plan
 ### Tech Stack
 - **Frontend**: React 19, TypeScript, Vite, Zustand, Tailwind CSS (base only), CodeMirror 6
 - **Backend**: Express, better-sqlite3, TypeScript (run via `tsx`)
-- **Python Runtime**: Pyodide 0.26.4 (WASM, runs in a Web Worker)
+- **Python Runtime**: Pyodide 0.29.3 (WASM, runs in a Web Worker; version is the installed `pyodide` npm package — `copy-pyodide.mjs` stamps it into `public/sw.js` at build time)
 - **Canvas**: Konva.js / react-konva; OffscreenCanvas rendered inside the worker
 
 ### Dev vs Production

@@ -5,12 +5,18 @@
  * cross-origin isolation surprises). Re-runs are no-ops when the destination
  * is already up to date.
  *
+ * Also patches public/sw.js to stamp in the installed Pyodide version so the
+ * service worker precaches the correct CDN fallback URLs.
+ *
  * Invoked from `predev` and `prebuild` so devs and CI both get a populated
  * bundle without an extra manual step.
  */
-import { mkdirSync, copyFileSync, statSync, existsSync } from 'node:fs';
+import { mkdirSync, copyFileSync, statSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
+
+const require = createRequire(import.meta.url);
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const SRC = join(ROOT, 'node_modules', 'pyodide');
@@ -60,3 +66,21 @@ for (const name of FILES) {
 }
 
 console.log(`[copy-pyodide] ${copied} copied, ${skipped} up-to-date → public/pyodide/`);
+
+// Patch public/sw.js: stamp in the installed Pyodide version so the SW
+// precaches the correct CDN fallback URLs (stays in sync with package.json).
+const swPath = join(ROOT, 'public', 'sw.js');
+if (existsSync(swPath)) {
+  const { version } = require('../node_modules/pyodide/package.json');
+  let sw = readFileSync(swPath, 'utf8');
+  sw = sw.replace(
+    /const PYODIDE_VERSION = '[^']+';/,
+    `const PYODIDE_VERSION = '${version}';`,
+  );
+  sw = sw.replace(
+    /const CACHE_NAME = '[^']+';/,
+    `const CACHE_NAME = 'webide-v4';`,
+  );
+  writeFileSync(swPath, sw, 'utf8');
+  console.log(`[copy-pyodide] sw.js patched → PYODIDE_VERSION=${version}, CACHE_NAME=webide-v4`);
+}

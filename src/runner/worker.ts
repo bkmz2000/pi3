@@ -1,5 +1,6 @@
 import type { PyodideInterface } from "pyodide";
 import { WorkerCommand, WorkerEvent, LintDiagnostic, SheetRunPayload, RuntimeError } from "./WorkerInterface";
+import { PYODIDE_CDN } from "./pyodideVersion";
 import { executeDrawCommands } from "./canvasRenderer";
 
 let pyodide: PyodideInterface | null = null;
@@ -25,7 +26,7 @@ self.addEventListener("unhandledrejection", (e) =>
 async function ensurePyodide(): Promise<PyodideInterface> {
   if (pyodide) return pyodide;
 
-  const CDN = "https://cdn.jsdelivr.net/pyodide/v0.26.4/full/";
+  const CDN = PYODIDE_CDN;
   const local = new URL(
     `${import.meta.env?.BASE_URL ?? "/"}pyodide/`,
     self.location.origin,
@@ -238,7 +239,6 @@ import error_hook
   // parso is on the Pyodide CDN; jedi is not, so load it directly from PyPI.
   // loadPackage accepts full URLs and skips lock-file integrity for them.
   try {
-    const PYODIDE_CDN = "https://cdn.jsdelivr.net/pyodide/v0.26.4/full/";
     const JEDI_PYPI = "https://files.pythonhosted.org/packages/c0/5a/9cac0c82afec3d09ccd97c8b6502d48f165f9124db81b4bcb90b4af974ee/jedi-0.19.2-py2.py3-none-any.whl";
     await p.loadPackage([
       `${PYODIDE_CDN}parso-0.8.4-py2.py3-none-any.whl`,

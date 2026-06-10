@@ -54,7 +54,7 @@ Pyodide is cached via Service Worker for faster subsequent loads:
 - **Location**: `public/sw.js`
 - **Cached assets**: Pyodide v0.29.3
 - **Behavior**: Automatic caching on first load, serves from cache on subsequent loads
-- **Version management**: Cache version `webide-v2`, auto-invalidated on version change
+- **Version management**: Cache version `webide-v4`, auto-invalidated on version change
 
 ### Lazy Loading
 DocsPanel is lazy-loaded via `React.lazy()` to reduce initial bundle size:

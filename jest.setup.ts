@@ -4,6 +4,33 @@ import '@testing-library/jest-dom';
 if (typeof globalThis.structuredClone === 'undefined') {
   globalThis.structuredClone = <T>(obj: T): T => JSON.parse(JSON.stringify(obj));
 }
+
+// jsdom does not implement PointerEvent. Stub it so fireEvent.pointerDown/Up
+// correctly sets button, pointerId, clientX/Y properties used by canvas handlers.
+if (typeof globalThis.PointerEvent === 'undefined') {
+  class PointerEvent extends MouseEvent {
+    pointerId: number;
+    pressure: number;
+    pointerType: string;
+    isPrimary: boolean;
+    constructor(type: string, params: PointerEventInit = {}) {
+      super(type, params);
+      this.pointerId = params.pointerId ?? 0;
+      this.pressure = params.pressure ?? 0;
+      this.pointerType = params.pointerType ?? 'mouse';
+      this.isPrimary = params.isPrimary ?? true;
+    }
+  }
+  (globalThis as unknown as { PointerEvent: unknown }).PointerEvent = PointerEvent;
+}
+
+// jsdom does not implement setPointerCapture / releasePointerCapture.
+if (!HTMLElement.prototype.setPointerCapture) {
+  HTMLElement.prototype.setPointerCapture = function() {};
+}
+if (!HTMLElement.prototype.releasePointerCapture) {
+  HTMLElement.prototype.releasePointerCapture = function() {};
+}
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 

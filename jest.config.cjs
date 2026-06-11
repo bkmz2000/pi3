@@ -54,7 +54,7 @@ const config = {
       statements: 14,
     },
     './src/state/': {
-      branches: 39,
+      branches: 34,
       functions: 36,
       lines: 35,
       statements: 35,

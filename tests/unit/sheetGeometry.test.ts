@@ -10,7 +10,7 @@ import {
   snapRegion,
   hitTestSprites,
   rectsOverlap,
-} from '../../src/SheetEditor';
+} from '../../src/sheetGeometry';
 import type { SheetSprites } from '../../src/state/IdeState';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

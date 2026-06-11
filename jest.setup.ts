@@ -1,4 +1,9 @@
 import '@testing-library/jest-dom';
+
+// structuredClone is available in Node 17+ but some jsdom setups don't expose it globally.
+if (typeof globalThis.structuredClone === 'undefined') {
+  globalThis.structuredClone = <T>(obj: T): T => JSON.parse(JSON.stringify(obj));
+}
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 

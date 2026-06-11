@@ -171,6 +171,8 @@ function floodFill(buf: Uint8ClampedArray, w: number, h: number, px: number, py:
 
 // ── Smart select helpers ──────────────────────────────────────────────────────
 
+const DIRS8 = [-1,-1, 0,-1, 1,-1, -1,0, 1,0, -1,1, 0,1, 1,1]; // dx,dy pairs
+
 function connectedBounds(buf: Uint8ClampedArray, w: number, h: number, px: number, py: number): { x: number; y: number; w: number; h: number } | null {
   if (px < 0 || py < 0 || px >= w || py >= h) return null;
   if (buf[(py * w + px) * 4 + 3] === 0) return null;
@@ -183,9 +185,8 @@ function connectedBounds(buf: Uint8ClampedArray, w: number, h: number, px: numbe
     const cx = idx % w, cy = (idx / w) | 0;
     if (cx < minX) minX = cx; else if (cx > maxX) maxX = cx;
     if (cy < minY) minY = cy; else if (cy > maxY) maxY = cy;
-    for (let d = 0; d < 4; d++) {
-      const nx = cx + (d === 0 ? 1 : d === 1 ? -1 : 0);
-      const ny = cy + (d === 2 ? 1 : d === 3 ? -1 : 0);
+    for (let d = 0; d < 8; d++) {
+      const nx = cx + DIRS8[d*2], ny = cy + DIRS8[d*2+1];
       if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
       const ni = ny * w + nx;
       if (visited[ni] || buf[ni * 4 + 3] === 0) continue;
@@ -260,6 +261,58 @@ function anyStripOverlaps(sprites: SheetSprites, x: number, y: number, w: number
   return false;
 }
 
+function findOverlappingStrips(sprites: SheetSprites, x: number, y: number, w: number, h: number, excludeSprite?: string, excludeAnim?: string): Array<{ name: string; rect: { x: number; y: number; w: number; h: number } }> {
+  const result: Array<{ name: string; rect: { x: number; y: number; w: number; h: number } }> = [];
+  for (const [sname, sentry] of Object.entries(sprites)) {
+    for (const [aname, strip] of Object.entries(sentry.animations)) {
+      if (sname === excludeSprite && aname === excludeAnim) continue;
+      const sw = strip.frameW * strip.frameCount;
+      if (rectsOverlap(x, y, w, h, strip.x, strip.y, sw, strip.frameH))
+        result.push({ name: sname, rect: { x: strip.x, y: strip.y, w: sw, h: strip.frameH } });
+    }
+  }
+  return result;
+}
+
+function suggestSpriteName(existing: Set<string>, base = "hero"): string {
+  if (!existing.has(base)) return base;
+  let n = 2;
+  while (existing.has(`${base}${n}`)) n++;
+  return `${base}${n}`;
+}
+
+function validateSpriteName(name: string, existing: Set<string>): { ok: true } | { ok: false; key: string; args?: Record<string, string> } {
+  if (!name) return { ok: false, key: "sheetEditor.nameRequired" };
+  if (!/^[a-z_][a-z0-9_]*$/.test(name)) return { ok: false, key: "sheetEditor.nameRules" };
+  if (ACTOR_RESERVED.has(name)) return { ok: false, key: "sheetEditor.nameReserved" };
+  if (existing.has(name)) return { ok: false, key: "sheetEditor.nameTaken" };
+  return { ok: true };
+}
+
+function snapRegion(sx: number, sy: number, ex: number, ey: number, grid: number): { x: number; y: number; w: number; h: number } {
+  if (grid <= 1) {
+    const x = Math.min(sx, ex), y = Math.min(sy, ey);
+    return { x, y, w: Math.abs(ex - sx), h: Math.abs(ey - sy) };
+  }
+  const snapX = (v: number) => Math.round(v / grid) * grid;
+  const ax = snapX(sx), ay = snapX(sy), bx = snapX(ex), by = snapX(ey);
+  const x = Math.min(ax, bx), y = Math.min(ay, by);
+  return { x, y, w: Math.abs(bx - ax), h: Math.abs(by - ay) };
+}
+
+function hitTestSprites(sprites: SheetSprites, px: number, py: number): { sprite: string; anim: string; idx: number } | null {
+  for (const [sname, sentry] of Object.entries(sprites)) {
+    for (const [aname, strip] of Object.entries(sentry.animations)) {
+      if (py < strip.y || py >= strip.y + strip.frameH) continue;
+      if (px < strip.x || px >= strip.x + strip.frameW * strip.frameCount) continue;
+      const idx = Math.floor((px - strip.x) / strip.frameW);
+      return { sprite: sname, anim: aname, idx };
+    }
+  }
+  return null;
+}
+
+export { connectedBounds, padBoundsToGrid, findOverlappingStrips, suggestSpriteName, validateSpriteName, snapRegion, hitTestSprites, rectsOverlap };
 
 // ── Color picker popover ──────────────────────────────────────────────────────
 
@@ -312,7 +365,7 @@ function isBrushTool(t: Tool): t is DrawTool {
 
 function toolCursor(t: Tool): string {
   if (t === "select") return "default";
-  if (t === "wand") return "cell";
+  if (t === "wand") return "crosshair";
   if (t === "fill") return "cell";
   if (t === "tile") return "copy";
   return "crosshair";
@@ -320,7 +373,7 @@ function toolCursor(t: Tool): string {
 
 const TOOL_DEFS: { id: Tool; label: string; icon: React.ReactNode; group: number }[] = [
   { id: "select",  label: "Select / Move", icon: <MousePointer2 size={20} strokeWidth={1.5} />, group: 1 },
-  { id: "wand",    label: "Smart Select",  icon: <Wand2 size={20} strokeWidth={1.5} />, group: 1 },
+  { id: "wand",    label: "sheetEditor.toolWand",   icon: <Wand2 size={20} strokeWidth={1.5} />, group: 1 },
   { id: "pencil",  label: "Pencil",       icon: <Pencil size={20} strokeWidth={1.5} />, group: 1 },
   { id: "eraser",  label: "Eraser",       icon: <Eraser size={20} strokeWidth={1.5} />, group: 1 },
   { id: "fill",    label: "Fill",         icon: <PaintBucket size={20} strokeWidth={1.5} />, group: 1 },
@@ -329,7 +382,7 @@ const TOOL_DEFS: { id: Tool; label: string; icon: React.ReactNode; group: number
   { id: "line",    label: "Line",         icon: <Spline size={20} strokeWidth={1.5} />, group: 3 },
   { id: "rect",    label: "Rect",         icon: <Square size={20} strokeWidth={1.5} />, group: 3 },
   { id: "ellipse", label: "Ellipse",      icon: <Circle size={20} strokeWidth={1.5} />, group: 3 },
-  { id: "region",  label: "Region",       icon: <LayoutGrid size={20} strokeWidth={1.5} />, group: 4 },
+  { id: "region",  label: "sheetEditor.toolRegion", icon: <LayoutGrid size={20} strokeWidth={1.5} />, group: 4 },
   { id: "tile",    label: "Tile",         icon: <Stamp size={20} strokeWidth={1.5} />, group: 4 },
 ];
 
@@ -356,8 +409,9 @@ export default function SheetEditor({ onClose, initialSprite }: { onClose: () =>
   const panelRowRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const pendingScrollAdjust = useRef<{ left: number; top: number } | null>(null);
 
-  const undoStack = useRef<Uint8ClampedArray[]>([]);
-  const redoStack = useRef<Uint8ClampedArray[]>([]);
+  type UndoEntry = { pixels: Uint8ClampedArray; sprites: SheetSprites };
+  const undoStack = useRef<UndoEntry[]>([]);
+  const redoStack = useRef<UndoEntry[]>([]);
   const clipboardRef = useRef<{ pixels: Uint8ClampedArray; w: number; h: number } | null>(null);
   const renderCanvasRef = useRef<() => void>(() => {});
   const imageDataRef = useRef<ImageData | null>(null);
@@ -387,7 +441,9 @@ export default function SheetEditor({ onClose, initialSprite }: { onClose: () =>
   const [pendingName, setPendingName] = useState("");
   const [pendingNameError, setPendingNameError] = useState("");
 
-  useEffect(() => { dragStartRef.current = null; dragNowRef.current = null; }, [tool]);
+  useEffect(() => { dragStartRef.current = null; dragNowRef.current = null; if (wandHoverRef.current) wandHoverRef.current.style.display = 'none'; }, [tool]);
+
+  useEffect(() => { pendingRegionRef.current = pendingRegion; }, [pendingRegion]);
 
   const [renamingSprite, setRenamingSprite] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
@@ -426,6 +482,16 @@ export default function SheetEditor({ onClose, initialSprite }: { onClose: () =>
   const [moveSpriteDrag, setMoveSpriteDrag] = useState<MoveSpriteDrag>(null);
   const [resizeSpriteDrag, setResizeSpriteDrag] = useState<ResizeSpriteDrag>(null);
   const tileOverlayRef = useRef<HTMLDivElement>(null);
+  const sizeChipRef = useRef<HTMLDivElement>(null);
+  const wandHoverRef = useRef<HTMLDivElement>(null);
+  const wandPendingRef = useRef<{ x: number; y: number; w: number; h: number; pixels: Uint8ClampedArray } | null>(null);
+  const wandLastHoverPxRef = useRef<{x: number; y: number} | null>(null);
+  const overlapFlashRef = useRef<{ rects: Array<{x:number;y:number;w:number;h:number}>; attempted: {x:number;y:number;w:number;h:number} } | null>(null);
+  const overlapFlashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingRegionRef = useRef<{ x: number; y: number; w: number; h: number } | null>(null);
+  const moveOffscreenRef = useRef<OffscreenCanvas | null>(null);
+  const moveOrigBoundsRef = useRef<{x: number; y: number; w: number; h: number} | null>(null);
+  const moveOffRef = useRef<{dx: number; dy: number}>({ dx: 0, dy: 0 });
   const [showLibrary, setShowLibrary] = useState(false);
 
   useEffect(() => { zoomRef.current = zoom; canvasRectRef.current = null; }, [zoom]);
@@ -466,28 +532,38 @@ export default function SheetEditor({ onClose, initialSprite }: { onClose: () =>
   // ── Undo / Redo ──────────────────────────────────────────────────────────────
 
   const pushUndo = useCallback(() => {
-    undoStack.current.push(new Uint8ClampedArray(pixBuf.current));
+    const currentSprites = useEditor.getState().project.sheet?.sprites ?? {};
+    undoStack.current.push({ pixels: new Uint8ClampedArray(pixBuf.current), sprites: structuredClone(currentSprites) });
     if (undoStack.current.length > 50) undoStack.current.shift();
     redoStack.current = [];
   }, []);
 
   const performUndo = useCallback(() => {
     if (undoStack.current.length === 0) return;
-    redoStack.current.push(new Uint8ClampedArray(pixBuf.current));
+    const currentSprites = useEditor.getState().project.sheet?.sprites ?? {};
+    redoStack.current.push({ pixels: new Uint8ClampedArray(pixBuf.current), sprites: structuredClone(currentSprites) });
     const snap = undoStack.current.pop()!;
-    pixBuf.current.set(snap);
-    setSheet({ ...sheet, pixels: encodePixels(snap) });
+    pixBuf.current.set(snap.pixels);
+    setSheet({ ...sheet, pixels: encodePixels(snap.pixels), sprites: snap.sprites });
     renderCanvasRef.current();
   }, [sheet, setSheet]);
 
   const performRedo = useCallback(() => {
     if (redoStack.current.length === 0) return;
-    undoStack.current.push(new Uint8ClampedArray(pixBuf.current));
+    const currentSprites = useEditor.getState().project.sheet?.sprites ?? {};
+    undoStack.current.push({ pixels: new Uint8ClampedArray(pixBuf.current), sprites: structuredClone(currentSprites) });
     const snap = redoStack.current.pop()!;
-    pixBuf.current.set(snap);
-    setSheet({ ...sheet, pixels: encodePixels(snap) });
+    pixBuf.current.set(snap.pixels);
+    setSheet({ ...sheet, pixels: encodePixels(snap.pixels), sprites: snap.sprites });
     renderCanvasRef.current();
   }, [sheet, setSheet]);
+
+  const triggerOverlapFlash = useCallback((overlaps: ReturnType<typeof findOverlappingStrips>, attempted: {x:number;y:number;w:number;h:number}) => {
+    overlapFlashRef.current = { rects: overlaps.map(o => o.rect), attempted };
+    if (overlapFlashTimerRef.current) clearTimeout(overlapFlashTimerRef.current);
+    overlapFlashTimerRef.current = setTimeout(() => { overlapFlashRef.current = null; renderCanvasRef.current(); }, 1200);
+    renderCanvasRef.current();
+  }, []);
 
   // ── Keyboard shortcuts ───────────────────────────────────────────────────────
 
@@ -559,6 +635,32 @@ export default function SheetEditor({ onClose, initialSprite }: { onClose: () =>
     return () => window.removeEventListener("keydown", handler);
   }, []);
 
+  // ── Escape cancels drag ──────────────────────────────────────────────────────
+
+  useEffect(() => {
+    const onEscape = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      const sd = selectDragRef.current;
+      if (!sd) return;
+      e.preventDefault();
+      // If pixels were lifted (selectDragOffRef exists), put them back at original position
+      if (selectDragOffRef.current) {
+        // Pop the undo frame that was pushed at lift
+        undoStack.current.pop();
+        // Restore original pixels
+        for (let row = 0; row < sd.origH; row++)
+          pixBuf.current.set(sd.pixels.subarray(row * sd.origW * 4, (row + 1) * sd.origW * 4), ((sd.origY + row) * sheetW + sd.origX) * 4);
+      }
+      selectDragRef.current = null;
+      selectDragOffRef.current = null;
+      wandPendingRef.current = null;
+      renderCanvasRef.current();
+    };
+    window.addEventListener("keydown", onEscape);
+    return () => window.removeEventListener("keydown", onEscape);
+  }, [sheetW]);
+
   // ── Canvas render ────────────────────────────────────────────────────────────
 
   const clipRect = useMemo((): Clip | null => {
@@ -598,6 +700,33 @@ export default function SheetEditor({ onClose, initialSprite }: { onClose: () =>
       const w = Math.abs(rd.ex - rd.sx), h = Math.abs(rd.ey - rd.sy);
       ctx.strokeStyle = "#ef7d57"; ctx.lineWidth = 1 / zoomRef.current; ctx.setLineDash([4 / zoomRef.current, 4 / zoomRef.current]);
       ctx.strokeRect(x, y, w, h); ctx.setLineDash([]);
+    }
+    const pr = pendingRegionRef.current;
+    if (pr) {
+      ctx.strokeStyle = "#41a6f6";
+      ctx.lineWidth = 1 / zoomRef.current;
+      ctx.strokeRect(pr.x, pr.y, pr.w, pr.h);
+    }
+    const flash = overlapFlashRef.current;
+    if (flash) {
+      ctx.strokeStyle = "#b13e53";
+      ctx.lineWidth = 1 / zoomRef.current;
+      ctx.setLineDash([4 / zoomRef.current, 4 / zoomRef.current]);
+      for (const r of flash.rects) ctx.strokeRect(r.x, r.y, r.w, r.h);
+      ctx.strokeStyle = "#ef7d57";
+      ctx.strokeRect(flash.attempted.x, flash.attempted.y, flash.attempted.w, flash.attempted.h);
+      ctx.setLineDash([]);
+    }
+    if (moveOffscreenRef.current && moveOrigBoundsRef.current) {
+      const mb = moveOrigBoundsRef.current;
+      const mo = moveOffRef.current;
+      const fSh = useEditor.getState().project.sheet;
+      const fSw2 = fSh?.width ?? BLANK_W, fSh2 = fSh?.height ?? BLANK_H;
+      const nx = Math.max(0, Math.min(fSw2 - mb.w, mb.x + mo.dx));
+      const ny = Math.max(0, Math.min(fSh2 - mb.h, mb.y + mo.dy));
+      ctx.globalAlpha = 0.9;
+      ctx.drawImage(moveOffscreenRef.current, nx, ny);
+      ctx.globalAlpha = 1;
     }
     const ds = dragStartRef.current, dn = dragNowRef.current;
     if (ds && dn && SHAPE_TOOLS.has(tool as ShapeTool)) {
@@ -684,6 +813,12 @@ export default function SheetEditor({ onClose, initialSprite }: { onClose: () =>
         selectDragRef.current = { sprite: selectedFrame!.sprite, origX: cx, origY: cy, origW: cw, origH: ch, pixels, px0: coords.x, py0: coords.y, dx: 0, dy: 0, freeMove: true };
         renderCanvas(); (e.target as Element).setPointerCapture(e.pointerId); return;
       }
+      // Hit-test sprites: first click selects a frame, second click (when it IS the selected frame) falls through to sprite-block lift
+      const hit = hitTestSprites(sheet.sprites, coords.x, coords.y);
+      if (hit && (!selectedFrame || hit.sprite !== selectedFrame.sprite || hit.anim !== selectedFrame.anim || hit.idx !== selectedFrame.idx)) {
+        setSelectedFrame(hit);
+        return;
+      }
       for (const [sn, se] of Object.entries(sheet.sprites)) {
         const strips = Object.values(se.animations); if (strips.length === 0) continue;
         const ox = Math.min(...strips.map(s => s.x)), oy = Math.min(...strips.map(s => s.y));
@@ -707,20 +842,17 @@ export default function SheetEditor({ onClose, initialSprite }: { onClose: () =>
       const clampedX = Math.max(0, bx), clampedY = Math.max(0, by);
       const clampedW = Math.min(bw, sheetW - clampedX), clampedH = Math.min(bh, sheetH - clampedY);
       if (clampedW < 1 || clampedH < 1) return;
-      pushUndo();
+      // Store as pending — don't cut pixels yet (deferred lift on first movement)
       const pixels = new Uint8ClampedArray(clampedW * clampedH * 4);
-      for (let row = 0; row < clampedH; row++) {
+      for (let row = 0; row < clampedH; row++)
         for (let col = 0; col < clampedW; col++) {
           const si = ((clampedY + row) * sheetW + clampedX + col) * 4;
           const di = (row * clampedW + col) * 4;
           pixels[di] = pixBuf.current[si]; pixels[di+1] = pixBuf.current[si+1]; pixels[di+2] = pixBuf.current[si+2]; pixels[di+3] = pixBuf.current[si+3];
-          pixBuf.current[si] = 0; pixBuf.current[si+1] = 0; pixBuf.current[si+2] = 0; pixBuf.current[si+3] = 0;
         }
-      }
-      const off = new OffscreenCanvas(clampedW, clampedH); off.getContext("2d")!.putImageData(new ImageData(new Uint8ClampedArray(pixels), clampedW, clampedH), 0, 0);
-      selectDragOffRef.current = off;
+      wandPendingRef.current = { x: clampedX, y: clampedY, w: clampedW, h: clampedH, pixels };
       selectDragRef.current = { sprite: selectedFrame?.sprite ?? "", origX: clampedX, origY: clampedY, origW: clampedW, origH: clampedH, pixels, px0: coords.x, py0: coords.y, dx: 0, dy: 0, freeMove: true };
-      renderCanvas(); (e.target as Element).setPointerCapture(e.pointerId); return;
+      (e.target as Element).setPointerCapture(e.pointerId); return;
     }
     if (tool === "region") { regionDragRef.current = { sx: coords.x, sy: coords.y, ex: coords.x, ey: coords.y }; (e.target as Element).setPointerCapture(e.pointerId); return; }
     if (tool === "tile" && tileSprite && sheet.sprites[tileSprite]) {
@@ -783,7 +915,53 @@ export default function SheetEditor({ onClose, initialSprite }: { onClose: () =>
       if (tileOverlayRef.current) tileOverlayRef.current.style.display = 'none';
     }
     if (tool === "region" && regionDragRef.current) {
-      regionDragRef.current = { ...regionDragRef.current, ex: coords.x, ey: coords.y };
+      const rd = regionDragRef.current;
+      if (showGrid && gridSize > 1 && !e.altKey) {
+        const snapped = snapRegion(rd.sx, rd.sy, coords.x, coords.y, gridSize);
+        regionDragRef.current = { sx: rd.sx, sy: rd.sy, ex: coords.x, ey: coords.y };
+        const el = sizeChipRef.current;
+        if (el) {
+          const z = zoomRef.current;
+          el.style.display = 'block';
+          el.style.left = `${Math.max(snapped.x, coords.x) * z}px`;
+          el.style.top = `${(Math.min(rd.sy, coords.y) + snapped.h) * z + 4}px`;
+          const cellsW = snapped.w / gridSize, cellsH = snapped.h / gridSize;
+          const divides = Number.isInteger(cellsW) && Number.isInteger(cellsH);
+          el.textContent = divides ? `${snapped.w}×${snapped.h} (${cellsW}×${cellsH})` : `${snapped.w}×${snapped.h}`;
+        }
+      } else {
+        regionDragRef.current = { ...rd, ex: coords.x, ey: coords.y };
+        const el = sizeChipRef.current;
+        if (el) {
+          const z = zoomRef.current;
+          const x = Math.min(rd.sx, coords.x), y = Math.min(rd.sy, coords.y);
+          const w = Math.abs(coords.x - rd.sx), h = Math.abs(coords.y - rd.sy);
+          el.style.display = 'block';
+          el.style.left = `${(x + w) * z}px`;
+          el.style.top = `${(y + h) * z + 4}px`;
+          el.textContent = `${w}×${h}`;
+        }
+      }
+      renderCanvasRef.current(); return;
+    }
+    if (tool === "wand" && selectDragRef.current) {
+      const sd = selectDragRef.current;
+      const newDx = coords.x - sd.px0, newDy = coords.y - sd.py0;
+      // Perform lift on first actual movement
+      if (wandPendingRef.current && (newDx !== 0 || newDy !== 0)) {
+        const wp = wandPendingRef.current;
+        pushUndo();
+        for (let row = 0; row < wp.h; row++)
+          for (let col = 0; col < wp.w; col++) {
+            const si = ((wp.y + row) * sheetW + wp.x + col) * 4;
+            pixBuf.current[si] = 0; pixBuf.current[si+1] = 0; pixBuf.current[si+2] = 0; pixBuf.current[si+3] = 0;
+          }
+        const off = new OffscreenCanvas(wp.w, wp.h);
+        off.getContext("2d")!.putImageData(new ImageData(new Uint8ClampedArray(wp.pixels), wp.w, wp.h), 0, 0);
+        selectDragOffRef.current = off;
+        wandPendingRef.current = null;
+      }
+      selectDragRef.current = { ...sd, dx: newDx, dy: newDy };
       renderCanvasRef.current(); return;
     }
     if (tool === "select" && selectDragRef.current) {
@@ -793,7 +971,30 @@ export default function SheetEditor({ onClose, initialSprite }: { onClose: () =>
     }
     if (tool === "select" && !selectDragRef.current && !moveSpriteDrag) {
       const canvas = canvasRef.current;
-      if (canvas) canvas.style.cursor = (clipRect && inClip(coords.x, coords.y, clipRect)) ? "move" : "default";
+      const hit = hitTestSprites(sheet.sprites, coords.x, coords.y);
+      if (canvas) canvas.style.cursor = (clipRect && inClip(coords.x, coords.y, clipRect)) ? "move" : hit ? "pointer" : "default";
+    }
+    if (tool === "wand" && !selectDragRef.current) {
+      const lastPx = wandLastHoverPxRef.current;
+      if (!lastPx || lastPx.x !== coords.x || lastPx.y !== coords.y) {
+        wandLastHoverPxRef.current = { x: coords.x, y: coords.y };
+        const el = wandHoverRef.current;
+        if (el) {
+          const bounds = connectedBounds(pixBuf.current, sheetW, sheetH, coords.x, coords.y);
+          if (bounds) {
+            const padSize = showGrid && gridSize > 1 ? gridSize : 1;
+            const padded = padBoundsToGrid(bounds.x, bounds.y, bounds.w, bounds.h, padSize);
+            const z = zoomRef.current;
+            el.style.display = 'block';
+            el.style.left = `${padded.x * z}px`;
+            el.style.top = `${padded.y * z}px`;
+            el.style.width = `${padded.w * z}px`;
+            el.style.height = `${padded.h * z}px`;
+          } else {
+            el.style.display = 'none';
+          }
+        }
+      }
     }
     if (SHAPE_TOOLS.has(tool as ShapeTool) && dragStartRef.current) {
       dragNowRef.current = { x: coords.x, y: coords.y };
@@ -819,11 +1020,18 @@ export default function SheetEditor({ onClose, initialSprite }: { onClose: () =>
       stampTile(pixBuf.current, sheetW, sheetH, pixBuf.current, sheetW, strip.x, strip.y, tw, th, tx, ty); renderCanvas(); return;
     }
     paintBrush(pixBuf.current, sheetW, sheetH, coords.x, coords.y, tool as DrawTool, lerpOverride ?? color, brushSize, clipRect); renderCanvas();
-  }, [painting, tool, color, lerpOverride, brushSize, clipRect, canvasCoords, renderCanvas, tileSprite, sheet.sprites, startHoverPreview, clearHoverPreview, moveSpriteDrag, sheetW, sheetH]);
+  }, [painting, tool, color, lerpOverride, brushSize, clipRect, canvasCoords, renderCanvas, tileSprite, sheet.sprites, startHoverPreview, clearHoverPreview, moveSpriteDrag, sheetW, sheetH, showGrid, gridSize, pushUndo]);
 
   const handleCanvasPointerUp = useCallback(() => {
+    // Wand: click without drag — discard cleanly, no undo push
+    if (tool === "wand" && wandPendingRef.current) {
+      wandPendingRef.current = null;
+      selectDragRef.current = null;
+      selectDragOffRef.current = null;
+      return;
+    }
     const sd = selectDragRef.current;
-    if (tool === "select" && sd) {
+    if ((tool === "select" || tool === "wand") && sd) {
       const nx = Math.max(0, Math.min(sheetW - sd.origW, sd.origX + sd.dx));
       const ny = Math.max(0, Math.min(sheetH - sd.origH, sd.origY + sd.dy));
       for (let row = 0; row < sd.origH; row++) pixBuf.current.set(sd.pixels.subarray(row * sd.origW * 4, (row + 1) * sd.origW * 4), ((ny + row) * sheetW + nx) * 4);
@@ -843,12 +1051,20 @@ export default function SheetEditor({ onClose, initialSprite }: { onClose: () =>
     }
     const rd = regionDragRef.current;
     if (tool === "region" && rd) {
-      const x = Math.min(rd.sx, rd.ex), y = Math.min(rd.sy, rd.ey);
-      const w = Math.abs(rd.ex - rd.sx), h = Math.abs(rd.ey - rd.sy);
+      if (sizeChipRef.current) sizeChipRef.current.style.display = 'none';
+      let x: number, y: number, w: number, h: number;
+      if (showGrid && gridSize > 1) {
+        const snapped = snapRegion(rd.sx, rd.sy, rd.ex, rd.ey, gridSize);
+        x = snapped.x; y = snapped.y; w = snapped.w; h = snapped.h;
+      } else {
+        x = Math.min(rd.sx, rd.ex); y = Math.min(rd.sy, rd.ey);
+        w = Math.abs(rd.ex - rd.sx); h = Math.abs(rd.ey - rd.sy);
+      }
       regionDragRef.current = null;
       if (w >= 4 && h >= 4) {
-        if (anyStripOverlaps(sheet.sprites, x, y, w, h)) setPendingNameError("Overlaps existing region");
-        else { setPendingRegion({ x, y, w, h }); setPendingName("hero"); setPendingNameError(""); }
+        const overlaps = findOverlappingStrips(sheet.sprites, x, y, w, h);
+        if (overlaps.length > 0) { triggerOverlapFlash(overlaps, { x, y, w, h }); return; }
+        setPendingRegion({ x, y, w, h }); setPendingName(suggestSpriteName(new Set(Object.keys(sheet.sprites)))); setPendingNameError("");
       } else {
         // Single click: smart region — flood-fill connected pixels → padded bounding box
         const bounds = connectedBounds(pixBuf.current, sheetW, sheetH, rd.sx, rd.sy);
@@ -858,8 +1074,9 @@ export default function SheetEditor({ onClose, initialSprite }: { onClose: () =>
           const cx = Math.max(0, padded.x), cy = Math.max(0, padded.y);
           const cw = Math.min(padded.w, sheetW - cx), ch = Math.min(padded.h, sheetH - cy);
           if (cw >= 2 && ch >= 2) {
-            if (anyStripOverlaps(sheet.sprites, cx, cy, cw, ch)) setPendingNameError("Overlaps existing region");
-            else { setPendingRegion({ x: cx, y: cy, w: cw, h: ch }); setPendingName("hero"); setPendingNameError(""); }
+            const overlaps2 = findOverlappingStrips(sheet.sprites, cx, cy, cw, ch);
+            if (overlaps2.length > 0) { triggerOverlapFlash(overlaps2, { x: cx, y: cy, w: cw, h: ch }); return; }
+            setPendingRegion({ x: cx, y: cy, w: cw, h: ch }); setPendingName(suggestSpriteName(new Set(Object.keys(sheet.sprites)))); setPendingNameError("");
           }
         }
       }
@@ -880,24 +1097,24 @@ export default function SheetEditor({ onClose, initialSprite }: { onClose: () =>
       return;
     }
     if (painting) { setPainting(false); setSheet({ ...sheet, pixels: encodePixels(pixBuf.current) }); }
-  }, [painting, tool, sheet, setSheet, renderCanvas, pushUndo, lerpOverride, color, clipRect, showGrid, gridSize, sheetW, sheetH]);
+  }, [painting, tool, sheet, setSheet, renderCanvas, pushUndo, lerpOverride, color, clipRect, showGrid, gridSize, sheetW, sheetH, triggerOverlapFlash]);
 
   // ── Confirm pending region ────────────────────────────────────────────────────
 
   const confirmRegion = useCallback(() => {
     if (!pendingRegion) return;
-    const name = pendingName.trim();
-    if (!name) { setPendingNameError("Name required"); return; }
-    if (!/^[a-z_][a-z0-9_]*$/.test(name)) { setPendingNameError("Use lowercase letters, digits, underscores"); return; }
-    if (ACTOR_RESERVED.has(name)) { setPendingNameError("Reserved name"); return; }
-    if (name in sheet.sprites) { setPendingNameError("Name already used"); return; }
+    const name = pendingName.trim().toLowerCase();
+    const result = validateSpriteName(name, new Set(Object.keys(sheet.sprites)));
+    if (!result.ok) { setPendingNameError(t(result.key, result.args)); return; }
+    const overlaps = findOverlappingStrips(sheet.sprites, pendingRegion.x, pendingRegion.y, pendingRegion.w, pendingRegion.h);
+    if (overlaps.length > 0) { setPendingNameError(t('sheetEditor.regionOverlaps', { name: overlaps[0].name })); return; }
     pushUndo();
     const newSprites: SheetSprites = { ...sheet.sprites, [name]: { animations: { default: { x: pendingRegion.x, y: pendingRegion.y, frameW: pendingRegion.w, frameH: pendingRegion.h, frameCount: 1 } } } };
     setSheet({ ...sheet, sprites: newSprites });
     setSelectedFrame({ sprite: name, anim: "default", idx: 0 });
     setExpandedSprites((s) => new Set([...s, name]));
     setPendingRegion(null); setPendingName("");
-  }, [pendingRegion, pendingName, sheet, setSheet, pushUndo]);
+  }, [pendingRegion, pendingName, sheet, setSheet, pushUndo, t]);
 
   // ── Add frame / animation ─────────────────────────────────────────────────────
 
@@ -967,70 +1184,146 @@ export default function SheetEditor({ onClose, initialSprite }: { onClose: () =>
   // ── Move / Resize sprite drags ───────────────────────────────────────────────
 
   useEffect(() => {
-    if (!moveSpriteDrag) return; let lastDx = 0, lastDy = 0;
+    if (!moveSpriteDrag) return;
+    // Lift pixels immediately
+    pushUndo();
+    const sh = useEditor.getState().project.sheet;
+    if (!sh) return;
+    const sprite = sh.sprites[moveSpriteDrag.sprite];
+    if (!sprite) return;
+    const strips = Object.values(moveSpriteDrag.origStrips);
+    const ox = Math.min(...strips.map(s => s.x));
+    const oy = Math.min(...strips.map(s => s.y));
+    const ox2 = Math.max(...strips.map(s => s.x + s.frameW * s.frameCount));
+    const oy2 = Math.max(...strips.map(s => s.y + s.frameH));
+    const bw = ox2 - ox, bh = oy2 - oy;
+    const savedPixels = new Uint8ClampedArray(bw * bh * 4);
+    const buf = pixBuf.current;
+    const sw = sh.width;
+    for (let row = 0; row < bh; row++) {
+      const src = ((oy + row) * sw + ox) * 4;
+      savedPixels.set(buf.subarray(src, src + bw * 4), row * bw * 4);
+      buf.fill(0, src, src + bw * 4);
+    }
+    const off = new OffscreenCanvas(bw, bh);
+    off.getContext("2d")!.putImageData(new ImageData(new Uint8ClampedArray(savedPixels), bw, bh), 0, 0);
+    moveOffscreenRef.current = off;
+    moveOrigBoundsRef.current = { x: ox, y: oy, w: bw, h: bh };
+    moveOffRef.current = { dx: 0, dy: 0 };
+    renderCanvasRef.current();
+
+    let lastDx = 0, lastDy = 0;
     const onMove = (e: PointerEvent) => {
       const canvas = canvasRef.current; if (!canvas) return;
       const rect = canvas.getBoundingClientRect();
-      const cx = Math.round((e.clientX - rect.left) / zoomRef.current), cy = Math.round((e.clientY - rect.top) / zoomRef.current);
-      lastDx = cx - moveSpriteDrag.px0; lastDy = cy - moveSpriteDrag.py0;
-      const sh = useEditor.getState().project.sheet; if (!sh) return;
-      const sprite = sh.sprites[moveSpriteDrag.sprite]; if (!sprite) return;
-      const newAnims: Record<string, typeof sprite.animations[string]> = {};
-      for (const [an, st] of Object.entries(sprite.animations)) {
-        const orig = moveSpriteDrag.origStrips[an];
-        if (!orig) { newAnims[an] = st; continue; }
-        newAnims[an] = { ...st, x: orig.x + lastDx, y: orig.y + lastDy };
-      }
-      setSheet({ ...sh, sprites: { ...sh.sprites, [moveSpriteDrag.sprite]: { animations: newAnims } } });
+      lastDx = Math.round((e.clientX - rect.left) / zoomRef.current) - moveSpriteDrag.px0;
+      lastDy = Math.round((e.clientY - rect.top) / zoomRef.current) - moveSpriteDrag.py0;
+      moveOffRef.current = { dx: lastDx, dy: lastDy };
+      renderCanvasRef.current();
     };
     const onUp = () => {
-      const dx = lastDx, dy = lastDy;
-      if (dx !== 0 || dy !== 0) {
-        const buf = pixBuf.current;
-        const sh = useEditor.getState().project.sheet;
-        const sw = sh?.width ?? BLANK_W, shh = sh?.height ?? BLANK_H;
-        for (const orig of Object.values(moveSpriteDrag.origStrips)) {
-          const fw = orig.frameW, fh = orig.frameH, fc = orig.frameCount;
-          for (let fi = 0; fi < fc; fi++) {
-            const sx = orig.x + fi * fw, sy = orig.y, nx = sx + dx, ny = sy + dy;
-            const saved = new Uint8ClampedArray(fw * fh * 4);
-            for (let row = 0; row < fh; row++) { const so = ((sy + row) * sw + sx) * 4; saved.set(buf.subarray(so, so + fw * 4), row * fw * 4); buf.fill(0, so, so + fw * 4); }
-            for (let row = 0; row < fh; row++) {
-              const nyr = ny + row; if (nyr < 0 || nyr >= shh) continue;
-              for (let col = 0; col < fw; col++) {
-                const nxc = nx + col; if (nxc < 0 || nxc >= sw) continue;
-                const si = row * fw * 4 + col * 4; if (saved[si + 3] === 0) continue;
-                const di = (nyr * sw + nxc) * 4;
-                buf[di] = saved[si]; buf[di + 1] = saved[si + 1]; buf[di + 2] = saved[si + 2]; buf[di + 3] = saved[si + 3];
-              }
-            }
+      const finalSh = useEditor.getState().project.sheet;
+      if (!finalSh) { setMoveSpriteDrag(null); return; }
+      const mb = moveOrigBoundsRef.current!;
+      const fSw = finalSh.width, fSh = finalSh.height;
+      const nx = Math.max(0, Math.min(fSw - mb.w, mb.x + lastDx));
+      const ny = Math.max(0, Math.min(fSh - mb.h, mb.y + lastDy));
+      const ddx = nx - mb.x, ddy = ny - mb.y;
+      // Overlap check (against other sprites, excluding this one)
+      const finalSprite = finalSh.sprites[moveSpriteDrag.sprite];
+      let hasOverlap = false;
+      if (finalSprite) {
+        for (const [an, st] of Object.entries(finalSprite.animations)) {
+          const orig = moveSpriteDrag.origStrips[an];
+          if (!orig) continue;
+          const ns = { x: orig.x + ddx, y: orig.y + ddy, w: orig.frameW * orig.frameCount, h: orig.frameH };
+          if (anyStripOverlaps(finalSh.sprites, ns.x, ns.y, ns.w, ns.h, moveSpriteDrag.sprite, an)) {
+            hasOverlap = true; break;
           }
         }
-        if (sh) setSheet({ ...sh, pixels: encodePixels(buf) });
       }
+      if (hasOverlap) {
+        // Revert: put pixels back at original position
+        for (let row = 0; row < mb.h; row++)
+          pixBuf.current.set(savedPixels.subarray(row * mb.w * 4, (row + 1) * mb.w * 4), ((mb.y + row) * fSw + mb.x) * 4);
+        undoStack.current.pop(); // remove the undo entry we pushed
+        moveOffscreenRef.current = null; moveOrigBoundsRef.current = null;
+        setMoveSpriteDrag(null); renderCanvasRef.current(); return;
+      }
+      // Paste pixels at new position
+      for (let row = 0; row < mb.h; row++) {
+        const nrow = ny + row; if (nrow < 0 || nrow >= fSh) continue;
+        for (let col = 0; col < mb.w; col++) {
+          const ncol = nx + col; if (ncol < 0 || ncol >= fSw) continue;
+          const si = (row * mb.w + col) * 4;
+          if (savedPixels[si + 3] === 0) continue;
+          const di = (nrow * fSw + ncol) * 4;
+          pixBuf.current[di] = savedPixels[si]; pixBuf.current[di+1] = savedPixels[si+1]; pixBuf.current[di+2] = savedPixels[si+2]; pixBuf.current[di+3] = savedPixels[si+3];
+        }
+      }
+      // Update sprite metadata
+      if (finalSprite) {
+        const newAnims: Record<string, typeof finalSprite.animations[string]> = {};
+        for (const [an, st] of Object.entries(finalSprite.animations)) {
+          const orig = moveSpriteDrag.origStrips[an];
+          if (orig) newAnims[an] = { ...st, x: orig.x + ddx, y: orig.y + ddy };
+          else newAnims[an] = st;
+        }
+        setSheet({ ...finalSh, pixels: encodePixels(pixBuf.current), sprites: { ...finalSh.sprites, [moveSpriteDrag.sprite]: { animations: newAnims } } });
+      }
+      moveOffscreenRef.current = null; moveOrigBoundsRef.current = null;
       setMoveSpriteDrag(null); renderCanvasRef.current();
     };
     window.addEventListener("pointermove", onMove); window.addEventListener("pointerup", onUp);
     return () => { window.removeEventListener("pointermove", onMove); window.removeEventListener("pointerup", onUp); };
-  }, [moveSpriteDrag, setSheet]);
+  }, [moveSpriteDrag, setSheet, pushUndo]);
 
   useEffect(() => {
     if (!resizeSpriteDrag) return;
+    let nw = resizeSpriteDrag.origFrameW, nh = resizeSpriteDrag.origFrameH;
     const onMove = (e: PointerEvent) => {
       const canvas = canvasRef.current; if (!canvas) return;
       const rect = canvas.getBoundingClientRect();
       const cx = Math.round((e.clientX - rect.left) / zoomRef.current), cy = Math.round((e.clientY - rect.top) / zoomRef.current);
-      const nw = Math.max(1, resizeSpriteDrag.origFrameW + cx - resizeSpriteDrag.px0);
-      const nh = Math.max(1, resizeSpriteDrag.origFrameH + cy - resizeSpriteDrag.py0);
+      nw = Math.max(2, resizeSpriteDrag.origFrameW + cx - resizeSpriteDrag.px0);
+      nh = Math.max(2, resizeSpriteDrag.origFrameH + cy - resizeSpriteDrag.py0);
+      if (showGrid && gridSize > 1) {
+        nw = Math.max(2, Math.round(nw / gridSize) * gridSize);
+        nh = Math.max(2, Math.round(nh / gridSize) * gridSize);
+      }
       const sh = useEditor.getState().project.sheet; if (!sh) return;
       const sprite = sh.sprites[resizeSpriteDrag.sprite]; if (!sprite) return;
-      const strip = sprite.animations[resizeSpriteDrag.anim]; if (!strip) return;
-      setSheet({ ...sh, sprites: { ...sh.sprites, [resizeSpriteDrag.sprite]: { ...sprite, animations: { ...sprite.animations, [resizeSpriteDrag.anim]: { ...strip, frameW: nw, frameH: nh } } } } });
+      // Update ALL animations of the sprite with new frameW/frameH
+      const newAnims: typeof sprite.animations = {};
+      for (const [an, st] of Object.entries(sprite.animations))
+        newAnims[an] = { ...st, frameW: nw, frameH: nh };
+      setSheet({ ...sh, sprites: { ...sh.sprites, [resizeSpriteDrag.sprite]: { ...sprite, animations: newAnims } } });
     };
-    const onUp = () => { setResizeSpriteDrag(null); renderCanvasRef.current(); };
+    const onUp = () => {
+      const sh = useEditor.getState().project.sheet;
+      if (sh) {
+        const sprite = sh.sprites[resizeSpriteDrag.sprite];
+        if (sprite) {
+          // Overlap check: does any strip at the new size overlap another sprite?
+          let hasOverlap = false;
+          for (const [an, st] of Object.entries(sprite.animations)) {
+            const tw = nw * st.frameCount;
+            if (anyStripOverlaps(sh.sprites, st.x, st.y, tw, nh, resizeSpriteDrag.sprite, an)) { hasOverlap = true; break; }
+          }
+          if (hasOverlap) {
+            // Revert to original frame sizes
+            const revertAnims: typeof sprite.animations = {};
+            for (const [an, st] of Object.entries(sprite.animations))
+              revertAnims[an] = { ...st, frameW: resizeSpriteDrag.origFrameW, frameH: resizeSpriteDrag.origFrameH };
+            setSheet({ ...sh, sprites: { ...sh.sprites, [resizeSpriteDrag.sprite]: { ...sprite, animations: revertAnims } } });
+          }
+        }
+      }
+      setResizeSpriteDrag(null); renderCanvasRef.current();
+    };
     window.addEventListener("pointermove", onMove); window.addEventListener("pointerup", onUp);
     return () => { window.removeEventListener("pointermove", onMove); window.removeEventListener("pointerup", onUp); };
-  }, [resizeSpriteDrag, setSheet]);
+  }, [resizeSpriteDrag, setSheet, showGrid, gridSize]);
 
   // ── Dismiss context menu ──────────────────────────────────────────────────────
 
@@ -1090,7 +1383,7 @@ export default function SheetEditor({ onClose, initialSprite }: { onClose: () =>
               {gn > 1 && <div style={{ width: 26, height: 1, background: "rgba(148,210,216,0.22)", margin: "5px 0" }} />}
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1, width: "100%" }}>
                 {gt.map(({ id, label, icon }) => (
-                  <button key={id} title={label} onClick={() => { setTool(id); setColorPickerOpen(false); }}
+                  <button key={id} title={label.startsWith("sheetEditor.") ? t(label) : label} onClick={() => { setTool(id); setColorPickerOpen(false); }}
                     style={{ all: "unset", display: "flex", alignItems: "center", justifyContent: "center", width: 38, height: 34, borderRadius: 6, cursor: "pointer", color: tool === id ? "#1e0800" : panelTxtMute, background: tool === id ? accent : "transparent" }}>{icon}</button>
                 ))}
               </div>
@@ -1106,9 +1399,11 @@ export default function SheetEditor({ onClose, initialSprite }: { onClose: () =>
                 <div style={{ position: "absolute", inset: 0, backgroundImage: "repeating-conic-gradient(#555 0% 25%, #444 0% 50%)", backgroundSize: "16px 16px" }} />
                 <canvas ref={canvasRef} width={sheetW} height={sheetH}
                   style={{ position: "absolute", inset: 0, width: canvasW, height: canvasH, cursor: toolCursor(tool), imageRendering: "pixelated" }}
-                  onPointerDown={handleCanvasPointerDown} onPointerMove={handleCanvasPointerMove} onPointerUp={handleCanvasPointerUp} onPointerLeave={() => { if (brushOverlayRef.current) brushOverlayRef.current.style.display = 'none'; }} onContextMenu={(e) => e.preventDefault()} />
+                  onPointerDown={handleCanvasPointerDown} onPointerMove={handleCanvasPointerMove} onPointerUp={handleCanvasPointerUp} onPointerLeave={() => { if (brushOverlayRef.current) brushOverlayRef.current.style.display = 'none'; if (wandHoverRef.current) wandHoverRef.current.style.display = 'none'; }} onContextMenu={(e) => e.preventDefault()} />
 
                 <div ref={tileOverlayRef} style={{ display: "none", position: "absolute", border: "1px dashed rgba(255,255,255,0.4)", background: "rgba(247,182,122,0.2)", pointerEvents: "none", zIndex: 2 }} />
+                <div ref={wandHoverRef} style={{ display: "none", position: "absolute", border: "1px dashed rgba(95,212,220,0.7)", boxShadow: "0 0 0 1px rgba(0,0,0,0.4)", pointerEvents: "none", zIndex: 3 }} />
+                <div ref={sizeChipRef} style={{ display: "none", position: "absolute", background: "rgba(0,0,0,0.75)", color: "#fff", fontSize: 9, fontFamily: fontMono, padding: "2px 5px", borderRadius: 3, pointerEvents: "none", zIndex: 4, whiteSpace: "nowrap" }} />
 
                 {showGrid && <div style={{ position: "absolute", inset: 0, pointerEvents: "none", backgroundImage: `repeating-linear-gradient(to right, rgba(255,255,255,0.22) 0 1px, transparent 1px ${gridSize * zoom}px), repeating-linear-gradient(to bottom, rgba(255,255,255,0.22) 0 1px, transparent 1px ${gridSize * zoom}px)`, backgroundSize: `${gridSize * zoom}px ${gridSize * zoom}px` }} />}
 
@@ -1152,7 +1447,7 @@ export default function SheetEditor({ onClose, initialSprite }: { onClose: () =>
                               )}
                             </div>
                             {Array.from({ length: strip.frameCount }).map((_, fi) => (
-                              <div key={fi} onClick={() => setSelectedFrame({ sprite: spriteName, anim: animName, idx: fi })}
+                              <div key={fi}
                                 style={{ width: strip.frameW * zoom, height: rowH, flexShrink: 0, boxSizing: "border-box", cursor: "pointer", background: "transparent", border: frameSel && selectedFrame?.idx === fi ? "2px solid #5fd4dc" : "1px solid rgba(95,212,220,0.22)", boxShadow: frameSel && selectedFrame?.idx === fi ? "inset 0 0 0 1px rgba(95,212,220,0.18), 0 0 12px rgba(95,212,220,0.12)" : "none" }} />
                             ))}
                             <div style={{ position: "relative", flexShrink: 0 }}>
@@ -1171,7 +1466,7 @@ export default function SheetEditor({ onClose, initialSprite }: { onClose: () =>
                         </div>
                       </div>
                       <div title={t('sheetEditor.resizeSprite')}
-                        onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); const strip = animEntries[0]?.[1]; if (!strip) return; const canvas = canvasRef.current; if (!canvas) return; const rect = canvas.getBoundingClientRect(); setResizeSpriteDrag({ sprite: spriteName, anim: animEntries[0][0], origFrameW: strip.frameW, origFrameH: strip.frameH, px0: Math.round((e.clientX - rect.left) / zoom), py0: Math.round((e.clientY - rect.top) / zoom) }); }}
+                        onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); const strip = animEntries[0]?.[1]; if (!strip) return; const canvas = canvasRef.current; if (!canvas) return; const rect = canvas.getBoundingClientRect(); pushUndo(); setResizeSpriteDrag({ sprite: spriteName, anim: animEntries[0][0], origFrameW: strip.frameW, origFrameH: strip.frameH, px0: Math.round((e.clientX - rect.left) / zoom), py0: Math.round((e.clientY - rect.top) / zoom) }); }}
                         style={{ position: "absolute", right: -5, bottom: -5, width: 12, height: 12, background: "rgba(255,255,255,0.85)", border: "1px solid rgba(0,0,0,0.4)", borderRadius: 2, cursor: "nwse-resize", pointerEvents: "auto", zIndex: 5 }} />
                     </div>
                   );
@@ -1180,11 +1475,12 @@ export default function SheetEditor({ onClose, initialSprite }: { onClose: () =>
                 {pendingRegion && (
                   <div style={{ position: "absolute", left: pendingRegion.x * zoom, top: Math.max(4, pendingRegion.y * zoom - 36), background: surfacePanel, border: `1px solid ${accent}`, borderRadius: 4, padding: "4px 6px", display: "flex", gap: 4, alignItems: "center", boxShadow: "0 2px 8px rgba(0,0,0,0.5)", zIndex: 10, pointerEvents: "auto" }}>
                     <input autoFocus placeholder={t('sheetEditor.spriteName')} value={pendingName}
-                      onChange={(e) => { setPendingName(e.target.value); setPendingNameError(""); }}
+                      onChange={(e) => { setPendingName(e.target.value.toLowerCase()); setPendingNameError(""); }}
                       onKeyDown={(e) => { if (e.key === "Enter") confirmRegion(); if (e.key === "Escape") { setPendingRegion(null); setPendingName(""); } e.stopPropagation(); }}
                       style={{ background: surface, color: panelTxt, border: `1px solid ${panelBorder}`, borderRadius: 3, padding: "2px 6px", fontSize: 11, width: 100, outline: pendingNameError ? "1px solid #b13e53" : "none" }} />
-                    {pendingNameError && <span style={{ fontSize: 9, color: "#b13e53", maxWidth: 80 }}>{pendingNameError}</span>}
+                    {pendingNameError && <span style={{ fontSize: "10.5px", color: "#b13e53", maxWidth: 180, whiteSpace: "normal" }}>{pendingNameError}</span>}
                     <button onClick={confirmRegion} style={{ padding: "2px 8px", borderRadius: 3, cursor: "pointer", fontSize: 11, background: accent, color: "#fff", border: "none" }}>OK</button>
+                    <button onClick={() => { setPendingRegion(null); setPendingName(""); setPendingNameError(""); }} style={{ all: "unset", width: 18, height: 18, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: panelTxtMute, fontSize: 14, borderRadius: 3 }}>✕</button>
                   </div>
                 )}
               </div>

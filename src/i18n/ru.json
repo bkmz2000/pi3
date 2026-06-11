@@ -1104,7 +1104,14 @@
     "zoomOut": "Уменьшить",
     "zoomIn": "Увеличить",
     "resizeSprite": "Resize sprite",
-    "addAnimTitle": "Добавить анимацию"
+    "addAnimTitle": "Добавить анимацию",
+    "toolWand": "Умное выделение (W)",
+    "toolRegion": "Новый спрайт (R)",
+    "nameRequired": "Укажи имя",
+    "nameRules": "Только строчные латинские буквы, цифры и _ — это имя попадёт в твой Python-код",
+    "nameReserved": "Это имя занято самим Actor",
+    "nameTaken": "Имя уже занято",
+    "regionOverlaps": "Пересекается со спрайтом «{{name}}»"
   },
   "tileEditor": {
     "title": "Редактор тайловых карт",

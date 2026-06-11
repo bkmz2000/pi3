@@ -1104,7 +1104,14 @@
     "zoomOut": "Zoom out",
     "zoomIn": "Zoom in",
     "resizeSprite": "Resize sprite",
-    "addAnimTitle": "Add animation"
+    "addAnimTitle": "Add animation",
+    "toolWand": "Smart Select (W)",
+    "toolRegion": "New Sprite (R)",
+    "nameRequired": "Name required",
+    "nameRules": "Lowercase letters, digits, underscores only",
+    "nameReserved": "Reserved name (used by Actor)",
+    "nameTaken": "Name already used",
+    "regionOverlaps": "Overlaps existing sprite \"{{name}}\""
   },
   "tileEditor": {
     "title": "Tilemap Editor",

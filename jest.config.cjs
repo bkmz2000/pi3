@@ -18,6 +18,8 @@ const config = {
     '^\\./(workerFactory)$': '<rootDir>/tests/unit/__mocks__/workerFactory.ts',
     // assets.ts uses import.meta.glob (Vite-only); swap for a stub.
     '^.*/state/assets$': '<rootDir>/tests/unit/__mocks__/assets.ts',
+    // storage.ts uses indexedDB (browser-only); swap for a stub.
+    '^.*/utils/storage$': '<rootDir>/tests/unit/__mocks__/storage.ts',
   },
   transform: {
     '^.+\\.(ts|tsx)$': ['ts-jest', {

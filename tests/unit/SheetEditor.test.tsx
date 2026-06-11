@@ -28,12 +28,17 @@ const editorState = {
   setSheet: jest.fn(),
 };
 
-jest.mock('../../src/state/IdeState', () => ({
-  useEditor: (selector: (s: unknown) => unknown) => selector({
+jest.mock('../../src/state/IdeState', () => {
+  const fn = (selector: (s: unknown) => unknown) => selector({
     project: { sheet: editorState.sheet, files: {}, assets: {}, tilemaps: {}, animations: {} },
     setSheet: editorState.setSheet,
-  }),
-}));
+  });
+  fn.getState = () => ({
+    project: { sheet: editorState.sheet, files: {}, assets: {}, tilemaps: {}, animations: {} },
+    setSheet: editorState.setSheet,
+  });
+  return { useEditor: fn };
+});
 
 jest.mock('../../src/state/useTheme', () => ({
   useThemeStore: (selector: (s: unknown) => unknown) => selector({

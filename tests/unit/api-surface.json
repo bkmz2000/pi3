@@ -51,5 +51,11 @@
   },
   "Group": {
     "methods": ["add", "remove", "clear", "__iter__", "__len__", "__contains__"]
-  }
+  },
+  "ACTOR_METHODS": [
+    "bounce", "collides_any", "collides_with", "die", "distance_to", "draw",
+    "forward", "in_bounds", "is_alive", "keep_in_bounds", "move", "move_to",
+    "point_towards", "random_position", "reset", "rotate", "update",
+    "wrap", "wrap_x", "wrap_y"
+  ]
 }

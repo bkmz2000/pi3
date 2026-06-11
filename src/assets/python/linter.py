@@ -966,6 +966,36 @@ def _check_type_reassignment(code: str, tree: ast.Module) -> list[dict]:
     return diagnostics
 
 
+def _check_method_not_called(code: str, tree: ast.Module) -> list[dict]:
+    """Warn when a method is used as a bare statement without calling it.
+
+    Detects `apple.draw` as a statement (should be `apple.draw()`).
+    Only fires for known Actor instance methods; ignores properties and static methods.
+    Does NOT fire for `x = apple.draw` or `apple.draw` used as an argument.
+    """
+    from graphics._manifest import ACTOR_METHODS
+    _actor_method_set = set(ACTOR_METHODS)
+    diagnostics = []
+
+    class MethodCallChecker(ast.NodeVisitor):
+        def visit_Expr(self, node):
+            if isinstance(node.value, ast.Attribute):
+                attr = node.value.attr
+                if attr in _actor_method_set:
+                    diagnostics.append(_make_diagnostic(
+                        "W_MethodNotCalled",
+                        "linter.W_MethodNotCalled",
+                        {"method": attr},
+                        node.lineno,
+                        node.col_offset,
+                        severity="warning",
+                    ))
+            self.generic_visit(node)
+
+    MethodCallChecker().visit(tree)
+    return diagnostics
+
+
 def lint(code: str, filename: str = "main.py") -> list[dict]:
     diagnostics = []
 
@@ -1023,6 +1053,7 @@ def lint(code: str, filename: str = "main.py") -> list[dict]:
     diagnostics.extend(_check_variable_names(code, tree))
     diagnostics.extend(_check_similar_names(code, tree))
     diagnostics.extend(_check_type_reassignment(code, tree))
+    diagnostics.extend(_check_method_not_called(code, tree))
 
     diagnostics.sort(key=lambda d: (d["row"], d["column"]))
 
@@ -1050,6 +1081,7 @@ def _annotate_diagnostics(diagnostics, tree, scope_tracker):
         "W003": "naming",
         "W004": "naming",
         "W005": "types",
+        "W_MethodNotCalled": "api-misuse",
     }
     _BLOCKING = {"grammar"}
 

@@ -11,43 +11,28 @@ and returns (messageKey, messageArgs) or falls through to the next pattern.
 """
 
 from graphics._manifest import NAMESPACE_ATTRS, EXPORTED_NAMES
+from graphics._errors import _levenshtein
 
 
 # ── Cyrillic→Latin homoglyph table for wrong-layout detection ──
-_CYR_TO_LAT_LOWER = str.maketrans(
-    "асэеорхуквнтмиг",
-    "aceopyxkbhtmur"
-)
-_CYR_TO_LAT_UPPER = str.maketrans(
-    "АВСЕНКМОРТХУ",
-    "ABCEHKMOPTXY"
-)
-
-_HOMOGLYPH_LATIN_CHARS = set(
-    "aceopyxkbhtmurABCEHKMOPTXY"
-)
+# Each pair: a Cyrillic letter visually identical to its Latin twin.
+# Dict form makes misalignment structurally impossible — str.maketrans
+# length mismatch can never occur.
+_HOMOGLYPHS = {
+    "а": "a", "е": "e", "о": "o", "р": "p", "с": "c", "х": "x", "у": "y",
+    "к": "k", "в": "b", "н": "h", "т": "t", "м": "m",
+    "А": "A", "Е": "E", "О": "O", "Р": "P", "С": "C", "Х": "X", "У": "Y",
+    "К": "K", "В": "B", "Н": "H", "Т": "T", "М": "M",
+}
+_CYR_TO_LAT = str.maketrans({ord(c): lat for c, lat in _HOMOGLYPHS.items()})
 
 
 def transliterate_homoglyphs(token: str) -> str:
-    """If `token` contains Cyrillic codepoints, return the Latin-homoglyph
-    equivalent. Returns empty string if no Cyrillic found (caller should skip)."""
-    has_cyrillic = False
-    result = []
-    for ch in token:
-        if '\u0400' <= ch <= '\u04FF' or ch == 'ё' or ch == 'Ё':
-            has_cyrillic = True
-            lo = _CYR_TO_LAT_LOWER.get(ord(ch))
-            if lo is not None and lo != ord(ch):
-                result.append(chr(lo))
-            else:
-                up = _CYR_TO_LAT_UPPER.get(ord(ch))
-                if up is not None and up != ord(ch):
-                    result.append(chr(up))
-                else:
-                    result.append(ch)
-        else:
-            result.append(ch)
-    return "".join(result) if has_cyrillic else ""
+    """If `token` contains Cyrillic homoglyph codepoints, return the Latin
+    equivalent. Returns empty string if no mapped Cyrillic char found (caller should skip)."""
+    if not any(ch in _HOMOGLYPHS for ch in token):
+        return ""
+    return token.translate(_CYR_TO_LAT)
 
 
 def check_homoglyph(token: str, known_names: set) -> tuple:
@@ -68,6 +53,15 @@ def check_homoglyph(token: str, known_names: set) -> tuple:
     return (None, {})
 
 
+# ── Python keyword set for typo detection ──
+_PYTHON_KEYWORDS = frozenset({
+    "global", "from", "import", "return", "def", "class", "while", "for",
+    "if", "elif", "else", "with", "lambda", "nonlocal", "assert", "break",
+    "continue", "pass", "raise", "try", "except", "finally", "yield",
+    "async", "await", "in", "is", "not", "and", "or", "del",
+})
+
+
 # ── Syntax pattern classifiers ──
 
 def _get_line(source: str, lineno: int) -> str:
@@ -79,10 +73,10 @@ def _get_line(source: str, lineno: int) -> str:
 
 def classify_syntax_error(source: str, exc: SyntaxError) -> dict:
     """Classify a SyntaxError into (messageKey, messageArgs).
-    
+
     Returns a dict with 'messageKey' and 'messageArgs' suitable for passing
     to _make_diagnostic in linter.py or the error_hook result dict.
-    
+
     Callers should fall back to their own E999* mapping when this returns
     the default E999 key.
     """
@@ -90,16 +84,16 @@ def classify_syntax_error(source: str, exc: SyntaxError) -> dict:
     lineno = getattr(exc, 'lineno', 1)
     offset = getattr(exc, 'offset', 0)
     line = _get_line(source, lineno)
-    
+
     # 1 — Smart quotes
-    smart_quotes = set('\u00ab\u00bb\u201c\u201d\u201e\u201a\u2018\u2019')
+    smart_quotes = set('«»“”„‚‘’')
     for ch in line:
         if ch in smart_quotes:
             return {
                 "messageKey": "linter.E999SmartQuotes",
                 "messageArgs": {"char": ch},
             }
-    
+
     # 2 — Empty import: `from graphics import ` or `from graphics import`
     if ("after 'import'" in msg) or ("after import" in msg):
         return {
@@ -112,7 +106,7 @@ def classify_syntax_error(source: str, exc: SyntaxError) -> dict:
             "messageKey": "linter.E999ImportEmpty",
             "messageArgs": {},
         }
-    
+
     # 3 — Missing dot: `circle(Mouse x, 10)` where Mouse.x is intended.
     # Tokenize looking for NAME NAME where first ∈ NAMESPACE_ATTRS and
     # second ∈ its attr list.
@@ -127,14 +121,14 @@ def classify_syntax_error(source: str, exc: SyntaxError) -> dict:
                     "messageKey": "linter.E999MissingDot",
                     "messageArgs": {"obj": obj, "attr": attr},
                 }
-    
+
     # 4 — Assignment in condition: `if x = 5:` (CPython >=3.10 detects)
     if "Maybe you meant '=='" in msg:
         return {
             "messageKey": "linter.E999AssignInCondition",
             "messageArgs": {},
         }
-    
+
     # 5 — Missing call parentheses: `background` without `()` when it's a
     # known callable from the manifest.
     m = re.match(r'^\s*([A-Za-z_]\w*)\s', line)
@@ -159,7 +153,7 @@ def classify_syntax_error(source: str, exc: SyntaxError) -> dict:
                         "messageKey": "linter.E999MissingCallParens",
                         "messageArgs": {"func": name},
                     }
-    
+
     # 6 — `def NAME:` without parentheses
     m = re.match(r'^\s*def\s+([A-Za-z_]\w*)\s*:', line)
     if m:
@@ -167,7 +161,48 @@ def classify_syntax_error(source: str, exc: SyntaxError) -> dict:
             "messageKey": "linter.E999DefParens",
             "messageArgs": {"name": m.group(1)},
         }
-    
+
+    # 7 — Keyword argument missing '=': Actor(x=1, y300, z=2)
+    # CPython raises "positional argument follows keyword argument" for this case.
+    if "positional argument follows keyword argument" in msg:
+        # Find a bare NAME token that ends in digits (e.g. y300 → y=300)
+        all_tokens = re.findall(r'\b([A-Za-z_]\w*)\b', line)
+        arg = None
+        for tok in all_tokens:
+            if re.match(r'^[A-Za-z_]+\d+$', tok):
+                arg = tok
+                break
+        if arg:
+            return {
+                "messageKey": "linter.E999KeywordMissingEq",
+                "messageArgs": {"arg": arg},
+            }
+        return {
+            "messageKey": "linter.E999KeywordMissingEq",
+            "messageArgs": {},
+        }
+
+    # 8 — Misspelled keyword: `lobal x` / `rfom graphics import *`
+    # Check if the first identifier on the error line is close to a Python keyword.
+    first_id = re.match(r'^\s*([A-Za-z_]\w*)', line)
+    if first_id:
+        first_tok = first_id.group(1)
+        if first_tok not in _PYTHON_KEYWORDS:
+            # Among all keywords within distance ≤ 2, prefer:
+            # 1. smaller edit distance, 2. smaller length difference, 3. alphabetical
+            candidates = [
+                (d, abs(len(first_tok) - len(kw)), kw)
+                for kw in _PYTHON_KEYWORDS
+                for d in [_levenshtein(first_tok, kw)]
+                if 0 < d <= 2
+            ]
+            if candidates:
+                best_kw = min(candidates)[2]
+                return {
+                    "messageKey": "linter.E999KeywordTypo",
+                    "messageArgs": {"got": first_tok, "candidate": best_kw},
+                }
+
     # Fallback: existing E999* mapping (caller applies)
     return {
         "messageKey": "linter.E999",

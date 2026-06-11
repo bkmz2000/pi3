@@ -79,3 +79,26 @@ def _build_actor_attrs():
 
 # Derived from the live Actor class — built from reality, not from memory.
 ACTOR_BUILTIN_ATTRS = _build_actor_attrs()
+
+
+def _build_actor_methods():
+    """Return the names of callable instance methods on Actor (no staticmethods, no properties)."""
+    import types
+    from graphics.actors import Actor as _A
+    out = []
+    for name in dir(_A):
+        if name.startswith("_"):
+            continue
+        # Skip static methods — they are not bound to an instance.
+        raw = _A.__dict__.get(name)
+        if isinstance(raw, staticmethod):
+            continue
+        attr = getattr(_A, name, None)
+        if isinstance(attr, types.FunctionType):
+            out.append(name)
+    return sorted(out)
+
+
+# Instance methods only — used by the linter's W_MethodNotCalled rule to
+# detect `apple.draw` (statement) vs `apple.draw()` (call).
+ACTOR_METHODS = _build_actor_methods()

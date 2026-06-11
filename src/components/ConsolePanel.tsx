@@ -32,6 +32,7 @@ const CATEGORY_ICONS: Record<string, string> = {
   missing: "🔍",
   logic: "🧮",
   "api-misuse": "🔧",
+  internal: "⚙️",
 };
 
 const CATEGORY_COLORS: Record<string, { bg: string; border: string; text: string }> = {
@@ -41,6 +42,7 @@ const CATEGORY_COLORS: Record<string, { bg: string; border: string; text: string
   missing: { bg: "#e0e7ff", border: "#6366f1", text: "#3730a3" },
   logic: { bg: "#f3e8ff", border: "#a855f7", text: "#6b21a8" },
   "api-misuse": { bg: "#fce7f3", border: "#ec4899", text: "#9d174d" },
+  internal: { bg: "#f1f5f9", border: "#94a3b8", text: "#334155" },
 };
 
 function ErrorCard({ error }: { error: RuntimeError }) {

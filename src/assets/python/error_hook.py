@@ -19,6 +19,25 @@ from graphics._errors import FriendlyError, _levenshtein, _compute_suggestions
 # Populated at runtime from worker.ts after graphics module init.
 KNOWN_SYMBOLS: set[str] = set()
 
+# ── Enrichment-failure log ──
+# Optional enrichments (homoglyph lookup, Levenshtein) are wrapped so their
+# failure degrades gracefully rather than surfacing to the student.
+_enrichment_failures: list = []
+
+
+def _safe(fn, *args, _enrichment_name: str = "unknown", **kwargs):
+    """Call fn(*args, **kwargs); on exception log to _enrichment_failures and return None."""
+    try:
+        return fn(*args, **kwargs)
+    except Exception as _e:
+        _enrichment_failures.append({"name": _enrichment_name, "error": repr(_e)})
+        return None
+
+
+def get_enrichment_failures() -> list:
+    """Return logged enrichment failures (for diagnostics / testing)."""
+    return list(_enrichment_failures)
+
 # Category tags for Python exception types.
 _ERROR_CATEGORIES = {
     "NameError": "naming",
@@ -275,7 +294,32 @@ def classify_error(
 
     Returns a dict suitable for JSON serialization and posting as a
     'runtime_error' worker event.
+
+    Outer catch-all: if the classifier itself crashes (e.g. a broken enrichment
+    escapes the inner _safe guards), returns the internal error card instead of
+    propagating — so the student always gets a card, never a raw double-traceback.
     """
+    try:
+        return _classify_error_inner(exc, user_code, filename)
+    except Exception as _clf_err:
+        import traceback as _tb
+        _raw = _tb.format_exc()
+        return {
+            "category": "internal",
+            "titleKey": "friendlyError.internal.title",
+            "messageKey": "friendlyError.internal.classifierFailed",
+            "messageArgs": {},
+            "raw": _raw,
+            "cleanRaw": _raw,
+            "suggestions": [],
+            "isBlocking": False,
+            "classifierFailed": True,
+        }
+
+
+def _classify_error_inner(
+    exc: Exception, user_code: str, filename: str
+) -> dict:
     # FriendlyError: key/args already computed by the library; pass straight through.
     if isinstance(exc, FriendlyError):
         raw_tb = traceback.format_exception(type(exc), exc, exc.__traceback__)
@@ -319,15 +363,23 @@ def classify_error(
         # Merge KNOWN_SYMBOLS with user-defined names for a complete candidate pool
         user_names = _extract_user_names(user_code)
         all_candidates = KNOWN_SYMBOLS | user_names
-        # Check for Cyrillic homoglyphs first (wrong keyboard layout)
-        from syntax_hints import check_homoglyph
-        homo_key, homo_args = check_homoglyph(token, all_candidates)
+        # Check for Cyrillic homoglyphs first (wrong keyboard layout).
+        # Wrapped in _safe so a broken homoglyph table still yields the naming card.
+        try:
+            from syntax_hints import check_homoglyph as _check_homo
+            _homo = _safe(_check_homo, token, all_candidates, _enrichment_name="homoglyph")
+        except Exception as _ie:
+            _enrichment_failures.append({"name": "homoglyph_import", "error": repr(_ie)})
+            _homo = None
+        homo_key = _homo[0] if _homo is not None else None
+        homo_args = _homo[1] if _homo is not None else {}
         if homo_key:
             message_key_override = homo_key
             message_args_override = homo_args
             suggestions = [{"token": token, "candidates": [homo_args["fixed"]]}]
         else:
-            candidates = _compute_suggestions(token, all_candidates)
+            _cands = _safe(_compute_suggestions, token, all_candidates, _enrichment_name="suggestions")
+            candidates = _cands if _cands is not None else []
             if candidates:
                 suggestions = [{"token": token, "candidates": candidates}]
 

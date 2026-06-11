@@ -1790,6 +1790,192 @@ test("classify_error: FriendlyError messageKey preserved", result["messageKey"] 
 test("classify_error: FriendlyError messageArgs preserved", result["messageArgs"] == {"name": "qq"})
 test("classify_error: FriendlyError not blocking (naming)", result["isBlocking"] is False)
 
+# === 9: Homoglyph table structural checks (Fix 1b) ===
+
+print("\n=== Homoglyph table structural checks ===")
+
+import syntax_hints as _sh
+
+# Every key must be a single Cyrillic codepoint.
+for _cyr, _lat in _sh._HOMOGLYPHS.items():
+    test(f"homoglyph key '{_cyr!r}' is single char", len(_cyr) == 1)
+    _cp = ord(_cyr)
+    _is_cyr = (0x0400 <= _cp <= 0x04FF)
+    test(f"homoglyph key '{_cyr!r}' is Cyrillic", _is_cyr)
+    test(f"homoglyph value '{_lat!r}' is single ASCII letter", len(_lat) == 1 and _lat.isascii() and _lat.isalpha())
+
+# Round-trip: Cyrillic homoglyph token → Latin equivalent.
+# "аррlе" has Cyrillic а,р,р and Latin l, and Cyrillic е → should become "apple".
+_mixed = "аррlе"   # аррlе
+_result = _sh.transliterate_homoglyphs(_mixed)
+test("transliterate_homoglyphs('аррlе') == 'apple'", _result == "apple")
+
+# A pure-Latin token returns empty string (no Cyrillic → caller skips).
+test("transliterate_homoglyphs('circle') returns ''", _sh.transliterate_homoglyphs("circle") == "")
+
+# check_homoglyph: сircle (Cyrillic с + Latin ircle) matches 'circle'.
+_tok = "сircle"   # с + ircle
+_key, _args = _sh.check_homoglyph(_tok, {"circle"})
+test("check_homoglyph('сircle', {'circle'}) key correct",
+     _key == "friendlyError.naming.wrongLayout")
+test("check_homoglyph('сircle', {'circle'}) got correct", _args.get("got") == _tok)
+test("check_homoglyph('сircle', {'circle'}) fixed correct", _args.get("fixed") == "circle")
+
+# A pure-Latin token returns (None, {}).
+test("check_homoglyph('circle', {}) returns (None, {})", _sh.check_homoglyph("circle", {"circle"}) == (None, {}))
+
+# === 10: Defense-in-depth (Fix 1c) ===
+
+print("\n=== Defense-in-depth: broken enrichment still yields naming card ===")
+
+import syntax_hints as _sh2
+import error_hook as _eh2
+
+# Save originals
+_orig_check_homo = _sh2.check_homoglyph
+_orig_failures = list(_eh2._enrichment_failures)
+
+# Monkeypatch check_homoglyph to simulate a broken enrichment
+def _broken_homo(*a, **k):
+    raise RuntimeError("simulated homoglyph failure")
+
+# Clear failure log, patch, call classify_error with an undefined name
+_sh2.check_homoglyph = _broken_homo
+_eh2._enrichment_failures.clear()
+
+try:
+    _exc = NameError("name 'apple' is not defined")
+    _res = _eh2.classify_error(_exc, "apple\n", "test.py")
+    test("broken homoglyph: result category is naming", _res["category"] == "naming")
+    test("broken homoglyph: messageKey is friendlyError.naming.*",
+         _res.get("messageKey", "").startswith("friendlyError.naming."))
+    test("broken homoglyph: enrichment failure logged",
+         any(f["name"] == "homoglyph" for f in _eh2._enrichment_failures))
+    test("broken homoglyph: exactly one enrichment failure logged",
+         len([f for f in _eh2._enrichment_failures if f["name"] == "homoglyph"]) == 1)
+finally:
+    _sh2.check_homoglyph = _orig_check_homo
+    _eh2._enrichment_failures.clear()
+    _eh2._enrichment_failures.extend(_orig_failures)
+
+# === 11: Pattern fixtures (classify_syntax_error + linter) ===
+
+print("\n=== Pattern fixtures ===")
+
+import ast as _ast
+import linter as _linter
+from syntax_hints import classify_syntax_error as _cse
+
+# Pattern 1: keyword argument missing =
+# Simulate the SyntaxError Python raises for Actor(x=1, y300, z=2)
+try:
+    compile("Actor(x=1, y300, z=2)", "<test>", "eval")
+    test("Pattern1: compile raised SyntaxError", False)
+except SyntaxError as _e:
+    _p1 = _cse("Actor(x=1, y300, z=2)", _e)
+    test("Pattern1 keyword missing =: messageKey", _p1["messageKey"] == "linter.E999KeywordMissingEq")
+    test("Pattern1 keyword missing =: arg captured", _p1.get("messageArgs", {}).get("arg") == "y300")
+
+# Pattern 2: misspelled keyword
+try:
+    compile("lobal score", "<test>", "exec")
+    test("Pattern2a: compile raised SyntaxError", False)
+except SyntaxError as _e:
+    _p2a = _cse("lobal score", _e)
+    test("Pattern2a 'lobal': messageKey", _p2a["messageKey"] == "linter.E999KeywordTypo")
+    test("Pattern2a 'lobal': got=lobal", _p2a.get("messageArgs", {}).get("got") == "lobal")
+    test("Pattern2a 'lobal': candidate=global", _p2a.get("messageArgs", {}).get("candidate") == "global")
+
+try:
+    compile("rfom graphics import *", "<test>", "exec")
+    test("Pattern2b: compile raised SyntaxError", False)
+except SyntaxError as _e:
+    _p2b = _cse("rfom graphics import *", _e)
+    test("Pattern2b 'rfom': messageKey", _p2b["messageKey"] == "linter.E999KeywordTypo")
+    test("Pattern2b 'rfom': got=rfom", _p2b.get("messageArgs", {}).get("got") == "rfom")
+    test("Pattern2b 'rfom': candidate=from", _p2b.get("messageArgs", {}).get("candidate") == "from")
+
+# Pattern 3: method not called — linter AST rule
+_code_draw = "apple.draw\n"
+_diags_draw = _linter.lint(_code_draw)
+_w_draw = [d for d in _diags_draw if d.get("code") == "W_MethodNotCalled"]
+test("Pattern3 'apple.draw' statement → W_MethodNotCalled", len(_w_draw) == 1)
+test("Pattern3 'apple.draw': method arg = draw", _w_draw[0].get("messageArgs", {}).get("method") == "draw" if _w_draw else False)
+test("Pattern3 'apple.draw': severity = warning", _w_draw[0].get("severity") == "warning" if _w_draw else False)
+
+# apple.x (property) → no W_MethodNotCalled
+_code_x = "apple.x\n"
+_diags_x = _linter.lint(_code_x)
+_w_x = [d for d in _diags_x if d.get("code") == "W_MethodNotCalled"]
+test("Pattern3 'apple.x' (property) → no W_MethodNotCalled", len(_w_x) == 0)
+
+# y = apple.draw (assignment) → no W_MethodNotCalled
+_code_assign = "y = apple.draw\n"
+_diags_assign = _linter.lint(_code_assign)
+_w_assign = [d for d in _diags_assign if d.get("code") == "W_MethodNotCalled"]
+test("Pattern3 'y = apple.draw' (assignment) → no W_MethodNotCalled", len(_w_assign) == 0)
+
+# === 12: ACTOR_METHODS snapshot ===
+
+print("\n=== ACTOR_METHODS snapshot ===")
+
+from graphics._manifest import ACTOR_METHODS as _am
+
+# Must include core instance methods
+for _m in ("draw", "move", "forward", "bounce", "die", "update", "rotate",
+           "wrap", "wrap_x", "wrap_y", "in_bounds", "is_alive", "keep_in_bounds",
+           "distance_to", "collides_with", "collides_any", "reset"):
+    test(f"ACTOR_METHODS has '{_m}'", _m in _am)
+
+# Must NOT include static methods or properties
+test("ACTOR_METHODS excludes all_actors (static)", "all_actors" not in _am)
+test("ACTOR_METHODS excludes random_coords (static)", "random_coords" not in _am)
+test("ACTOR_METHODS excludes x (property)", "x" not in _am)
+test("ACTOR_METHODS excludes visible (property)", "visible" not in _am)
+test("ACTOR_METHODS excludes future_state (property)", "future_state" not in _am)
+
+# === 13: Outer catch-all in classify_error ===
+
+print("\n=== classify_error outer catch-all ===")
+
+import error_hook as _eh3
+
+# Monkeypatch _classify_error_inner to simulate total classifier meltdown.
+_orig_inner = _eh3._classify_error_inner
+
+def _exploding_inner(*a, **k):
+    raise RuntimeError("simulated total classifier failure")
+
+_eh3._classify_error_inner = _exploding_inner
+try:
+    _exc2 = NameError("name 'x' is not defined")
+    _res2 = _eh3.classify_error(_exc2, "x\n", "test.py")
+    test("outer catch-all: category is internal", _res2.get("category") == "internal")
+    test("outer catch-all: titleKey is friendlyError.internal.title",
+         _res2.get("titleKey") == "friendlyError.internal.title")
+    test("outer catch-all: messageKey is friendlyError.internal.classifierFailed",
+         _res2.get("messageKey") == "friendlyError.internal.classifierFailed")
+    test("outer catch-all: classifierFailed flag set", _res2.get("classifierFailed") is True)
+    test("outer catch-all: isBlocking is False", _res2.get("isBlocking") is False)
+    test("outer catch-all: suggestions is empty list", _res2.get("suggestions") == [])
+finally:
+    _eh3._classify_error_inner = _orig_inner
+
+# Confirm normal path still works after restoring.
+_res3 = _eh3.classify_error(NameError("name 'qq' is not defined"), "qq\n", "test.py")
+test("outer catch-all: normal path unaffected after restore",
+     _res3.get("category") == "naming")
+
+# === 14: friendlyError.internal keys in ALL_MESSAGE_KEYS ===
+
+print("\n=== friendlyError.internal keys registered ===")
+
+from graphics._errors import ALL_MESSAGE_KEYS as _amk
+test("ALL_MESSAGE_KEYS has friendlyError.internal.title",
+     "friendlyError.internal.title" in _amk)
+test("ALL_MESSAGE_KEYS has friendlyError.internal.classifierFailed",
+     "friendlyError.internal.classifierFailed" in _amk)
+
 
 # === Summary ===
 

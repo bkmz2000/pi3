@@ -55,7 +55,8 @@ export type ErrorCategory =
   | "grammar"
   | "missing"
   | "logic"
-  | "api-misuse";
+  | "api-misuse"
+  | "internal";
 
 export type ErrorSuggestion = {
   token: string;         // the misspelled token, e.g. "bakcground"
@@ -133,7 +134,7 @@ export type WorkerEvent =
   | { type: "stdout"; text: string }
   | { type: "stderr"; text: string }
   | { type: "result" }
-  | { type: "error"; error: string }
+  | { type: "error"; payload: { message: string; stack?: string; phase?: "init" | "exec" | "worker" } }
   | { type: "runtime_error"; error: RuntimeError }
   | { type: "input_request"; prompt: string }
   | { type: "lint"; diagnostics: LintDiagnostic[]; reqId: number }

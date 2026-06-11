@@ -246,7 +246,10 @@
     "E225Label": "Types",
     "E225CallLabel": "Args",
     "F401Label": "Unused",
-    "F821Label": "Name"
+    "F821Label": "Name",
+    "E999KeywordMissingEq": "Positional argument after keyword argument. Did '{{arg}}' need '='?",
+    "E999KeywordTypo": "Looks like a typo — did you mean `{{candidate}}`?",
+    "W_MethodNotCalled": "`{{method}}` is an action — call it with parentheses: `{{method}}()`. Without `()` nothing happens."
   },
   "errorCategory": {
     "naming": "naming",
@@ -1046,6 +1049,10 @@
     "apiMisuse": {
       "title": "API mistake",
       "fallback": "The API was used in a way that isn't supported."
+    },
+    "internal": {
+      "title": "Something went wrong inside pi3",
+      "classifierFailed": "The error reporter crashed while analyzing your code. Please report this to your teacher!"
     },
     "rawTraceback": "Full error details",
     "showRaw": "Show details",

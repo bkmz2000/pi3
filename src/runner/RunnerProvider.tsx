@@ -107,10 +107,39 @@ export const useRunnerStore = create<RunnerState>((set) => ({
         break;
       }
       case "error": {
+        const raw = msg.payload.message + (msg.payload.stack ? "\n" + msg.payload.stack : "");
+        const internalError: RuntimeError = {
+          category: "internal",
+          titleKey: "friendlyError.internal.title",
+          messageKey: "friendlyError.internal.classifierFailed",
+          messageArgs: {},
+          raw,
+          cleanRaw: msg.payload.message,
+          suggestions: [],
+          isBlocking: false,
+        };
+        // Log infra crashes to the server the same way runtime_error does.
+        try {
+          const editor = useEditor.getState();
+          fetch("/api/log/client-error", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({
+              projectId: editor.currentProjectId ?? "",
+              file: editor.currentFile ?? "",
+              category: "internal",
+              title: `pi3 infra error [${msg.payload.phase ?? "unknown"}]`,
+              message: msg.payload.message,
+              traceback: raw,
+            }),
+            keepalive: true,
+          }).catch(() => {});
+        } catch { /* swallow */ }
         set((s) => ({
           running: false,
           inputPrompt: null,
-          output: [...s.output, { kind: "stderr", text: msg.error }],
+          output: [...s.output, { kind: "error_card", error: internalError }],
         }));
         break;
       }
@@ -353,7 +382,7 @@ function getWorker(): Worker {
     console.error("Worker error:", e);
     useRunnerStore.getState()._onMessage({
       type: "error",
-      error: e.message ?? "Worker crashed",
+      payload: { message: e.message ?? "Worker crashed", phase: "worker" },
     });
   };
 

@@ -64,5 +64,25 @@ describe('api-surface snapshot', () => {
     expect(snapshot).toHaveProperty('Window');
     expect(snapshot).toHaveProperty('State');
     expect(snapshot).toHaveProperty('Group');
+    expect(snapshot).toHaveProperty('ACTOR_METHODS');
+  });
+
+  test('snapshot ACTOR_METHODS is a non-empty sorted array of strings', () => {
+    const methods = snapshot.ACTOR_METHODS as string[];
+    expect(Array.isArray(methods)).toBe(true);
+    expect(methods.length).toBeGreaterThan(0);
+    // Must include core callable methods
+    for (const m of ['draw', 'move', 'forward', 'bounce', 'die', 'update', 'rotate']) {
+      expect(methods).toContain(m);
+    }
+    // Must NOT include static methods or properties
+    expect(methods).not.toContain('all_actors');
+    expect(methods).not.toContain('random_coords');
+    expect(methods).not.toContain('x');
+    expect(methods).not.toContain('y');
+    expect(methods).not.toContain('visible');
+    // Must be sorted
+    const sorted = [...methods].sort();
+    expect(methods).toEqual(sorted);
   });
 });

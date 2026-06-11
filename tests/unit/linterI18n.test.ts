@@ -11,14 +11,16 @@ import { readFileSync, existsSync } from "fs";
 import { resolve } from "path";
 
 function readLinterSource(): string {
-  const path = resolve(__dirname, "../../src/assets/python/linter.py");
-  if (!existsSync(path)) throw new Error(`Linter source not found: ${path}`);
-  return readFileSync(path, "utf8");
+  const linterPath = resolve(__dirname, "../../src/assets/python/linter.py");
+  const hintsPath = resolve(__dirname, "../../src/assets/python/syntax_hints.py");
+  if (!existsSync(linterPath)) throw new Error(`Linter source not found: ${linterPath}`);
+  if (!existsSync(hintsPath)) throw new Error(`syntax_hints source not found: ${hintsPath}`);
+  return readFileSync(linterPath, "utf8") + "\n" + readFileSync(hintsPath, "utf8");
 }
 
 function extractMessageKeys(source: string): string[] {
-  // Match patterns like: "linter.E225", "linter.W001", etc.
-  const regex = /"linter\.([A-Z]\d+(?:[A-Z]\w+)?)"/g;
+  // Match patterns like: "linter.E225", "linter.W001", "linter.W_MethodNotCalled", etc.
+  const regex = /"linter\.([A-Z][A-Za-z0-9_]*)"/g;
   const keys = new Set<string>();
   let match;
   while ((match = regex.exec(source)) !== null) {

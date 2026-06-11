@@ -264,9 +264,11 @@ function handleExecutionError(err: unknown, p: PyodideInterface) {
     // hook didn't fire or failed — fall through to JS-side classification
   }
 
-  // Fallback: flat error (infrastructure, or hook crashed)
-  const raw = String(err);
-  post({ type: "error", error: raw });
+  // Fallback: flat error (infrastructure, or hook crashed).
+  // Never coerce an un-narrowed value with String() — plain objects yield [object Object].
+  const e = err instanceof Error ? err : null;
+  const msg = e?.message ?? (typeof err === "string" ? err : "Execution error");
+  post({ type: "error", payload: { message: msg, stack: e?.stack, phase: "exec" } });
 }
 
 // ── Register known symbols for error_hook suggestion engine ──
@@ -328,10 +330,7 @@ async function runGraphicsScript(
   prepareFiles(p, files);
 
   if (!offscreen) {
-    post({
-      type: "error",
-      error: "No canvas attached. Call attachCanvas first.",
-    });
+    post({ type: "error", payload: { message: "No canvas attached. Call attachCanvas first.", phase: "init" } });
     return;
   }
 
@@ -642,7 +641,8 @@ self.onmessage = async (e: MessageEvent<WorkerCommand>) => {
       post({ type: "ready" });
     } catch (err: unknown) {
       console.error("Worker: Initialization failed:", err);
-      post({ type: "error", error: String(err) });
+      const e = err instanceof Error ? err : null;
+      post({ type: "error", payload: { message: e?.message ?? "Initialization failed", stack: e?.stack, phase: "init" } });
     }
   } else if (msg.cmd === "attach_canvas") {
     offscreen = msg.canvas;
@@ -662,7 +662,8 @@ self.onmessage = async (e: MessageEvent<WorkerCommand>) => {
         if (p) {
           handleExecutionError(err, p);
         } else {
-          post({ type: "error", error: errStr });
+          const e = err instanceof Error ? err : null;
+          post({ type: "error", payload: { message: e?.message ?? errStr, stack: e?.stack, phase: "exec" } });
         }
         post({ type: "result" });
       }

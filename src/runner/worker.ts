@@ -118,12 +118,20 @@ async function initPyodide(
   });
 
   // _ide_post_runtime_error: called from Python _tick when the game loop catches an exception
+  // sync with RuntimeError in WorkerInterface.ts — fallback must never produce console text
   p.globals.set("_ide_post_runtime_error", (errorJson: string) => {
     try {
       const error = JSON.parse(errorJson) as RuntimeError;
       post({ type: "runtime_error", error });
     } catch {
-      post({ type: "stderr", text: String(errorJson) });
+      post({
+        type: "error",
+        payload: {
+          message: "runtime error payload was not valid JSON",
+          stack: String(errorJson).slice(0, 500),
+          phase: "exec",
+        },
+      });
     }
   });
 
@@ -528,8 +536,6 @@ except BaseException as _err:
     _errored = True
     _structured = error_hook.classify_error(_err, ${JSON.stringify(code)}, ${JSON.stringify(filename)})
     _last_structured_error = _structured
-    import sys
-    sys.stderr.write("\\n" + _structured.get("raw", str(_err)))
   `);
 
   // Check for structured error first
@@ -602,8 +608,6 @@ except Exception as _err:
     _errored = True
     _structured = error_hook.classify_error(_err, ${JSON.stringify(code)}, ${JSON.stringify(filename)})
     _last_structured_error = _structured
-    import sys
-    sys.stderr.write("\\n" + _structured.get("raw", str(_err)))
 `;
 
   post({ type: "start", canvasActive: false });

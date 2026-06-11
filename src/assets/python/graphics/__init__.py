@@ -7,7 +7,6 @@ from graphics.actors import Actor, Rect, Circle, Group
 """
 
 import math
-import traceback
 from types import SimpleNamespace
 from typing import Any, Callable, Optional, Union
 
@@ -1438,7 +1437,17 @@ def _tick(main, my_generation):
             _structured = _eh.classify_error(_exc, _user_code, _user_filename)
             _ide_post_runtime_error(_json.dumps(_structured))
         except Exception:
-            traceback.print_exc()
+            # Hand-written JSON — intentionally avoids json.dumps which may have just failed.
+            # Keep field names in sync with RuntimeError in WorkerInterface.ts.
+            try:
+                from js import _ide_post_runtime_error as _post
+                _post('{"category":"internal",'
+                      '"titleKey":"friendlyError.internal.title",'
+                      '"messageKey":"friendlyError.internal.classifierFailed",'
+                      '"messageArgs":{},"raw":"tick-handler emit failed",'
+                      '"suggestions":[],"isBlocking":false}')
+            except Exception:
+                pass  # nothing safe left to do; worker error channel will surface stalls
         _running = False
         return
 

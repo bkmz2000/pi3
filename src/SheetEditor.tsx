@@ -2,7 +2,7 @@ import React, { useRef, useState, useEffect, useCallback, useMemo } from "react"
 import { useTranslation } from "react-i18next";
 import { useEditor } from "./state/IdeState";
 import { useThemeStore } from "./state/useTheme";
-import type { SheetData, SheetSprites } from "./state/IdeState";
+import type { SheetSprites } from "./state/IdeState";
 import {
   Pencil, Eraser, PaintBucket, Undo2, Redo2, Grid2x2,
   Maximize, PanelRight, Square, Circle, Spline,
@@ -22,7 +22,7 @@ import {
   floodFill,
 } from "./sheetPixels";
 import { bresenhamLine, rectOutline, ellipseOutline } from "./sheetRaster";
-import { makeUndoStack, type UndoEntry } from "./makeUndoStack";
+import { makeUndoStack } from "./makeUndoStack";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 

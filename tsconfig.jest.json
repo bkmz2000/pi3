@@ -12,7 +12,10 @@
     "skipLibCheck": true,
     "types": ["jest", "node", "@testing-library/jest-dom"],
     "emitDeclarationOnly": false,
-    "noEmit": true
+    "noEmit": true,
+    "paths": {
+      "@/*": ["./src/*"]
+    }
   },
   "include": ["tests/**/*.ts", "tests/**/*.tsx", "jest.setup.ts"],
   "exclude": ["node_modules"]

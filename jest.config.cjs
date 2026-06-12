@@ -48,10 +48,10 @@ const config = {
   // from the global pool, so each area regresses (and gates) on its own.
   coverageThreshold: {
     global: {
-      branches: 13,
-      functions: 15,
-      lines: 21,
-      statements: 21,
+      branches: 21,
+      functions: 23,
+      lines: 32,
+      statements: 31,
     },
     './src/state/': {
       branches: 48,

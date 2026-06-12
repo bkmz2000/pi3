@@ -27,7 +27,7 @@ export type SheetRunPayload = {
 };
 
 export type WorkerCommand =
-  | { cmd: "init"; graphicsInit: string; graphicsActors: string; graphicsAnimation: string; graphicsManifest: string; graphicsErrors: string; graphicsState: string; linter: string; errorHook: string; inputTransform: string; syntaxHints: string }
+  | { cmd: "init"; graphicsInit: string; graphicsActors: string; graphicsAnimation: string; graphicsManifest: string; graphicsErrors: string; graphicsState: string; graphicsStateInternal: string; graphicsColor: string; graphicsVec: string; graphicsSheet: string; graphicsUtils: string; graphicsLightingHelpers: string; graphicsSprites: string; linter: string; errorHook: string; inputTransform: string; syntaxHints: string }
   | {
       cmd: "run";
       files: Record<string, string>;

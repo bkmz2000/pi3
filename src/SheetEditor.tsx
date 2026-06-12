@@ -13,12 +13,18 @@ import {
   anyStripOverlaps, findOverlappingStrips, suggestSpriteName,
   validateSpriteName, snapRegion, hitTestSprites,
 } from "./sheetGeometry";
+import {
+  BLANK_W, BLANK_H,
+  type DrawTool, type Clip,
+  decodePixels, encodePixels, blankSheet,
+  hexToRgb, rgbToHex, lerpCh,
+  inClip, paintPixel, paintBrush, stampTile,
+  floodFill,
+} from "./sheetPixels";
+import { bresenhamLine, rectOutline, ellipseOutline } from "./sheetRaster";
+import { makeUndoStack, type UndoEntry } from "./makeUndoStack";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
-
-const BLANK_W = 512;
-const BLANK_H = 512;
-const SHADE_STEP = 0.13;
 
 const BRUSH_SIZES = [
   { size: 1, dotPx: 3 },
@@ -42,13 +48,11 @@ export { PAL_NAMES } from './palette';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type DrawTool = "pencil" | "eraser" | "darken" | "lighten";
 type Tool = DrawTool | "fill" | "line" | "rect" | "ellipse" | "region" | "select" | "tile" | "wand";
 type ShapeTool = "line" | "rect" | "ellipse";
 const SHAPE_TOOLS: ReadonlySet<ShapeTool> = new Set(["line", "rect", "ellipse"]);
 type SelectedFrame = { sprite: string; anim: string; idx: number };
 type RegionDrag = { sx: number; sy: number; ex: number; ey: number };
-type Clip = { x: number; y: number; w: number; h: number };
 type SelectDrag = {
   sprite: string;
   origX: number; origY: number; origW: number; origH: number;
@@ -61,148 +65,6 @@ type ContextMenu = { x: number; y: number; type: "sprite" | "anim"; sprite: stri
 type MoveSpriteDrag = { sprite: string; origStrips: Record<string, { x: number; y: number; frameW: number; frameH: number; frameCount: number }>; px0: number; py0: number } | null;
 type ResizeSpriteDrag = { sprite: string; anim: string; origFrameW: number; origFrameH: number; px0: number; py0: number } | null;
 type InlineError = { sprite: string; anim: string; msg: string } | null;
-
-// ── Encode / decode ───────────────────────────────────────────────────────────
-
-function decodePixels(pixels: string): Uint8ClampedArray {
-  const raw = atob(pixels);
-  const buf = new Uint8ClampedArray(raw.length);
-  for (let i = 0; i < raw.length; i++) buf[i] = raw.charCodeAt(i);
-  return buf;
-}
-
-function encodePixels(buf: Uint8ClampedArray): string {
-  // Chunk to avoid stack overflow from spread; much faster than per-char concatenation.
-  const CHUNK = 0x8000;
-  let s = "";
-  for (let i = 0; i < buf.length; i += CHUNK)
-    s += String.fromCharCode(...buf.subarray(i, i + CHUNK));
-  return btoa(s);
-}
-
-function blankSheet(): SheetData {
-  return { pixels: encodePixels(new Uint8ClampedArray(BLANK_W * BLANK_H * 4)), width: BLANK_W, height: BLANK_H, sprites: {} };
-}
-
-function hexToRgb(hex: string): [number, number, number] {
-  const h = hex.slice(1);
-  return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
-}
-
-function rgbToHex(r: number, g: number, b: number): string {
-  return "#" + [r, g, b].map((v) => v.toString(16).padStart(2, "0")).join("");
-}
-
-function lerpCh(a: number, b: number, t: number) {
-  return Math.max(0, Math.min(255, Math.round(a + (b - a) * t)));
-}
-
-// ── Pixel operations ──────────────────────────────────────────────────────────
-
-function inClip(px: number, py: number, clip: Clip | null): boolean {
-  if (!clip) return true;
-  return px >= clip.x && py >= clip.y && px < clip.x + clip.w && py < clip.y + clip.h;
-}
-
-function paintPixel(buf: Uint8ClampedArray, w: number, h: number, px: number, py: number, tool: DrawTool, color: string, clip: Clip | null) {
-  if (px < 0 || py < 0 || px >= w || py >= h) return;
-  if (!inClip(px, py, clip)) return;
-  const idx = (py * w + px) * 4;
-  if (tool === "eraser") {
-    buf[idx] = buf[idx + 1] = buf[idx + 2] = buf[idx + 3] = 0;
-  } else if (tool === "pencil") {
-    const [r, g, b] = hexToRgb(color);
-    buf[idx] = r; buf[idx + 1] = g; buf[idx + 2] = b; buf[idx + 3] = 255;
-  } else if (tool === "darken") {
-    if (buf[idx + 3] === 0) return;
-    buf[idx] = lerpCh(buf[idx], 0x1a, SHADE_STEP);
-    buf[idx + 1] = lerpCh(buf[idx + 1], 0x1c, SHADE_STEP);
-    buf[idx + 2] = lerpCh(buf[idx + 2], 0x2c, SHADE_STEP);
-  } else if (tool === "lighten") {
-    if (buf[idx + 3] === 0) return;
-    buf[idx] = lerpCh(buf[idx], 0xf4, SHADE_STEP);
-    buf[idx + 1] = lerpCh(buf[idx + 1], 0xf4, SHADE_STEP);
-    buf[idx + 2] = lerpCh(buf[idx + 2], 0xf4, SHADE_STEP);
-  }
-}
-
-function paintBrush(buf: Uint8ClampedArray, w: number, h: number, cx: number, cy: number, tool: DrawTool, color: string, size: number, clip: Clip | null) {
-  if (size <= 1) { paintPixel(buf, w, h, cx, cy, tool, color, clip); return; }
-  const r = Math.floor(size / 2);
-  for (let dy = -r; dy < size - r; dy++)
-    for (let dx = -r; dx < size - r; dx++)
-      paintPixel(buf, w, h, cx + dx, cy + dy, tool, color, clip);
-}
-
-function stampTile(dst: Uint8ClampedArray, dstW: number, dstH: number, src: Uint8ClampedArray, srcW: number, sx: number, sy: number, sw: number, sh: number, dx: number, dy: number) {
-  for (let row = 0; row < sh; row++) {
-    const srcRow = (sy + row) * srcW * 4 + sx * 4;
-    const dstRow = (dy + row) * dstW * 4 + dx * 4;
-    for (let col = 0; col < sw; col++) {
-      const si = srcRow + col * 4, di = dstRow + col * 4;
-      if (dx + col < 0 || dx + col >= dstW || dy + row < 0 || dy + row >= dstH) continue;
-      if (src[si + 3] === 0) continue;
-      dst[di] = src[si]; dst[di + 1] = src[si + 1]; dst[di + 2] = src[si + 2]; dst[di + 3] = src[si + 3];
-    }
-  }
-}
-
-function floodFill(buf: Uint8ClampedArray, w: number, h: number, px: number, py: number, color: string, clip: Clip | null) {
-  if (px < 0 || py < 0 || px >= w || py >= h) return;
-  const i0 = (py * w + px) * 4;
-  const [tr, tg, tb, ta] = [buf[i0], buf[i0 + 1], buf[i0 + 2], buf[i0 + 3]];
-  const [nr, ng, nb] = hexToRgb(color);
-  if (tr === nr && tg === ng && tb === nb && ta === 255) return;
-  const stack: [number, number][] = [[px, py]];
-  while (stack.length) {
-    const [cx, cy] = stack.pop()!;
-    if (cx < 0 || cy < 0 || cx >= w || cy >= h) continue;
-    if (!inClip(cx, cy, clip)) continue;
-    const ci = (cy * w + cx) * 4;
-    if (buf[ci] !== tr || buf[ci + 1] !== tg || buf[ci + 2] !== tb || buf[ci + 3] !== ta) continue;
-    buf[ci] = nr; buf[ci + 1] = ng; buf[ci + 2] = nb; buf[ci + 3] = 255;
-    stack.push([cx + 1, cy], [cx - 1, cy], [cx, cy + 1], [cx, cy - 1]);
-  }
-}
-
-// ── Shape rasterizers ─────────────────────────────────────────────────────────
-
-function bresenhamLine(x0: number, y0: number, x1: number, y1: number, plot: (x: number, y: number) => void) {
-  const dx = Math.abs(x1 - x0), sx = x0 < x1 ? 1 : -1;
-  const dy = -Math.abs(y1 - y0), sy = y0 < y1 ? 1 : -1;
-  let err = dx + dy;
-  while (true) {
-    plot(x0, y0);
-    if (x0 === x1 && y0 === y1) break;
-    const e2 = 2 * err;
-    if (e2 >= dy) { err += dy; x0 += sx; }
-    if (e2 <= dx) { err += dx; y0 += sy; }
-  }
-}
-
-function rectOutline(x0: number, y0: number, x1: number, y1: number, plot: (x: number, y: number) => void) {
-  const xa = Math.min(x0, x1), xb = Math.max(x0, x1);
-  const ya = Math.min(y0, y1), yb = Math.max(y0, y1);
-  for (let x = xa; x <= xb; x++) { plot(x, ya); plot(x, yb); }
-  for (let y = ya; y <= yb; y++) { plot(xa, y); plot(xb, y); }
-}
-
-function ellipseOutline(x0: number, y0: number, x1: number, y1: number, plot: (x: number, y: number) => void) {
-  const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
-  const rx = Math.max(0.5, Math.abs(x1 - x0) / 2);
-  const ry = Math.max(0.5, Math.abs(y1 - y0) / 2);
-  const steps = Math.max(16, Math.round(2 * Math.PI * Math.max(rx, ry)));
-  const seen = new Set<string>();
-  for (let i = 0; i < steps; i++) {
-    const a = (i / steps) * Math.PI * 2;
-    const px = Math.round(cx + Math.cos(a) * rx);
-    const py = Math.round(cy + Math.sin(a) * ry);
-    const k = `${px},${py}`;
-    if (seen.has(k)) continue;
-    seen.add(k);
-    plot(px, py);
-  }
-}
 
 // ── Color picker popover ──────────────────────────────────────────────────────
 
@@ -299,9 +161,7 @@ export default function SheetEditor({ onClose, initialSprite }: { onClose: () =>
   const panelRowRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const pendingScrollAdjust = useRef<{ left: number; top: number } | null>(null);
 
-  type UndoEntry = { pixels: Uint8ClampedArray; sprites: SheetSprites };
-  const undoStack = useRef<UndoEntry[]>([]);
-  const redoStack = useRef<UndoEntry[]>([]);
+  const undoHistRef = useRef(makeUndoStack());
   const clipboardRef = useRef<{ pixels: Uint8ClampedArray; w: number; h: number } | null>(null);
   const renderCanvasRef = useRef<() => void>(() => {});
   const imageDataRef = useRef<ImageData | null>(null);
@@ -423,26 +283,22 @@ export default function SheetEditor({ onClose, initialSprite }: { onClose: () =>
 
   const pushUndo = useCallback(() => {
     const currentSprites = useEditor.getState().project.sheet?.sprites ?? {};
-    undoStack.current.push({ pixels: new Uint8ClampedArray(pixBuf.current), sprites: structuredClone(currentSprites) });
-    if (undoStack.current.length > 50) undoStack.current.shift();
-    redoStack.current = [];
+    undoHistRef.current.push(pixBuf.current, currentSprites);
   }, []);
 
   const performUndo = useCallback(() => {
-    if (undoStack.current.length === 0) return;
     const currentSprites = useEditor.getState().project.sheet?.sprites ?? {};
-    redoStack.current.push({ pixels: new Uint8ClampedArray(pixBuf.current), sprites: structuredClone(currentSprites) });
-    const snap = undoStack.current.pop()!;
+    const snap = undoHistRef.current.popUndo(pixBuf.current, currentSprites);
+    if (!snap) return;
     pixBuf.current.set(snap.pixels);
     setSheet({ ...sheet, pixels: encodePixels(snap.pixels), sprites: snap.sprites });
     renderCanvasRef.current();
   }, [sheet, setSheet]);
 
   const performRedo = useCallback(() => {
-    if (redoStack.current.length === 0) return;
     const currentSprites = useEditor.getState().project.sheet?.sprites ?? {};
-    undoStack.current.push({ pixels: new Uint8ClampedArray(pixBuf.current), sprites: structuredClone(currentSprites) });
-    const snap = redoStack.current.pop()!;
+    const snap = undoHistRef.current.popRedo(pixBuf.current, currentSprites);
+    if (!snap) return;
     pixBuf.current.set(snap.pixels);
     setSheet({ ...sheet, pixels: encodePixels(snap.pixels), sprites: snap.sprites });
     renderCanvasRef.current();
@@ -537,7 +393,7 @@ export default function SheetEditor({ onClose, initialSprite }: { onClose: () =>
       // If pixels were lifted (selectDragOffRef exists), put them back at original position
       if (selectDragOffRef.current) {
         // Pop the undo frame that was pushed at lift
-        undoStack.current.pop();
+        undoHistRef.current.cancelLast();
         // Restore original pixels
         for (let row = 0; row < sd.origH; row++)
           pixBuf.current.set(sd.pixels.subarray(row * sd.origW * 4, (row + 1) * sd.origW * 4), ((sd.origY + row) * sheetW + sd.origX) * 4);
@@ -1143,7 +999,7 @@ export default function SheetEditor({ onClose, initialSprite }: { onClose: () =>
         // Revert: put pixels back at original position
         for (let row = 0; row < mb.h; row++)
           pixBuf.current.set(savedPixels.subarray(row * mb.w * 4, (row + 1) * mb.w * 4), ((mb.y + row) * fSw + mb.x) * 4);
-        undoStack.current.pop(); // remove the undo entry we pushed
+        undoHistRef.current.cancelLast(); // remove the undo entry we pushed
         moveOffscreenRef.current = null; moveOrigBoundsRef.current = null;
         setMoveSpriteDrag(null); renderCanvasRef.current(); return;
       }

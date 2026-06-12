@@ -12,130 +12,39 @@ from typing import Any, Callable, Optional, Union
 
 from graphics._errors import FriendlyError, FriendlyAttrError
 from graphics._state_ns import State
+from graphics import _state
+from graphics._color import (
+    COLOR_NAMES, _Colors, Colors, _SHADE_STEP,
+    _is_number, _to_rgb, _resolve_color,
+    _rgb_to_hsl, _hsl_to_rgb,
+)
+from graphics._vec import Vector2, _vec_pair, Point, Polar, AnchorPoint
+from graphics._sheet import SheetAnimation, SpriteEntry, SheetNamespace, AnimationController
+from graphics._utils import clamp, randint, pick, Sound, Timer
+from graphics._sprites import PixelView, _TRANSPARENT
+from graphics._lighting_helpers import (
+    _flicker_value, _ray_rect, _ray_circle, _obstacle_rect, _compute_visibility_polygon,
+)
 
 _version = "1.0"
 
-# === GLOBAL STATE ===
 
-_width = 300
-_height = 300
-_running = False
-_stop_requested = False
+def __getattr__(name):
+    """Forward module-level attribute reads to _state for backward compatibility."""
+    try:
+        return getattr(_state, name)
+    except AttributeError:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
-_draw_commands = []
-_pending_size = None
 
-_fill_color = (255, 255, 255)
-_stroke_color = (0, 0, 0)
-_stroke_width = 1
-_current_fill = True
-_current_stroke = True
-
-_mouse_x = 0
-_mouse_y = 0
-_mouse_down = False
-_mouse_clicked = False
-_mouse_released = False
-
-_keys_down = set()
-_keys_pressed = set()
-_keys_released = set()
-
+# Public-API counter kept here so static analysis and __all__ see it.
+# Maintained by _tick/_run/_reset_run_state/_clear in this module.
 frame_count = 0
-_target_fps = 60
-_pending_timer_id = None
-_loop_generation = 0
-_show_hitboxes = False
-
-# Set by worker.ts before each run so _tick can classify runtime errors.
-_user_code = ""
-_user_filename = "main.py"
-
-# === COLORS ===
-
-# Sweetie 16 palette by GrafxKid (https://lospec.com/palette-list/sweetie-16).
-# Locked color palette — used by both Colors.<name> and fill("<name>") lookups.
-COLOR_NAMES = {
-    "black":  ( 26,  28,  44),
-    "wine":   ( 93,  39,  93),
-    "red":    (177,  62,  83),
-    "orange": (239, 125,  87),
-    "yellow": (255, 205, 117),
-    "lime":   (167, 240, 112),
-    "green":  ( 56, 183, 100),
-    "teal":   ( 37, 113, 121),
-    "navy":   ( 41,  54, 111),
-    "blue":   ( 59,  93, 201),
-    "sky":    ( 65, 166, 246),
-    "cyan":   (115, 239, 247),
-    "white":  (244, 244, 244),
-    "silver": (148, 176, 194),
-    "gray":   ( 86, 108, 134),
-    "slate":  ( 51,  60,  87),
-}
 
 
-class _Colors:
-    """Named color palette. Locked to Sweetie 16."""
-    black  = COLOR_NAMES["black"]
-    wine   = COLOR_NAMES["wine"]
-    red    = COLOR_NAMES["red"]
-    orange = COLOR_NAMES["orange"]
-    yellow = COLOR_NAMES["yellow"]
-    lime   = COLOR_NAMES["lime"]
-    green  = COLOR_NAMES["green"]
-    teal   = COLOR_NAMES["teal"]
-    navy   = COLOR_NAMES["navy"]
-    blue   = COLOR_NAMES["blue"]
-    sky    = COLOR_NAMES["sky"]
-    cyan   = COLOR_NAMES["cyan"]
-    white  = COLOR_NAMES["white"]
-    silver = COLOR_NAMES["silver"]
-    gray   = COLOR_NAMES["gray"]
-    slate  = COLOR_NAMES["slate"]
-
-
-Colors = _Colors()
-
-
-# === COLOR MATH ===
-#
-# Foundational interpolation primitive (lerp) plus shade/saturation sugar.
-# Colors accept tuples (r, g, b), hex strings ("FFCD75" / "#FFCD75"), or
-# COLOR_NAMES keys ("red"). All helpers return an (r, g, b) int tuple.
-
-_SHADE_STEP = 0.13
-
-
-def _is_number(x):
-    return isinstance(x, (int, float)) and not isinstance(x, bool)
-
-
-def _to_rgb(c):
-    """Normalize a color input to an (r, g, b) int tuple."""
-    if isinstance(c, (tuple, list)) and len(c) == 3:
-        return (int(c[0]), int(c[1]), int(c[2]))
-    if isinstance(c, str):
-        lo = c.lower()
-        if lo in COLOR_NAMES:
-            return COLOR_NAMES[lo]
-        s = lo.lstrip("#")
-        if len(s) == 6:
-            try:
-                return (int(s[0:2], 16), int(s[2:4], 16), int(s[4:6], 16))
-            except ValueError:
-                pass
-        raise FriendlyError(
-            "friendlyError.naming.badColor",
-            {"color": str(c)},
-            raw=f"Unknown color: {c!r}",
-        )
-    raise FriendlyError(
-        "friendlyError.types.badColorType",
-        {"type": type(c).__name__},
-        raw=f"Expected color tuple, hex string, or color name; got {type(c).__name__}",
-    )
-
+# === COLOR PUBLIC API ===
+# Helpers (_to_rgb, _rgb_to_hsl, _hsl_to_rgb) live in _color.py.
+# These functions must be def'd here so the static validator can find them.
 
 def lerp(a, b, t):
     """Linear interpolation. Works on numbers OR colors.
@@ -155,50 +64,6 @@ def lerp(a, b, t):
         int(ar + (br - ar) * t),
         int(ag + (bg - ag) * t),
         int(ab + (bb - ab) * t),
-    )
-
-
-def _rgb_to_hsl(r, g, b):
-    rf, gf, bf = r / 255.0, g / 255.0, b / 255.0
-    mx, mn = max(rf, gf, bf), min(rf, gf, bf)
-    l = (mx + mn) / 2
-    if mx == mn:
-        return 0.0, 0.0, l
-    d = mx - mn
-    s = d / (2 - mx - mn) if l > 0.5 else d / (mx + mn)
-    if mx == rf:
-        h = ((gf - bf) / d + (6 if gf < bf else 0)) / 6
-    elif mx == gf:
-        h = ((bf - rf) / d + 2) / 6
-    else:
-        h = ((rf - gf) / d + 4) / 6
-    return h, s, l
-
-
-def _hsl_to_rgb(h, s, l):
-    if s == 0:
-        v = int(round(l * 255))
-        return (v, v, v)
-
-    def hue(p, q, t):
-        if t < 0:
-            t += 1
-        if t > 1:
-            t -= 1
-        if t < 1 / 6:
-            return p + (q - p) * 6 * t
-        if t < 1 / 2:
-            return q
-        if t < 2 / 3:
-            return p + (q - p) * (2 / 3 - t) * 6
-        return p
-
-    q = l * (1 + s) if l < 0.5 else l + s - l * s
-    p = 2 * l - q
-    return (
-        int(round(hue(p, q, h + 1 / 3) * 255)),
-        int(round(hue(p, q, h) * 255)),
-        int(round(hue(p, q, h - 1 / 3) * 255)),
     )
 
 
@@ -236,9 +101,6 @@ def desaturated(c, steps=1):
 # A Sprite is a rectangular RGBA pixel buffer that Python code can read and
 # write. Substage 1a ships the data API only; the asset pipeline that exposes
 # editor-drawn sprites and the canvas render path land in substage 1b.
-
-_TRANSPARENT = (0, 0, 0, 0)
-
 
 class Sprite:
     """Mutable RGBA pixel buffer addressable by (x, y).
@@ -335,73 +197,6 @@ def set_pixel(sprite, x, y, color):
     p[i + 3] = 255
 
 
-class PixelView:
-    """Mutable reference to a single pixel inside a Sprite.
-
-    Yielded by iterating a Sprite or an Actor::
-
-        for pixel in sun:
-            if pixel == Colors.red:
-                pixel.color = Colors.orange  # writes back to the sprite
-
-    .. note::
-        ``pixel = Colors.orange`` only rebinds the loop variable in Python
-        and does **not** write back.  Use ``pixel.color = ...`` or
-        ``pixel.set(...)`` to mutate the sprite.
-
-    Comparison against any color value (tuple, hex string, palette name)
-    works on both sides::
-
-        pixel == Colors.red
-        Colors.red == pixel
-        pixel == (255, 0, 0)
-
-    Transparent pixels compare equal only to ``None``.
-    """
-
-    __slots__ = ("_sprite", "_x", "_y")
-
-    def __init__(self, sprite, x, y):
-        self._sprite = sprite
-        self._x = int(x)
-        self._y = int(y)
-
-    @property
-    def x(self):
-        return self._x
-
-    @property
-    def y(self):
-        return self._y
-
-    @property
-    def color(self):
-        """Current (r, g, b) color, or None if transparent."""
-        return get_pixel(self._sprite, self._x, self._y)
-
-    @color.setter
-    def color(self, value):
-        set_pixel(self._sprite, self._x, self._y, value)
-
-    def set(self, color):
-        """Write a new color (same as ``pixel.color = color``)."""
-        set_pixel(self._sprite, self._x, self._y, color)
-
-    def __eq__(self, other):
-        c = get_pixel(self._sprite, self._x, self._y)
-        if other is None:
-            return c is None
-        if c is None:
-            return False
-        r, g, b = c
-        try:
-            or_, og, ob = _to_rgb(other)
-        except Exception:
-            return NotImplemented
-        return r == or_ and g == og and b == ob
-
-    def __repr__(self):
-        return f"Pixel({self._x}, {self._y}, {self.color})"
 
 
 def palette_swap(sprite, old_color, new_color):
@@ -503,145 +298,6 @@ def desaturate(sprite, x, y, steps=1):
     set_pixel(sprite, x, y, desaturated(c, steps))
 
 
-# === SHEET ANIMATION API ===
-
-
-class SheetAnimation:
-    """An animation strip from the project sheet: an ordered list of Sprite frames.
-
-    Indexing wraps with modulo so a frame counter can advance freely.
-    When passed to `image()` or used as an Actor image, resolves to frame [0].
-    """
-
-    def __init__(self, frames):
-        self._frames = list(frames)
-
-    def __getitem__(self, idx):
-        if not self._frames:
-            raise FriendlyError(
-                "friendlyError.logic.spriteNoFrames",
-                raw="SheetAnimation has no frames",
-            )
-        return self._frames[int(idx) % len(self._frames)]
-
-    def __len__(self):
-        return len(self._frames)
-
-    def _default_sprite(self):
-        return self._frames[0] if self._frames else None
-
-    def __repr__(self):
-        return f"SheetAnimation({len(self._frames)} frames)"
-
-
-class SpriteEntry:
-    """A named sprite from the project sheet.
-
-    Attribute access returns a SheetAnimation by animation name.
-    When passed to `image()` or used as an Actor image, resolves to frame 0
-    of the first animation.
-    """
-
-    def __init__(self, name, animations):
-        self._name = name
-        self._animations = animations  # dict[str, SheetAnimation]
-
-    def _default_sprite(self):
-        for anim in self._animations.values():
-            s = anim._default_sprite()
-            if s is not None:
-                return s
-        return None
-
-    def __getattr__(self, name):
-        if name.startswith('_'):
-            raise AttributeError(name)
-        anim = self._animations.get(name)
-        if anim is None:
-            avail = list(self._animations.keys())
-            raise FriendlyAttrError(
-                "friendlyError.naming.noAnimation",
-                {"sprite": self._name, "name": name, "available": ", ".join(avail) or "none"},
-                raw=f"Sprite '{self._name}' has no animation '{name}'. Available: {avail}",
-            )
-        return anim
-
-    def __repr__(self):
-        return f"SpriteEntry({self._name!r}, animations={list(self._animations.keys())})"
-
-
-class SheetNamespace:
-    """Namespace of named sprites from the project sheet (assets.sheet).
-
-    Attribute access returns a SpriteEntry by name.
-    """
-
-    def __init__(self, entries):
-        self._entries = entries  # dict[str, SpriteEntry]
-
-    def __getattr__(self, name):
-        if name.startswith('_'):
-            raise AttributeError(name)
-        entry = self._entries.get(name)
-        if entry is None:
-            avail = list(self._entries.keys())
-            raise FriendlyAttrError(
-                "friendlyError.naming.noSprite",
-                {"name": name, "available": ", ".join(avail) or "none"},
-                raw=f"Sheet has no sprite '{name}'. Available: {avail}",
-            )
-        return entry
-
-    def __repr__(self):
-        return f"SheetNamespace({list(self._entries.keys())})"
-
-
-class AnimationController:
-    """Per-actor animation state for one animation name.
-
-    Obtained via ``actor.<anim_name>`` when ``actor.image`` is a SpriteEntry.
-    Call ``tick()`` once per frame to advance; ``actor.draw()`` reads the result.
-
-    On the first tick after switching animations the frame resets to 0 with
-    no advance, so the first frame of the new animation is always shown for
-    a full frame.
-    """
-
-    def __init__(self, actor, anim_name):
-        self._actor = actor
-        self._anim_name = anim_name
-        self._frame_idx = 0
-        self._ticked_this_frame = False
-
-    def tick(self):
-        if self._ticked_this_frame:
-            import sys as _sys
-            print(
-                f"Warning: {self._anim_name}.tick() called twice in one frame — "
-                "call it once per update()", file=_sys.stderr
-            )
-            return self
-        prev_name = getattr(self._actor, '_last_active_anim', None)
-        self._actor._last_active_anim = self._anim_name
-        self._actor._active_anim_ctrl = self
-        if prev_name != self._anim_name:
-            # Animation switched — reset to frame 0, no advance this tick.
-            self._frame_idx = 0
-        else:
-            image = self._actor.image
-            if isinstance(image, SpriteEntry):
-                anim = image._animations.get(self._anim_name)
-                if anim and anim._frames:
-                    self._frame_idx = (self._frame_idx + 1) % len(anim._frames)
-        self._ticked_this_frame = True
-        return self
-
-    @property
-    def frame_idx(self):
-        return self._frame_idx
-
-    def __repr__(self):
-        return f"AnimationController({self._anim_name!r}, frame={self._frame_idx})"
 
 
 _KEY_CODES = {
@@ -679,166 +335,7 @@ assets = None
 sheet = {}
 
 
-# === VECTOR ===
-
-
-class Vector2:
-    """2D vector with arithmetic and geometry helpers.
-
-    Vector2(3, 4); Vector2((3, 4)); Vector2(other_vec). Mutable x, y.
-    Use `Point` as an alias when reading as a position is clearer.
-    """
-
-    def __init__(self, x=0.0, y=0.0):
-        if isinstance(x, Vector2):
-            self.x, self.y = float(x.x), float(x.y)
-        elif isinstance(x, (tuple, list)):
-            self.x, self.y = float(x[0]), float(x[1])
-        else:
-            self.x, self.y = float(x), float(y)
-
-    def __repr__(self):
-        return f"Vector2({self.x}, {self.y})"
-
-    def __iter__(self):
-        yield self.x
-        yield self.y
-
-    def __eq__(self, other):
-        if isinstance(other, Vector2):
-            return self.x == other.x and self.y == other.y
-        if isinstance(other, (tuple, list)) and len(other) == 2:
-            return self.x == other[0] and self.y == other[1]
-        return NotImplemented
-
-    def __hash__(self):
-        return hash((self.x, self.y))
-
-    def __add__(self, other):
-        ox, oy = _vec_pair(other)
-        return Vector2(self.x + ox, self.y + oy)
-
-    def __radd__(self, other):
-        return self.__add__(other)
-
-    def __sub__(self, other):
-        ox, oy = _vec_pair(other)
-        return Vector2(self.x - ox, self.y - oy)
-
-    def __rsub__(self, other):
-        ox, oy = _vec_pair(other)
-        return Vector2(ox - self.x, oy - self.y)
-
-    def __neg__(self):
-        return Vector2(-self.x, -self.y)
-
-    def __mul__(self, scalar):
-        return Vector2(self.x * scalar, self.y * scalar)
-
-    def __rmul__(self, scalar):
-        return Vector2(self.x * scalar, self.y * scalar)
-
-    def __truediv__(self, scalar):
-        return Vector2(self.x / scalar, self.y / scalar)
-
-    def __iadd__(self, other):
-        ox, oy = _vec_pair(other)
-        self.x += ox
-        self.y += oy
-        return self
-
-    def __isub__(self, other):
-        ox, oy = _vec_pair(other)
-        self.x -= ox
-        self.y -= oy
-        return self
-
-    @property
-    def length(self):
-        return math.sqrt(self.x * self.x + self.y * self.y)
-
-    @property
-    def length_sq(self):
-        return self.x * self.x + self.y * self.y
-
-    def distance_to(self, other):
-        ox, oy = _vec_pair(other)
-        dx = self.x - ox
-        dy = self.y - oy
-        return math.sqrt(dx * dx + dy * dy)
-
-    def dot(self, other):
-        ox, oy = _vec_pair(other)
-        return self.x * ox + self.y * oy
-
-    def normalized(self):
-        n = self.length
-        if n == 0:
-            return Vector2(0, 0)
-        return Vector2(self.x / n, self.y / n)
-
-
-def _vec_pair(other):
-    if isinstance(other, Vector2):
-        return other.x, other.y
-    if isinstance(other, (tuple, list)) and len(other) == 2:
-        return float(other[0]), float(other[1])
-    raise TypeError(f"Expected Vector2 or 2-tuple, got {type(other).__name__}")
-
-
-# `Point` reads more naturally for positions; same class as Vector2.
-Point = Vector2
-
-
-def Polar(magnitude, angle_degrees):
-    """Vector2 from a magnitude and angle in degrees.
-
-    Angle convention matches actor.angle and actor.move(): 0° = north (up, -y),
-    90° = east (+x), 180° = south (+y), 270° = west (-x) — clockwise on screen.
-
-    Common uses:
-        player.vel = Polar(120, 60)         # 120 px/frame at 60°
-        bullet.vel = Polar(8, ship.angle)   # match the ship's facing
-        wind = Polar(2, 90)                 # blow east
-    """
-    rad = math.radians(float(angle_degrees))
-    return Vector2(float(magnitude) * math.sin(rad), -float(magnitude) * math.cos(rad))
-
-
 from graphics.actors import Actor, Rect, Circle, Group, Collider  # noqa: E402
-
-
-# === ANCHOR POINT ===
-
-
-class AnchorPoint(Vector2):
-    """A resolved position with alignment hints for text() and say().
-
-    Behaves as a Vector2 for arithmetic and `tile_at(anchor)`; its x/y may be
-    lazy (e.g. Window.center recomputes when the canvas size changes).
-    """
-
-    def __init__(self, x, y, h_align="left", v_align="top"):
-        self._x = x        # callable or number
-        self._y = y
-        self.h_align = h_align   # "left" | "center" | "right"
-        self.v_align = v_align   # "top" | "middle" | "bottom"
-
-    @property
-    def x(self):
-        return self._x() if callable(self._x) else self._x
-
-    @x.setter
-    def x(self, value):
-        self._x = value
-
-    @property
-    def y(self):
-        return self._y() if callable(self._y) else self._y
-
-    @y.setter
-    def y(self, value):
-        self._y = value
 
 
 # === MOUSE SINGLETON ===
@@ -847,27 +344,27 @@ class AnchorPoint(Vector2):
 class _Mouse:
     @property
     def x(self):
-        return _mouse_x
+        return _state._mouse_x
 
     @property
     def y(self):
-        return _mouse_y
+        return _state._mouse_y
 
     @property
     def pos(self):
-        return Vector2(_mouse_x, _mouse_y)
+        return Vector2(_state._mouse_x, _state._mouse_y)
 
     @property
     def pressed(self):
-        return _mouse_clicked
+        return _state._mouse_clicked
 
     @property
     def down(self):
-        return _mouse_down
+        return _state._mouse_down
 
     @property
     def released(self):
-        return _mouse_released
+        return _state._mouse_released
 
 
 Mouse = _Mouse()
@@ -882,15 +379,15 @@ class _Key:
 
     @property
     def pressed(self):
-        return self._code in _keys_pressed
+        return self._code in _state._keys_pressed
 
     @property
     def down(self):
-        return self._code in _keys_down
+        return self._code in _state._keys_down
 
     @property
     def released(self):
-        return self._code in _keys_released
+        return self._code in _state._keys_released
 
 
 class _Keyboard:
@@ -922,11 +419,11 @@ class _Window:
 
     @property
     def width(self):
-        return _width
+        return _state._width
 
     @property
     def height(self):
-        return _height
+        return _state._height
 
     # --- anchor points ---
 
@@ -936,35 +433,35 @@ class _Window:
 
     @property
     def top_right(self):
-        return AnchorPoint(lambda: _width, 0, "right", "top")
+        return AnchorPoint(lambda: _state._width, 0, "right", "top")
 
     @property
     def bottom_left(self):
-        return AnchorPoint(0, lambda: _height, "left", "bottom")
+        return AnchorPoint(0, lambda: _state._height, "left", "bottom")
 
     @property
     def bottom_right(self):
-        return AnchorPoint(lambda: _width, lambda: _height, "right", "bottom")
+        return AnchorPoint(lambda: _state._width, lambda: _state._height, "right", "bottom")
 
     @property
     def center(self):
-        return AnchorPoint(lambda: _width / 2, lambda: _height / 2, "center", "middle")
+        return AnchorPoint(lambda: _state._width / 2, lambda: _state._height / 2, "center", "middle")
 
     @property
     def top(self):
-        return AnchorPoint(lambda: _width / 2, 0, "center", "top")
+        return AnchorPoint(lambda: _state._width / 2, 0, "center", "top")
 
     @property
     def bottom(self):
-        return AnchorPoint(lambda: _width / 2, lambda: _height, "center", "bottom")
+        return AnchorPoint(lambda: _state._width / 2, lambda: _state._height, "center", "bottom")
 
     @property
     def left(self):
-        return AnchorPoint(0, lambda: _height / 2, "left", "middle")
+        return AnchorPoint(0, lambda: _state._height / 2, "left", "middle")
 
     @property
     def right(self):
-        return AnchorPoint(lambda: _width, lambda: _height / 2, "right", "middle")
+        return AnchorPoint(lambda: _state._width, lambda: _state._height / 2, "right", "middle")
 
 
 Window = _Window()
@@ -978,16 +475,6 @@ def _color_str(r, g=None, b=None):
         return f"rgb({int(r)},{int(r)},{int(r)})"
     return f"rgb({int(r)},{int(g)},{int(b)})"
 
-
-def _resolve_color(r, g=None, b=None):
-    """Returns an (r, g, b) tuple from various input forms."""
-    if isinstance(r, tuple):
-        return (int(r[0]), int(r[1]), int(r[2]))
-    if isinstance(r, str):
-        return COLOR_NAMES.get(r.lower(), (255, 255, 255))
-    if g is None:
-        return (int(r), int(r), int(r))
-    return (int(r), int(g), int(b))
 
 
 def _anchor_pad_x(anchor, padding):
@@ -1014,10 +501,9 @@ def _init(canvas=None):
 
 
 def _size(w, h):
-    global _pending_size, _width, _height
-    _pending_size = (int(w), int(h))
-    _width = int(w)
-    _height = int(h)
+    _state._pending_size = (int(w), int(h))
+    _state._width = int(w)
+    _state._height = int(h)
 
 
 def size(w: Union[int, float], h: Union[int, float]) -> None:
@@ -1025,141 +511,136 @@ def size(w: Union[int, float], h: Union[int, float]) -> None:
 
 
 def width() -> int:
-    return _width
+    return _state._width
 
 
 def height() -> int:
-    return _height
+    return _state._height
 
 
 # === DRAWING ===
 
 
 def circle(x, y, r) -> None:
-    _draw_commands.append(("circle", (float(x), float(y), float(r)), {}))
+    _state._draw_commands.append(("circle", (float(x), float(y), float(r)), {}))
 
 
 def rect(x, y, w, h) -> None:
-    _draw_commands.append(("rect", (float(x), float(y), float(w), float(h)), {}))
+    _state._draw_commands.append(("rect", (float(x), float(y), float(w), float(h)), {}))
 
 
 def ellipse(x, y, w, h=None) -> None:
     if h is None:
         h = w
-    _draw_commands.append(("ellipse", (float(x), float(y), float(w), float(h)), {}))
+    _state._draw_commands.append(("ellipse", (float(x), float(y), float(w), float(h)), {}))
 
 
 def line(x1, y1, x2, y2) -> None:
-    _draw_commands.append(("line", (float(x1), float(y1), float(x2), float(y2)), {}))
+    _state._draw_commands.append(("line", (float(x1), float(y1), float(x2), float(y2)), {}))
 
 
 def point(x, y) -> None:
-    _draw_commands.append(("point", (float(x), float(y)), {}))
+    _state._draw_commands.append(("point", (float(x), float(y)), {}))
 
 
 def text(s: Any, x_or_anchor, y=None, *, padding: int = 6) -> None:
     if isinstance(x_or_anchor, AnchorPoint):
         a = x_or_anchor
-        _draw_commands.append(("text_align", (a.h_align, a.v_align), {}))
+        _state._draw_commands.append(("text_align", (a.h_align, a.v_align), {}))
         px = _anchor_pad_x(a, padding)
         py = _anchor_pad_y(a, padding)
-        _draw_commands.append(("text", (str(s), px, py), {}))
+        _state._draw_commands.append(("text", (str(s), px, py), {}))
     else:
-        _draw_commands.append(("text", (str(s), float(x_or_anchor), float(y)), {}))
+        _state._draw_commands.append(("text", (str(s), float(x_or_anchor), float(y)), {}))
 
 
 def say(s: Any, anchor, *, padding: int = 8) -> None:
     """Draw a speech bubble with a tail pointing at anchor."""
-    _draw_commands.append(("say", (str(s), float(anchor.x), float(anchor.y), anchor.h_align, anchor.v_align, int(padding)), {}))
+    _state._draw_commands.append(("say", (str(s), float(anchor.x), float(anchor.y), anchor.h_align, anchor.v_align, int(padding)), {}))
 
 
 def text_size(n) -> None:
-    _draw_commands.append(("text_size", (int(n),), {}))
+    _state._draw_commands.append(("text_size", (int(n),), {}))
 
 
 def text_align(horizontal: str, vertical: Optional[str] = None) -> None:
     h = horizontal.lower() if isinstance(horizontal, str) else horizontal
     v = vertical.lower() if vertical and isinstance(vertical, str) else vertical
-    _draw_commands.append(("text_align", (h, v), {}))
+    _state._draw_commands.append(("text_align", (h, v), {}))
 
 
 # === COLOR ===
 
 
 def fill(r=None, g=None, b=None) -> None:
-    global _fill_color, _current_fill
     if r is None:
-        _current_fill = False
-        _draw_commands.append(("no_fill", (), {}))
+        _state._current_fill = False
+        _state._draw_commands.append(("no_fill", (), {}))
         return
     color = _resolve_color(r, g, b)
-    _fill_color = color
-    _current_fill = True
-    _draw_commands.append(("fill", color, {}))
+    _state._fill_color = color
+    _state._current_fill = True
+    _state._draw_commands.append(("fill", color, {}))
 
 
 def no_fill() -> None:
-    global _current_fill
-    _current_fill = False
-    _draw_commands.append(("no_fill", (), {}))
+    _state._current_fill = False
+    _state._draw_commands.append(("no_fill", (), {}))
 
 
 def stroke(r=None, g=None, b=None) -> None:
-    global _stroke_color, _current_stroke
     if r is None:
-        _current_stroke = False
-        _draw_commands.append(("no_stroke", (), {}))
+        _state._current_stroke = False
+        _state._draw_commands.append(("no_stroke", (), {}))
         return
     color = _resolve_color(r, g, b)
-    _stroke_color = color
-    _current_stroke = True
-    _draw_commands.append(("stroke", color, {}))
+    _state._stroke_color = color
+    _state._current_stroke = True
+    _state._draw_commands.append(("stroke", color, {}))
 
 
 def no_stroke() -> None:
-    global _current_stroke
-    _current_stroke = False
-    _draw_commands.append(("no_stroke", (), {}))
+    _state._current_stroke = False
+    _state._draw_commands.append(("no_stroke", (), {}))
 
 
 def stroke_width(w) -> None:
-    global _stroke_width
-    _stroke_width = int(w)
-    _draw_commands.append(("stroke_width", (int(w),), {}))
+    _state._stroke_width = int(w)
+    _state._draw_commands.append(("stroke_width", (int(w),), {}))
 
 
 def background(r, g=None, b=None) -> None:
     # Accept an asset dict (sprite reference) → draw stretched to fill canvas.
     if isinstance(r, dict) and r.get("done") and "name" in r:
-        _draw_commands.append(("background_image", (r["name"],), {}))
+        _state._draw_commands.append(("background_image", (r["name"],), {}))
         return
     color = _resolve_color(r, g, b)
-    _draw_commands.append(("background", color, {}))
+    _state._draw_commands.append(("background", color, {}))
 
 
 # === TRANSFORM ===
 
 
 def push() -> None:
-    _draw_commands.append(("push", (), {}))
+    _state._draw_commands.append(("push", (), {}))
 
 
 def pop() -> None:
-    _draw_commands.append(("pop", (), {}))
+    _state._draw_commands.append(("pop", (), {}))
 
 
 def translate(x, y) -> None:
-    _draw_commands.append(("translate", (float(x), float(y)), {}))
+    _state._draw_commands.append(("translate", (float(x), float(y)), {}))
 
 
 def rotate(angle) -> None:
-    _draw_commands.append(("rotate", (float(angle),), {}))
+    _state._draw_commands.append(("rotate", (float(angle),), {}))
 
 
 def scale(x, y=None) -> None:
     if y is None:
         y = x
-    _draw_commands.append(("scale", (float(x), float(y)), {}))
+    _state._draw_commands.append(("scale", (float(x), float(y)), {}))
 
 
 # === IMAGE ===
@@ -1171,7 +652,7 @@ def image(img_result: Any, x, y, w=None, h=None) -> None:
         # converts `bytes` to a Uint8Array. The renderer wraps it in an
         # ImageData and draws via a temp OffscreenCanvas so canvas transforms
         # (Camera, push/pop, scale) still apply.
-        _draw_commands.append((
+        _state._draw_commands.append((
             "sprite",
             (bytes(img_result.pixels), int(img_result.width), int(img_result.height),
              float(x), float(y), w, h),
@@ -1181,7 +662,7 @@ def image(img_result: Any, x, y, w=None, h=None) -> None:
     if isinstance(img_result, SpriteEntry):
         sprite = img_result._default_sprite()
         if sprite is not None:
-            _draw_commands.append((
+            _state._draw_commands.append((
                 "sprite",
                 (bytes(sprite.pixels), int(sprite.width), int(sprite.height),
                  float(x), float(y), w, h),
@@ -1191,7 +672,7 @@ def image(img_result: Any, x, y, w=None, h=None) -> None:
     if isinstance(img_result, SheetAnimation):
         sprite = img_result._default_sprite()
         if sprite is not None:
-            _draw_commands.append((
+            _state._draw_commands.append((
                 "sprite",
                 (bytes(sprite.pixels), int(sprite.width), int(sprite.height),
                  float(x), float(y), w, h),
@@ -1204,12 +685,12 @@ def image(img_result: Any, x, y, w=None, h=None) -> None:
         if "anim_name" in img_result:
             anim_name = img_result["anim_name"]
             frame_idx = img_result.get("frame_idx", 0)
-            _draw_commands.append(("animation_frame", (anim_name, frame_idx, float(x), float(y), w, h), {}))
+            _state._draw_commands.append(("animation_frame", (anim_name, frame_idx, float(x), float(y), w, h), {}))
         elif "name" in img_result:
             name = img_result["name"]
-            _draw_commands.append(("image", (name, float(x), float(y), w, h), {}))
+            _state._draw_commands.append(("image", (name, float(x), float(y), w, h), {}))
     else:
-        _draw_commands.append(("image", (str(img_result), float(x), float(y), w, h), {}))
+        _state._draw_commands.append(("image", (str(img_result), float(x), float(y), w, h), {}))
 
 
 # === RANDOM HELPERS ===
@@ -1254,145 +735,25 @@ def random_color() -> tuple:
     return _random.choice(list(COLOR_NAMES.values()))
 
 
-def clamp(value, lo, hi):
-    """Clamp `value` between `lo` and `hi` (inclusive).
-
-        x = clamp(x, 0, 300)   # keep x inside the canvas
-        vol = clamp(vol, 0, 1)  # keep volume in [0, 1]
-    """
-    return max(lo, min(hi, value))
-
-
-def randint(a, b) -> int:
-    """Random integer between a and b inclusive.
-
-        x = randint(0, 300)
-    """
-    import random as _random
-    return _random.randint(int(a), int(b))
-
-
-def pick(seq):
-    """Pick a random item from a sequence.
-
-        color = pick([Colors.red, Colors.blue, Colors.green])
-        tile  = pick(["grass", "sand", "stone"])
-    """
-    import random as _random
-    items = list(seq)
-    if not items:
-        raise FriendlyError(
-            "friendlyError.logic.emptySequence",
-            raw="pick() called on empty sequence",
-        )
-    return _random.choice(items)
-
-
 def frame_rate(fps) -> None:
-    global _target_fps
-    _target_fps = int(fps)
-
-
-import time as _time
-
-
-class Sound:
-    """Audio clip controlled from Python. Audio playback lives on the main
-    thread; this class just sends messages.
-
-    Usage:
-        assets.sounds.pop.play()
-        assets.sounds.music.loop()
-        assets.sounds.music.set_volume(0.5)
-        assets.sounds.music.pause()
-        assets.sounds.music.stop()
-    """
-
-    def __init__(self, name):
-        self.name = name
-
-    def _post(self, action, value=None):
-        try:
-            import js
-            js._ide_post_sound(action, self.name, value)
-        except Exception:
-            pass
-
-    def play(self):
-        """Play the sound once. Multiple calls overlap."""
-        self._post("play")
-
-    def loop(self):
-        """Play the sound repeatedly until stopped."""
-        self._post("loop")
-
-    def pause(self):
-        """Pause all currently playing instances of this sound."""
-        self._post("pause")
-
-    def stop(self):
-        """Stop all currently playing instances and reset to the start."""
-        self._post("stop")
-
-    def set_volume(self, value):
-        """Set volume for future plays (0.0 = silent, 1.0 = full).
-        Does not affect already-playing instances."""
-        self._post("volume", float(value))
-
-
-class Timer:
-    """Poll-based countdown timer in seconds.
-
-    Usage:
-        t = Timer(s=2)
-        # in update():
-        if t.done():
-            spawn_enemy()
-            t.restart()
-    """
-
-    def __init__(self, s=None, ms=None):
-        if s is None and ms is None:
-            self._duration = 0.0
-        elif s is not None:
-            self._duration = float(s)
-        else:
-            self._duration = float(ms) / 1000.0
-        self._start = _time.monotonic()
-
-    def left(self) -> float:
-        return self._duration - (_time.monotonic() - self._start)
-
-    def elapsed(self) -> float:
-        return _time.monotonic() - self._start
-
-    def done(self) -> bool:
-        return self.left() <= 0
-
-    def restart(self, s=None, ms=None) -> None:
-        if s is not None:
-            self._duration = float(s)
-        elif ms is not None:
-            self._duration = float(ms) / 1000.0
-        self._start = _time.monotonic()
+    _state._target_fps = int(fps)
 
 
 # === RUN ===
 
 
 def _tick(main, my_generation):
-    global _pending_timer_id, frame_count, _mouse_clicked, _mouse_released
-    global _running, _stop_requested, _loop_generation
+    global frame_count
     from js import clearTimeout, setTimeout, _ide_flush_draw_commands
     from pyodide.ffi import create_proxy, to_js
     from graphics.actors import Actor
 
-    if _loop_generation != my_generation:
+    if _state._loop_generation != my_generation:
         return
-    if not _running:
+    if not _state._running:
         return
-    if _stop_requested:
-        _running = False
+    if _state._stop_requested:
+        _state._running = False
         try:
             from js import _ide_notify_loop_ended
             _ide_notify_loop_ended()
@@ -1401,8 +762,8 @@ def _tick(main, my_generation):
         return
 
     try:
-        _ide_flush_draw_commands(to_js(_draw_commands))
-        _draw_commands.clear()
+        _ide_flush_draw_commands(to_js(_state._draw_commands))
+        _state._draw_commands.clear()
 
         for actor in Actor.all_actors():
             if actor.is_alive():
@@ -1416,25 +777,25 @@ def _tick(main, my_generation):
         if main is not None:
             main()
 
-        _mouse_clicked = False
-        _mouse_released = False
-        _keys_pressed.clear()
-        _keys_released.clear()
+        _state._mouse_clicked = False
+        _state._mouse_released = False
+        _state._keys_pressed.clear()
+        _state._keys_released.clear()
 
-        _ide_flush_draw_commands(to_js(_draw_commands))
-        _draw_commands.clear()
+        _ide_flush_draw_commands(to_js(_state._draw_commands))
+        _state._draw_commands.clear()
         frame_count += 1
 
     except KeyboardInterrupt:
         # forceful stop via interrupt buffer — no error output
-        _running = False
+        _state._running = False
         return
     except Exception as _exc:
         try:
             import json as _json
             import error_hook as _eh
             from js import _ide_post_runtime_error
-            _structured = _eh.classify_error(_exc, _user_code, _user_filename)
+            _structured = _eh.classify_error(_exc, _state._user_code, _state._user_filename)
             _ide_post_runtime_error(_json.dumps(_structured))
         except Exception:
             # Hand-written JSON — intentionally avoids json.dumps which may have just failed.
@@ -1448,42 +809,37 @@ def _tick(main, my_generation):
                       '"suggestions":[],"isBlocking":false}')
             except Exception:
                 pass  # nothing safe left to do; worker error channel will surface stalls
-        _running = False
+        _state._running = False
         return
 
-    elapsed = 1000 / _target_fps
-    _pending_timer_id = setTimeout(tick_proxy, int(elapsed))
-
-
-tick_proxy = None
+    elapsed = 1000 / _state._target_fps
+    _state._pending_timer_id = setTimeout(_state.tick_proxy, int(elapsed))
 
 
 def _run(main=None, fps=60) -> None:
+    global frame_count
     from js import setTimeout, _ide_canvas_resize  # type: ignore
     from pyodide.ffi import create_proxy
 
-    global _running, _stop_requested, _loop_generation, frame_count, _target_fps
-    global _pending_timer_id, tick_proxy, _width, _height
+    _state._target_fps = int(fps)
 
-    _target_fps = int(fps)
-
-    if _pending_timer_id is not None:
+    if _state._pending_timer_id is not None:
         from js import clearTimeout
-        clearTimeout(_pending_timer_id)
+        clearTimeout(_state._pending_timer_id)
 
-    if _pending_size:
-        _width, _height = _pending_size
+    if _state._pending_size:
+        _state._width, _state._height = _state._pending_size
 
-    _ide_canvas_resize(_width, _height)
+    _ide_canvas_resize(_state._width, _state._height)
 
-    _running = True
-    _stop_requested = False
-    _loop_generation += 1
-    my_generation = _loop_generation
+    _state._running = True
+    _state._stop_requested = False
+    _state._loop_generation += 1
+    my_generation = _state._loop_generation
     frame_count = 0
 
-    tick_proxy = create_proxy(lambda: _tick(main, my_generation))
-    _pending_timer_id = setTimeout(tick_proxy, 0)
+    _state.tick_proxy = create_proxy(lambda: _tick(main, my_generation))
+    _state._pending_timer_id = setTimeout(_state.tick_proxy, 0)
 
 
 def run(main=None, fps=60) -> None:
@@ -1494,12 +850,11 @@ def run(main=None, fps=60) -> None:
 
 
 def _stop() -> None:
-    global _stop_requested, _pending_timer_id
     from js import clearTimeout
-    if _pending_timer_id is not None:
-        clearTimeout(_pending_timer_id)
-        _pending_timer_id = None
-    _stop_requested = True
+    if _state._pending_timer_id is not None:
+        clearTimeout(_state._pending_timer_id)
+        _state._pending_timer_id = None
+    _state._stop_requested = True
 
 
 def stop() -> None:
@@ -1510,29 +865,27 @@ def stop() -> None:
 
 
 def _inject_event(kind, data):
-    global _mouse_x, _mouse_y, _mouse_down, _mouse_clicked, _mouse_released, _keys_down
-
     if not isinstance(data, dict):
         data = data.to_py() if hasattr(data, "to_py") else {}
 
     if kind == "mousemove":
-        _mouse_x = float(data.get("x", 0))
-        _mouse_y = float(data.get("y", 0))
+        _state._mouse_x = float(data.get("x", 0))
+        _state._mouse_y = float(data.get("y", 0))
     elif kind == "mousedown":
-        _mouse_down = True
-        _mouse_clicked = True
+        _state._mouse_down = True
+        _state._mouse_clicked = True
     elif kind == "mouseup":
-        _mouse_down = False
-        _mouse_released = True
+        _state._mouse_down = False
+        _state._mouse_released = True
     elif kind == "keydown":
         key_code = int(data.get("keyCode", 0))
-        if key_code not in _keys_down:
-            _keys_down.add(key_code)
-            _keys_pressed.add(key_code)
+        if key_code not in _state._keys_down:
+            _state._keys_down.add(key_code)
+            _state._keys_pressed.add(key_code)
     elif kind == "keyup":
         key_code = int(data.get("keyCode", 0))
-        _keys_down.discard(key_code)
-        _keys_released.add(key_code)
+        _state._keys_down.discard(key_code)
+        _state._keys_released.add(key_code)
 
 
 # === CLEAR ===
@@ -1540,55 +893,47 @@ def _inject_event(kind, data):
 
 def _reset_run_state():
     """Reset state between program runs while maintaining monotonic loop generation."""
-    global frame_count, _loop_generation
-    global _mouse_x, _mouse_y, _mouse_down, _mouse_clicked, _mouse_released
-    global _keys_down, _keys_pressed, _keys_released
-
+    global frame_count
     frame_count = 0
-    _loop_generation += 1
-    _mouse_x = 0
-    _mouse_y = 0
-    _mouse_down = False
-    _mouse_clicked = False
-    _mouse_released = False
-    _keys_down = set()
-    _keys_pressed = set()
-    _keys_released = set()
+    _state._loop_generation += 1
+    _state._mouse_x = 0
+    _state._mouse_y = 0
+    _state._mouse_down = False
+    _state._mouse_clicked = False
+    _state._mouse_released = False
+    _state._keys_down = set()
+    _state._keys_pressed = set()
+    _state._keys_released = set()
 
 
 def _clear():
-    global _draw_commands, _pending_size
-    global frame_count, _stop_requested, _running, _loop_generation
-    global _mouse_x, _mouse_y, _mouse_down, _mouse_clicked, _mouse_released
-    global _keys_down, _keys_pressed, _keys_released
-    global _fill_color, _stroke_color, _stroke_width, _width, _height
-    global _current_fill, _current_stroke, _pending_timer_id
     from js import clearTimeout
     from graphics.actors import Actor
 
-    if _pending_timer_id is not None:
-        clearTimeout(_pending_timer_id)
-        _pending_timer_id = None
+    if _state._pending_timer_id is not None:
+        clearTimeout(_state._pending_timer_id)
+        _state._pending_timer_id = None
 
-    _draw_commands = []
-    _pending_size = None
+    global frame_count
+    _state._draw_commands = []
+    _state._pending_size = None
     frame_count = 0
-    _stop_requested = False
-    _running = False
-    _loop_generation = 0
-    _mouse_x = 0
-    _mouse_y = 0
-    _mouse_down = False
-    _mouse_clicked = False
-    _mouse_released = False
-    _keys_down = set()
-    _keys_pressed = set()
-    _keys_released = set()
-    _fill_color = (255, 255, 255)
-    _stroke_color = (0, 0, 0)
-    _stroke_width = 1
-    _current_fill = True
-    _current_stroke = True
+    _state._stop_requested = False
+    _state._running = False
+    _state._loop_generation = 0
+    _state._mouse_x = 0
+    _state._mouse_y = 0
+    _state._mouse_down = False
+    _state._mouse_clicked = False
+    _state._mouse_released = False
+    _state._keys_down = set()
+    _state._keys_pressed = set()
+    _state._keys_released = set()
+    _state._fill_color = (255, 255, 255)
+    _state._stroke_color = (0, 0, 0)
+    _state._stroke_width = 1
+    _state._current_fill = True
+    _state._current_stroke = True
     Actor._registry.clear()
     Actor._id_counter = 0
 
@@ -1689,7 +1034,7 @@ class TilemapLayer:
             rrows = self._rotations.get(col, {})
             for row, name in rows.items():
                 cells_flat.append([col, row, name, rrows.get(row, 0)])
-        _draw_commands.append(("tilemap_layer", (cells_flat, self.tile_size, float(x), float(y)), {}))
+        _state._draw_commands.append(("tilemap_layer", (cells_flat, self.tile_size, float(x), float(y)), {}))
 
     def tile_at(self, px, py=None):
         if py is None:
@@ -2071,7 +1416,7 @@ class Camera:
         self._update_follow()
         push()
         # Center the view on `pos`: translate so world point `pos` lands at canvas center.
-        translate(_width / 2 - self.pos.x, _height / 2 - self.pos.y)
+        translate(_state._width / 2 - self.pos.x, _state._height / 2 - self.pos.y)
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
@@ -2089,105 +1434,6 @@ SHADES = {
     "moonlight": (200, 220, 255),
     "candle":    (255, 180, 100),
 }
-
-
-def _flicker_value(seed, frame):
-    """Deterministic noise in [0.85, 1.0] from (seed, frame_count)."""
-    h = (seed * 2654435761 + frame * 40503) & 0xFFFFFFFF
-    h = ((h >> 16) ^ h) * 0x45D9F3B & 0xFFFFFFFF
-    h = ((h >> 16) ^ h) & 0xFFFFFFFF
-    return 0.85 + (h / 0xFFFFFFFF) * 0.15
-
-
-def _ray_rect(ox, oy, dx, dy, xmin, ymin, xmax, ymax):
-    """Slab ray-AABB intersection; returns smallest non-negative t or None."""
-    tmin = -math.inf
-    tmax = math.inf
-    if abs(dx) < 1e-9:
-        if ox < xmin or ox > xmax:
-            return None
-    else:
-        tx1 = (xmin - ox) / dx
-        tx2 = (xmax - ox) / dx
-        tmin = max(tmin, min(tx1, tx2))
-        tmax = min(tmax, max(tx1, tx2))
-    if abs(dy) < 1e-9:
-        if oy < ymin or oy > ymax:
-            return None
-    else:
-        ty1 = (ymin - oy) / dy
-        ty2 = (ymax - oy) / dy
-        tmin = max(tmin, min(ty1, ty2))
-        tmax = min(tmax, max(ty1, ty2))
-    if tmax < tmin or tmax < 0:
-        return None
-    return tmin if tmin >= 0 else tmax
-
-
-def _ray_circle(ox, oy, dx, dy, cx, cy, r):
-    fx, fy = ox - cx, oy - cy
-    a = dx * dx + dy * dy
-    b = 2 * (fx * dx + fy * dy)
-    c = fx * fx + fy * fy - r * r
-    disc = b * b - 4 * a * c
-    if disc < 0:
-        return None
-    sq = math.sqrt(disc)
-    t1 = (-b - sq) / (2 * a)
-    t2 = (-b + sq) / (2 * a)
-    if t1 >= 0:
-        return t1
-    if t2 >= 0:
-        return t2
-    return None
-
-
-def _obstacle_rect(obs):
-    """Return (xmin, ymin, xmax, ymax) bounding rect for an obstacle, or None."""
-    col = getattr(obs, "collider", None)
-    if col is None or col.shape is None:
-        return None
-    cx, cy = col.active_x, col.active_y
-    if col.shape == "rect":
-        hw, hh = col.width / 2, col.height / 2
-        return (cx - hw, cy - hh, cx + hw, cy + hh)
-    if col.shape == "circle":
-        r = col.radius
-        return (cx - r, cy - r, cx + r, cy + r)
-    return None
-
-
-def _compute_visibility_polygon(sx, sy, radius, obstacles):
-    """Cast rays to obstacle bbox corners ± epsilon; return ordered polygon."""
-    EPS = 1e-4
-    angles = []
-    rects = [r for r in (_obstacle_rect(o) for o in obstacles) if r is not None]
-
-    for (xmin, ymin, xmax, ymax) in rects:
-        for (px, py) in ((xmin, ymin), (xmax, ymin), (xmax, ymax), (xmin, ymax)):
-            base = math.atan2(py - sy, px - sx)
-            angles.append(base - EPS)
-            angles.append(base)
-            angles.append(base + EPS)
-
-    if not angles:
-        # No obstacles → emit a regular polygon approximating the radius circle.
-        N = 24
-        angles = [2 * math.pi * i / N for i in range(N)]
-
-    angles.sort()
-
-    poly = []
-    for ang in angles:
-        dx = math.cos(ang)
-        dy = math.sin(ang)
-        t_min = radius
-        for (xmin, ymin, xmax, ymax) in rects:
-            t = _ray_rect(sx, sy, dx, dy, xmin, ymin, xmax, ymax)
-            if t is not None and 0 <= t < t_min:
-                t_min = t
-        poly.append((sx + dx * t_min, sy + dy * t_min))
-    return poly
 
 
 class Light:
@@ -2316,7 +1562,7 @@ class Light:
         For a fully static scene the per-frame cost drops to O(sources +
         obstacles) — just the fingerprint comparison.
         """
-        _draw_commands.append(("light_begin", self._ambient, {}))
+        _state._draw_commands.append(("light_begin", self._ambient, {}))
 
         obstacle_fp = self._obstacle_fingerprint()
         obstacles_changed = obstacle_fp != self._obstacle_fp
@@ -2343,7 +1589,7 @@ class Light:
                 self._cache_counters["recomputed"] += 1
 
             intensity = self._intensity()
-            _draw_commands.append((
+            _state._draw_commands.append((
                 "light_poly",
                 (poly_flat, float(sx), float(sy), float(radius),
                  tuple(self._shade_rgb), float(intensity)),
@@ -2353,7 +1599,22 @@ class Light:
         if obstacles_changed:
             self._obstacle_fp = obstacle_fp
 
-        _draw_commands.append(("light_end", (self._mode,), {}))
+        _state._draw_commands.append(("light_end", (self._mode,), {}))
+
+
+# Enable module-level __setattr__ so that external writes like
+# `graphics._width = 500` (used by tests and worker.ts) forward to _state,
+# keeping _state as the single source of truth for all mutable module globals.
+import sys as _sys
+
+class _Module(_sys.modules[__name__].__class__):
+    def __setattr__(self, name, value):
+        if name in _state.__dict__:
+            setattr(_state, name, value)
+        else:
+            super().__setattr__(name, value)
+
+_sys.modules[__name__].__class__ = _Module
 
 
 __all__ = [

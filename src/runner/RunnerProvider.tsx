@@ -8,6 +8,13 @@ import GraphicsAnimation from "../assets/python/graphics/animation.py?raw";
 import GraphicsManifest from "../assets/python/graphics/_manifest.py?raw";
 import GraphicsErrors from "../assets/python/graphics/_errors.py?raw";
 import GraphicsState from "../assets/python/graphics/_state_ns.py?raw";
+import GraphicsStateInternal from "../assets/python/graphics/_state.py?raw";
+import GraphicsColor from "../assets/python/graphics/_color.py?raw";
+import GraphicsVec from "../assets/python/graphics/_vec.py?raw";
+import GraphicsSheet from "../assets/python/graphics/_sheet.py?raw";
+import GraphicsUtils from "../assets/python/graphics/_utils.py?raw";
+import GraphicsLightingHelpers from "../assets/python/graphics/_lighting_helpers.py?raw";
+import GraphicsSprites from "../assets/python/graphics/_sprites.py?raw";
 import Linter from "../assets/python/linter.py?raw";
 import ErrorHook from "../assets/python/error_hook.py?raw";
 import InputTransform from "../assets/python/input_transform.py?raw";
@@ -395,6 +402,13 @@ function getWorker(): Worker {
     graphicsManifest: GraphicsManifest,
     graphicsErrors: GraphicsErrors,
     graphicsState: GraphicsState,
+    graphicsStateInternal: GraphicsStateInternal,
+    graphicsColor: GraphicsColor,
+    graphicsVec: GraphicsVec,
+    graphicsSheet: GraphicsSheet,
+    graphicsUtils: GraphicsUtils,
+    graphicsLightingHelpers: GraphicsLightingHelpers,
+    graphicsSprites: GraphicsSprites,
     linter: Linter,
     errorHook: ErrorHook,
     inputTransform: InputTransform,

@@ -525,7 +525,7 @@ class Actor:
                 g.push()
                 g.translate(self._x, self._y)
                 g.rotate(self._angle)
-                sf, sfc, ss, ssc, ssw = g._current_fill, g._fill_color, g._current_stroke, g._stroke_color, g._stroke_width
+                sf, sfc, ss, ssc, ssw = g._state._current_fill, g._state._fill_color, g._state._current_stroke, g._state._stroke_color, g._state._stroke_width
                 col = self.collider
                 g.no_fill()
                 g.stroke(0, 255, 0)
@@ -534,11 +534,11 @@ class Actor:
                     g.circle(col.dx, col.dy, col.radius)
                 elif col.shape == "rect":
                     g.rect(col.dx - col.width / 2, col.dy - col.height / 2, col.width, col.height)
-                g._current_fill, g._fill_color = sf, sfc
-                g._current_stroke, g._stroke_color, g._stroke_width = ss, ssc, ssw
-                g._draw_commands.append(("fill", sfc, {}) if sf else ("no_fill", (), {}))
-                g._draw_commands.append(("stroke", ssc, {}) if ss else ("no_stroke", (), {}))
-                g._draw_commands.append(("stroke_width", (ssw,), {}))
+                g._state._current_fill, g._state._fill_color = sf, sfc
+                g._state._current_stroke, g._state._stroke_color, g._state._stroke_width = ss, ssc, ssw
+                g._state._draw_commands.append(("fill", sfc, {}) if sf else ("no_fill", (), {}))
+                g._state._draw_commands.append(("stroke", ssc, {}) if ss else ("no_stroke", (), {}))
+                g._state._draw_commands.append(("stroke_width", (ssw,), {}))
                 g.pop()
 
     def reset(self):
@@ -723,7 +723,7 @@ class Rect(Actor):
         g.fill(self.color)
         g.rect(-self.width / 2, -self.height / 2, self.width, self.height)
         if g._show_hitboxes:
-            sf, sfc, ss, ssc, ssw = g._current_fill, g._fill_color, g._current_stroke, g._stroke_color, g._stroke_width
+            sf, sfc, ss, ssc, ssw = g._state._current_fill, g._state._fill_color, g._state._current_stroke, g._state._stroke_color, g._state._stroke_width
             col = self.collider
             g.no_fill()
             g.stroke(0, 255, 0)
@@ -732,11 +732,11 @@ class Rect(Actor):
                 g.rect(col.dx - col.width / 2, col.dy - col.height / 2, col.width, col.height)
             elif col.shape == "circle":
                 g.circle(col.dx, col.dy, col.radius)
-            g._current_fill, g._fill_color = sf, sfc
-            g._current_stroke, g._stroke_color, g._stroke_width = ss, ssc, ssw
-            g._draw_commands.append(("fill", sfc, {}) if sf else ("no_fill", (), {}))
-            g._draw_commands.append(("stroke", ssc, {}) if ss else ("no_stroke", (), {}))
-            g._draw_commands.append(("stroke_width", (ssw,), {}))
+            g._state._current_fill, g._state._fill_color = sf, sfc
+            g._state._current_stroke, g._state._stroke_color, g._state._stroke_width = ss, ssc, ssw
+            g._state._draw_commands.append(("fill", sfc, {}) if sf else ("no_fill", (), {}))
+            g._state._draw_commands.append(("stroke", ssc, {}) if ss else ("no_stroke", (), {}))
+            g._state._draw_commands.append(("stroke_width", (ssw,), {}))
         g.pop()
 
 
@@ -768,7 +768,7 @@ class Circle(Actor):
         g.fill(self.color)
         g.circle(0, 0, self.radius)
         if g._show_hitboxes:
-            sf, sfc, ss, ssc, ssw = g._current_fill, g._fill_color, g._current_stroke, g._stroke_color, g._stroke_width
+            sf, sfc, ss, ssc, ssw = g._state._current_fill, g._state._fill_color, g._state._current_stroke, g._state._stroke_color, g._state._stroke_width
             col = self.collider
             g.no_fill()
             g.stroke(0, 255, 0)
@@ -777,11 +777,11 @@ class Circle(Actor):
                 g.circle(col.dx, col.dy, col.radius)
             elif col.shape == "rect":
                 g.rect(col.dx - col.width / 2, col.dy - col.height / 2, col.width, col.height)
-            g._current_fill, g._fill_color = sf, sfc
-            g._current_stroke, g._stroke_color, g._stroke_width = ss, ssc, ssw
-            g._draw_commands.append(("fill", sfc, {}) if sf else ("no_fill", (), {}))
-            g._draw_commands.append(("stroke", ssc, {}) if ss else ("no_stroke", (), {}))
-            g._draw_commands.append(("stroke_width", (ssw,), {}))
+            g._state._current_fill, g._state._fill_color = sf, sfc
+            g._state._current_stroke, g._state._stroke_color, g._state._stroke_width = ss, ssc, ssw
+            g._state._draw_commands.append(("fill", sfc, {}) if sf else ("no_fill", (), {}))
+            g._state._draw_commands.append(("stroke", ssc, {}) if ss else ("no_stroke", (), {}))
+            g._state._draw_commands.append(("stroke_width", (ssw,), {}))
         g.pop()
 
 

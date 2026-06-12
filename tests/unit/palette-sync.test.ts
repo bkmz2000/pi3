@@ -4,7 +4,7 @@ import * as path from 'path';
 
 import { PAL_NAMES } from '../../src/palette';
 
-const PYTHON_SRC = path.resolve(__dirname, '../../src/assets/python/graphics/__init__.py');
+const PYTHON_SRC = path.resolve(__dirname, '../../src/assets/python/graphics/_color.py');
 
 function parsePythonColorNames(src: string): string[] {
   // Match the COLOR_NAMES = { ... } block (may span multiple lines)

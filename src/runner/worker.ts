@@ -55,6 +55,13 @@ async function initPyodide(
   graphicsManifest: string,
   graphicsErrors: string,
   graphicsState: string,
+  graphicsStateInternal: string,
+  graphicsColor: string,
+  graphicsVec: string,
+  graphicsSheet: string,
+  graphicsUtils: string,
+  graphicsLightingHelpers: string,
+  graphicsSprites: string,
   linter: string,
   errorHook: string,
   inputTransform: string,
@@ -78,6 +85,13 @@ async function initPyodide(
   p.FS.writeFile("/graphics/_manifest.py", graphicsManifest);
   p.FS.writeFile("/graphics/_errors.py", graphicsErrors);
   p.FS.writeFile("/graphics/_state_ns.py", graphicsState);
+  p.FS.writeFile("/graphics/_state.py", graphicsStateInternal);
+  p.FS.writeFile("/graphics/_color.py", graphicsColor);
+  p.FS.writeFile("/graphics/_vec.py", graphicsVec);
+  p.FS.writeFile("/graphics/_sheet.py", graphicsSheet);
+  p.FS.writeFile("/graphics/_utils.py", graphicsUtils);
+  p.FS.writeFile("/graphics/_lighting_helpers.py", graphicsLightingHelpers);
+  p.FS.writeFile("/graphics/_sprites.py", graphicsSprites);
   p.FS.writeFile("/linter.py", linter);
   p.FS.writeFile("/error_hook.py", errorHook);
   p.FS.writeFile("/input_transform.py", inputTransform);
@@ -400,8 +414,8 @@ import json
 # Reset actor state from previous runs
 Actor._registry.clear()
 Actor._id_counter = 0
-graphics._loop_generation = graphics._loop_generation + 1
-graphics._show_hitboxes = ${showHitboxes ? "True" : "False"}
+graphics._state._loop_generation = graphics._state._loop_generation + 1
+graphics._state._show_hitboxes = ${showHitboxes ? "True" : "False"}
 
 # Build sprites namespace from asset names + dimensions (no bitmaps).
 # Names starting with lib_<pack>_ go into per-pack namespaces
@@ -505,8 +519,8 @@ else:
   await registerKnownSymbols(p);
 
   await p.runPythonAsync(`
-graphics._running = False
-graphics._stop_requested = False
+graphics._state._running = False
+graphics._state._stop_requested = False
 graphics._reset_run_state()
   `);
 
@@ -514,7 +528,7 @@ graphics._reset_run_state()
   const filename = entry || "main.py";
 
   // Give _tick access to user code so runtime errors can be classified friendlily
-  p.runPython(`import graphics as _g; _g._user_code = ${JSON.stringify(code)}; _g._user_filename = ${JSON.stringify(filename)}`);
+  p.runPython(`import graphics as _g; _g._state._user_code = ${JSON.stringify(code)}; _g._state._user_filename = ${JSON.stringify(filename)}`);
 
   post({ type: "start", canvasActive: true });
 
@@ -640,7 +654,7 @@ self.onmessage = async (e: MessageEvent<WorkerCommand>) => {
       const p = await ensurePyodide();
       console.log("Worker: Pyodide loaded, initializing modules...");
       const errorHookSrc = msg.errorHook;
-      await initPyodide(p, msg.graphicsInit, msg.graphicsActors, msg.graphicsAnimation, msg.graphicsManifest, msg.graphicsErrors, msg.graphicsState, msg.linter, errorHookSrc, msg.inputTransform, msg.syntaxHints);
+      await initPyodide(p, msg.graphicsInit, msg.graphicsActors, msg.graphicsAnimation, msg.graphicsManifest, msg.graphicsErrors, msg.graphicsState, msg.graphicsStateInternal, msg.graphicsColor, msg.graphicsVec, msg.graphicsSheet, msg.graphicsUtils, msg.graphicsLightingHelpers, msg.graphicsSprites, msg.linter, errorHookSrc, msg.inputTransform, msg.syntaxHints);
       console.log("Worker: Initialization complete, posting ready");
       post({ type: "ready" });
     } catch (err: unknown) {

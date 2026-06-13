@@ -1,165 +1,84 @@
 # pi³ Project Roadmap
 
-**Last Updated:** 2026-04-30
-
-This document tracks planned and in-progress features. For completed features, see the main documentation.
+**Last Updated:** 2026-06-13
 
 ---
 
-## Status Legend
+## Status legend
 
 | Status | Meaning |
 |--------|---------|
-| `planned` | Not yet started |
+| `done` | Shipped and in production |
 | `in-progress` | Currently being developed |
-| `partial` | Started but incomplete |
-| `completed` | Finished and shipped |
+| `planned` | Not yet started |
+| `deferred` | Intentionally postponed |
 
 ---
 
-## Features
+## Shipped (major milestones since 2026-04-30)
 
-### Movement Interface Rework
-
-**Status:** `planned`
-
-Clear distinction between movement types:
-
-| Method | Type | Description |
-|--------|------|-------------|
-| `set_velocity(dx, dy)` | Continuous | Continuous sliding motion |
-| `move_forward(distance)` | One-shot | Move in facing direction, ignores velocity |
-| `move_to(x, y)` | One-shot | Teleport to position |
-| `move_by(dx, dy)` | One-shot | Absolute x/y movement (not polar) |
-| `move(distance)` | One-shot | Always calls `move_forward` |
-
-### Collider System
-
-**Status:** `planned`
-
-Replace `radius=N` constructor argument with named collider shapes:
-
-| Component | Description |
-|-----------|-------------|
-| `assets.colliders` | Named collider shapes, stored separately |
-| Sprite matching | Sprites auto-matched to colliders by name (`apple` → `colliders.apple`) |
-| Override | `actor.collider = assets.colliders.name` — reassignable |
-| Fallback | Default circle collider if not found |
-| Collider editor | Circle / rect / polygon modes with visual editing |
-| Hitbox debug | Shows actual collider shape |
-
-### Debug Overlay (Hitbox Mode)
-
-**Status:** `planned`
-
-When hitbox debug is enabled:
-- Speed arrow showing velocity direction + magnitude
-- Coordinates text label: `(x, y) spd:(vx, vy)`
-
-### Sprite Editor Improvements
-
-**Status:** `planned`
-
-- [ ] Layers (background, foreground, effects)
-- [ ] Onion skin / frame preview for animation
-- [ ] Import external images (PNG, SVG)
-- [ ] Flood fill tool
-- [ ] Standard shortcuts (Ctrl+Z/Y undo/redo, Ctrl+C/V copy/paste)
-- [ ] Undo/redo history persisted to localStorage
-
-### Instructor Sharing System
-
-**Status:** `in-progress`
-
-End-to-end code sharing between students and instructors.
-
-#### Backend (Cloudflare Worker)
-
-| Component | Status |
-|-----------|--------|
-| KV storage for sessions | `partial` |
-| Session creation | `planned` |
-| Short session IDs | `planned` |
-| Code blob storage (zip) | `planned` |
-| Comment storage | `planned` |
-| Session expiration (1hr) | `planned` |
-
-#### Instructor Dashboard
-
-| Feature | Status |
-|---------|--------|
-| View active sessions | `planned` |
-| Real-time code display (polling) | `planned` |
-| Content-anchored comments | `planned` |
-| Session search/filter | `planned` |
-| Delete session | `planned` |
-
-#### Student Comment View
-
-| Feature | Status |
-|---------|--------|
-| "View Teacher Comments" button | `planned` |
-| Poll for new comments | `planned` |
-| Display comments next to code | `planned` |
-| Comment notification indicator | `planned` |
-
-### Single-File Export
-
-**Status:** `planned`
-
-Export project as standalone HTML file:
-- Assets inline (base64)
-- Self-contained Pyodide runtime
-- No server required
-
-### Tile Editor
-
-**Status:** `planned`
-
-Grid-based level editor for creating game levels:
-- Tile palette from sprites
-- Export as JSON/level format
-- Integrate with sokoban, platformer examples
-
-### Explorable Docs
-
-**Status:** `planned`
-
-Built-in help panel in IDE:
-- Graphics API reference
-- Runnable examples in docs
-- i18n support (translatable)
+| Feature | Notes |
+|---------|-------|
+| Graphics API v1 freeze | `api-v1.md`; `_manifest.py` + CI snapshot test enforce parity |
+| Error system (phases D–E) | Structured i18n keys via `FriendlyError`; `error_hook.py`, `syntax_hints.py`, all-key registry |
+| Pixel sprite sheet editor | `SheetEditor.tsx` — 512×512 canvas, Sweetie 16 palette, animations |
+| Tilemap editor + API | `TileEditor.tsx`; `TilemapLayer`, `TileMap`, `TileCollision`, `TileGroup` |
+| Actor system overhaul | `Rect`, `Circle`, `Group`, `Collider`; sealed attrs; kwarg typo detection |
+| Save-flow overhaul | Debounced auto-save, offline queue, anon stash, save chip, beforeunload guard |
+| Loginus OAuth | Full OAuth 2.0 with signed state, cookie path fix (2026-05-20) |
+| Camera | `Camera` with follow + lerp |
+| Lighting | `Light` — multiply overlay + shadow-cast visibility polygons |
+| Vector math | `Vector2`, `Point`, `Polar`, `AnchorPoint` |
+| Jedi dot-completion | Debounced 300 ms, fires on `.` only |
+| Test suite (T1/T2/T3) | Frontend + server coverage gates; interaction tests |
+| Codebase decomposition (D1–D4) | Split `IdeState.ts`, `graphics/__init__.py` into focused modules |
+| Pixel API | `Sprite`, `get_pixel`, `set_pixel`, `palette_swap`, `flood_fill`, shade ops |
+| Color math | `lerp`, `darker`, `lighter`, `saturated`, `desaturated` |
+| Collision API | `TileCollision` object with `.area`, `.tile`, `.col`, `.row` |
+| Smart Select (SheetEditor) | Wand tool, region ops, stamp, move-sprite drag |
+| HTML export | Single-file standalone export |
+| Noise | `noise(x, y, scale, seed)` — value noise |
+| Sound API | `Sound` class; `assets.sounds.name.play/loop/pause/stop/set_volume` |
 
 ---
 
-## Critical Fixes
+## In progress
 
-| Issue | Status |
-|-------|--------|
-| SharedArrayBuffer crossOriginIsolated check | `planned` |
-| Pyodide load failure handling with retry UI | `planned` |
-| Bundle size optimization | `planned` |
-| Service worker offline handling | `planned` |
-| Tab completion | `planned` |
-| Editing for existing sprites | `planned` |
-| Remove linter from release (dev-only) | `planned` |
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Example set v1 | `in-progress` | 17 examples planned (7 topics, all games); ~7 to write, 1 to fix (sokoban) |
+| Docs taxonomy rewrite | `in-progress` | Recipe-style docs + concept pages + A-Z reference |
 
 ---
 
-## Documentation
+## Planned
 
-| Topic | Status |
-|-------|--------|
-| Instructor guide for course setup | `planned` |
-| Common student mistakes reference | `planned` |
-| Graphics API docs (auto-generated or manual) | `planned` |
+| Feature | Priority | Notes |
+|---------|----------|-------|
+| Docs: recipe pages for common patterns | high | Collision, camera, tilemaps, lighting |
+| Docs: A-Z reference rebuild | high | Against live `_manifest.py` |
+| Student comment view | medium | Instructor sharing flow |
+| Instructor dashboard | medium | View active sessions, real-time code display |
+| Sprite editor: onion skin | low | Animation frame preview |
+| Sprite editor: import external PNG | low | |
+| Debug overlay improvements | low | Speed arrow, coordinate label with hitbox mode |
+| Bundle size optimization | low | |
 
 ---
 
-## Completed
+## Completed (pre-2026-04-30, carried forward)
 
-None yet — this is a new project.
+| Feature |
+|---------|
+| Pyodide WASM runtime (Web Worker) |
+| CodeMirror 6 integration |
+| i18next bilingual support (ru/en) |
+| PWA service worker (`webide-v4` cache) |
+| IndexedDB project persistence |
+| ZIP import/export |
+| Cross-Origin isolation headers (SharedArrayBuffer) |
+| Tab completion (basic) |
 
 ---
 
-*See also: [AGENTS.md](../AGENTS.md) for current architecture*
+*See [CLAUDE.md](../CLAUDE.md) for architecture details. See [docs/api-v1.md](api-v1.md) for the graphics API changelog.*

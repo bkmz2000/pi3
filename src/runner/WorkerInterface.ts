@@ -27,7 +27,7 @@ export type SheetRunPayload = {
 };
 
 export type WorkerCommand =
-  | { cmd: "init"; graphicsInit: string; graphicsActors: string; graphicsAnimation: string; graphicsManifest: string; graphicsErrors: string; graphicsState: string; graphicsStateInternal: string; graphicsColor: string; graphicsVec: string; graphicsSheet: string; graphicsUtils: string; graphicsLightingHelpers: string; graphicsSprites: string; linter: string; errorHook: string; inputTransform: string; syntaxHints: string }
+  | { cmd: "init"; graphicsInit: string; graphicsActors: string; graphicsAnimation: string; graphicsManifest: string; graphicsErrors: string; graphicsState: string; graphicsStateInternal: string; graphicsColor: string; graphicsVec: string; graphicsSheet: string; graphicsUtils: string; graphicsLightingHelpers: string; graphicsSprites: string; linter: string; errorHook: string; inputTransform: string; watchTransform: string; syntaxHints: string }
   | {
       cmd: "run";
       files: Record<string, string>;
@@ -151,4 +151,4 @@ export type WorkerEvent =
   | { type: "sound"; action: "play" | "pause" | "loop" | "stop" | "volume"; name: string; value?: number }
   | { type: "screenshot"; reqId: number; blob: Blob | null }
   | { type: "watch"; values: { label: string; value: string }[]; frame: number }
-  | { type: "frame_history"; frames: { frame: number; blob: Blob }[] };
+  | { type: "frame_history"; frames: { frame: number; blob: Blob; watches: { label: string; value: string }[] }[] };

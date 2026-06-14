@@ -40,6 +40,8 @@ def transform(source: str) -> str:
         tree = ast.parse(source)
     except SyntaxError:
         return source
+    from watch_transform import _WatchLabeler
     new_tree = _InputRewriter().visit(tree)
+    new_tree = _WatchLabeler().visit(new_tree)
     ast.fix_missing_locations(new_tree)
     return ast.unparse(new_tree)

@@ -145,7 +145,7 @@ export default function Rail() {
   };
 
   const { user } = useUser();
-  const { ready, canvasActive, paused, speed, pause, resume, step, setGameSpeed, frameHistory, scrubIndex, stepBack, stepFwd } = useRunner();
+  const { ready } = useRunner();
   const { running, handleRunToggle } = useRunButton();
   const {
     userProjects,
@@ -350,94 +350,6 @@ export default function Rail() {
           </button>
         </div>
 
-        {/* Debug controls — visible only while a graphics program is running */}
-        {isRunning && canvasActive && (
-          <>
-            <button
-              type="button"
-              onClick={paused ? resume : pause}
-              aria-label={paused ? t('sideMenu.resume') : t('sideMenu.pause')}
-              title={paused ? t('sideMenu.resume') : t('sideMenu.pause')}
-              style={{
-                all: "unset", cursor: "pointer",
-                width: 44, height: 36, borderRadius: theme.radiusButton,
-                display: "flex", alignItems: "center", justifyContent: "center",
-                color: theme.railIcon,
-                background: paused ? "rgba(255,220,0,0.18)" : "transparent",
-              }}
-            >
-              <Icon name={paused ? "play" : "pause"} size={17} color="currentColor" />
-            </button>
-            <button
-              type="button"
-              onClick={step}
-              disabled={!paused}
-              aria-label={t('sideMenu.step')}
-              title={t('sideMenu.step')}
-              style={{
-                all: "unset",
-                cursor: paused ? "pointer" : "not-allowed",
-                width: 44, height: 36, borderRadius: theme.radiusButton,
-                display: "flex", alignItems: "center", justifyContent: "center",
-                color: theme.railIcon,
-                opacity: paused ? 1 : 0.35,
-              }}
-            >
-              <Icon name="step-fwd" size={17} color="currentColor" />
-            </button>
-            <button
-              type="button"
-              onClick={() => setGameSpeed(speed === 1 ? 2 : speed === 2 ? 4 : 1)}
-              aria-label={t('sideMenu.speed')}
-              title={t('sideMenu.speed')}
-              style={{
-                all: "unset", cursor: "pointer",
-                width: 44, height: 28,
-                display: "flex", alignItems: "center", justifyContent: "center",
-                fontFamily: theme.fontUI, fontSize: 11, fontWeight: 600,
-                color: speed === 1 ? theme.consoleTxtMute : theme.accent,
-                letterSpacing: 0.2,
-              }}
-            >
-              {speed === 1 ? "1x" : speed === 2 ? "½x" : "¼x"}
-            </button>
-            {paused && frameHistory.length > 0 && (
-              <>
-                <button
-                  type="button"
-                  onClick={stepBack}
-                  disabled={scrubIndex === 0}
-                  aria-label={t('canvas.rewindBack')}
-                  title={t('canvas.rewindBack')}
-                  style={{
-                    all: "unset",
-                    cursor: scrubIndex === 0 ? "not-allowed" : "pointer",
-                    width: 44, height: 36, borderRadius: theme.radiusButton,
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    color: theme.accent,
-                    opacity: scrubIndex === 0 ? 0.35 : 1,
-                  }}
-                >
-                  <Icon name="step-back" size={17} color="currentColor" />
-                </button>
-                <button
-                  type="button"
-                  onClick={stepFwd}
-                  aria-label={t('canvas.rewindFwd')}
-                  title={t('canvas.rewindFwd')}
-                  style={{
-                    all: "unset", cursor: "pointer",
-                    width: 44, height: 36, borderRadius: theme.radiusButton,
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    color: scrubIndex === null ? theme.consoleTxtMute : theme.accent,
-                  }}
-                >
-                  <Icon name="step-fwd" size={17} color="currentColor" />
-                </button>
-              </>
-            )}
-          </>
-        )}
 
         <div style={{ width: 26, height: 1, background: "rgba(148,210,216,0.22)", margin: "6px 0" }} />
 

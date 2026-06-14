@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Icon } from "./Icons";
-import { useRunner, type WatchEntry } from "../runner/RunnerProvider";
+import { useRunner, useRunnerStore, type WatchEntry } from "../runner/RunnerProvider";
 import { useThemeStore } from "../state/useTheme";
 import type { RuntimeError } from "../runner/WorkerInterface";
 import type { Theme } from "../state/useTheme";
@@ -356,7 +356,7 @@ function WatchRow({ entry, theme }: { entry: WatchEntry; theme: Theme }) {
   );
 }
 
-function WatchPanel({ watches, theme }: { watches: WatchEntry[]; theme: Theme }) {
+function WatchPanel({ watches, rewinding, theme }: { watches: WatchEntry[]; rewinding: boolean; theme: Theme }) {
   if (watches.length === 0) return null;
   return (
     <div
@@ -366,6 +366,11 @@ function WatchPanel({ watches, theme }: { watches: WatchEntry[]; theme: Theme })
         flex: "none",
       }}
     >
+      {rewinding && (
+        <div style={{ padding: "1px 14px 2px", fontFamily: theme.fontUI, fontSize: 10, fontWeight: 600, color: "#ffe040", letterSpacing: 0.3 }}>
+          REWIND
+        </div>
+      )}
       {watches.map((w) => (
         <WatchRow key={w.label} entry={w} theme={theme} />
       ))}
@@ -377,6 +382,12 @@ export default function ConsolePanel({ onRight = false }: { onRight?: boolean })
   const theme = useThemeStore((s) => s.theme);
   const { t } = useTranslation();
   const { output, inputPrompt, respondToInput, clear, running, watches } = useRunner();
+  const scrubIndex = useRunnerStore((s) => s.scrubIndex);
+  const frameHistory = useRunnerStore((s) => s.frameHistory);
+  const rewinding = scrubIndex !== null;
+  const shownWatches: WatchEntry[] = rewinding && frameHistory[scrubIndex]
+    ? frameHistory[scrubIndex].watches.map((w) => ({ ...w, changedAt: 0 }))
+    : watches;
   const [inputValue, setInputValue] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -557,7 +568,7 @@ export default function ConsolePanel({ onRight = false }: { onRight?: boolean })
       </div>
 
       {/* Watch panel — auto-appears when watch() is called */}
-      <WatchPanel watches={watches} theme={theme} />
+      <WatchPanel watches={shownWatches} rewinding={rewinding} theme={theme} />
 
       {/* Output */}
       <div

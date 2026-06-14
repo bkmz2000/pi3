@@ -875,7 +875,10 @@ def _resume() -> None:
     if not _state._paused or not _state._running:
         return
     _state._paused = False
-    from js import setTimeout
+    from js import setTimeout, clearTimeout
+    if _state._pending_timer_id is not None:
+        clearTimeout(_state._pending_timer_id)
+        _state._pending_timer_id = None
     elapsed = (1000 / _state._target_fps) * _state._speed_divisor
     _state._pending_timer_id = setTimeout(_state.tick_proxy, int(elapsed))
 
@@ -885,7 +888,10 @@ def _step() -> None:
         return
     _state._step_once = True
     _state._paused = False
-    from js import setTimeout
+    from js import setTimeout, clearTimeout
+    if _state._pending_timer_id is not None:
+        clearTimeout(_state._pending_timer_id)
+        _state._pending_timer_id = None
     _state._pending_timer_id = setTimeout(_state.tick_proxy, 0)
 
 
@@ -913,6 +919,7 @@ def _run(main=None, fps=60) -> None:
     _state._stop_requested = False
     _state._paused = False
     _state._step_once = False
+    _state._speed_divisor = 1
     _state._loop_generation += 1
     my_generation = _state._loop_generation
     frame_count = 0

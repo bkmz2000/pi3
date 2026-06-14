@@ -9,7 +9,7 @@ import { uploadProjectThumbnail } from "./state/api";
 export default function CanvasWindow() {
   const { t } = useTranslation();
   const theme = useThemeStore((s) => s.theme);
-  const { attachCanvas, canvasActive, running, canvasWidth, canvasHeight, captureScreenshot } = useRunner();
+  const { attachCanvas, canvasActive, running, canvasWidth, canvasHeight, captureScreenshot, paused, speed, pause, resume, step, setGameSpeed, stepBack, stepFwd } = useRunner();
   const workerEpoch = useRunnerStore((s) => s.workerEpoch);
   const frameHistory = useRunnerStore((s) => s.frameHistory);
   const scrubIndex = useRunnerStore((s) => s.scrubIndex);
@@ -220,6 +220,88 @@ export default function CanvasWindow() {
           {running ? t('canvas.statusLive') : t('canvas.statusPaused')}
         </span>
         <div style={{ flex: 1 }} />
+        {running && canvasActive && (
+          <>
+            {paused && frameHistory.length > 0 && (
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); stepBack(); }}
+                onPointerDown={(e) => e.stopPropagation()}
+                disabled={scrubIndex === 0}
+                title={t('canvas.rewindBack')}
+                style={{
+                  all: 'unset', cursor: scrubIndex === 0 ? 'not-allowed' : 'pointer',
+                  width: 22, height: 22, borderRadius: 4,
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                  color: theme.accent, opacity: scrubIndex === 0 ? 0.35 : 1,
+                }}
+              >
+                <Icon name="step-back" size={13} color="currentColor" />
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); if (paused) resume(); else pause(); }}
+              onPointerDown={(e) => e.stopPropagation()}
+              title={paused ? t('sideMenu.resume') : t('sideMenu.pause')}
+              style={{
+                all: 'unset', cursor: 'pointer',
+                width: 22, height: 22, borderRadius: 4,
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                color: theme.canvasTitleTxt,
+                background: paused ? 'rgba(255,220,0,0.22)' : 'transparent',
+              }}
+            >
+              <Icon name={paused ? 'play' : 'pause'} size={13} color="currentColor" />
+            </button>
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); step(); }}
+              onPointerDown={(e) => e.stopPropagation()}
+              disabled={!paused}
+              title={t('sideMenu.step')}
+              style={{
+                all: 'unset', cursor: paused ? 'pointer' : 'not-allowed',
+                width: 22, height: 22, borderRadius: 4,
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                color: theme.canvasTitleTxt, opacity: paused ? 1 : 0.35,
+              }}
+            >
+              <Icon name="step-fwd" size={13} color="currentColor" />
+            </button>
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setGameSpeed(speed === 1 ? 2 : speed === 2 ? 4 : 1); }}
+              onPointerDown={(e) => e.stopPropagation()}
+              title={t('sideMenu.speed')}
+              style={{
+                all: 'unset', cursor: 'pointer',
+                height: 22, padding: '0 4px',
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                fontFamily: theme.fontUI, fontSize: 11, fontWeight: 600,
+                color: speed === 1 ? theme.canvasTitleTxt : theme.accent,
+              }}
+            >
+              {speed === 1 ? '1x' : speed === 2 ? '½x' : '¼x'}
+            </button>
+            {paused && frameHistory.length > 0 && (
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); stepFwd(); }}
+                onPointerDown={(e) => e.stopPropagation()}
+                title={t('canvas.rewindFwd')}
+                style={{
+                  all: 'unset', cursor: 'pointer',
+                  width: 22, height: 22, borderRadius: 4,
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                  color: scrubIndex === null ? theme.canvasTitleTxt : theme.accent,
+                }}
+              >
+                <Icon name="step-fwd" size={13} color="currentColor" />
+              </button>
+            )}
+          </>
+        )}
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); capture(); }}

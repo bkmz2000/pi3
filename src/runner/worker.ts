@@ -17,8 +17,9 @@ const MAX_REWIND_FRAMES = 200;
 const MAX_REWIND_BYTES = 16 * 1024 * 1024; // 16 MB
 const REWIND_INTERVAL_MS = 50; // 20 fps throttle
 let rewindArmed = false;
-let rewindBuf: { frame: number; blob: Blob; bytes: number }[] = [];
+let rewindBuf: { frame: number; blob: Blob; bytes: number; watches: { label: string; value: string }[] }[] = [];
 let rewindBytes = 0;
+let lastWatchValues: { label: string; value: string }[] = [];
 let rewindLastCapture = 0;
 let stepBlobPending = false;
 
@@ -36,11 +37,11 @@ function maybeCaptureRewindFrame(frameNum: number) {
         const evicted = rewindBuf.shift();
         if (evicted) rewindBytes -= evicted.bytes;
       }
-      rewindBuf.push({ frame: capturedFrame, blob, bytes });
+      rewindBuf.push({ frame: capturedFrame, blob, bytes, watches: lastWatchValues });
       rewindBytes += bytes;
       if (stepBlobPending) {
         stepBlobPending = false;
-        post({ type: "frame_history", frames: rewindBuf.map(({ frame, blob: b }) => ({ frame, blob: b })) });
+        post({ type: "frame_history", frames: rewindBuf.map(({ frame, blob: b, watches }) => ({ frame, blob: b, watches })) });
       }
     })
     .catch(() => {});
@@ -106,6 +107,7 @@ async function initPyodide(
   linter: string,
   errorHook: string,
   inputTransform: string,
+  watchTransform: string,
   syntaxHints: string,
 ) {
   console.log("Worker: Writing modules to filesystem...");
@@ -136,6 +138,7 @@ async function initPyodide(
   p.FS.writeFile("/linter.py", linter);
   p.FS.writeFile("/error_hook.py", errorHook);
   p.FS.writeFile("/input_transform.py", inputTransform);
+  p.FS.writeFile("/watch_transform.py", watchTransform);
   p.FS.writeFile("/syntax_hints.py", syntaxHints);
 
   console.log("Worker: Files written, running Python initialization...");
@@ -198,6 +201,7 @@ async function initPyodide(
   // _ide_post_watch_values: called from Python after each tick with JSON-encoded watch entries
   p.globals.set("_ide_post_watch_values", (json: string) => {
     const data = JSON.parse(json) as { values: { label: string; value: string }[]; frame: number };
+    lastWatchValues = data.values;
     post({ type: "watch", values: data.values, frame: data.frame });
   });
 
@@ -585,6 +589,14 @@ graphics._reset_run_state()
   // DBG-4: arm ring buffer for this run
   rewindArmed = true;
   clearRewindBuf();
+  lastWatchValues = [];
+
+  // Apply watch auto-label transform (watch(x) → watch('x', x))
+  p.globals.set("_transform_source", code);
+  const watchTransformed: string = await p.runPythonAsync(
+    `import watch_transform; watch_transform.transform(_transform_source)`
+  );
+  p.globals.delete("_transform_source");
 
   post({ type: "start", canvasActive: true });
 
@@ -599,7 +611,7 @@ import json as _json
 
 _errored = False
 try:
-    exec(${JSON.stringify(code)}, globals())
+    exec(${JSON.stringify(watchTransformed)}, globals())
 except KeyboardInterrupt:
     pass  # stop signal — no error output, no traceback
 except BaseException as _err:
@@ -711,7 +723,7 @@ self.onmessage = async (e: MessageEvent<WorkerCommand>) => {
       const p = await ensurePyodide();
       console.log("Worker: Pyodide loaded, initializing modules...");
       const errorHookSrc = msg.errorHook;
-      await initPyodide(p, msg.graphicsInit, msg.graphicsActors, msg.graphicsAnimation, msg.graphicsManifest, msg.graphicsErrors, msg.graphicsState, msg.graphicsStateInternal, msg.graphicsColor, msg.graphicsVec, msg.graphicsSheet, msg.graphicsUtils, msg.graphicsLightingHelpers, msg.graphicsSprites, msg.linter, errorHookSrc, msg.inputTransform, msg.syntaxHints);
+      await initPyodide(p, msg.graphicsInit, msg.graphicsActors, msg.graphicsAnimation, msg.graphicsManifest, msg.graphicsErrors, msg.graphicsState, msg.graphicsStateInternal, msg.graphicsColor, msg.graphicsVec, msg.graphicsSheet, msg.graphicsUtils, msg.graphicsLightingHelpers, msg.graphicsSprites, msg.linter, errorHookSrc, msg.inputTransform, msg.watchTransform, msg.syntaxHints);
       console.log("Worker: Initialization complete, posting ready");
       post({ type: "ready" });
     } catch (err: unknown) {
@@ -771,7 +783,7 @@ self.onmessage = async (e: MessageEvent<WorkerCommand>) => {
     if (!pyodide) return;
     try { pyodide.runPython("import graphics; graphics._pause()"); } catch { /* ignore */ }
     if (rewindBuf.length > 0) {
-      post({ type: "frame_history", frames: rewindBuf.map(({ frame, blob }) => ({ frame, blob })) });
+      post({ type: "frame_history", frames: rewindBuf.map(({ frame, blob, watches }) => ({ frame, blob, watches })) });
     }
   } else if (msg.cmd === "resume") {
     if (!pyodide) return;

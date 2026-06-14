@@ -18,6 +18,7 @@ import GraphicsSprites from "../assets/python/graphics/_sprites.py?raw";
 import Linter from "../assets/python/linter.py?raw";
 import ErrorHook from "../assets/python/error_hook.py?raw";
 import InputTransform from "../assets/python/input_transform.py?raw";
+import WatchTransform from "../assets/python/watch_transform.py?raw";
 import SyntaxHints from "../assets/python/syntax_hints.py?raw";
 import { libraryUrlMap, librarySoundUrlMap } from "../state/assets";
 import { createRunnerWorker } from "./workerFactory";
@@ -48,7 +49,7 @@ type RunnerState = {
   watches: WatchEntry[];
   paused: boolean;
   speed: 1 | 2 | 4;
-  frameHistory: { frame: number; url: string }[];
+  frameHistory: { frame: number; url: string; watches: { label: string; value: string }[] }[];
   scrubIndex: number | null;
 
   _onMessage: (msg: WorkerEvent) => void;
@@ -253,6 +254,7 @@ export const useRunnerStore = create<RunnerState>((set) => ({
         const next = msg.frames.map((f) => ({
           frame: f.frame,
           url: URL.createObjectURL(f.blob),
+          watches: f.watches,
         }));
         set({ frameHistory: next, scrubIndex: next.length > 0 ? next.length - 1 : null });
         break;
@@ -453,6 +455,7 @@ function getWorker(): Worker {
     linter: Linter,
     errorHook: ErrorHook,
     inputTransform: InputTransform,
+    watchTransform: WatchTransform,
     syntaxHints: SyntaxHints,
   } satisfies WorkerCommand);
   return worker;
@@ -713,11 +716,13 @@ export function useRunner() {
   }, []);
 
   const pause = useCallback(() => {
+    if (useRunnerStore.getState().paused) return;
     setPaused(true);
     getWorker().postMessage({ cmd: "pause" } satisfies WorkerCommand);
   }, [setPaused]);
 
   const resume = useCallback(() => {
+    if (!useRunnerStore.getState().paused) return;
     setPaused(false);
     getWorker().postMessage({ cmd: "resume" } satisfies WorkerCommand);
   }, [setPaused]);

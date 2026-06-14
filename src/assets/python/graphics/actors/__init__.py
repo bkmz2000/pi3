@@ -161,6 +161,15 @@ class Actor:
             )
         object.__setattr__(self, name, value)
 
+    def __repr__(self):
+        x = object.__getattribute__(self, '_x')
+        y = object.__getattribute__(self, '_y')
+        vx = object.__getattribute__(self, '_vx')
+        vy = object.__getattribute__(self, '_vy')
+        angle = object.__getattribute__(self, '_angle')
+        return (f"{type(self).__name__}(x={x:.1f}, y={y:.1f}, "
+                f"vx={vx:.1f}, vy={vy:.1f}, angle={angle:.1f})")
+
     def __getattr__(self, name):
         if name.startswith('_'):
             raise AttributeError(name)
@@ -807,3 +816,54 @@ class Group:
 
     def __bool__(self):
         return len(self._actors) > 0
+
+
+def _draw_actor_info_overlay():
+    """Append debug info overlay commands for all live actors. Gated by _state._show_actor_info."""
+    import math as _math
+    from graphics import _state as _gs
+
+    actors = [a for a in Actor._registry if a.is_alive()]
+    if not actors:
+        return
+
+    cmds = _gs._draw_commands
+    MAX_LABELS = 8
+
+    for i, actor in enumerate(actors):
+        x = actor._x
+        y = actor._y
+        vx = actor._vx
+        vy = actor._vy
+
+        # velocity arrow (yellow)
+        speed = _math.hypot(vx, vy)
+        if speed > 0:
+            arrow_len = min(speed, 60.0)
+            ex = x + (vx / speed) * arrow_len
+            ey = y + (vy / speed) * arrow_len
+            cmds.append(("no_fill", (), {}))
+            cmds.append(("stroke", (255, 220, 0), {}))
+            cmds.append(("stroke_width", (2,), {}))
+            cmds.append(("line", (x, y, ex, ey), {}))
+            cmds.append(("fill", (255, 220, 0), {}))
+            cmds.append(("no_stroke", (), {}))
+            cmds.append(("circle", (ex, ey, 3.0), {}))
+
+        # facing tick: short cyan line along actor.angle
+        angle_rad = _math.radians(actor._angle)
+        fx = x + _math.cos(angle_rad) * 14.0
+        fy = y + _math.sin(angle_rad) * 14.0
+        cmds.append(("no_fill", (), {}))
+        cmds.append(("stroke", (100, 200, 255), {}))
+        cmds.append(("stroke_width", (2,), {}))
+        cmds.append(("line", (x, y, fx, fy), {}))
+
+        # position label (capped at MAX_LABELS to avoid clutter)
+        if i < MAX_LABELS:
+            label = f"({x:.0f},{y:.0f})"
+            cmds.append(("fill", (255, 255, 255), {}))
+            cmds.append(("no_stroke", (), {}))
+            cmds.append(("text_size", (11,), {}))
+            cmds.append(("text_align", ("left", "bottom"), {}))
+            cmds.append(("text", (label, x + 4.0, y - 4.0), {}))

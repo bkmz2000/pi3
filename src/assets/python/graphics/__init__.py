@@ -739,6 +739,26 @@ def frame_rate(fps) -> None:
     _state._target_fps = int(fps)
 
 
+def inspect(x) -> None:
+    """Print a readable description of an Actor, Vector2, or any value."""
+    print(repr(x))
+
+
+_WATCH_SENTINEL = object()
+
+
+def watch(label, value=_WATCH_SENTINEL) -> None:
+    """Pin a live value to the Watch panel (updated every frame, no console flood).
+
+    watch('score', score)  — shows 'score  5'
+    watch(player.x)        — shows '100.0'
+    """
+    if value is _WATCH_SENTINEL:
+        _state._watches[repr(label)] = ""
+    else:
+        _state._watches[str(label)] = repr(value)
+
+
 # === RUN ===
 
 
@@ -782,8 +802,30 @@ def _tick(main, my_generation):
         _state._keys_pressed.clear()
         _state._keys_released.clear()
 
-        _ide_flush_draw_commands(to_js(_state._draw_commands))
+        if _state._show_actor_info:
+            from graphics.actors import _draw_actor_info_overlay
+            _draw_actor_info_overlay()
+
+        _ide_flush_draw_commands(to_js(_state._draw_commands), frame_count)
         _state._draw_commands.clear()
+
+        if _state._watches:
+            try:
+                import js as _js
+                _now = _js.Date.now()
+                if _now - _state._watch_last_sent >= 100:
+                    import json as _json
+                    from js import _ide_post_watch_values
+                    _ide_post_watch_values(_json.dumps({
+                        "values": [{"label": k, "value": v}
+                                   for k, v in _state._watches.items()],
+                        "frame": frame_count,
+                    }))
+                    _state._watch_last_sent = _now
+            except Exception:
+                pass
+        _state._watches.clear()
+
         frame_count += 1
 
     except KeyboardInterrupt:
@@ -796,6 +838,9 @@ def _tick(main, my_generation):
             import error_hook as _eh
             from js import _ide_post_runtime_error
             _structured = _eh.classify_error(_exc, _state._user_code, _state._user_filename)
+            _structured["frame"] = frame_count
+            if _state._watches:
+                _structured["watches"] = [{"label": k, "value": v} for k, v in _state._watches.items()]
             _ide_post_runtime_error(_json.dumps(_structured))
         except Exception:
             # Hand-written JSON — intentionally avoids json.dumps which may have just failed.
@@ -812,8 +857,40 @@ def _tick(main, my_generation):
         _state._running = False
         return
 
-    elapsed = 1000 / _state._target_fps
+    if _state._step_once:
+        _state._step_once = False
+        _state._paused = True
+    elif _state._paused:
+        pass  # loop suspended; _resume() will reschedule
+    else:
+        elapsed = (1000 / _state._target_fps) * _state._speed_divisor
+        _state._pending_timer_id = setTimeout(_state.tick_proxy, int(elapsed))
+
+
+def _pause() -> None:
+    _state._paused = True
+
+
+def _resume() -> None:
+    if not _state._paused or not _state._running:
+        return
+    _state._paused = False
+    from js import setTimeout
+    elapsed = (1000 / _state._target_fps) * _state._speed_divisor
     _state._pending_timer_id = setTimeout(_state.tick_proxy, int(elapsed))
+
+
+def _step() -> None:
+    if not _state._paused or not _state._running:
+        return
+    _state._step_once = True
+    _state._paused = False
+    from js import setTimeout
+    _state._pending_timer_id = setTimeout(_state.tick_proxy, 0)
+
+
+def _set_speed(divisor: int) -> None:
+    _state._speed_divisor = int(divisor)
 
 
 def _run(main=None, fps=60) -> None:
@@ -834,6 +911,8 @@ def _run(main=None, fps=60) -> None:
 
     _state._running = True
     _state._stop_requested = False
+    _state._paused = False
+    _state._step_once = False
     _state._loop_generation += 1
     my_generation = _state._loop_generation
     frame_count = 0
@@ -1648,4 +1727,6 @@ __all__ = [
     "run", "stop",
     "assets",
     "sheet",
+    "inspect",
+    "watch",
 ]

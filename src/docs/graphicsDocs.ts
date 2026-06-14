@@ -1710,4 +1710,40 @@ export const DOCS: DocCategory[] = [
       },
     ],
   },
+
+  // ─── Debug tools ────────────────────────────────────────────────────────────
+  {
+    id: "debug",
+    en: "Debug tools",
+    ru: "Инструменты отладки",
+    entries: [
+      {
+        id: "inspect",
+        name: "inspect",
+        signature: "inspect(x)",
+        en: "Print a readable summary of any value — Actor, Vector2, number, or list. Identical to `print(repr(x))` but shorter to type during a debugging session.",
+        ru: "Вывести читаемую сводку любого значения — Actor, Vector2, числа или списка. Эквивалентно `print(repr(x))`, но короче при отладке.",
+        example: "hero = Actor(x=100, y=200, vx=3, vy=0)\ninspect(hero)\n# Actor(x=100.0, y=200.0, vx=3.0, vy=0.0, angle=0.0)",
+        params: [
+          { name: "x", type: "any", en: "The value to print.", ru: "Значение для вывода." },
+        ],
+      },
+      {
+        id: "watch",
+        name: "watch",
+        signature: "watch(label, value)",
+        en: "Pin a live value to the Watch strip above the console. The strip updates each frame in-place — no flood of `print()` lines — and highlights briefly when a value changes.",
+        ru: "Закрепить значение на панели Watch над консолью. Панель обновляется каждый кадр без потока строк `print()`. Строка кратко подсвечивается при изменении значения.",
+        example: "def main():\n    hero.move()\n    watch('x', hero.x)\n    watch('vy', hero.vy)\n    watch('score', state.score)",
+        advanced: {
+          en: "Calling `watch(value)` without a label uses `repr(value)` as both label and display (useful for a single scalar: `watch(hero.x)` shows `100.0`). Labels are rebuilt every frame — a label you stop calling `watch()` for disappears automatically on the next frame. The Watch strip appears the first time a program calls `watch()` and hides when the program stops.",
+          ru: "Вызов `watch(значение)` без метки использует `repr(значение)` одновременно как метку и отображаемое значение (удобно для одиночного числа: `watch(hero.x)` показывает `100.0`). Метки строятся заново каждый кадр — метка, для которой перестали вызывать `watch()`, исчезает автоматически. Полоса Watch появляется при первом вызове `watch()` и скрывается, когда программа останавливается.",
+        },
+        params: [
+          { name: "label", type: "str", en: "Display name for this row in the Watch strip. If omitted (single-arg form), `repr(label)` is used as the value.", ru: "Название строки в панели Watch. Если не задан (однострочный вариант), `repr(label)` используется как значение." },
+          { name: "value", type: "any", optional: true, en: "The value to display. If omitted, the first argument is shown as both label and value.", ru: "Значение для отображения. Если не указано, первый аргумент используется и как метка, и как значение." },
+        ],
+      },
+    ],
+  },
 ];

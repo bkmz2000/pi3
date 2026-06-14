@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Icon } from "./Icons";
-import { useRunner } from "../runner/RunnerProvider";
+import { useRunner, type WatchEntry } from "../runner/RunnerProvider";
 import { useThemeStore } from "../state/useTheme";
 import type { RuntimeError } from "../runner/WorkerInterface";
+import type { Theme } from "../state/useTheme";
 
 function BlinkDot({ color, delay = 0 }: { color: string; delay?: number }) {
   return (
@@ -245,6 +246,37 @@ function ErrorCard({ error }: { error: RuntimeError }) {
         </div>
       )}
 
+      {/* DBG-5: frame + watches at crash */}
+      {(error.frame !== undefined || (error.watches && error.watches.length > 0)) && (
+        <div
+          style={{
+            marginTop: 8,
+            padding: "5px 8px",
+            background: "rgba(0,0,0,0.05)",
+            borderRadius: 4,
+            fontSize: 11,
+            fontFamily: "'JetBrains Mono', ui-monospace, monospace",
+            color: colors.text,
+            opacity: 0.8,
+          }}
+        >
+          {error.frame !== undefined && (
+            <div>{t('friendlyError.crashContext', { frame: error.frame })}</div>
+          )}
+          {error.watches && error.watches.length > 0 && (
+            <div style={{ marginTop: error.frame !== undefined ? 2 : 0 }}>
+              {t('friendlyError.watchesAtCrash')}
+              {error.watches.map((w) => (
+                <div key={w.label} style={{ marginLeft: 8 }}>
+                  <span style={{ opacity: 0.65 }}>{w.label}</span>{" "}
+                  <span>{w.value}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Raw traceback toggle */}
       <button
         type="button"
@@ -289,10 +321,62 @@ function ErrorCard({ error }: { error: RuntimeError }) {
   );
 }
 
+function WatchRow({ entry, theme }: { entry: WatchEntry; theme: Theme }) {
+  const [highlighted, setHighlighted] = useState(false);
+
+  useEffect(() => {
+    setHighlighted(true);
+    const id = setTimeout(() => setHighlighted(false), 500);
+    return () => clearTimeout(id);
+  }, [entry.changedAt]);
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "baseline",
+        gap: 8,
+        padding: "2px 14px",
+        borderRadius: 4,
+        background: highlighted ? "rgba(255,220,0,0.18)" : "transparent",
+        transition: "background 0.35s",
+        minHeight: 22,
+      }}
+    >
+      <span style={{ color: theme.consoleTxtMute, fontFamily: theme.fontMono, fontSize: 12, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "45%" }}>
+        {entry.label}
+      </span>
+      {entry.value !== "" && (
+        <span style={{ color: theme.consoleTxt, fontFamily: theme.fontMono, fontSize: 12, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "52%" }}>
+          {entry.value}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function WatchPanel({ watches, theme }: { watches: WatchEntry[]; theme: Theme }) {
+  if (watches.length === 0) return null;
+  return (
+    <div
+      style={{
+        borderBottom: `1px solid ${theme.consoleBorder}`,
+        padding: "4px 0",
+        flex: "none",
+      }}
+    >
+      {watches.map((w) => (
+        <WatchRow key={w.label} entry={w} theme={theme} />
+      ))}
+    </div>
+  );
+}
+
 export default function ConsolePanel({ onRight = false }: { onRight?: boolean }) {
   const theme = useThemeStore((s) => s.theme);
   const { t } = useTranslation();
-  const { output, inputPrompt, respondToInput, clear, running } = useRunner();
+  const { output, inputPrompt, respondToInput, clear, running, watches } = useRunner();
   const [inputValue, setInputValue] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -471,6 +555,9 @@ export default function ConsolePanel({ onRight = false }: { onRight?: boolean })
           {t('app.clearConsole')}
         </button>
       </div>
+
+      {/* Watch panel — auto-appears when watch() is called */}
+      <WatchPanel watches={watches} theme={theme} />
 
       {/* Output */}
       <div

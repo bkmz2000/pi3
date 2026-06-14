@@ -85,6 +85,12 @@
     "autoSaveHint": "Saves every minute",
     "showHitboxes": "Show hitboxes",
     "showHitboxesHint": "Outlines around game objects",
+    "showActorInfo": "Show actor info",
+    "showActorInfoHint": "Position, velocity arrow, and facing direction on each actor",
+    "pause": "Pause",
+    "resume": "Resume",
+    "step": "Step one frame",
+    "speed": "Speed (click to cycle)",
     "language": "Language",
     "languageHint": "Interface and documentation language",
     "theme": "Theme",
@@ -199,7 +205,10 @@
     "screenshot": "Take screenshot (sets as project cover)",
     "screenshotHistory": "Recent screenshots",
     "setAsCover": "Use as project cover",
-    "screenshotNoProject": "Save the project first to set a cover"
+    "screenshotNoProject": "Save the project first to set a cover",
+    "rewindChip": "REWIND — frame {{frame}} ({{back}} back)",
+    "rewindBack": "Step one frame back",
+    "rewindFwd": "Step forward (→ live)"
   },
   "console": {
     "checking": "Checking for errors...",
@@ -1057,7 +1066,9 @@
     "rawTraceback": "Full error details",
     "showRaw": "Show details",
     "hideRaw": "Hide details",
-    "blocksRunning": "blocks running"
+    "blocksRunning": "blocks running",
+    "crashContext": "Crashed on frame {{frame}}",
+    "watchesAtCrash": "Watches at crash:"
   },
   "assetEditor": {
     "cancel": "Cancel",

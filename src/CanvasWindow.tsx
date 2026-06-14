@@ -11,6 +11,8 @@ export default function CanvasWindow() {
   const theme = useThemeStore((s) => s.theme);
   const { attachCanvas, canvasActive, running, canvasWidth, canvasHeight, captureScreenshot } = useRunner();
   const workerEpoch = useRunnerStore((s) => s.workerEpoch);
+  const frameHistory = useRunnerStore((s) => s.frameHistory);
+  const scrubIndex = useRunnerStore((s) => s.scrubIndex);
   const projectId = useEditor((s) => s.currentProjectId);
   const canPersist = !!projectId && !isExampleSessionId(projectId);
   const snaps = useRunnerStore((s) => s.screenshots);
@@ -310,6 +312,45 @@ export default function CanvasWindow() {
             imageRendering: 'pixelated',
           }}
         />
+        {scrubIndex !== null && frameHistory[scrubIndex] && (
+          <>
+            <img
+              src={frameHistory[scrubIndex].url}
+              alt=""
+              style={{
+                position: "absolute",
+                top: 0, left: 0,
+                width: "100%", height: "100%",
+                imageRendering: "pixelated",
+                outline: "2px solid rgba(255,220,0,0.7)",
+                outlineOffset: "-2px",
+                boxSizing: "border-box",
+              }}
+            />
+            <div
+              style={{
+                position: "absolute",
+                bottom: 8,
+                left: "50%",
+                transform: "translateX(-50%)",
+                background: "rgba(0,0,0,0.75)",
+                color: "#ffe040",
+                fontFamily: theme.fontUI,
+                fontSize: 11,
+                fontWeight: 700,
+                padding: "2px 8px",
+                borderRadius: 4,
+                whiteSpace: "nowrap",
+                pointerEvents: "none",
+              }}
+            >
+              {t('canvas.rewindChip', {
+                frame: frameHistory[scrubIndex].frame,
+                back: frameHistory.length - 1 - scrubIndex,
+              })}
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

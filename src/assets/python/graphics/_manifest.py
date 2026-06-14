@@ -53,6 +53,8 @@ EXPORTED_NAMES = [
     "run", "stop",
     "assets",
     "sheet",
+    "inspect",
+    "watch",
 ]
 
 # Derived from live module — no duplication of key/color name lists.

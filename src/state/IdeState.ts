@@ -42,6 +42,7 @@ type IdeState = {
   userProjects: ApiProject[];
   loading: boolean;
   showHitboxes: boolean;
+  showActorInfo: boolean;
   showConsoleOnRun: boolean;
   enableLinting: boolean;
   enableAutocomplete: boolean;
@@ -66,6 +67,7 @@ type IdeState = {
   importProjectFromFile: (file: File) => Promise<ApiProject>;
   setSaveError: (error: SaveError | null) => void;
   setShowHitboxes: (show: boolean) => void;
+  setShowActorInfo: (show: boolean) => void;
   setShowConsoleOnRun: (show: boolean) => void;
   setEnableLinting: (enable: boolean) => void;
   setEnableAutocomplete: (enable: boolean) => void;
@@ -78,6 +80,7 @@ export const useIde = create<IdeState>((set, get) => ({
   userProjects: [],
   loading: false,
   showHitboxes: localStorage.getItem("pi3_showHitboxes") === "true",
+  showActorInfo: localStorage.getItem("pi3_showActorInfo") === "true",
   showConsoleOnRun: localStorage.getItem("pi3_showConsoleOnRun") === "true",
   enableLinting: localStorage.getItem("pi3_enableLinting") === "true",
   enableAutocomplete: localStorage.getItem("pi3_enableAutocomplete") !== "false",
@@ -94,6 +97,10 @@ export const useIde = create<IdeState>((set, get) => ({
   setShowHitboxes: (show: boolean) => {
     localStorage.setItem("pi3_showHitboxes", String(show));
     set({ showHitboxes: show });
+  },
+  setShowActorInfo: (show: boolean) => {
+    localStorage.setItem("pi3_showActorInfo", String(show));
+    set({ showActorInfo: show });
   },
   setShowConsoleOnRun: (show: boolean) => {
     localStorage.setItem("pi3_showConsoleOnRun", String(show));

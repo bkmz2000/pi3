@@ -36,6 +36,36 @@ export function IconStop({ size = 22, ...rest }: IconProps) {
   );
 }
 
+export function IconPause({ size = 22, ...rest }: IconProps) {
+  const c = rest.color || "currentColor";
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill={c}>
+      <rect x="6" y="4" width="4" height="16" rx="1.5" />
+      <rect x="14" y="4" width="4" height="16" rx="1.5" />
+    </svg>
+  );
+}
+
+export function IconStepFwd({ size = 22, ...rest }: IconProps) {
+  const c = rest.color || "currentColor";
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill={c}>
+      <path d="M5 4.8 15 12 5 19.2V4.8Z" />
+      <rect x="17" y="4" width="3" height="16" rx="1.5" />
+    </svg>
+  );
+}
+
+export function IconStepBack({ size = 22, ...rest }: IconProps) {
+  const c = rest.color || "currentColor";
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill={c}>
+      <path d="M19 4.8 9 12 19 19.2V4.8Z" />
+      <rect x="4" y="4" width="3" height="16" rx="1.5" />
+    </svg>
+  );
+}
+
 export function IconSparkle({ size = 22, ...rest }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" {...s(rest)}>
@@ -312,7 +342,10 @@ export type IconName =
   | "camera"
   | "save"
   | "speaker"
-  | "examples";
+  | "examples"
+  | "pause"
+  | "step-fwd"
+  | "step-back";
 
 export function Icon({ name, ...props }: IconProps & { name: IconName }) {
   switch (name) {
@@ -354,6 +387,9 @@ export function Icon({ name, ...props }: IconProps & { name: IconName }) {
     case "save": return <IconSave {...props} />;
     case "speaker": return <IconSpeaker {...props} />;
     case "examples": return <IconExamples {...props} />;
+    case "pause": return <IconPause {...props} />;
+    case "step-fwd": return <IconStepFwd {...props} />;
+    case "step-back": return <IconStepBack {...props} />;
   }
 }
 

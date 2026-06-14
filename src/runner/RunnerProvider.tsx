@@ -31,6 +31,7 @@ type OutputLine = {
 };
 
 export type Screenshot = { id: number; url: string; blob: Blob };
+export type WatchEntry = { label: string; value: string; changedAt: number };
 
 type RunnerState = {
   ready: boolean;
@@ -44,11 +45,19 @@ type RunnerState = {
   lintErrors: LintDiagnostic[];
   screenshots: Screenshot[];
   workerEpoch: number;
+  watches: WatchEntry[];
+  paused: boolean;
+  speed: 1 | 2 | 4;
+  frameHistory: { frame: number; url: string }[];
+  scrubIndex: number | null;
 
   _onMessage: (msg: WorkerEvent) => void;
   _appendOutput: (kind: "stdout" | "stderr", text: string) => void;
   _bumpEpoch: () => void;
   setRunning: (running: boolean) => void;
+  setPaused: (paused: boolean) => void;
+  setSpeed: (speed: 1 | 2 | 4) => void;
+  scrubTo: (index: number | null) => void;
   clear: () => void;
   stop: () => void;
   pushErrorCard: (error: RuntimeError) => void;
@@ -71,6 +80,11 @@ export const useRunnerStore = create<RunnerState>((set) => ({
   lintErrors: [],
   screenshots: [],
   workerEpoch: 0,
+  watches: [],
+  paused: false,
+  speed: 1,
+  frameHistory: [],
+  scrubIndex: null,
 
   addScreenshot: (snap) => set((s) => {
     const next = [snap, ...s.screenshots].slice(0, 5);
@@ -221,6 +235,28 @@ export const useRunnerStore = create<RunnerState>((set) => ({
         // Handled by per-request listener in captureScreenshot()
         break;
       }
+      case "watch": {
+        const prev = useRunnerStore.getState().watches;
+        const prevMap = new Map(prev.map((w) => [w.label, w]));
+        const now = Date.now();
+        const next: WatchEntry[] = msg.values.map((v) => {
+          const old = prevMap.get(v.label);
+          const changedAt = old && old.value === v.value ? old.changedAt : now;
+          return { label: v.label, value: v.value, changedAt };
+        });
+        set({ watches: next });
+        break;
+      }
+      case "frame_history": {
+        const cur = useRunnerStore.getState().frameHistory;
+        cur.forEach((f) => URL.revokeObjectURL(f.url));
+        const next = msg.frames.map((f) => ({
+          frame: f.frame,
+          url: URL.createObjectURL(f.blob),
+        }));
+        set({ frameHistory: next, scrubIndex: next.length > 0 ? next.length - 1 : null });
+        break;
+      }
       default: {
         const missing: never = msg;
         throw new Error(`missing ${missing}`);
@@ -230,16 +266,21 @@ export const useRunnerStore = create<RunnerState>((set) => ({
 
   _bumpEpoch: () => set((s) => ({ workerEpoch: s.workerEpoch + 1 })),
   setRunning: (running) => set({ running }),
+  setPaused: (paused) => set({ paused }),
+  setSpeed: (speed) => set({ speed }),
+  scrubTo: (index) => set({ scrubIndex: index }),
   pushErrorCard: (error) => set((s) => ({
     output: [...s.output, { kind: "error_card", error }],
   })),
   clear: () => {
     stopAllSounds();
-    set({ output: [], inputPrompt: null, running: false, canvasActive: false, lintErrors: [], canvasWidth: 0, canvasHeight: 0, canvasScale: 1 });
+    useRunnerStore.getState().frameHistory.forEach((f) => URL.revokeObjectURL(f.url));
+    set({ output: [], inputPrompt: null, running: false, canvasActive: false, lintErrors: [], canvasWidth: 0, canvasHeight: 0, canvasScale: 1, watches: [], paused: false, speed: 1, frameHistory: [], scrubIndex: null });
   },
   stop: () => {
     stopAllSounds();
-    set({ inputPrompt: null, running: false, canvasActive: false });
+    useRunnerStore.getState().frameHistory.forEach((f) => URL.revokeObjectURL(f.url));
+    set({ inputPrompt: null, running: false, canvasActive: false, paused: false, frameHistory: [], scrubIndex: null });
   },
 
   respondToInput: (value) => {
@@ -458,7 +499,7 @@ function wireEvents(canvas: HTMLCanvasElement): () => void {
 }
 
 export function useRunner() {
-  const { ready, running, output, clear, pushErrorCard, inputPrompt, respondToInput, canvasActive, canvasWidth, canvasHeight, canvasScale, lintErrors, _appendOutput, applySuggestion } =
+  const { ready, running, output, clear, pushErrorCard, inputPrompt, respondToInput, canvasActive, canvasWidth, canvasHeight, canvasScale, lintErrors, _appendOutput, applySuggestion, watches, paused, speed, setPaused, setSpeed, frameHistory, scrubIndex, scrubTo } =
     useRunnerStore();
 
   useEffect(() => {
@@ -521,6 +562,7 @@ export function useRunner() {
       const mergedUrls = { ...libraryUrlMap(), ...nameToUrl };
       const { bitmaps, transferables } = await loadAssets(mergedUrls);
       const showHitboxes = useIde.getState().showHitboxes;
+      const showActorInfo = useIde.getState().showActorInfo;
       const { tilemaps, sounds: projectSounds, sheet } = useEditor.getState().project;
       // Reset audio state for this run and build the URL map
       // (library sounds + project sounds; project takes precedence).
@@ -537,6 +579,7 @@ export function useRunner() {
           soundNames,
           sheet,
           showHitboxes,
+          showActorInfo,
         } satisfies WorkerCommand,
         transferables,
       );
@@ -669,6 +712,42 @@ export function useRunner() {
     });
   }, []);
 
+  const pause = useCallback(() => {
+    setPaused(true);
+    getWorker().postMessage({ cmd: "pause" } satisfies WorkerCommand);
+  }, [setPaused]);
+
+  const resume = useCallback(() => {
+    setPaused(false);
+    getWorker().postMessage({ cmd: "resume" } satisfies WorkerCommand);
+  }, [setPaused]);
+
+  const step = useCallback(() => {
+    getWorker().postMessage({ cmd: "step" } satisfies WorkerCommand);
+  }, []);
+
+  const setGameSpeed = useCallback((divisor: 1 | 2 | 4) => {
+    setSpeed(divisor);
+    getWorker().postMessage({ cmd: "set_speed", divisor } satisfies WorkerCommand);
+  }, [setSpeed]);
+
+  const stepBack = useCallback(() => {
+    const { frameHistory: fh, scrubIndex: si } = useRunnerStore.getState();
+    if (fh.length === 0) return;
+    const cur = si === null ? fh.length - 1 : si;
+    scrubTo(Math.max(0, cur - 1));
+  }, [scrubTo]);
+
+  const stepFwd = useCallback(() => {
+    const { frameHistory: fh, scrubIndex: si } = useRunnerStore.getState();
+    if (si === null) return;
+    if (si >= fh.length - 1) {
+      scrubTo(null);
+    } else {
+      scrubTo(si + 1);
+    }
+  }, [scrubTo]);
+
   return {
     ready,
     running,
@@ -690,5 +769,17 @@ export function useRunner() {
     _appendOutput,
     applySuggestion,
     pushErrorCard,
+    watches,
+    paused,
+    speed,
+    pause,
+    resume,
+    step,
+    setGameSpeed,
+    frameHistory,
+    scrubIndex,
+    scrubTo,
+    stepBack,
+    stepFwd,
   };
 }

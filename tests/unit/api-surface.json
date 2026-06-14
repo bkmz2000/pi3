@@ -30,7 +30,9 @@
     "State",
     "run", "stop",
     "assets",
-    "sheet"
+    "sheet",
+    "inspect",
+    "watch"
   ],
   "Actor": {
     "properties": ["x", "y", "angle", "vx", "vy", "pos", "vel", "visible", "scale", "flip_x", "flip_y", "image", "collider", "state"],

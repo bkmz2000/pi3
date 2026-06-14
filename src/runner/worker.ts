@@ -12,6 +12,47 @@ let pendingOffscreen: OffscreenCanvas | null = null;
 // JS-side asset stores — ImageBitmaps never enter Pyodide
 let runAssets: Record<string, ImageBitmap> = {};
 
+// DBG-4: step-back ring buffer
+const MAX_REWIND_FRAMES = 200;
+const MAX_REWIND_BYTES = 16 * 1024 * 1024; // 16 MB
+const REWIND_INTERVAL_MS = 50; // 20 fps throttle
+let rewindArmed = false;
+let rewindBuf: { frame: number; blob: Blob; bytes: number }[] = [];
+let rewindBytes = 0;
+let rewindLastCapture = 0;
+let stepBlobPending = false;
+
+function maybeCaptureRewindFrame(frameNum: number) {
+  if (!rewindArmed || !offscreen) return;
+  const now = Date.now();
+  if (now - rewindLastCapture < REWIND_INTERVAL_MS) return;
+  rewindLastCapture = now;
+  const capturedFrame = frameNum;
+  offscreen.convertToBlob({ type: "image/webp", quality: 0.8 })
+    .catch(() => offscreen!.convertToBlob({ type: "image/png" }))
+    .then((blob) => {
+      const bytes = blob.size;
+      while (rewindBuf.length >= MAX_REWIND_FRAMES || (rewindBytes + bytes > MAX_REWIND_BYTES && rewindBuf.length > 0)) {
+        const evicted = rewindBuf.shift();
+        if (evicted) rewindBytes -= evicted.bytes;
+      }
+      rewindBuf.push({ frame: capturedFrame, blob, bytes });
+      rewindBytes += bytes;
+      if (stepBlobPending) {
+        stepBlobPending = false;
+        post({ type: "frame_history", frames: rewindBuf.map(({ frame, blob: b }) => ({ frame, blob: b })) });
+      }
+    })
+    .catch(() => {});
+}
+
+function clearRewindBuf() {
+  rewindBuf = [];
+  rewindBytes = 0;
+  rewindLastCapture = 0;
+  stepBlobPending = false;
+}
+
 function post(e: WorkerEvent) {
   self.postMessage(e);
 }
@@ -154,12 +195,20 @@ async function initPyodide(
     post({ type: "result" });
   });
 
-  // _ide_flush_draw_commands: called from Python each tick with to_js(_draw_commands)
-  p.globals.set("_ide_flush_draw_commands", (commands: unknown[]) => {
+  // _ide_post_watch_values: called from Python after each tick with JSON-encoded watch entries
+  p.globals.set("_ide_post_watch_values", (json: string) => {
+    const data = JSON.parse(json) as { values: { label: string; value: string }[]; frame: number };
+    post({ type: "watch", values: data.values, frame: data.frame });
+  });
+
+  // _ide_flush_draw_commands: called from Python each tick with to_js(_draw_commands).
+  // frameNum >= 0 on the final (post-main) flush; -1 on the pre-main flush (not captured).
+  p.globals.set("_ide_flush_draw_commands", (commands: unknown[], frameNum: number = -1) => {
     if (!offscreen) return;
     const ctx = offscreen.getContext("2d");
     if (!ctx) return;
     executeDrawCommands(ctx, Array.from(commands as Iterable<unknown>), runAssets, offscreen.width, offscreen.height);
+    if (frameNum >= 0) maybeCaptureRewindFrame(frameNum);
   });
 
   // Expose all callbacks on the js module and inline stdout/input setup
@@ -177,6 +226,7 @@ js._ide_flush_draw_commands = _ide_flush_draw_commands
 js._ide_post_sound = _ide_post_sound
 js._ide_post_runtime_error = _ide_post_runtime_error
 js._ide_notify_loop_ended = _ide_notify_loop_ended
+js._ide_post_watch_values = _ide_post_watch_values
 
 class _Writer:
     def __init__(self, kind):
@@ -348,6 +398,7 @@ async function runGraphicsScript(
   sheet: SheetRunPayload | undefined,
   entry: string,
   showHitboxes: boolean = false,
+  showActorInfo: boolean = false,
 ) {
   prepareFiles(p, files);
 
@@ -416,6 +467,7 @@ Actor._registry.clear()
 Actor._id_counter = 0
 graphics._state._loop_generation = graphics._state._loop_generation + 1
 graphics._state._show_hitboxes = ${showHitboxes ? "True" : "False"}
+graphics._state._show_actor_info = ${showActorInfo ? "True" : "False"}
 
 # Build sprites namespace from asset names + dimensions (no bitmaps).
 # Names starting with lib_<pack>_ go into per-pack namespaces
@@ -530,6 +582,10 @@ graphics._reset_run_state()
   // Give _tick access to user code so runtime errors can be classified friendlily
   p.runPython(`import graphics as _g; _g._state._user_code = ${JSON.stringify(code)}; _g._state._user_filename = ${JSON.stringify(filename)}`);
 
+  // DBG-4: arm ring buffer for this run
+  rewindArmed = true;
+  clearRewindBuf();
+
   post({ type: "start", canvasActive: true });
 
   // ── Execute user code with structured error wrapping ──
@@ -584,13 +640,14 @@ async function runScript(
   sheet: SheetRunPayload | undefined,
   entry: string,
   showHitboxes: boolean = false,
+  showActorInfo: boolean = false,
 ) {
   const code = files[entry] ?? "";
 
   p.globals.set("_using_graphics", false);
 
   if (usesNewGraphics(code)) {
-    await runGraphicsScript(p, files, assets, tilemaps, soundNames, sheet, entry, showHitboxes);
+    await runGraphicsScript(p, files, assets, tilemaps, soundNames, sheet, entry, showHitboxes, showActorInfo);
     return;
   }
 
@@ -668,7 +725,7 @@ self.onmessage = async (e: MessageEvent<WorkerCommand>) => {
   } else if (msg.cmd === "run") {
     try {
       const p = await ensurePyodide();
-      await runScript(p, msg.files, msg.assets, msg.tilemaps, msg.soundNames, msg.sheet, msg.entry, msg.showHitboxes);
+      await runScript(p, msg.files, msg.assets, msg.tilemaps, msg.soundNames, msg.sheet, msg.entry, msg.showHitboxes, msg.showActorInfo);
     } catch (err: unknown) {
       const errStr = String(err);
       // KeyboardInterrupt (stop button) — not an error, just a clean stop
@@ -707,7 +764,25 @@ self.onmessage = async (e: MessageEvent<WorkerCommand>) => {
     } catch {
       /* ignore */
     }
+    rewindArmed = false;
+    clearRewindBuf();
     post({ type: "interrupt_ack" });
+  } else if (msg.cmd === "pause") {
+    if (!pyodide) return;
+    try { pyodide.runPython("import graphics; graphics._pause()"); } catch { /* ignore */ }
+    if (rewindBuf.length > 0) {
+      post({ type: "frame_history", frames: rewindBuf.map(({ frame, blob }) => ({ frame, blob })) });
+    }
+  } else if (msg.cmd === "resume") {
+    if (!pyodide) return;
+    try { pyodide.runPython("import graphics; graphics._resume()"); } catch { /* ignore */ }
+  } else if (msg.cmd === "step") {
+    if (!pyodide) return;
+    try { pyodide.runPython("import graphics; graphics._step()"); } catch { /* ignore */ }
+    stepBlobPending = true;
+  } else if (msg.cmd === "set_speed") {
+    if (!pyodide) return;
+    try { pyodide.runPython(`import graphics; graphics._set_speed(${msg.divisor})`); } catch { /* ignore */ }
   } else if (msg.cmd === "input_response") {
     if (!pyodide) return;
     pyodide.globals.get("_ide_resolve_input")?.(msg.value);

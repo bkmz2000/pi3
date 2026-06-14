@@ -37,8 +37,13 @@ export type WorkerCommand =
       sheet?: SheetRunPayload;
       entry: string;
       showHitboxes?: boolean;
+      showActorInfo?: boolean;
     }
   | { cmd: "interrupt" }
+  | { cmd: "pause" }
+  | { cmd: "resume" }
+  | { cmd: "step" }
+  | { cmd: "set_speed"; divisor: 1 | 2 | 4 }
   | { cmd: "set_interrupt_buffer"; buffer: SharedArrayBuffer }
   | { cmd: "attach_canvas"; canvas: OffscreenCanvas }
   | { cmd: "event"; kind: WorkerEventType; data: InputEventData }
@@ -99,6 +104,8 @@ export type RuntimeError = {
   codeLine?: number;      // 1-based line number
   codeColumn?: number;    // 0-based column of the problematic token
   perErrors?: PerError[]; // batch mode: multiple sub-errors from linter pre-scan
+  frame?: number;         // frame_count at crash time (graphics mode only, DBG-5)
+  watches?: { label: string; value: string }[]; // watch() values at crash (DBG-5)
 };
 
 // ── Lint diagnostic (extended) ────────────────────────────────────────────
@@ -142,4 +149,6 @@ export type WorkerEvent =
   | { type: "interrupt_ack" }
   | { type: "canvas_resize"; width: number; height: number }
   | { type: "sound"; action: "play" | "pause" | "loop" | "stop" | "volume"; name: string; value?: number }
-  | { type: "screenshot"; reqId: number; blob: Blob | null };
+  | { type: "screenshot"; reqId: number; blob: Blob | null }
+  | { type: "watch"; values: { label: string; value: string }[]; frame: number }
+  | { type: "frame_history"; frames: { frame: number; blob: Blob }[] };

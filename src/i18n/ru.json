@@ -85,6 +85,12 @@
     "autoSaveHint": "Сохраняет раз в минуту",
     "showHitboxes": "Хитбоксы",
     "showHitboxesHint": "Контуры вокруг объектов",
+    "showActorInfo": "Инфо об акторах",
+    "showActorInfoHint": "Позиция, стрелка скорости и направление каждого актора",
+    "pause": "Пауза",
+    "resume": "Продолжить",
+    "step": "Один кадр",
+    "speed": "Скорость (клик для переключения)",
     "language": "Язык",
     "languageHint": "Язык интерфейса и документации",
     "theme": "Тема",
@@ -199,7 +205,10 @@
     "screenshot": "Сделать снимок (установит обложку проекта)",
     "screenshotHistory": "Последние снимки",
     "setAsCover": "Использовать как обложку",
-    "screenshotNoProject": "Сначала сохраните проект, чтобы задать обложку"
+    "screenshotNoProject": "Сначала сохраните проект, чтобы задать обложку",
+    "rewindChip": "ПЕРЕМОТКА — кадр {{frame}} ({{back}} назад)",
+    "rewindBack": "Шаг назад на кадр",
+    "rewindFwd": "Шаг вперёд (→ живой)"
   },
   "console": {
     "checking": "Проверка на ошибки...",
@@ -1057,7 +1066,9 @@
     "rawTraceback": "Подробности ошибки",
     "showRaw": "Показать детали",
     "hideRaw": "Скрыть детали",
-    "blocksRunning": "блокирует запуск"
+    "blocksRunning": "блокирует запуск",
+    "crashContext": "Сбой на кадре {{frame}}",
+    "watchesAtCrash": "Значения watch при сбое:"
   },
   "assetEditor": {
     "cancel": "Отмена",

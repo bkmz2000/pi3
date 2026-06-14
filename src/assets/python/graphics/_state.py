@@ -33,6 +33,14 @@ _target_fps = 60
 _pending_timer_id = None
 _loop_generation = 0
 _show_hitboxes = False
+_show_actor_info = False
+
+_paused = False       # True = tick loop suspended; resume() restarts it
+_step_once = False    # True = run exactly one tick then re-pause
+_speed_divisor = 1    # tick interval multiplier: 1=1x, 2=½x, 4=¼x
+
+_watches: dict = {}       # label -> repr-string; cleared each tick
+_watch_last_sent = 0.0    # JS timestamp of last flush; for throttle
 
 # Set by worker.ts before each run so _tick can classify runtime errors.
 _user_code = ""

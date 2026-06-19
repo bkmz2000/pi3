@@ -47,3 +47,8 @@ _user_code = ""
 _user_filename = "main.py"
 
 tick_proxy = None
+
+# pi3.debug module state (do not access via from-import — use _state._debug_*)
+_debug_slots: dict = {}         # {(filename, lineno): slot_dict}
+_debug_frames: list = []        # list of captured frames (each sent to JS individually)
+_debug_fresh_slots: set = set() # slots registered since last show()

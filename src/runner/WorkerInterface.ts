@@ -27,7 +27,7 @@ export type SheetRunPayload = {
 };
 
 export type WorkerCommand =
-  | { cmd: "init"; graphicsInit: string; graphicsActors: string; graphicsAnimation: string; graphicsManifest: string; graphicsErrors: string; graphicsState: string; graphicsStateInternal: string; graphicsColor: string; graphicsVec: string; graphicsSheet: string; graphicsUtils: string; graphicsLightingHelpers: string; graphicsSprites: string; linter: string; errorHook: string; inputTransform: string; watchTransform: string; syntaxHints: string }
+  | { cmd: "init"; graphicsInit: string; graphicsActors: string; graphicsAnimation: string; graphicsManifest: string; graphicsErrors: string; graphicsState: string; graphicsStateInternal: string; graphicsColor: string; graphicsVec: string; graphicsSheet: string; graphicsUtils: string; graphicsLightingHelpers: string; graphicsSprites: string; linter: string; errorHook: string; inputTransform: string; watchTransform: string; syntaxHints: string; pi3Init: string; pi3Debug: string; debugTransform: string }
   | {
       cmd: "run";
       files: Record<string, string>;
@@ -133,6 +133,31 @@ export type JediCompletion = {
   description: string;
 };
 
+// ── Debug panel types (pi3.debug) ─────────────────────────────────────────
+
+export type DebugSelectionAtom =
+  | [type: "index", i: number]
+  | [type: "range", lo: number, hi: number]
+  | [type: "cell", r: number, c: number]
+  | [type: "row", r: number]
+  | [type: "col", c: number]
+  | [type: "region", r1: number, c1: number, r2: number, c2: number];
+
+export type SlotSnapshot = {
+  kind: "array" | "grid" | "text" | "stack" | "queue" | "set";
+  data: unknown;
+  highlights: Record<string, DebugSelectionAtom[]>;
+  labels: Record<string, string>;
+  filename: string;
+  line: number;
+  fresh: boolean;
+};
+
+export type DebugFrame = {
+  index: number;
+  slots: SlotSnapshot[];
+};
+
 // ── Worker events ─────────────────────────────────────────────────────────
 
 export type WorkerEvent =
@@ -151,4 +176,5 @@ export type WorkerEvent =
   | { type: "sound"; action: "play" | "pause" | "loop" | "stop" | "volume"; name: string; value?: number }
   | { type: "screenshot"; reqId: number; blob: Blob | null }
   | { type: "watch"; values: { label: string; value: string }[]; frame: number }
-  | { type: "frame_history"; frames: { frame: number; blob: Blob; watches: { label: string; value: string }[] }[] };
+  | { type: "frame_history"; frames: { frame: number; blob: Blob; watches: { label: string; value: string }[] }[] }
+  | { type: "debug_frame"; frame: DebugFrame };

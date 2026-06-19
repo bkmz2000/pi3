@@ -1,6 +1,6 @@
 import { useCallback, useEffect } from "react";
 import { create } from "zustand";
-import { WorkerCommand, WorkerEvent, WorkerEventType, LintDiagnostic, type RuntimeError, type JediCompletion } from "./WorkerInterface";
+import { WorkerCommand, WorkerEvent, WorkerEventType, LintDiagnostic, type RuntimeError, type JediCompletion, type DebugFrame } from "./WorkerInterface";
 import { useIde, useEditor } from "../state/IdeState";
 import GraphicsInit from "../assets/python/graphics/__init__.py?raw";
 import GraphicsActors from "../assets/python/graphics/actors/__init__.py?raw";
@@ -20,6 +20,9 @@ import ErrorHook from "../assets/python/error_hook.py?raw";
 import InputTransform from "../assets/python/input_transform.py?raw";
 import WatchTransform from "../assets/python/watch_transform.py?raw";
 import SyntaxHints from "../assets/python/syntax_hints.py?raw";
+import Pi3Init from "../assets/python/pi3/__init__.py?raw";
+import Pi3Debug from "../assets/python/pi3/debug.py?raw";
+import DebugTransform from "../assets/python/debug_transform.py?raw";
 import { libraryUrlMap, librarySoundUrlMap } from "../state/assets";
 import { createRunnerWorker } from "./workerFactory";
 
@@ -51,6 +54,8 @@ type RunnerState = {
   speed: 1 | 2 | 4;
   frameHistory: { frame: number; url: string; watches: { label: string; value: string }[] }[];
   scrubIndex: number | null;
+  debugFrames: DebugFrame[];
+  debugScrubIndex: number | null;
 
   _onMessage: (msg: WorkerEvent) => void;
   _appendOutput: (kind: "stdout" | "stderr", text: string) => void;
@@ -59,6 +64,7 @@ type RunnerState = {
   setPaused: (paused: boolean) => void;
   setSpeed: (speed: 1 | 2 | 4) => void;
   scrubTo: (index: number | null) => void;
+  debugScrubTo: (index: number | null) => void;
   clear: () => void;
   stop: () => void;
   pushErrorCard: (error: RuntimeError) => void;
@@ -86,6 +92,8 @@ export const useRunnerStore = create<RunnerState>((set) => ({
   speed: 1,
   frameHistory: [],
   scrubIndex: null,
+  debugFrames: [],
+  debugScrubIndex: null,
 
   addScreenshot: (snap) => set((s) => {
     const next = [snap, ...s.screenshots].slice(0, 5);
@@ -259,6 +267,10 @@ export const useRunnerStore = create<RunnerState>((set) => ({
         set({ frameHistory: next, scrubIndex: next.length > 0 ? next.length - 1 : null });
         break;
       }
+      case "debug_frame": {
+        set((s) => ({ debugFrames: [...s.debugFrames, msg.frame] }));
+        break;
+      }
       default: {
         const missing: never = msg;
         throw new Error(`missing ${missing}`);
@@ -271,18 +283,19 @@ export const useRunnerStore = create<RunnerState>((set) => ({
   setPaused: (paused) => set({ paused }),
   setSpeed: (speed) => set({ speed }),
   scrubTo: (index) => set({ scrubIndex: index }),
+  debugScrubTo: (index) => set({ debugScrubIndex: index }),
   pushErrorCard: (error) => set((s) => ({
     output: [...s.output, { kind: "error_card", error }],
   })),
   clear: () => {
     stopAllSounds();
     useRunnerStore.getState().frameHistory.forEach((f) => URL.revokeObjectURL(f.url));
-    set({ output: [], inputPrompt: null, running: false, canvasActive: false, lintErrors: [], canvasWidth: 0, canvasHeight: 0, canvasScale: 1, watches: [], paused: false, speed: 1, frameHistory: [], scrubIndex: null });
+    set({ output: [], inputPrompt: null, running: false, canvasActive: false, lintErrors: [], canvasWidth: 0, canvasHeight: 0, canvasScale: 1, watches: [], paused: false, speed: 1, frameHistory: [], scrubIndex: null, debugFrames: [], debugScrubIndex: null });
   },
   stop: () => {
     stopAllSounds();
     useRunnerStore.getState().frameHistory.forEach((f) => URL.revokeObjectURL(f.url));
-    set({ inputPrompt: null, running: false, canvasActive: false, paused: false, frameHistory: [], scrubIndex: null });
+    set({ inputPrompt: null, running: false, canvasActive: false, paused: false, frameHistory: [], scrubIndex: null, debugFrames: [], debugScrubIndex: null });
   },
 
   respondToInput: (value) => {
@@ -457,6 +470,9 @@ export function getWorker(): Worker {
     inputTransform: InputTransform,
     watchTransform: WatchTransform,
     syntaxHints: SyntaxHints,
+    pi3Init: Pi3Init,
+    pi3Debug: Pi3Debug,
+    debugTransform: DebugTransform,
   } satisfies WorkerCommand);
   return worker;
 }

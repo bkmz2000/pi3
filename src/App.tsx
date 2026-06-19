@@ -27,6 +27,7 @@ import { commentExtension, setCommentsEffect } from "./editor/comments";
 import { ProjectsPage } from "./components/projects";
 import TeacherDashboard from "./components/teacher/TeacherDashboard";
 import TeacherProjectView from "./components/teacher/TeacherProjectView";
+import CompetePage from "./compete/CompetePage";
 import { useUser } from "./state/useUser";
 import { useTranslation } from "react-i18next";
 import ForkDialog from "./components/dialogs/ForkDialog";
@@ -509,6 +510,7 @@ export default function App() {
         <Route path="/projects" element={<ProjectsPage />} />
         <Route path="/teacher" element={<TeacherDashboard />} />
         <Route path="/teacher/projects/:projectId" element={<TeacherProjectView />} />
+        <Route path="/compete/:slug" element={<CompetePage />} />
         <Route path="/ide/:projectId" element={<AppInner />} />
         <Route path="/" element={<AppInner />} />
       </Routes>

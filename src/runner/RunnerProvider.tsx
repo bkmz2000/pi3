@@ -412,7 +412,7 @@ function hardKillWorker() {
   useRunnerStore.getState()._bumpEpoch();
 }
 
-function getWorker(): Worker {
+export function getWorker(): Worker {
   if (worker) return worker;
 
   worker = createRunnerWorker();

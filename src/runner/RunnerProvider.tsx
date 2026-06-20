@@ -517,6 +517,81 @@ function wireEvents(canvas: HTMLCanvasElement): () => void {
   };
 }
 
+/**
+ * Run code once with stdin injection. Returns stdout + error flags.
+ * Used by the compete submit runner to judge individual test cases.
+ * timeLimitMs: if the code runs longer, returns tle=true via interrupt buffer.
+ */
+export function runOnce(
+  code: string,
+  stdin: string,
+  timeLimitMs: number = 2000,
+): Promise<{ stdout: string; runtimeError: boolean; tle: boolean }> {
+  return new Promise((resolve) => {
+    const w = getWorker();
+    const stdoutChunks: string[] = [];
+    let settled = false;
+    let tleFired = false;
+    let runtimeError = false;
+
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      w.removeEventListener("message", handler);
+      clearTimeout(tleTimer);
+      resolve({ stdout: stdoutChunks.join(""), runtimeError, tle: tleFired });
+    };
+
+    const handler = (e: MessageEvent<WorkerEvent>) => {
+      const msg = e.data;
+      if (msg.type === "stdout") {
+        stdoutChunks.push(msg.text);
+      } else if (msg.type === "runtime_error") {
+        runtimeError = true;
+        // result message follows — finish() there
+      } else if (msg.type === "result") {
+        finish();
+      }
+    };
+
+    w.addEventListener("message", handler);
+
+    const tleTimer = setTimeout(() => {
+      tleFired = true;
+      if (interruptBuffer) {
+        interruptBuffer[0] = 2;
+        w.postMessage({ cmd: "interrupt" } satisfies WorkerCommand);
+        // result will arrive after worker handles interrupt
+      } else {
+        hardKillWorker();
+        finish();
+      }
+    }, timeLimitMs);
+
+    // Defensive: zero interrupt buffer before each test
+    if (interruptBuffer) interruptBuffer[0] = 0;
+    outputQueue = [];
+    useRunnerStore.getState().clear();
+    useRunnerStore.getState().setRunning(true);
+
+    const injected =
+      `import io as _pi3_io\n` +
+      `_pi3_data = _pi3_io.StringIO(${JSON.stringify(stdin)})\n` +
+      `async def _async_input(prompt=''):\n` +
+      `    _line = _pi3_data.readline()\n` +
+      `    return _line.rstrip('\\n') if _line else ''\n` +
+      `del _pi3_io\n` +
+      code;
+
+    w.postMessage({
+      cmd: "run",
+      files: { "solution.py": injected },
+      assets: {},
+      entry: "solution.py",
+    } satisfies WorkerCommand);
+  });
+}
+
 export function useRunner() {
   const { ready, running, output, clear, pushErrorCard, inputPrompt, respondToInput, canvasActive, canvasWidth, canvasHeight, canvasScale, lintErrors, _appendOutput, applySuggestion, watches, paused, speed, setPaused, setSpeed, frameHistory, scrubIndex, scrubTo } =
     useRunnerStore();

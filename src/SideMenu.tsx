@@ -21,6 +21,7 @@ import { CloseButton } from "./components/CloseButton";
 
 import AssetEditor, { type AssetEditorMode } from "./AssetEditor";
 import ExamplesPanel from "./ExamplesPanel";
+import ProblemsPanel from "./ProblemsPanel";
 const DocsPanel = lazy(() => import("./components/DocsPanel"));
 
 // ── Logo ───────────────────────────────────
@@ -329,6 +330,14 @@ export default function Rail() {
           theme={theme}
         />
 
+        <RailButton
+          icon="nodes"
+          label={t('compete.problems')}
+          active={isOpen("problems")}
+          onClick={() => togglePanel("problems")}
+          theme={theme}
+        />
+
         <div style={{ position: "relative", marginTop: 4, marginBottom: 4 }}>
           <button
             type="button"
@@ -450,6 +459,9 @@ export default function Rail() {
                 onClose={closePanels}
               />
             </Suspense>
+          )}
+          {activePanel === "problems" && (
+            <ProblemsPanel onClose={closePanels} />
           )}
         </div>
       )}

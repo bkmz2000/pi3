@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { getDb } from '../db/index.js';
 import { assignHandle } from '../db/handle.js';
 import { authMiddleware, regenerateSession } from '../middleware/auth.js';
+import { authAdapter, AuthProviderError } from '../auth-providers/index.js';
 
 const router = Router();
 
@@ -11,76 +12,11 @@ function isSafeReturnUrl(url: string): boolean {
   return url.startsWith('/') && !url.startsWith('//') && !url.includes('\\');
 }
 
-const DOMAIN = process.env.LOGINUS_DOMAIN || 'https://loginus.ru';
-const CLIENT_ID = process.env.LOGINUS_CLIENT_ID || '';
-const CLIENT_SECRET = process.env.LOGINUS_CLIENT_SECRET || '';
 const DEFAULT_BASE_URL = process.env.NODE_ENV === 'production' ? 'https://pi3.sys5.ru' : 'http://localhost:3001';
 const APP_BASE_URL = process.env.APP_BASE_URL || DEFAULT_BASE_URL;
 const REDIRECT_URI = `${APP_BASE_URL}/api/auth/callback`;
-const TEACHER_ROLE = process.env.LOGINUS_TEACHER_ROLE || 'teacher';
-// Use SESSION_SECRET for state signing (validated at bootstrap)
 const STATE_SECRET = process.env.SESSION_SECRET || 'dev-secret-change-in-production';
 const IS_PROD = process.env.NODE_ENV === 'production';
-
-interface LoginusUserinfo {
-  id: string;
-  email?: string;
-  firstName?: string;
-  lastName?: string;
-  preferred_username?: string;
-  globalRoles?: { name: string }[];
-}
-
-interface LoginusTokenResponse {
-  access_token: string;
-  id_token?: string;
-}
-
-class AuthProviderError extends Error {
-  constructor(public code: string, message: string) {
-    super(message);
-    this.name = 'AuthProviderError';
-  }
-}
-
-function parseLoginusToken(raw: unknown): LoginusTokenResponse {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const data = typeof raw === 'object' && raw !== null ? (raw as any) : {};
-  const payload = data.data ?? data;
-
-  if (typeof payload.access_token !== 'string' || payload.access_token.length === 0) {
-    throw new AuthProviderError('token', 'Missing or invalid access_token');
-  }
-
-  return {
-    access_token: payload.access_token,
-    id_token: typeof payload.id_token === 'string' ? payload.id_token : undefined,
-  };
-}
-
-function parseLoginusUserinfo(raw: unknown): LoginusUserinfo {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const data = typeof raw === 'object' && raw !== null ? (raw as any) : {};
-  const payload = data.data ?? data;
-
-  if (typeof payload.id !== 'string' || payload.id.length === 0) {
-    throw new AuthProviderError('userinfo', 'Missing or invalid id');
-  }
-
-  return {
-    id: payload.id,
-    email: typeof payload.email === 'string' ? payload.email : undefined,
-    firstName: typeof payload.firstName === 'string' ? payload.firstName : undefined,
-    lastName: typeof payload.lastName === 'string' ? payload.lastName : undefined,
-    preferred_username: typeof payload.preferred_username === 'string' ? payload.preferred_username : undefined,
-    globalRoles: Array.isArray(payload.globalRoles) ? payload.globalRoles : undefined,
-  };
-}
-
-function mapProviderRoleToAppRole(userinfo: LoginusUserinfo): 'student' | 'teacher' {
-  const isTeacher = userinfo.globalRoles?.some((r) => r.name === TEACHER_ROLE) ?? false;
-  return isTeacher ? 'teacher' : 'student';
-}
 
 function signState(state: string): string {
   const sig = createHmac('sha256', STATE_SECRET).update(state).digest('hex');
@@ -107,13 +43,11 @@ router.get('/login', (req: Request, res: Response): void => {
   const rawReturnUrl = typeof req.query.return_url === 'string' ? req.query.return_url : undefined;
   const returnUrl = rawReturnUrl && isSafeReturnUrl(rawReturnUrl) ? rawReturnUrl : '/';
 
-  // Store state in a dedicated cookie instead of the session so it survives
-  // the cross-site redirect regardless of session cookie SameSite/Secure issues.
   res.cookie('oauth_state', signState(state), {
     httpOnly: true,
     secure: IS_PROD,
     sameSite: 'lax',
-    maxAge: 10 * 60 * 1000, // 10 min
+    maxAge: 10 * 60 * 1000,
     path: '/',
   });
 
@@ -127,14 +61,8 @@ router.get('/login', (req: Request, res: Response): void => {
     });
   }
 
-  // No `prompt`: best-known good for first-time login (works in incognito).
-  // Tried prompt=login (loops via /ru/auth ⇄ /api/v2/oauth/authorize when the
-  // user has a live Loginus session) and prompt=consent (lands the user on
-  // Loginus's /ru/dashboard without ever completing the OAuth round-trip).
-  // The SSO loop is on the Loginus side and needs their IT to investigate —
-  // not solvable from our params.
   const params = new URLSearchParams({
-    client_id: CLIENT_ID,
+    client_id: authAdapter.clientId,
     redirect_uri: REDIRECT_URI,
     response_type: 'code',
     scope: 'openid email profile',
@@ -142,7 +70,7 @@ router.get('/login', (req: Request, res: Response): void => {
     nonce,
   });
 
-  res.redirect(`${DOMAIN}/api/v2/oauth/authorize?${params}`);
+  res.redirect(`${authAdapter.authorizationUrl}?${params}`);
 });
 
 // GET /api/auth/callback
@@ -177,14 +105,14 @@ router.get('/callback', async (req: Request, res: Response): Promise<void> => {
   let access_token: string;
   let id_token: string | undefined;
   try {
-    const tokenRes = await fetch(`${DOMAIN}/api/v2/oauth/token`, {
+    const tokenRes = await fetch(authAdapter.tokenUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
         grant_type: 'authorization_code',
         code,
-        client_id: CLIENT_ID,
-        client_secret: CLIENT_SECRET,
+        client_id: authAdapter.clientId,
+        client_secret: authAdapter.clientSecret,
         redirect_uri: REDIRECT_URI,
       }),
     });
@@ -193,9 +121,9 @@ router.get('/callback', async (req: Request, res: Response): Promise<void> => {
       res.redirect('/?auth_error=token');
       return;
     }
-    const tokenData = parseLoginusToken(await tokenRes.json());
-    access_token = tokenData.access_token;
-    id_token = tokenData.id_token;
+    const parsed = authAdapter.parseTokenResponse(await tokenRes.json());
+    access_token = parsed.access_token;
+    id_token = parsed.id_token;
   } catch (err) {
     if (err instanceof AuthProviderError) {
       console.error(`Token exchange error (${err.code}):`, err.message);
@@ -208,9 +136,12 @@ router.get('/callback', async (req: Request, res: Response): Promise<void> => {
   }
 
   // Fetch userinfo
-  let userinfo: LoginusUserinfo;
+  let providerId: string;
+  let userName: string;
+  let userEmail: string | undefined;
+  let userRole: 'student' | 'teacher';
   try {
-    const userinfoRes = await fetch(`${DOMAIN}/api/v2/oauth/userinfo`, {
+    const userinfoRes = await fetch(authAdapter.userinfoUrl, {
       headers: { Authorization: `Bearer ${access_token}` },
     });
     if (!userinfoRes.ok) {
@@ -218,7 +149,11 @@ router.get('/callback', async (req: Request, res: Response): Promise<void> => {
       res.redirect('/?auth_error=userinfo');
       return;
     }
-    userinfo = parseLoginusUserinfo(await userinfoRes.json());
+    const user = authAdapter.parseUserinfo(await userinfoRes.json());
+    providerId = user.providerId;
+    userName   = user.name;
+    userEmail  = user.email;
+    userRole   = user.role;
   } catch (err) {
     if (err instanceof AuthProviderError) {
       console.error(`Userinfo fetch error (${err.code}):`, err.message);
@@ -230,26 +165,17 @@ router.get('/callback', async (req: Request, res: Response): Promise<void> => {
     return;
   }
 
-  const role = mapProviderRoleToAppRole(userinfo);
-  const rawName = userinfo.preferred_username
-    || [userinfo.firstName, userinfo.lastName].filter(Boolean).join(' ')
-    || userinfo.email
-    || userinfo.id
-    || 'Unknown';
-  // Loginus prefixes preferred_username with role markers like "[П] " or "[Т] ".
-  const name = rawName.replace(/^\s*\[[\p{L}\d]{1,3}\]\s*/u, '').trim() || rawName;
-
   const db = getDb();
   const existing = db
     .prepare('SELECT id FROM users WHERE oauth_provider_id = ?')
-    .get(userinfo.id) as { id: string } | undefined;
+    .get(providerId) as { id: string } | undefined;
 
   let userId: string;
   const now = Date.now();
 
   if (existing) {
     db.prepare('UPDATE users SET name = ?, role = ?, updated_at = ? WHERE id = ?')
-      .run(name, role, now, existing.id);
+      .run(userName, userRole, now, existing.id);
     userId = existing.id;
   } else {
     userId = uuidv4();
@@ -258,7 +184,17 @@ router.get('/callback', async (req: Request, res: Response): Promise<void> => {
     db.prepare(`
       INSERT INTO users (id, api_token, name, role, oauth_provider_id, handle, handle_seq, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(userId, api_token, name, role, userinfo.id, handle, seq, now, now);
+    `).run(userId, api_token, userName, userRole, providerId, handle, seq, now, now);
+  }
+
+  // Store email update separately if the schema has the column (best-effort)
+  if (userEmail) {
+    try {
+      db.prepare('UPDATE users SET email = ?, updated_at = ? WHERE id = ?')
+        .run(userEmail, now, userId);
+    } catch {
+      // email column may not exist in older schemas; non-fatal
+    }
   }
 
   try {
@@ -273,23 +209,26 @@ router.get('/callback', async (req: Request, res: Response): Promise<void> => {
 });
 
 // POST /api/auth/logout
-//
-// Local-only logout per the Loginus integration doc: destroy the server-side
-// session, clear the session cookie, rotate the api_token so any leaked bearer
-// stops working. We deliberately do NOT redirect to Loginus's end_session
-// endpoint — its post_logout_redirect_uri allowlist isn't configured for this
-// client, and the integration contract states logout must complete even if
-// Loginus is unavailable. Side-effect: the user stays signed in to Loginus
-// globally (standard SSO behavior).
 router.post('/logout', authMiddleware, (req: Request, res: Response): void => {
   const db = getDb();
   const newToken = uuidv4().replace(/-/g, '') + uuidv4().replace(/-/g, '');
   db.prepare('UPDATE users SET api_token = ?, updated_at = ? WHERE id = ?')
     .run(newToken, Date.now(), req.user!.id);
 
+  const idToken = req.session.idToken;
   req.session.destroy(() => {
     res.clearCookie('connect.sid');
-    res.json({ ok: true });
+
+    // RP-initiated logout for providers that support it (e.g. Keycloak).
+    if (authAdapter.endSessionUrl && idToken) {
+      const params = new URLSearchParams({
+        id_token_hint: idToken,
+        client_id: authAdapter.clientId,
+      });
+      res.json({ ok: true, endSessionUrl: `${authAdapter.endSessionUrl}?${params}` });
+    } else {
+      res.json({ ok: true });
+    }
   });
 });
 

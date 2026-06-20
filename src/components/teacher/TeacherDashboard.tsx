@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 import { useThemeStore } from '../../state/useTheme';
 import { useUser } from '../../state/useUser';
 import { useNotifications } from '../../state/useNotifications';
@@ -17,6 +18,7 @@ export default function TeacherDashboard() {
   const { user } = useUser();
   const [section, setSection] = useState<Section>('groups');
   const { helpRequests } = useNotifications();
+  const navigate = useNavigate();
 
   return (
     <div style={{
@@ -57,6 +59,7 @@ export default function TeacherDashboard() {
           <div style={{ width: 200, flex: 'none', background: theme.surfacePanel, borderRight: `1px solid ${theme.panelBorder}`, padding: '12px 8px', display: 'flex', flexDirection: 'column', gap: 2 }}>
             <NavItem label={t('teacher.groups')} active={section === 'groups'} onClick={() => setSection('groups')} />
             <NavItem label={t('teacher.studentProjects')} active={section === 'projects'} onClick={() => setSection('projects')} />
+            <NavItem label={t('teacher.problems')} active={false} onClick={() => navigate('/teacher/problems')} />
             <div style={{ position: 'relative' }}>
               <NavItem label={t('teacher.helpRequests')} active={section === 'help'} onClick={() => setSection('help')} />
               {helpRequests.length > 0 && (

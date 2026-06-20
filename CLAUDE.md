@@ -166,27 +166,36 @@ Service worker at `public/sw.js` (cache name `webide-v4`). Caches Pyodide CDN as
 
 ### OAuth & Authentication
 
-**OAuth Provider:** Loginus (lk.systematika.org)
+The active provider is selected by `AUTH_PROVIDER=loginus|keycloak` (default: `loginus`). Provider adapters live in `server/auth-providers/`.
 
-**Environment Variables** (server-side):
+**Loginus env vars** (AUTH_PROVIDER=loginus, the current default):
 - `LOGINUS_DOMAIN` — OAuth provider URL (default: `https://loginus.ru`)
 - `LOGINUS_CLIENT_ID` — OAuth client ID
 - `LOGINUS_CLIENT_SECRET` — OAuth client secret
 - `LOGINUS_TEACHER_ROLE` — Role name for teachers (default: `teacher`)
 
+**Keycloak env vars** (AUTH_PROVIDER=keycloak, pending migration):
+- `KEYCLOAK_URL` — Keycloak server base URL, e.g. `https://auth.example.com`
+- `KEYCLOAK_REALM` — Realm name, e.g. `pi3`
+- `KEYCLOAK_CLIENT_ID` — OAuth client ID
+- `KEYCLOAK_CLIENT_SECRET` — OAuth client secret
+- `KEYCLOAK_TEACHER_ROLE` — Role name for teachers (default: `teacher`)
+
+Keycloak uses standard OIDC endpoints under `{KEYCLOAK_URL}/realms/{KEYCLOAK_REALM}/protocol/openid-connect/`. Roles are read from `realm_access.roles[]` or a top-level `roles[]` userinfo claim (configure a "User Realm Role" userinfo mapper in Keycloak).
+
 **Auth Routes:**
 - `GET /api/auth/login` — Initiates OAuth flow with state/nonce generation
 - `GET /api/auth/callback` — OAuth callback; validates state, exchanges code for tokens, creates session
-- `POST /api/auth/logout` — Revokes session and redirects to OAuth logout (if id_token present)
+- `POST /api/auth/logout` — Revokes session; for Keycloak returns `endSessionUrl` in JSON so the client can redirect to RP-initiated logout
 
 **Key Implementation Details:**
 - OAuth state and return URL stored in httpOnly cookies with `path: '/'` and `sameSite: 'lax'` (critical for callback validation)
 - State is cryptographically signed with `SESSION_SECRET` using HMAC-SHA256
-- Session created via `express-session` with settings in `server/index.ts` 
+- Session created via `express-session` with settings in `server/index.ts`
 - `authMiddleware` in `server/middleware/auth.ts` validates Bearer tokens and session cookies
 - Frontend auth flow: `useUser` → `checkSession()` on mount → `getMe()` API call to verify session
 - Password auth can be enabled via `ALLOW_PASSWORD_AUTH=true` environment variable
-- See `LOGINUS_AUTH_INTEGRATION_UNIVERSAL.md` for complete OAuth integration guide
+- See `LOGINUS_AUTH_INTEGRATION_UNIVERSAL.md` for the original Loginus integration guide
 
 ### API Surface Snapshot
 

@@ -46,16 +46,13 @@ const config = {
   // Rule: these only move UP. Bump the relevant slot in the same PR that adds a
   // tier's tests. Path-specific keys are checked independently and subtracted
   // from the global pool, so each area regresses (and gates) on its own.
-  //
-  // Global floors recalibrated 2026-06-21: debug tools (DBG-1–5) landed on main
-  // without unit tests, lowering the global residual. Pre-push hook now gates
-  // future drops. src/state/ and src/utils/ were unaffected and unchanged.
+  // Global floors recalibrated after compete-mode + DBG tools on main.
   coverageThreshold: {
     global: {
-      branches: 16,
-      functions: 16,
-      lines: 25,
-      statements: 25,
+      branches: 17,
+      functions: 20,
+      lines: 27,
+      statements: 27,
     },
     './src/state/': {
       branches: 48,

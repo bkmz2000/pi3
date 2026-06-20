@@ -11,23 +11,54 @@ export interface ExampleRun {
   passed: boolean;
 }
 
-export type SubmitVerdict = 'accepted' | 'wrong_answer' | 'runtime_error' | 'time_limit';
+export type SubmitVerdict = 'ok' | 'wa' | 'tle' | 'rte';
 
 export interface SubmitState {
   verdict: SubmitVerdict;
-  publicResults: { testId: string; passed: boolean }[];
-  hiddenPassed: number;
-  hiddenTotal: number;
+  stars: 0 | 1 | 2 | 3;
+  failedTest?: number;
+  failedTier?: 1 | 2 | 3;
 }
 
 export interface Problem {
   slug: string;
   title: string;
-  difficulty: number;
-  tags: string[];
-  acceptedPct: number;
   statement: string;
-  visibleTests: ProblemTest[];
-  hiddenTestCount: number;
-  starterCode: string;
+  starter_code: string;
+  order_index: number;
+  visibleTests: ServerTest[];
+}
+
+export interface ServerTest {
+  id: number;
+  ordinal: number;
+  tier: number;
+  input: string;
+  expected: string;
+  is_visible?: number;
+}
+
+export type Tier = 1 | 2 | 3;
+
+export interface SubmitTestCase {
+  ordinal: number;
+  tier: Tier;
+  input: string;
+  expected: string;
+}
+
+export type SubmitResult =
+  | { verdict: 'ok'; stars: 3 }
+  | { verdict: 'wa' | 'tle' | 'rte'; stars: 0 | 1 | 2; failedTier: Tier; failedTest: number };
+
+export interface ProblemListItem {
+  id: number;
+  slug: string;
+  title: string;
+  order_index: number;
+}
+
+export interface BestStars {
+  problem_id: number;
+  best_stars: number;
 }

@@ -58,6 +58,44 @@ export function initDb(): void {
     `ALTER TABLE projects ADD COLUMN thumbnail BLOB`,
     `ALTER TABLE projects ADD COLUMN thumbnail_updated_at INTEGER`,
     `ALTER TABLE projects ADD COLUMN sheet TEXT`,
+    // Compete mode tables (009)
+    `CREATE TABLE IF NOT EXISTS problems (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      slug TEXT NOT NULL UNIQUE,
+      title TEXT NOT NULL,
+      statement TEXT NOT NULL,
+      order_index INTEGER NOT NULL DEFAULT 0,
+      starter_code TEXT NOT NULL DEFAULT '',
+      archived INTEGER NOT NULL DEFAULT 0,
+      created_by TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_problems_archived_order ON problems(archived, order_index)`,
+    `CREATE TABLE IF NOT EXISTS problem_tests (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      problem_id INTEGER NOT NULL REFERENCES problems(id) ON DELETE CASCADE,
+      tier INTEGER NOT NULL,
+      is_visible INTEGER NOT NULL DEFAULT 0,
+      ordinal INTEGER NOT NULL,
+      input TEXT NOT NULL,
+      expected TEXT NOT NULL,
+      UNIQUE(problem_id, ordinal)
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_tests_problem_tier ON problem_tests(problem_id, tier, ordinal)`,
+    `CREATE TABLE IF NOT EXISTS submissions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id TEXT NOT NULL,
+      problem_id INTEGER NOT NULL REFERENCES problems(id),
+      code TEXT NOT NULL,
+      stars INTEGER NOT NULL,
+      verdict TEXT NOT NULL,
+      failed_test INTEGER,
+      failed_tier INTEGER,
+      ts TEXT NOT NULL DEFAULT (datetime('now'))
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_submissions_user_problem ON submissions(user_id, problem_id, ts DESC)`,
+    `CREATE INDEX IF NOT EXISTS idx_submissions_problem ON submissions(problem_id, ts DESC)`,
   ];
   for (const stmt of migrations) {
     try {
@@ -83,6 +121,9 @@ export function initDb(): void {
 export function resetDatabase(): void {
   const database = getDb();
   database.exec(`
+    DROP TABLE IF EXISTS submissions;
+    DROP TABLE IF EXISTS problem_tests;
+    DROP TABLE IF EXISTS problems;
     DROP TABLE IF EXISTS help_requests;
     DROP TABLE IF EXISTS comments;
     DROP TABLE IF EXISTS group_members;

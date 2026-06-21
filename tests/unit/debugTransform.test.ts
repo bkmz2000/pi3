@@ -8,10 +8,9 @@ const ROOT = resolve(__dirname, "../..");
 const PYTHONPATH = resolve(ROOT, "src/assets/python");
 
 function transform(source: string): string {
-  const escaped = JSON.stringify(source);
   return execSync(
-    `python3 -c "import debug_transform; print(debug_transform.transform(${escaped}), end='')"`,
-    { cwd: ROOT, env: { ...process.env, PYTHONPATH }, encoding: "utf8" },
+    `python3 -c "import debug_transform, sys; print(debug_transform.transform(sys.stdin.read()), end='')"`,
+    { cwd: ROOT, env: { ...process.env, PYTHONPATH }, encoding: "utf8", input: source },
   );
 }
 

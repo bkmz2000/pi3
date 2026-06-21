@@ -1,0 +1,20 @@
+# MUST match the FROM in Dockerfile exactly (node:22-alpine).
+FROM node:22-alpine
+
+WORKDIR /app
+
+# better-sqlite3 native build.
+RUN apk add --no-cache python3 build-base
+
+COPY package.json package-lock.json .npmrc ./
+RUN npm ci
+
+COPY . .
+
+# Four CI gates. Container exits non-zero on any failure.
+CMD ["sh", "-c", "\
+    npm run lint && \
+    npm run typecheck && \
+    npm run test:ci && \
+    npm run test:server:ci \
+"]

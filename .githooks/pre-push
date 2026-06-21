@@ -1,0 +1,15 @@
+#!/bin/sh
+set -e
+
+echo "→ Running containerized test gate..."
+echo
+
+if ! make test; then
+    echo
+    echo "✗ Tests failed. Push refused."
+    echo "  To bypass (use sparingly): git push --no-verify"
+    exit 1
+fi
+
+echo
+echo "✓ All gates passed. Push proceeding."

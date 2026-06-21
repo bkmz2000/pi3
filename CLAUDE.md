@@ -44,12 +44,37 @@ npm run test:smoke
 npm run test:puppeteer
 ```
 
+## Local development setup
+
+After cloning, run once:
+
+```bash
+make install-hooks
+```
+
+This installs a pre-push hook that runs `make test` (containerized lint,
+typecheck, frontend tests, server tests) before allowing the push. Use
+`git push --no-verify` only if you know why you're bypassing the gate.
+
+**Deploying to the VPS:**
+
+```bash
+# Set your VPS host (once, gitignored):
+echo "VPS=user@host" > Makefile.local
+
+make deploy    # runs tests → builds image → ships to VPS
+make rollback  # reverts to the previously-deployed image
+```
+
+GitHub Actions (`ci.yml`, `deploy.yml`) have been removed. The pre-push
+hook is the sole test gate. The VPS deploy is manual via `make deploy`.
+
 ## Testing & CI Gates
 
-CI (`.github/workflows/ci.yml`) runs four required jobs before `docker-e2e`:
-`lint`, `typecheck`, `test` (frontend `test:ci`, coverage-gated), and
-`server-tests` (`test:server:ci`, coverage-gated). `docker-e2e` runs the
-Puppeteer production suite + sprite-editor suite.
+The four gates run in `make test` (containerized via `Dockerfile.test`):
+`lint`, `typecheck`, `test:ci` (frontend, coverage-gated), and
+`test:server:ci` (server, coverage-gated). `docker-e2e` (Puppeteer) is
+run manually; it is not part of the automated gate.
 
 **The coverage ratchet.** Thresholds in `jest.config.cjs` and
 `server/tests/jest.server.config.js` are seeded at *real measured actuals*, not

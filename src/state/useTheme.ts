@@ -56,6 +56,8 @@ export interface Theme {
   runBg: string;
   runTxt: string;
   stopBg: string;
+  submitBg: string;
+  submitTxt: string;
 
   canvasFrame: string;
   canvasBorder: string;
@@ -157,6 +159,8 @@ const THEMES: Record<ThemeId, Theme> = {
     runBg: "#34a853",
     runTxt: "#ffffff",
     stopBg: "#ef4444",
+    submitBg: "#2563eb",
+    submitTxt: "#ffffff",
     canvasFrame: "#0a3d44",
     canvasBorder: "rgba(255,255,255,0.10)",
     canvasTitle: "#0a3d44",
@@ -230,6 +234,8 @@ const THEMES: Record<ThemeId, Theme> = {
     runBg: "#7ed3a4",
     runTxt: "#062a26",
     stopBg: "#ff8b8b",
+    submitBg: "#3b82f6",
+    submitTxt: "#ffffff",
     canvasFrame: "#031518",
     canvasBorder: "rgba(255,255,255,0.06)",
     canvasTitle: "#031518",

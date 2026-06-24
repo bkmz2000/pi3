@@ -1,35 +1,29 @@
-.PHONY: test build install-hooks deploy rollback
-
-BRANCH ?= $(shell git branch --show-current)
-SHA    := $(shell git rev-parse --short HEAD)
-
-# Override in Makefile.local or via env: VPS=user@host make deploy
-VPS ?= pi3@vps.example.com
+GITHUB_USER := bkmz2000
+IMAGE       := ghcr.io/$(GITHUB_USER)/pi3
+SHA         := $(shell git rev-parse --short HEAD)
 
 -include Makefile.local
 
-# Run all four CI gates inside a container that mirrors production's base image.
-test:
-	docker build -f Dockerfile.test -t pi3-test:latest .
-	docker run --rm pi3-test:latest
+.PHONY: deploy build push remote-deploy test
 
-# Build the production image, tagged by commit SHA for rollback.
+deploy: test build push remote-deploy
+
 build:
-	docker build -t pi3:$(SHA) .
+	docker build -t $(IMAGE):$(SHA) -t $(IMAGE):latest .
 
-# One-time setup after clone.
-install-hooks:
-	git config core.hooksPath .githooks
-	chmod +x .githooks/pre-push
-	@echo "✓ Pre-push hook installed."
+push:
+	@echo "→ Logging in to GHCR..."
+	@gh auth token | docker login ghcr.io -u $(GITHUB_USER) --password-stdin
+	@echo "→ Pushing $(IMAGE):$(SHA)..."
+	docker push $(IMAGE):$(SHA)
+	docker push $(IMAGE):latest
 
-# Deploy main to production VPS.
-deploy: test build
-	@echo "→ Transferring image pi3:$(SHA) to $(VPS)..."
-	docker save pi3:$(SHA) | gzip | ssh $(VPS) "gunzip | docker load"
-	@echo "→ Running remote deploy..."
-	ssh $(VPS) "bash -s" -- "$(SHA)" < scripts/remote-deploy.sh
-
-# Revert production to the previously-deployed image.
-rollback:
-	ssh $(VPS) "bash -s" -- "rollback" < scripts/remote-deploy.sh
+remote-deploy:
+	@echo "→ Deploying on VPS..."
+	@ssh $(VPS) " \
+		set -e && \
+		cd /app/pi3 && \
+		docker compose pull && \
+		docker compose up -d && \
+		echo '✓ Done' \
+	"

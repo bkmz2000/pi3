@@ -958,6 +958,7 @@
     "stars": "{{count}} ★",
     "failedOn": "Провал на тесте {{n}}, уровень {{tier}}",
     "runningTier": "Уровень {{tier}}, тест {{n}} из {{total}}…",
+    "testN": "Тест #{{n}}",
     "noProblems": "Задач пока нет.",
     "problems": "Задачи"
   },

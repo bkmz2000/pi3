@@ -43,6 +43,11 @@ jest.mock("react-router-dom", () => ({
   useParams: () => ({ slug: "sum-two" }),
 }));
 
+// Mock Rail (SideMenu) — it has complex hook dependencies not needed here
+jest.mock("../../src/SideMenu", () => ({
+  __esModule: true,
+  default: () => null,
+}));
 // Mock DebugPanel and CompeteLeft (CodeMirror is ESM-only in jsdom)
 jest.mock("../../src/components/DebugPanel", () => ({
   __esModule: true,

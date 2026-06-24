@@ -958,6 +958,7 @@
     "stars": "{{count}} ★",
     "failedOn": "Failed on test {{n}}, tier {{tier}}",
     "runningTier": "Running tier {{tier}}, test {{n}} of {{total}}…",
+    "testN": "Test #{{n}}",
     "noProblems": "No problems available.",
     "problems": "Problems"
   },

@@ -47,7 +47,7 @@ const CATEGORY_COLORS: Record<string, { bg: string; border: string; text: string
   internal: { bg: "#f1f5f9", border: "#94a3b8", text: "#334155" },
 };
 
-function ErrorCard({ error }: { error: RuntimeError }) {
+export function ErrorCard({ error }: { error: RuntimeError }) {
   const { t } = useTranslation();
   const { applySuggestion } = useRunner();
   const [showRaw, setShowRaw] = useState(false);

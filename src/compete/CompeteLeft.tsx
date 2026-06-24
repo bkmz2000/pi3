@@ -2,9 +2,11 @@ import { useRef, useEffect } from "react";
 import CodeMirror, { type ReactCodeMirrorRef } from "@uiw/react-codemirror";
 import { python } from "@codemirror/lang-python";
 import { EditorView } from "@codemirror/view";
-import { githubDark } from "@uiw/codemirror-theme-github";
+import { githubLight, githubDark } from "@uiw/codemirror-theme-github";
 import { useThemeStore } from "../state/useTheme";
+import { ErrorCard } from "../components/ConsolePanel";
 import type { ExampleRun } from "./types";
+import type { RuntimeError } from "../runner/WorkerInterface";
 
 const CM_EXTENSIONS = [
   python(),
@@ -35,7 +37,7 @@ export default function CompeteLeft({
 }: {
   code: string;
   onCodeChange: (v: string) => void;
-  output: { kind: string; text?: string }[];
+  output: { kind: string; text?: string; error?: unknown }[];
   running: boolean;
   consoleOpen: boolean;
   onToggleConsole: () => void;
@@ -45,6 +47,8 @@ export default function CompeteLeft({
   exampleRuns: ExampleRun[];
 }) {
   const theme = useThemeStore((s) => s.theme);
+  const themeId = useThemeStore((s) => s.themeId);
+  const cmTheme = themeId === 'midnight' ? githubDark : githubLight;
   const cmRef = useRef<ReactCodeMirrorRef>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -58,7 +62,7 @@ export default function CompeteLeft({
   const allPass = exampleRuns.length > 0 && passCount === exampleRuns.length;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', borderRight: `1px solid ${theme.panelBorder}` }}>
+    <div style={{ display: 'flex', flexDirection: 'column', flex: '0 0 50%', minWidth: 0, borderRight: `1px solid ${theme.panelBorder}` }}>
       {/* Toolbar */}
       <div style={{
         height: 40,
@@ -71,9 +75,10 @@ export default function CompeteLeft({
         flex: 'none',
       }}>
         <span style={{
-          padding: '1px 7px', borderRadius: 4,
-          background: '#3b7a57',
-          fontFamily: theme.fontMono, fontSize: 10.5, color: '#a8e6c1', fontWeight: 700,
+          padding: '1px 7px', borderRadius: theme.radiusCard,
+          background: theme.successPill,
+          fontFamily: theme.fontMono, fontSize: 10.5,
+          color: theme.successPillTxt, fontWeight: 700,
         }}>
           Python
         </span>
@@ -85,8 +90,8 @@ export default function CompeteLeft({
         {exampleRuns.length > 0 && (
           <span style={{
             padding: '1px 8px', borderRadius: 999,
-            background: allPass ? theme.successPill : 'rgba(255,139,139,0.18)',
-            color: allPass ? theme.successPillTxt : '#ff8b8b',
+            background: allPass ? theme.successPill : `${theme.consoleErr}22`,
+            color: allPass ? theme.successPillTxt : theme.consoleErr,
             fontFamily: theme.fontUI, fontSize: 11, fontWeight: 600,
           }}>
             {passCount}/{exampleRuns.length}
@@ -122,8 +127,8 @@ export default function CompeteLeft({
             cursor: running || submitting ? 'default' : 'pointer',
             padding: '4px 14px',
             borderRadius: theme.radiusButton,
-            background: '#2d5ea8',
-            color: '#e8f0ff',
+            background: theme.submitBg,
+            color: theme.submitTxt,
             fontFamily: theme.fontUI,
             fontSize: 12.5,
             fontWeight: 700,
@@ -140,7 +145,7 @@ export default function CompeteLeft({
           ref={cmRef}
           value={code}
           onChange={onCodeChange}
-          theme={githubDark}
+          theme={cmTheme}
           extensions={CM_EXTENSIONS}
           height="100%"
           width="100%"
@@ -172,7 +177,14 @@ export default function CompeteLeft({
           }}
           onClick={onToggleConsole}
         >
-          <span style={{ fontFamily: theme.fontUI, fontSize: 11.5, fontWeight: 600, color: theme.consoleTxtMute, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+          <span style={{
+            fontFamily: theme.fontUI,
+            fontSize: 11.5,
+            fontWeight: 600,
+            color: theme.consoleTxtMute,
+            textTransform: 'uppercase',
+            letterSpacing: 0.5,
+          }}>
             Console
           </span>
           {running && (
@@ -199,7 +211,7 @@ export default function CompeteLeft({
           }}>
             {output.map((line, i) => {
               if (line.kind === 'error_card') {
-                return <div key={i} style={{ color: theme.consoleErr, fontStyle: 'italic' }}>Runtime error</div>;
+                return <ErrorCard key={i} error={line.error as RuntimeError} />;
               }
               return (
                 <div key={i} style={{ color: line.kind === 'stderr' ? theme.consoleErr : theme.consoleTxt, whiteSpace: 'pre-wrap' }}>

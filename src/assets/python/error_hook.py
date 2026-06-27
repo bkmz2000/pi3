@@ -188,6 +188,10 @@ def _build_error_keys(
             m = re.search(r"unsupported operand type.*for\s+\+:\s*'(\w+)'\s+and\s+'(\w+)'", clean)
             if m:
                 return ("friendlyError.types.badOperator", {"op": "+", "left": m.group(1), "right": m.group(2)})
+        if "can only concatenate" in clean:
+            m = re.search(r"can only concatenate (\w+) \(not \"(\w+)\"\)", clean)
+            if m:
+                return ("friendlyError.types.badOperator", {"op": "+", "left": m.group(1), "right": m.group(2)})
         if "object is not callable" in clean:
             return ("friendlyError.types.notCallable", {})
         if "missing" in clean and "required positional argument" in clean:

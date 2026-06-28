@@ -3,7 +3,7 @@ import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import session from 'express-session';
-import { Redis } from 'ioredis';
+import { createClient as createRedisClient } from 'redis';
 import { RedisStore } from 'connect-redis';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
@@ -40,10 +40,11 @@ if (process.env.NODE_ENV === 'production') {
 let sessionStore: session.Store | undefined;
 if (process.env.NODE_ENV !== 'test') {
   if (process.env.UPSTASH_REDIS_URL) {
-    // Production / Vercel: use Upstash Redis
-    const redisClient = new Redis(process.env.UPSTASH_REDIS_URL);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    sessionStore = new RedisStore({ client: redisClient as any });
+    // Production / Vercel: use Upstash Redis via the 'redis' package
+    // (connect-redis v9 uses redis v4+ API; ioredis has an incompatible set() signature)
+    const redisClient = createRedisClient({ url: process.env.UPSTASH_REDIS_URL });
+    redisClient.connect().catch(console.error);
+    sessionStore = new RedisStore({ client: redisClient });
   } else {
     // Local dev: SQLite session store (legacy)
     const { SqliteSessionStore } = await import('./db/sessionStore.js');

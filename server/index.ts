@@ -3,7 +3,7 @@ import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import session from 'express-session';
-import Redis from 'ioredis';
+import { Redis } from 'ioredis';
 import { RedisStore } from 'connect-redis';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
@@ -126,13 +126,6 @@ app.post('/api/log/client-error', (req, res) => {
   res.status(204).end();
 });
 
-app.use('/api/auth', authRouter);
-app.use('/api/users', createUsersRouter(ALLOW_PASSWORD_AUTH));
-app.use('/api/projects', projectsRouter);
-app.use('/api/groups', createGroupsRouter());
-app.use('/api/help-requests', createHelpRequestsRouter());
-app.use('/api', createCompeteRouter());
-
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: Date.now() });
 });
@@ -140,6 +133,13 @@ app.get('/api/health', (req, res) => {
 app.get('/api/config', (req, res) => {
   res.json({ allowPasswordAuth: ALLOW_PASSWORD_AUTH });
 });
+
+app.use('/api/auth', authRouter);
+app.use('/api/users', createUsersRouter(ALLOW_PASSWORD_AUTH));
+app.use('/api/projects', projectsRouter);
+app.use('/api/groups', createGroupsRouter());
+app.use('/api/help-requests', createHelpRequestsRouter());
+app.use('/api', createCompeteRouter());
 
 app.use((req, res, next) => {
   if (!req.path.startsWith('/api/')) {

@@ -23,6 +23,13 @@ declare module 'express' {
   }
 }
 
+declare module 'express-session' {
+  interface SessionData {
+    userId?: string;
+    idToken?: string;
+  }
+}
+
 async function resolveUser(req: Request): Promise<AuthUser | undefined> {
   const client = getClient();
 

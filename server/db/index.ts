@@ -1,5 +1,6 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
+import { fileURLToPath } from 'url';
 import { backfillHandles } from './handle.js';
 import { createLibsqlClient } from './libsql.js';
 import { createSqliteClient } from './sqlite-shim.js';
@@ -46,8 +47,9 @@ export async function initDb(): Promise<void> {
   }
   const c = getClient();
 
-  const schemaPath = join(process.cwd(), 'server/db/migrations/001_initial.sql');
-  const schema2Path = join(process.cwd(), 'server/db/migrations/002_teacher_dashboard.sql');
+  const migrationsDir = fileURLToPath(new URL('migrations', import.meta.url));
+  const schemaPath = join(migrationsDir, '001_initial.sql');
+  const schema2Path = join(migrationsDir, '002_teacher_dashboard.sql');
   for (const stmt of splitSql(readFileSync(schemaPath, 'utf8'))) {
     await swallow(c, stmt);
   }

@@ -168,17 +168,18 @@ app.use((err: Error, req: express.Request, res: express.Response, _next: express
   res.status(500).json({ error: 'Internal Server Error', message: 'An unexpected error occurred' });
 });
 
-// Initialize DB then start listening (skip listen on Vercel — handler is the export)
-initDb().then(() => {
-  if (process.env.VERCEL !== '1') {
+// On Vercel, api/index.ts owns DB init and the handler export.
+// In local dev, initialize here then start listening.
+if (process.env.VERCEL !== '1') {
+  initDb().then(() => {
     app.listen(PORT, () => {
       console.log(`Server running on http://localhost:${PORT}`);
       console.log(`Serving static files from: ${DIST_DIR}`);
     });
-  }
-}).catch((err) => {
-  console.error('DB init failed:', err);
-  process.exit(1);
-});
+  }).catch((err) => {
+    console.error('DB init failed:', err);
+    process.exit(1);
+  });
+}
 
 export default app;

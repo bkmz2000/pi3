@@ -1,5 +1,6 @@
 import Database from 'better-sqlite3';
-import { setTestDb } from '../db/index.js';
+import { setTestClient } from '../db/index.js';
+import { createSqliteClient } from '../db/sqlite-shim.js';
 
 export function createTestDb(): Database.Database {
   const db = new Database(':memory:');
@@ -145,12 +146,13 @@ export function createTestDb(): Database.Database {
     CREATE INDEX IF NOT EXISTS idx_submissions_problem ON submissions(problem_id, ts DESC);
   `);
 
-  setTestDb(db);
+  const client = createSqliteClient(db);
+  setTestClient(client);
   return db;
 }
 
 export function closeTestDb(): void {
-  setTestDb(undefined);
+  setTestClient(undefined);
 }
 
 export default { createTestDb, closeTestDb };

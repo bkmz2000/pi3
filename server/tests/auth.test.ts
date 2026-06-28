@@ -168,6 +168,7 @@ describe('Bearer token invalidation on logout', () => {
 // 8.5 — Logout requires authenticated session (CSRF defense)
 describe('Session-gated logout (CSRF defense)', () => {
   it('logout without session is rejected (401)', async () => {
+    db = createTestDb(); // authMiddleware needs a DB client even to check for no-session
     // Request logout without any authentication
     const res = await request(app)
       .post('/api/auth/logout');

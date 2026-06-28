@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
-import { getDb } from '../db/index.js';
+import { getClient } from '../db/index.js';
+import { first } from '../db/client.js';
 
 export interface AuthUser {
   id: string;
@@ -22,13 +23,15 @@ declare module 'express' {
   }
 }
 
-function resolveUser(req: Request): AuthUser | undefined {
-  const db = getDb();
+async function resolveUser(req: Request): Promise<AuthUser | undefined> {
+  const client = getClient();
 
   if (req.session?.userId) {
-    const user = db
-      .prepare('SELECT id, name, role FROM users WHERE id = ?')
-      .get(req.session.userId) as AuthUser | undefined;
+    const result = await client.execute(
+      'SELECT id, name, role FROM users WHERE id = ?',
+      [req.session.userId],
+    );
+    const user = first<AuthUser>(result);
     if (user) return user;
   }
 
@@ -36,9 +39,11 @@ function resolveUser(req: Request): AuthUser | undefined {
   if (header?.startsWith('Bearer ')) {
     const token = header.slice(7);
     if (token) {
-      const user = db
-        .prepare('SELECT id, name, role FROM users WHERE api_token = ?')
-        .get(token) as AuthUser | undefined;
+      const result = await client.execute(
+        'SELECT id, name, role FROM users WHERE api_token = ?',
+        [token],
+      );
+      const user = first<AuthUser>(result);
       if (user) return user;
     }
   }
@@ -46,15 +51,14 @@ function resolveUser(req: Request): AuthUser | undefined {
   return undefined;
 }
 
-export function authMiddleware(req: Request, res: Response, next: NextFunction): void {
-  // Allow bypassing auth in test environments (E2E tests)
+export async function authMiddleware(req: Request, res: Response, next: NextFunction): Promise<void> {
   if (process.env.SKIP_AUTH === 'true') {
     req.user = { id: 'test-user', name: 'Test User', role: 'student' };
     next();
     return;
   }
 
-  const user = resolveUser(req);
+  const user = await resolveUser(req);
   if (!user) {
     res.status(401).json({ error: 'Unauthorized' });
     return;

@@ -1,4 +1,4 @@
-import { getDb } from '../db/index.js';
+import { getClient } from '../db/index.js';
 
 export type ProjectRole = 'owner' | 'editor' | 'viewer';
 
@@ -28,16 +28,21 @@ const ACCESS_WITH_DATA_SQL = `
   WHERE p.id = ?
 `;
 
-export function getProjectAccess(projectId: string, userId: string): ProjectAccess {
-  const db = getDb();
-  const row = db.prepare(ACCESS_SQL).get(userId, userId, projectId) as { role: ProjectRole | null } | undefined;
+export async function getProjectAccess(projectId: string, userId: string): Promise<ProjectAccess> {
+  const client = getClient();
+  const result = await client.execute(ACCESS_SQL, [userId, userId, projectId]);
+  const row = result.rows[0] as { role: ProjectRole | null } | undefined;
   if (!row) return { exists: false, role: null };
   return { exists: true, role: row.role };
 }
 
-export function getProjectWithAccess<T extends object>(projectId: string, userId: string): (T & { role: ProjectRole | null }) | undefined {
-  const db = getDb();
-  return db.prepare(ACCESS_WITH_DATA_SQL).get(userId, userId, projectId) as (T & { role: ProjectRole | null }) | undefined;
+export async function getProjectWithAccess<T extends object>(
+  projectId: string,
+  userId: string,
+): Promise<(T & { role: ProjectRole | null }) | undefined> {
+  const client = getClient();
+  const result = await client.execute(ACCESS_WITH_DATA_SQL, [userId, userId, projectId]);
+  return result.rows[0] as (T & { role: ProjectRole | null }) | undefined;
 }
 
 export function hasRole(subject: { role: ProjectRole | null }, minRole: ProjectRole): boolean {

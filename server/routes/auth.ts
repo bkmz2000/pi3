@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { randomBytes, createHmac, timingSafeEqual } from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
-import { getDb } from '../db/index.js';
+import { getClient } from '../db/index.js';
 import { assignHandle } from '../db/handle.js';
 import { authMiddleware, regenerateSession } from '../middleware/auth.js';
 import { authAdapter, AuthProviderError } from '../auth-providers/index.js';
@@ -101,7 +101,6 @@ router.get('/callback', async (req: Request, res: Response): Promise<void> => {
   const returnUrl = (cookieReturnUrl && isSafeReturnUrl(cookieReturnUrl)) ? cookieReturnUrl : '/';
   res.clearCookie('oauth_return', { path: '/' });
 
-  // Exchange code for tokens
   let access_token: string;
   let id_token: string | undefined;
   try {
@@ -135,7 +134,6 @@ router.get('/callback', async (req: Request, res: Response): Promise<void> => {
     return;
   }
 
-  // Fetch userinfo
   let providerId: string;
   let userName: string;
   let userEmail: string | undefined;
@@ -165,33 +163,38 @@ router.get('/callback', async (req: Request, res: Response): Promise<void> => {
     return;
   }
 
-  const db = getDb();
-  const existing = db
-    .prepare('SELECT id FROM users WHERE oauth_provider_id = ?')
-    .get(providerId) as { id: string } | undefined;
+  const client = getClient();
+  const existing = (await client.execute(
+    'SELECT id FROM users WHERE oauth_provider_id = ?',
+    [providerId],
+  )).rows[0] as { id: string } | undefined;
 
   let userId: string;
   const now = Date.now();
 
   if (existing) {
-    db.prepare('UPDATE users SET name = ?, role = ?, updated_at = ? WHERE id = ?')
-      .run(userName, userRole, now, existing.id);
-    userId = existing.id;
+    await client.execute(
+      'UPDATE users SET name = ?, role = ?, updated_at = ? WHERE id = ?',
+      [userName, userRole, now, existing.id],
+    );
+    userId = existing.id as string;
   } else {
     userId = uuidv4();
     const api_token = uuidv4().replace(/-/g, '') + uuidv4().replace(/-/g, '');
-    const { seq, handle } = assignHandle(db);
-    db.prepare(`
-      INSERT INTO users (id, api_token, name, role, oauth_provider_id, handle, handle_seq, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(userId, api_token, userName, userRole, providerId, handle, seq, now, now);
+    const { seq, handle } = await assignHandle(client);
+    await client.execute(
+      `INSERT INTO users (id, api_token, name, role, oauth_provider_id, handle, handle_seq, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [userId, api_token, userName, userRole, providerId, handle, seq, now, now],
+    );
   }
 
-  // Store email update separately if the schema has the column (best-effort)
   if (userEmail) {
     try {
-      db.prepare('UPDATE users SET email = ?, updated_at = ? WHERE id = ?')
-        .run(userEmail, now, userId);
+      await client.execute(
+        'UPDATE users SET email = ?, updated_at = ? WHERE id = ?',
+        [userEmail, now, userId],
+      );
     } catch {
       // email column may not exist in older schemas; non-fatal
     }
@@ -209,17 +212,18 @@ router.get('/callback', async (req: Request, res: Response): Promise<void> => {
 });
 
 // POST /api/auth/logout
-router.post('/logout', authMiddleware, (req: Request, res: Response): void => {
-  const db = getDb();
+router.post('/logout', authMiddleware, async (req: Request, res: Response): Promise<void> => {
+  const client = getClient();
   const newToken = uuidv4().replace(/-/g, '') + uuidv4().replace(/-/g, '');
-  db.prepare('UPDATE users SET api_token = ?, updated_at = ? WHERE id = ?')
-    .run(newToken, Date.now(), req.user!.id);
+  await client.execute(
+    'UPDATE users SET api_token = ?, updated_at = ? WHERE id = ?',
+    [newToken, Date.now(), req.user!.id],
+  );
 
   const idToken = req.session.idToken;
   req.session.destroy(() => {
     res.clearCookie('connect.sid');
 
-    // RP-initiated logout for providers that support it (e.g. Keycloak).
     if (authAdapter.endSessionUrl && idToken) {
       const params = new URLSearchParams({
         id_token_hint: idToken,

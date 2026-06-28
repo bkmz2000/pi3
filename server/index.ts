@@ -1,11 +1,13 @@
+import 'express-async-errors';
 import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import session from 'express-session';
+import Redis from 'ioredis';
+import { RedisStore } from 'connect-redis';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { initDb } from './db/index.js';
-import { SqliteSessionStore } from './db/sessionStore.js';
 import { createUsersRouter } from './routes/users.js';
 import projectsRouter from './routes/projects.js';
 import authRouter from './routes/auth.js';
@@ -18,16 +20,13 @@ const PORT = process.env.PORT || 3001;
 const DIST_DIR = process.env.DIST_DIR || join(dirname(fileURLToPath(import.meta.url)), '../dist');
 const ALLOW_PASSWORD_AUTH = process.env.ALLOW_PASSWORD_AUTH === 'true';
 
-// Derive CORS allowed origins from APP_BASE_URL and environment
 const DEFAULT_BASE_URL = process.env.NODE_ENV === 'production' ? 'https://pi3.sys5.ru' : 'http://localhost:3001';
 const APP_BASE_URL = process.env.APP_BASE_URL || DEFAULT_BASE_URL;
 const ALLOWED_ORIGINS = [APP_BASE_URL];
-// Also allow localhost variants in development
 if (process.env.NODE_ENV !== 'production') {
   ALLOWED_ORIGINS.push('http://localhost:5173', 'http://localhost:3001');
 }
 
-// Validate SESSION_SECRET in production
 if (process.env.NODE_ENV === 'production') {
   const sessionSecret = process.env.SESSION_SECRET;
   if (!sessionSecret || sessionSecret === 'dev-secret-change-in-production') {
@@ -38,17 +37,22 @@ if (process.env.NODE_ENV === 'production') {
   }
 }
 
-// Persist sessions in SQLite (same directory as pi3.db). Gate on NODE_ENV so
-// test suites keep the default MemoryStore and need no file I/O.
-let sessionStore: SqliteSessionStore | undefined;
+let sessionStore: session.Store | undefined;
 if (process.env.NODE_ENV !== 'test') {
-  const dbDir = process.env.DB_PATH
-    ? dirname(process.env.DB_PATH)
-    : process.cwd();
-  const sessionDbPath = join(dbDir, 'sessions.db');
-  sessionStore = new SqliteSessionStore(sessionDbPath);
-  // Prune expired rows once per hour
-  setInterval(() => sessionStore!.prune(), 60 * 60 * 1000).unref();
+  if (process.env.UPSTASH_REDIS_URL) {
+    // Production / Vercel: use Upstash Redis
+    const redisClient = new Redis(process.env.UPSTASH_REDIS_URL);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    sessionStore = new RedisStore({ client: redisClient as any });
+  } else {
+    // Local dev: SQLite session store (legacy)
+    const { SqliteSessionStore } = await import('./db/sessionStore.js');
+    const dbDir = process.env.DB_PATH ? dirname(process.env.DB_PATH) : process.cwd();
+    const sessionDbPath = join(dbDir, 'sessions.db');
+    const store = new SqliteSessionStore(sessionDbPath);
+    setInterval(() => store.prune(), 60 * 60 * 1000).unref();
+    sessionStore = store;
+  }
 }
 
 const app = express();
@@ -57,11 +61,7 @@ app.set('trust proxy', 1);
 
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) {
-      callback(null, true);
-      return;
-    }
+    if (!origin) { callback(null, true); return; }
     if (ALLOWED_ORIGINS.includes(origin)) {
       callback(null, true);
     } else {
@@ -71,8 +71,6 @@ app.use(cors({
   credentials: true,
 }));
 app.use(cookieParser());
-// Inflate gzipped request bodies before express.json sees them. Clients only
-// gzip large payloads (saves), so most requests pass through untouched.
 app.use(decompressRequest);
 app.use(express.json({ limit: '10mb' }));
 app.use(session({
@@ -110,9 +108,6 @@ app.use((req, res, next) => {
   next();
 });
 
-// Client-side runtime error sink. Browser worker posts Pyodide tracebacks here
-// so they land in the server log alongside HTTP traffic. Fail open: never let
-// a logging error break the client.
 app.post('/api/log/client-error', (req, res) => {
   const userId = req.session?.userId ?? '-';
   const body = req.body ?? {};
@@ -131,8 +126,6 @@ app.post('/api/log/client-error', (req, res) => {
   res.status(204).end();
 });
 
-initDb();
-
 app.use('/api/auth', authRouter);
 app.use('/api/users', createUsersRouter(ALLOW_PASSWORD_AUTH));
 app.use('/api/projects', projectsRouter);
@@ -148,8 +141,6 @@ app.get('/api/config', (req, res) => {
   res.json({ allowPasswordAuth: ALLOW_PASSWORD_AUTH });
 });
 
-// Required for SharedArrayBuffer (Pyodide interrupt). Only set on app shell
-// responses — API routes are excluded to keep the change surface minimal.
 app.use((req, res, next) => {
   if (!req.path.startsWith('/api/')) {
     res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
@@ -160,13 +151,10 @@ app.use((req, res, next) => {
 
 app.use(express.static(DIST_DIR));
 
-// SPA fallback — only for non-file, non-API routes
 app.get('*', (req, res) => {
   if (req.url.startsWith('/api/')) {
     return res.status(404).json({ error: 'Not Found' });
   }
-  // Don't serve index.html for missing static files (e.g. old hashed JS from a cached index.html)
-  // — return 404 so the browser gets a correct error instead of an HTML-with-wrong-MIME-type error
   if (/\.[a-zA-Z0-9]{2,8}(\?.*)?$/.test(req.path)) {
     return res.status(404).json({ error: 'Not Found' });
   }
@@ -174,14 +162,22 @@ app.get('*', (req, res) => {
 });
 
 app.use((err: Error, req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  void _next; // Express error handler requires 4 params
+  void _next;
   console.error('Unhandled error:', err);
   res.status(500).json({ error: 'Internal Server Error', message: 'An unexpected error occurred' });
 });
 
-app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
-  console.log(`Serving static files from: ${DIST_DIR}`);
+// Initialize DB then start listening (skip listen on Vercel — handler is the export)
+initDb().then(() => {
+  if (process.env.VERCEL !== '1') {
+    app.listen(PORT, () => {
+      console.log(`Server running on http://localhost:${PORT}`);
+      console.log(`Serving static files from: ${DIST_DIR}`);
+    });
+  }
+}).catch((err) => {
+  console.error('DB init failed:', err);
+  process.exit(1);
 });
 
 export default app;

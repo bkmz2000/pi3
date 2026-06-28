@@ -1,42 +1,60 @@
-import Database from 'better-sqlite3';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { backfillHandles } from './handle.js';
+import { createLibsqlClient } from './libsql.js';
+import { createSqliteClient } from './sqlite-shim.js';
+import type { DbClient } from './client.js';
 
-let db: Database.Database | undefined;
-let testDb: Database.Database | undefined;
+// Production client (set by initDb); test client (set by setTestClient in beforeEach).
+let _client: DbClient | undefined;
+let _testClient: DbClient | undefined;
 
-export function getDb(): Database.Database {
-  if (testDb) return testDb;
-  if (!db) {
-    const dbPath = process.env.DB_PATH || join(process.cwd(), 'pi3.db');
-    db = new Database(dbPath);
-    db.pragma('journal_mode = WAL');
-    db.pragma('foreign_keys = ON');
+export function getClient(): DbClient {
+  if (_testClient) return _testClient;
+  if (_client) return _client;
+  throw new Error('DB not initialized. Call await initDb() before handling requests.');
+}
+
+export function setTestClient(c: DbClient | undefined): void {
+  _testClient = c;
+}
+
+export function closeClient(): void {
+  _client = undefined;
+  _testClient = undefined;
+}
+
+async function makeDefaultClient(): Promise<DbClient> {
+  if (process.env.TURSO_DATABASE_URL) {
+    return createLibsqlClient();
   }
-  return db;
+  // Local dev fallback: wrap better-sqlite3 in the async shim.
+  // Dynamic import avoids bundling native bindings on Vercel.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { default: Database } = await import('better-sqlite3') as any;
+  const dbPath = process.env.DB_PATH || join(process.cwd(), 'pi3.db');
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = new Database(dbPath) as any;
+  db.pragma('journal_mode = WAL');
+  db.pragma('foreign_keys = ON');
+  return createSqliteClient(db);
 }
 
-export function setTestDb(newDb: Database.Database | undefined): void {
-  testDb = newDb;
-}
-
-export function closeDb(): void {
-  if (db) {
-    db.close();
-    db = undefined;
+export async function initDb(): Promise<void> {
+  if (!_testClient && !_client) {
+    _client = await makeDefaultClient();
   }
-  testDb = undefined;
-}
+  const c = getClient();
 
-export function initDb(): void {
-  const database = getDb();
   const schemaPath = join(process.cwd(), 'server/db/migrations/001_initial.sql');
-  database.exec(readFileSync(schemaPath, 'utf8'));
   const schema2Path = join(process.cwd(), 'server/db/migrations/002_teacher_dashboard.sql');
-  database.exec(readFileSync(schema2Path, 'utf8'));
+  for (const stmt of splitSql(readFileSync(schemaPath, 'utf8'))) {
+    await swallow(c, stmt);
+  }
+  for (const stmt of splitSql(readFileSync(schema2Path, 'utf8'))) {
+    await swallow(c, stmt);
+  }
 
-  // Migrate existing databases that lack newer columns
   const migrations = [
     `ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'student' CHECK (role IN ('student', 'teacher'))`,
     `ALTER TABLE users ADD COLUMN password_hash TEXT`,
@@ -58,7 +76,6 @@ export function initDb(): void {
     `ALTER TABLE projects ADD COLUMN thumbnail BLOB`,
     `ALTER TABLE projects ADD COLUMN thumbnail_updated_at INTEGER`,
     `ALTER TABLE projects ADD COLUMN sheet TEXT`,
-    // Compete mode tables (009)
     `CREATE TABLE IF NOT EXISTS problems (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       slug TEXT NOT NULL UNIQUE,
@@ -98,45 +115,54 @@ export function initDb(): void {
     `CREATE INDEX IF NOT EXISTS idx_submissions_problem ON submissions(problem_id, ts DESC)`,
   ];
   for (const stmt of migrations) {
-    try {
-      database.exec(stmt);
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      // Swallow "already exists" idempotency errors; surface real failures
-      if (!msg.includes('already exists') && !msg.includes('duplicate column')) {
-        console.error('Migration failed:', stmt, err);
-        throw err;
-      }
-    }
+    await swallow(c, stmt);
   }
-  // Backfill handles for any users created before the handle column existed.
-  // Idempotent: rows with non-null handle are skipped.
+
   try {
-    backfillHandles(database);
+    await backfillHandles(c);
   } catch (err) {
     console.error('Handle backfill failed:', err);
   }
 }
 
-export function resetDatabase(): void {
-  const database = getDb();
-  database.exec(`
-    DROP TABLE IF EXISTS submissions;
-    DROP TABLE IF EXISTS problem_tests;
-    DROP TABLE IF EXISTS problems;
-    DROP TABLE IF EXISTS help_requests;
-    DROP TABLE IF EXISTS comments;
-    DROP TABLE IF EXISTS group_members;
-    DROP TABLE IF EXISTS groups;
-    DROP TABLE IF EXISTS project_shares;
-    DROP TABLE IF EXISTS projects;
-    DROP TABLE IF EXISTS users;
-  `);
+async function swallow(c: DbClient, sql: string): Promise<void> {
+  try {
+    await c.execute(sql);
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (!msg.includes('already exists') && !msg.includes('duplicate column')) {
+      console.error('Migration failed:', sql.slice(0, 80), err);
+      throw err;
+    }
+  }
 }
 
-export function createDatabase(): void {
-  resetDatabase();
-  initDb();
+function splitSql(sql: string): string[] {
+  return sql
+    .split(';')
+    .map(s => s.trim())
+    .filter(s => s.length > 0);
 }
 
-export default { getDb, closeDb, initDb, resetDatabase, createDatabase };
+export async function resetDatabase(): Promise<void> {
+  const c = getClient();
+  await c.batch([
+    { sql: 'DROP TABLE IF EXISTS submissions' },
+    { sql: 'DROP TABLE IF EXISTS problem_tests' },
+    { sql: 'DROP TABLE IF EXISTS problems' },
+    { sql: 'DROP TABLE IF EXISTS help_requests' },
+    { sql: 'DROP TABLE IF EXISTS comments' },
+    { sql: 'DROP TABLE IF EXISTS group_members' },
+    { sql: 'DROP TABLE IF EXISTS groups' },
+    { sql: 'DROP TABLE IF EXISTS project_shares' },
+    { sql: 'DROP TABLE IF EXISTS projects' },
+    { sql: 'DROP TABLE IF EXISTS users' },
+  ]);
+}
+
+export async function createDatabase(): Promise<void> {
+  await resetDatabase();
+  await initDb();
+}
+
+export default { getClient, closeClient, initDb, resetDatabase, createDatabase };

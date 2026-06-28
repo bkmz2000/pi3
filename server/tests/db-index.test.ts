@@ -1,60 +1,69 @@
 import { describe, it, expect, afterEach } from '@jest/globals';
 import Database from 'better-sqlite3';
-import { getDb, setTestDb, closeDb, initDb, resetDatabase, createDatabase } from '../db/index.js';
+import { getClient, setTestClient, closeClient, initDb, resetDatabase, createDatabase } from '../db/index.js';
+import { createSqliteClient } from '../db/sqlite-shim.js';
 
 afterEach(() => {
-  setTestDb(undefined);
-  closeDb();
-  delete process.env.DB_PATH;
+  setTestClient(undefined);
+  closeClient();
 });
 
 describe('server/db/index', () => {
-  it('setTestDb makes getDb return the injected instance', () => {
-    const td = new Database(':memory:');
-    setTestDb(td);
-    expect(getDb()).toBe(td);
-    td.close();
+  it('setTestClient makes getClient return the injected client', () => {
+    const db = new Database(':memory:');
+    const client = createSqliteClient(db);
+    setTestClient(client);
+    expect(getClient()).toBe(client);
+    db.close();
   });
 
-  it('closeDb tears down primary + test DB references', () => {
-    const td = new Database(':memory:');
-    setTestDb(td);
-    closeDb();
-    // After closeDb, setTestDb(undefined) was effectively run; a fresh getDb
-    // would create a real file-backed DB, so we don't call it here.
-    expect(() => td.close()).not.toThrow(); // td still owned by us
+  it('closeClient tears down references', () => {
+    const db = new Database(':memory:');
+    const client = createSqliteClient(db);
+    setTestClient(client);
+    closeClient();
+    expect(() => getClient()).toThrow('DB not initialized');
+    db.close();
   });
 
-  it('initDb applies schema and migrations end-to-end on an in-memory DB', () => {
-    process.env.DB_PATH = ':memory:';
-    createDatabase();
-    const db = getDb();
-    // Migration adds columns that downstream tests depend on
-    const userCols = db.prepare("PRAGMA table_info('users')").all() as { name: string }[];
-    const projCols = db.prepare("PRAGMA table_info('projects')").all() as { name: string }[];
-    const groupCols = db.prepare("PRAGMA table_info('groups')").all() as { name: string }[];
-    expect(userCols.map((c) => c.name)).toEqual(expect.arrayContaining(['handle', 'handle_seq']));
-    expect(projCols.map((c) => c.name)).toEqual(expect.arrayContaining(['sounds', 'tilemaps', 'animations']));
-    expect(groupCols.map((c) => c.name)).toEqual(expect.arrayContaining(['invite_code', 'archived_at']));
+  it('initDb applies schema and migrations end-to-end on an in-memory DB', async () => {
+    const db = new Database(':memory:');
+    db.pragma('foreign_keys = ON');
+    const client = createSqliteClient(db);
+    setTestClient(client);
+    await createDatabase();
+    const userCols = (await client.execute("PRAGMA table_info('users')")).rows.map(r => r['name']);
+    const projCols = (await client.execute("PRAGMA table_info('projects')")).rows.map(r => r['name']);
+    const groupCols = (await client.execute("PRAGMA table_info('groups')")).rows.map(r => r['name']);
+    expect(userCols).toEqual(expect.arrayContaining(['handle', 'handle_seq']));
+    expect(projCols).toEqual(expect.arrayContaining(['sounds', 'tilemaps', 'animations']));
+    expect(groupCols).toEqual(expect.arrayContaining(['invite_code', 'archived_at']));
+    db.close();
   });
 
-  it('initDb is idempotent (re-running swallows already-exists errors)', () => {
-    process.env.DB_PATH = ':memory:';
-    createDatabase();
-    expect(() => initDb()).not.toThrow();
+  it('initDb is idempotent (re-running swallows already-exists errors)', async () => {
+    const db = new Database(':memory:');
+    db.pragma('foreign_keys = ON');
+    const client = createSqliteClient(db);
+    setTestClient(client);
+    await createDatabase();
+    await expect(initDb()).resolves.not.toThrow();
+    db.close();
   });
 
-  it('resetDatabase drops the user-facing tables', () => {
-    process.env.DB_PATH = ':memory:';
-    createDatabase();
-    resetDatabase();
-    const db = getDb();
-    const tables = db
-      .prepare("SELECT name FROM sqlite_master WHERE type='table'")
-      .all() as { name: string }[];
-    const names = tables.map((t) => t.name);
-    expect(names).not.toContain('users');
-    expect(names).not.toContain('projects');
-    expect(names).not.toContain('groups');
+  it('resetDatabase drops the user-facing tables', async () => {
+    const db = new Database(':memory:');
+    db.pragma('foreign_keys = ON');
+    const client = createSqliteClient(db);
+    setTestClient(client);
+    await createDatabase();
+    await resetDatabase();
+    const tables = (await client.execute(
+      "SELECT name FROM sqlite_master WHERE type='table'",
+    )).rows.map(r => r['name']);
+    expect(tables).not.toContain('users');
+    expect(tables).not.toContain('projects');
+    expect(tables).not.toContain('groups');
+    db.close();
   });
 });

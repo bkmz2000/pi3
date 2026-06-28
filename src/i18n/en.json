@@ -945,7 +945,16 @@
     "validationTitle": "Title is required.",
     "validationStatement": "Statement is required.",
     "slugConflict": "That slug is already taken.",
-    "noProblems": "No problems yet. Create the first one."
+    "noProblems": "No problems yet. Create the first one.",
+    "unsavedChanges": "Unsaved changes",
+    "write": "Write",
+    "tier1Meaning": "Required to pass",
+    "tier2Meaning": "Adds a star",
+    "tier3Meaning": "Full marks",
+    "addTestToTier": "Add test to tier {{tier}}",
+    "testShown": "Shown to students",
+    "testHidden": "Hidden",
+    "noTestsInTier": "No tests yet — add one below"
   },
   "compete": {
     "submit": "Submit",

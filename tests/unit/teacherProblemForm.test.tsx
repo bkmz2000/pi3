@@ -29,7 +29,11 @@ jest.mock("@uiw/react-codemirror", () => ({
     });
   },
 }));
-jest.mock("@uiw/codemirror-theme-github", () => ({ __esModule: true, githubDark: {} }));
+jest.mock("@uiw/codemirror-theme-github", () => ({
+  __esModule: true,
+  githubDark: {},
+  githubLight: {},
+}));
 jest.mock("@codemirror/lang-python", () => ({ __esModule: true, python: () => [] }));
 jest.mock("@codemirror/view", () => ({ __esModule: true, EditorView: { lineWrapping: {} } }));
 
@@ -52,7 +56,6 @@ beforeEach(() => {
 describe("TeacherProblemForm (new mode)", () => {
   it("renders title input, slug input, statement textarea, save button", () => {
     render(<MemoryRouter><TeacherProblemForm /></MemoryRouter>);
-    // Should find some form inputs — use * to find any inputs
     const inputs = document.querySelectorAll("input");
     expect(inputs.length).toBeGreaterThan(0);
     expect(screen.getByText(/save problem/i)).toBeTruthy();
@@ -63,7 +66,6 @@ describe("TeacherProblemForm (new mode)", () => {
     const inputs = document.querySelectorAll("input");
     const titleInput = inputs[0]; // first input is title
     fireEvent.change(titleInput, { target: { value: "Sum Two Numbers" } });
-    // Slug should be auto-suggested from title
     await waitFor(() => {
       const slugInput = inputs[1]; // second input is slug
       expect((slugInput as HTMLInputElement).value).toBe("sum-two-numbers");
@@ -72,7 +74,6 @@ describe("TeacherProblemForm (new mode)", () => {
 
   it("shows validation error when title is empty", async () => {
     render(<MemoryRouter><TeacherProblemForm /></MemoryRouter>);
-    // Try to save without filling anything
     fireEvent.click(screen.getByText(/save problem/i));
     await waitFor(() => {
       expect(document.body.textContent).toContain("required");
@@ -86,15 +87,16 @@ describe("TeacherProblemForm (new mode)", () => {
     expect(screen.getByTestId("preview")).toBeTruthy();
   });
 
-  it("switches back to edit when edit button is clicked", () => {
+  it("switches back to write mode when write button is clicked", () => {
     render(<MemoryRouter><TeacherProblemForm /></MemoryRouter>);
     // Click preview
     fireEvent.click(screen.getByText(/preview/i));
-    // Now click edit (button text changes to "✎ Edit")
-    fireEvent.click(screen.getByText(/edit/i));
-    // Preview div should be gone, textarea should be back
-    const textarea = document.querySelector("textarea:not([data-testid])");
-    expect(textarea).toBeTruthy();
+    // Now click write
+    fireEvent.click(screen.getByText(/write/i));
+    // Preview div should be gone, statement textarea should be back
+    expect(screen.queryByTestId("preview")).toBeNull();
+    const textareas = document.querySelectorAll("textarea:not([data-testid])");
+    expect(textareas.length).toBeGreaterThan(0);
   });
 
   it("shows tier sections for test cases", () => {
@@ -106,22 +108,45 @@ describe("TeacherProblemForm (new mode)", () => {
 
   it("adds a test when add test button is clicked", () => {
     render(<MemoryRouter><TeacherProblemForm /></MemoryRouter>);
-    const countBefore = document.querySelectorAll('[placeholder]').length;
-    const addBtns = screen.getAllByText(/\+ add test/i);
+    const textareasBefore = document.querySelectorAll("textarea").length;
+    const addBtns = screen.getAllByText(/add test/i);
     fireEvent.click(addBtns[0]);
-    const countAfter = document.querySelectorAll('[placeholder]').length;
-    expect(countAfter).toBeGreaterThanOrEqual(countBefore);
+    const textareasAfter = document.querySelectorAll("textarea").length;
+    expect(textareasAfter).toBeGreaterThan(textareasBefore);
   });
 
   it("removes a test when remove button is clicked", () => {
     render(<MemoryRouter><TeacherProblemForm /></MemoryRouter>);
-    // Add a test first
-    fireEvent.click(screen.getAllByText(/\+ add test/i)[0]);
-    const removeBtns = screen.getAllByText(/remove/i);
+    // Add a tier-1 test first so there is something to remove
+    fireEvent.click(screen.getAllByText(/add test/i)[0]);
+    const removeBtns = screen.getAllByRole("button", { name: /remove/i });
     const countBefore = removeBtns.length;
     if (countBefore > 0) {
       fireEvent.click(removeBtns[0]);
-      expect(screen.queryAllByText(/remove/i).length).toBeLessThanOrEqual(countBefore);
+      expect(screen.queryAllByRole("button", { name: /remove/i }).length).toBeLessThanOrEqual(countBefore);
     }
+  });
+
+  it("shows unsaved changes indicator after editing", () => {
+    render(<MemoryRouter><TeacherProblemForm /></MemoryRouter>);
+    // Initially no unsaved indicator
+    const inputs = document.querySelectorAll("input");
+    fireEvent.change(inputs[0], { target: { value: "Some title" } });
+    expect(screen.getByText(/unsaved/i)).toBeTruthy();
+  });
+
+  it("renders cancel button", () => {
+    render(<MemoryRouter><TeacherProblemForm /></MemoryRouter>);
+    expect(screen.getAllByText(/cancel/i).length).toBeGreaterThan(0);
+  });
+
+  it("toggles test visibility badge", () => {
+    render(<MemoryRouter><TeacherProblemForm /></MemoryRouter>);
+    // The default tier-1 test has is_visible=true so badge shows "Shown"
+    const shownBadges = screen.getAllByText(/shown/i);
+    expect(shownBadges.length).toBeGreaterThan(0);
+    fireEvent.click(shownBadges[0]);
+    // After toggle it should show "Hidden"
+    expect(screen.getByText(/hidden/i)).toBeTruthy();
   });
 });

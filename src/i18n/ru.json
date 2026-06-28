@@ -945,7 +945,16 @@
     "validationTitle": "Название обязательно.",
     "validationStatement": "Условие обязательно.",
     "slugConflict": "Такой slug уже занят.",
-    "noProblems": "Задач пока нет. Создайте первую."
+    "noProblems": "Задач пока нет. Создайте первую.",
+    "unsavedChanges": "Несохранённые изменения",
+    "write": "Написать",
+    "tier1Meaning": "Обязательный уровень",
+    "tier2Meaning": "Добавляет звезду",
+    "tier3Meaning": "Максимум звёзд",
+    "addTestToTier": "Добавить тест уровня {{tier}}",
+    "testShown": "Видно студентам",
+    "testHidden": "Скрыто",
+    "noTestsInTier": "Тестов пока нет — добавьте ниже"
   },
   "compete": {
     "submit": "Отправить",

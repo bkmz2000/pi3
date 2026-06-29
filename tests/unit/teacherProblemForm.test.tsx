@@ -36,6 +36,12 @@ jest.mock("@uiw/codemirror-theme-github", () => ({
 }));
 jest.mock("@codemirror/lang-python", () => ({ __esModule: true, python: () => [] }));
 jest.mock("@codemirror/view", () => ({ __esModule: true, EditorView: { lineWrapping: {} } }));
+jest.mock("../../src/editor/profiles", () => ({
+  __esModule: true,
+  competeProfile: () => [],
+  graphicsProfile: () => [],
+  baseProfile: () => [],
+}));
 
 jest.mock("react-router-dom", () => ({
   ...jest.requireActual("react-router-dom"),

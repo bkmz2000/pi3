@@ -4,13 +4,10 @@ import { useTranslation } from 'react-i18next';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import CodeMirror from '@uiw/react-codemirror';
-import { python } from '@codemirror/lang-python';
-import { EditorView } from '@codemirror/view';
 import { githubDark, githubLight } from '@uiw/codemirror-theme-github';
 import { useThemeStore } from '../../state/useTheme';
+import { competeProfile } from '../../editor/profiles';
 import { IconTrash, IconEye, IconEyeOff } from '../Icons';
-
-const CM_EXTENSIONS = [python(), EditorView.lineWrapping];
 
 interface TestDraft {
   tier: 1 | 2 | 3;
@@ -404,9 +401,10 @@ function TierGroup({
 // ---- Main component ----
 
 export default function TeacherProblemForm() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const theme = useThemeStore((s) => s.theme);
   const themeId = useThemeStore((s) => s.themeId);
+  const fontSize = useThemeStore((s) => s.fontSize);
   const navigate = useNavigate();
   const { slug: editSlug } = useParams<{ slug?: string }>();
   const isNew = !editSlug;
@@ -721,11 +719,9 @@ export default function TeacherProblemForm() {
           <div style={{ marginTop: 12, border: `1px solid ${theme.panelBorder}`, borderRadius: 6, overflow: 'hidden' }}>
             <CodeMirror
               value={form.starter_code}
-              extensions={CM_EXTENSIONS}
-              theme={cmTheme}
+              extensions={competeProfile({ theme, lang: i18n.language, fontSize, cmTheme })}
               onChange={(v) => setForm((f) => ({ ...f, starter_code: v }))}
-              style={{ fontSize: 13 }}
-              basicSetup={{ lineNumbers: true }}
+              height="200px"
             />
           </div>
         </FormSection>

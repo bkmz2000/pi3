@@ -32,6 +32,43 @@ interface TestInput {
   expected: string;
 }
 
+interface ImportTestRow {
+  id?: string;
+  tier: number;
+  subtask?: string;
+  input: string | null;
+  answer: string | null;
+  input_size_bytes?: number;
+  answer_size_bytes?: number;
+}
+
+interface ImportProblem {
+  id: string;
+  slug?: string;
+  contest?: string;
+  title_ru?: string;
+  title_en?: string;
+  statement_tex?: string;
+  tests?: ImportTestRow[];
+}
+
+function importSlugValid(slug: string): boolean {
+  return /^[a-z][a-z0-9-]{1,79}$/.test(slug);
+}
+
+function mapImportTests(tests: ImportTestRow[]): TestInput[] {
+  const result: TestInput[] = [];
+  for (const t of tests) {
+    if (t.input === null || t.answer === null) continue;
+    const rawTier = t.tier;
+    const mappedTier = Math.min(3, Math.max(1, rawTier === 0 ? 1 : rawTier)) as 1 | 2 | 3;
+    // tier-0 = regional examples subtask; tier-1 with no subtask = municipal first tier
+    const is_visible = rawTier === 0 || t.subtask === 'examples' || (rawTier === 1 && !t.subtask);
+    result.push({ tier: mappedTier, is_visible, input: t.input, expected: t.answer });
+  }
+  return result;
+}
+
 function teacherOnly(req: Request, res: Response, next: NextFunction): void {
   if (!req.user) {
     res.status(401).json({ error: 'Unauthorized' });
@@ -300,6 +337,99 @@ export function createCompeteRouter(): Router {
       [problem.id],
     )).rows[0];
     res.json(updated);
+  });
+
+  router.post('/teacher/problems/import', teacherOnly, async (req: Request, res: Response): Promise<void> => {
+    const { problems: rawProblems, lang = 'ru', overwrite = false } = req.body as {
+      problems: ImportProblem[];
+      lang?: 'ru' | 'en';
+      overwrite?: boolean;
+    };
+
+    if (!Array.isArray(rawProblems) || rawProblems.length === 0) {
+      res.status(400).json({ error: 'Bad Request', message: 'problems must be a non-empty array' });
+      return;
+    }
+
+    const client = getClient();
+    const maxRow = (await client.execute('SELECT COALESCE(MAX(order_index), 0) as m FROM problems')).rows[0] as { m: number };
+    let nextOrder = maxRow.m + 1;
+
+    const imported: string[] = [];
+    const skipped: string[] = [];
+    const errors: { id: string; reason: string }[] = [];
+
+    for (const p of rawProblems) {
+      const id = p.id ?? '';
+      try {
+        const slug = id;
+        if (!importSlugValid(slug)) {
+          errors.push({ id, reason: `invalid id/slug: "${slug}"` });
+          continue;
+        }
+
+        const title = (lang === 'en' ? p.title_en : p.title_ru) || p.title_ru || p.title_en || '';
+        if (!title.trim()) {
+          errors.push({ id, reason: 'no title (title_ru / title_en both missing)' });
+          continue;
+        }
+
+        const tests = mapImportTests(p.tests ?? []);
+        if (!tests.some((t) => t.tier === 1)) {
+          errors.push({ id, reason: 'no usable tier-1 tests (inputs may all be >64 KB)' });
+          continue;
+        }
+        if (!tests.some((t) => t.is_visible)) {
+          errors.push({ id, reason: 'no visible test after mapping' });
+          continue;
+        }
+
+        const statement = p.statement_tex ?? '';
+        const existing = (await client.execute(
+          'SELECT id FROM problems WHERE slug = ?', [slug],
+        )).rows[0] as { id: number } | undefined;
+
+        if (existing && !overwrite) {
+          skipped.push(id);
+          continue;
+        }
+
+        if (existing) {
+          await client.execute(
+            `UPDATE problems SET title = ?, statement = ?, updated_at = datetime('now') WHERE id = ?`,
+            [title.trim(), statement, existing.id],
+          );
+          await client.execute('DELETE FROM problem_tests WHERE problem_id = ?', [existing.id]);
+          const normalized = normalizeTests(tests);
+          await client.batch(normalized.map((t) => ({
+            sql: `INSERT INTO problem_tests (problem_id, tier, is_visible, ordinal, input, expected)
+                  VALUES (?, ?, ?, ?, ?, ?)`,
+            args: [existing.id, t.tier, t.is_visible, t.ordinal, t.input, t.expected],
+          })));
+        } else {
+          const ins = await client.execute(
+            `INSERT INTO problems (slug, title, statement, starter_code, order_index, created_by)
+             VALUES (?, ?, ?, ?, ?, ?)`,
+            [slug, title.trim(), statement, '', nextOrder++, (req.user as AuthUser).id],
+          );
+          const problemId = ins.lastInsertRowid;
+          const normalized = normalizeTests(tests);
+          if (normalized.length > 0) {
+            await client.batch(normalized.map((t) => ({
+              sql: `INSERT INTO problem_tests (problem_id, tier, is_visible, ordinal, input, expected)
+                    VALUES (?, ?, ?, ?, ?, ?)`,
+              args: [problemId, t.tier, t.is_visible, t.ordinal, t.input, t.expected],
+            })));
+          }
+        }
+
+        imported.push(id);
+      } catch (err) {
+        errors.push({ id, reason: String(err) });
+      }
+    }
+
+    res.json({ imported: imported.length, skipped: skipped.length, errors });
   });
 
   router.post('/teacher/problems/:slug/archive', teacherOnly, async (req: Request, res: Response): Promise<void> => {

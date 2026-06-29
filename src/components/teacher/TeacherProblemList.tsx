@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useThemeStore } from '../../state/useTheme';
 import { Icon } from '../Icons';
+import ImportProblemsModal from './ImportProblemsModal';
 
 interface ProblemRow {
   id: number;
@@ -23,6 +24,7 @@ export default function TeacherProblemList() {
   const [problems, setProblems] = useState<ProblemRow[]>([]);
   const [showArchived, setShowArchived] = useState(false);
   const [archiving, setArchiving] = useState<string | null>(null);
+  const [showImport, setShowImport] = useState(false);
 
   useEffect(() => {
     fetch('/api/teacher/problems', { credentials: 'include' })
@@ -94,6 +96,22 @@ export default function TeacherProblemList() {
         <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>{t('teacher.problems')}</h2>
         <div style={{ flex: 1 }} />
         <button
+          onClick={() => setShowImport(true)}
+          style={{
+            all: 'unset', cursor: 'pointer',
+            display: 'flex', alignItems: 'center', gap: 6,
+            padding: '7px 14px', borderRadius: 7,
+            border: `0.5px solid ${theme.panelBorder}`,
+            background: theme.chip, color: theme.panelTxt,
+            fontSize: 13, fontWeight: 600,
+          }}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
+          </svg>
+          Import JSON
+        </button>
+        <button
           onClick={() => navigate('/teacher/problems/new')}
           style={{
             all: 'unset', cursor: 'pointer',
@@ -107,6 +125,18 @@ export default function TeacherProblemList() {
           {t('teacher.newProblem')}
         </button>
       </div>
+
+      {showImport && (
+        <ImportProblemsModal
+          onClose={() => setShowImport(false)}
+          onImported={() => {
+            fetch('/api/teacher/problems', { credentials: 'include' })
+              .then((r) => r.json())
+              .then(setProblems)
+              .catch(() => {});
+          }}
+        />
+      )}
 
       {active.length === 0 && archived.length === 0 && (
         <p style={{ color: theme.panelTxtMute }}>{t('teacher.noProblems')}</p>

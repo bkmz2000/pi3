@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import ReactMarkdown from 'react-markdown';
@@ -46,41 +46,69 @@ function validateForm(f: FormState, t: (k: string) => string): string | null {
   return null;
 }
 
-// ---- Sub-components ----
+// ---- Icons ----
 
-function FormSection({ title, children }: { title: string; children: React.ReactNode }) {
-  const theme = useThemeStore((s) => s.theme);
+function StarIcon({ filled }: { filled: boolean }) {
   return (
-    <fieldset style={{
-      border: `1px solid ${theme.panelBorder}`,
-      borderRadius: 10,
-      padding: '0 20px 20px',
-      marginBottom: 20,
-      background: theme.surfacePanel,
-      minWidth: 0,
-    }}>
-      <legend style={{
-        padding: '0 8px',
-        fontSize: 11,
-        fontWeight: 700,
-        color: theme.panelTxtMute,
-        letterSpacing: 0.8,
-        textTransform: 'uppercase' as const,
-        fontFamily: theme.fontUI,
-      }}>
-        {title}
-      </legend>
-      {children}
-    </fieldset>
+    <svg width="13" height="13" viewBox="0 0 24 24" style={{ display: 'block' }}>
+      <path
+        d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01z"
+        fill={filled ? '#f0b429' : '#6f8a90'}
+        opacity={filled ? 1 : 0.45}
+      />
+    </svg>
   );
 }
+
+// ---- Section card ----
+
+function SectionCard({
+  icon,
+  title,
+  desc,
+  children,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  desc?: string;
+  children: React.ReactNode;
+}) {
+  const theme = useThemeStore((s) => s.theme);
+  return (
+    <div style={{
+      background: theme.surfacePanel,
+      border: `0.5px solid ${theme.panelBorder}`,
+      borderRadius: 12,
+      overflow: 'hidden',
+    }}>
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 10,
+        padding: '12px 15px',
+        borderBottom: `0.5px solid ${theme.panelBorder}`,
+      }}>
+        <span style={{ color: theme.primaryBg, flexShrink: 0 }}>{icon}</span>
+        <span style={{ fontSize: 13, fontWeight: 600, color: theme.panelTxt }}>{title}</span>
+        {desc && (
+          <span style={{ fontSize: 11.5, color: theme.panelTxtMute, marginLeft: 'auto', textAlign: 'right' as const }}>
+            {desc}
+          </span>
+        )}
+      </div>
+      <div style={{ padding: 15 }}>{children}</div>
+    </div>
+  );
+}
+
+// ---- Field helpers ----
 
 function FieldLabel({ label, required }: { label: string; required?: boolean }) {
   const theme = useThemeStore((s) => s.theme);
   return (
-    <div style={{ fontSize: 12, fontWeight: 600, color: theme.panelTxtMute, marginBottom: 4 }}>
+    <div style={{ fontSize: 12, color: theme.panelTxtMute, display: 'block', marginBottom: 6 }}>
       {label}
-      {required && <span style={{ color: '#e05c5c', marginLeft: 3 }}>*</span>}
+      {required && <span style={{ color: '#ff7a7a', marginLeft: 3 }}>*</span>}
     </div>
   );
 }
@@ -103,38 +131,39 @@ function FieldInput({
   min?: number;
 }) {
   const theme = useThemeStore((s) => s.theme);
-  const inputStyle = {
+  const base: React.CSSProperties = {
     display: 'block',
     width: '100%',
-    boxSizing: 'border-box' as const,
+    boxSizing: 'border-box',
     background: theme.surface,
     color: theme.panelTxt,
-    border: `1px solid ${theme.panelBorder}`,
-    borderRadius: 6,
-    padding: '7px 10px',
+    border: `0.5px solid ${theme.panelBorder}`,
+    borderRadius: 8,
+    padding: '9px 11px',
     fontFamily: mono ? theme.fontMono : theme.fontUI,
-    fontSize: 13,
+    fontSize: mono ? 13 : 14,
     outline: 'none',
   };
 
   if (prefix) {
     return (
       <div style={{
-        display: 'flex', alignItems: 'stretch',
-        border: `1px solid ${theme.panelBorder}`,
-        borderRadius: 6, overflow: 'hidden',
+        display: 'flex',
+        alignItems: 'stretch',
         background: theme.surface,
+        border: `0.5px solid ${theme.panelBorder}`,
+        borderRadius: 8,
+        overflow: 'hidden',
       }}>
         <span style={{
-          display: 'flex', alignItems: 'center',
-          padding: '7px 10px',
-          background: theme.chip,
+          display: 'flex',
+          alignItems: 'center',
+          padding: '9px 11px',
           color: theme.panelTxtMute,
           fontFamily: theme.fontMono,
-          fontSize: 12,
-          borderRight: `1px solid ${theme.panelBorder}`,
-          whiteSpace: 'nowrap' as const,
-          userSelect: 'none' as const,
+          fontSize: 13,
+          whiteSpace: 'nowrap',
+          userSelect: 'none',
         }}>
           {prefix}
         </span>
@@ -142,7 +171,7 @@ function FieldInput({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           onBlur={onBlur}
-          style={{ ...inputStyle, border: 'none', borderRadius: 0, flex: 1 }}
+          style={{ ...base, border: 'none', borderRadius: 0, flex: 1, paddingLeft: 2 }}
         />
       </div>
     );
@@ -155,10 +184,12 @@ function FieldInput({
       min={min}
       onChange={(e) => onChange(e.target.value)}
       onBlur={onBlur}
-      style={inputStyle}
+      style={base}
     />
   );
 }
+
+// ---- Visibility badge ----
 
 function VisibilityBadge({ visible, onToggle }: { visible: boolean; onToggle: () => void }) {
   const theme = useThemeStore((s) => s.theme);
@@ -173,26 +204,27 @@ function VisibilityBadge({ visible, onToggle }: { visible: boolean; onToggle: ()
         cursor: 'pointer',
         display: 'inline-flex',
         alignItems: 'center',
-        gap: 4,
-        padding: '2px 8px',
-        borderRadius: 20,
+        gap: 5,
+        padding: '3px 8px',
+        borderRadius: 999,
         fontSize: 11,
         fontWeight: 600,
         fontFamily: theme.fontUI,
         background: visible ? theme.successPill : theme.chip,
         color: visible ? theme.successPillTxt : theme.panelTxtMute,
-        border: `1px solid ${visible ? 'rgba(52,168,83,0.3)' : theme.panelBorder}`,
         flexShrink: 0,
       }}
     >
       {visible
-        ? <IconEye size={11} color="currentColor" />
-        : <IconEyeOff size={11} color="currentColor" />
+        ? <IconEye size={13} color="currentColor" />
+        : <IconEyeOff size={13} color="currentColor" />
       }
       {label}
     </button>
   );
 }
+
+// ---- Test case card ----
 
 function TestCaseCard({
   test,
@@ -209,47 +241,42 @@ function TestCaseCard({
   const { t } = useTranslation();
   const [hoverRemove, setHoverRemove] = useState(false);
 
-  const cellStyle = {
-    flex: 1,
-    display: 'flex',
-    flexDirection: 'column' as const,
-  };
-  const textareaStyle = {
+  const taStyle: React.CSSProperties = {
     display: 'block',
     width: '100%',
-    boxSizing: 'border-box' as const,
-    background: theme.surface,
+    boxSizing: 'border-box',
+    background: 'transparent',
     color: theme.panelTxt,
-    border: `1px solid ${theme.panelBorder}`,
-    borderRadius: 5,
-    padding: '6px 8px',
+    border: 'none',
+    outline: 'none',
+    padding: 0,
     fontFamily: theme.fontMono,
     fontSize: 12,
-    resize: 'vertical' as const,
-    flex: 1,
-    minHeight: 64,
+    lineHeight: 1.5,
+    resize: 'vertical',
+    minHeight: 52,
   };
 
   return (
     <div style={{
-      border: `1px solid ${theme.panelBorder}`,
-      borderRadius: 8,
+      border: `0.5px solid ${theme.panelBorder}`,
+      borderRadius: 10,
       marginBottom: 8,
       background: theme.surface,
       overflow: 'hidden',
     }}>
-      {/* Card header */}
       <div style={{
         display: 'flex',
         alignItems: 'center',
         gap: 8,
-        padding: '6px 12px',
-        background: theme.chip,
-        borderBottom: `1px solid ${theme.panelBorder}`,
+        padding: '7px 11px',
+        background: 'rgba(255,255,255,0.03)',
+        borderBottom: `0.5px solid ${theme.panelBorder}`,
       }}>
-        <span style={{ fontSize: 12, fontWeight: 600, color: theme.panelTxtMute, flex: 1 }}>
-          {t('teacher.tier')} {test.tier} · #{localIdx + 1}
+        <span style={{ fontSize: 12, fontWeight: 600, color: theme.panelTxtMute }}>
+          Test {localIdx + 1}
         </span>
+        <div style={{ flex: 1 }} />
         <VisibilityBadge
           visible={test.is_visible}
           onToggle={() => onSetTest({ is_visible: !test.is_visible })}
@@ -266,54 +293,52 @@ function TestCaseCard({
             alignItems: 'center',
             padding: 4,
             borderRadius: 4,
-            color: hoverRemove ? '#e05c5c' : theme.panelTxtMute,
-            background: hoverRemove ? 'rgba(224,92,92,0.10)' : 'transparent',
+            color: hoverRemove ? '#ff7a7a' : theme.panelTxtMute,
           }}
         >
           <IconTrash size={14} color="currentColor" />
         </button>
       </div>
 
-      {/* Input → Output body */}
-      <div style={{ display: 'flex', gap: 0, padding: 12, alignItems: 'stretch' }}>
-        <div style={cellStyle}>
-          <div style={{ fontSize: 11, fontWeight: 600, color: theme.panelTxtMute, marginBottom: 4 }}>
+      <div style={{ display: 'flex', alignItems: 'stretch' }}>
+        <div style={{ flex: 1, padding: '8px 10px' }}>
+          <div style={{ fontSize: 10, color: theme.panelTxtMute, textTransform: 'uppercase', letterSpacing: 0.7, marginBottom: 4 }}>
             {t('teacher.testInput')}
           </div>
           <textarea
             value={test.input}
             onChange={(e) => onSetTest({ input: e.target.value })}
             rows={3}
-            style={textareaStyle}
+            style={taStyle}
           />
         </div>
         <div style={{
           display: 'flex',
           alignItems: 'center',
-          padding: '0 10px',
+          padding: '0 2px',
           color: theme.primaryBg,
-          fontSize: 16,
-          fontWeight: 700,
-          alignSelf: 'center',
-          marginTop: 16,
         }}>
-          →
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M5 12h14M13 6l6 6-6 6" />
+          </svg>
         </div>
-        <div style={cellStyle}>
-          <div style={{ fontSize: 11, fontWeight: 600, color: theme.panelTxtMute, marginBottom: 4 }}>
+        <div style={{ flex: 1, padding: '8px 10px', borderLeft: `0.5px solid ${theme.panelBorder}` }}>
+          <div style={{ fontSize: 10, color: theme.panelTxtMute, textTransform: 'uppercase', letterSpacing: 0.7, marginBottom: 4 }}>
             {t('teacher.testExpected')}
           </div>
           <textarea
             value={test.expected}
             onChange={(e) => onSetTest({ expected: e.target.value })}
             rows={3}
-            style={textareaStyle}
+            style={taStyle}
           />
         </div>
       </div>
     </div>
   );
 }
+
+// ---- Tier group ----
 
 function TierGroup({
   tier,
@@ -333,37 +358,29 @@ function TierGroup({
   const theme = useThemeStore((s) => s.theme);
   const { t } = useTranslation();
 
-  const filledStars = '★'.repeat(tier);
-  const emptyStars = '☆'.repeat(3 - tier);
-
   return (
     <div style={{ marginBottom: 24 }}>
-      {/* Tier header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-        <span style={{ fontSize: 16, letterSpacing: 1, lineHeight: 1 }}>
-          <span style={{ color: theme.primaryBg }}>{filledStars}</span>
-          <span style={{ color: theme.panelBorder }}>{emptyStars}</span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 8 }}>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 2 }}>
+          {[1, 2, 3].map((i) => <StarIcon key={i} filled={i <= tier} />)}
         </span>
-        <div>
-          <div style={{ fontSize: 13, fontWeight: 700, color: theme.panelTxt }}>
-            {t(`teacher.tier${tier}`)}
-          </div>
-          <div style={{ fontSize: 11, color: theme.panelTxtMute }}>
-            {t(tierMeaningKey)}
-          </div>
-        </div>
+        <span style={{ fontSize: 12.5, fontWeight: 600, color: theme.panelTxt }}>
+          {t(`teacher.tier${tier}`)}
+        </span>
+        <span style={{ fontSize: 11.5, color: theme.panelTxtMute }}>
+          {t(tierMeaningKey)}
+        </span>
       </div>
 
-      {/* Tests list or empty placeholder */}
       {tests.length === 0 ? (
         <div style={{
-          border: `2px dashed ${theme.panelBorder}`,
-          borderRadius: 8,
-          padding: '12px 16px',
+          border: `0.5px dashed ${theme.panelBorder}`,
+          borderRadius: 10,
+          padding: 12,
+          textAlign: 'center',
           marginBottom: 8,
+          fontSize: 11.5,
           color: theme.panelTxtMute,
-          fontSize: 12,
-          textAlign: 'center' as const,
         }}>
           {t('teacher.noTestsInTier')}
         </div>
@@ -379,24 +396,161 @@ function TierGroup({
         ))
       )}
 
-      {/* Per-tier add button */}
       <button
         onClick={onAddTest}
         style={{
           all: 'unset',
           cursor: 'pointer',
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 5,
           fontSize: 12,
           color: theme.primaryBg,
-          padding: '4px 0',
           fontFamily: theme.fontUI,
-          fontWeight: 600,
         }}
       >
-        + {t('teacher.addTestToTier', { tier })}
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M12 5v14M5 12h14" />
+        </svg>
+        {t('teacher.addTestToTier', { tier })}
       </button>
     </div>
   );
 }
+
+// ---- Student preview (right pane) ----
+
+function StudentPreview({
+  title,
+  statement,
+  visibleTests,
+}: {
+  title: string;
+  statement: string;
+  visibleTests: TestDraft[];
+}) {
+  const theme = useThemeStore((s) => s.theme);
+
+  return (
+    <div style={{ borderRadius: 12, overflow: 'hidden', border: `0.5px solid ${theme.panelBorder}` }}>
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 7,
+        padding: '7px 13px',
+        background: theme.surfacePanel,
+        fontSize: 11,
+        letterSpacing: 0.7,
+        textTransform: 'uppercase',
+        color: theme.panelTxtMute,
+        borderBottom: `0.5px solid ${theme.panelBorder}`,
+      }}>
+        <span style={{ width: 7, height: 7, borderRadius: '50%', background: theme.primaryBg, display: 'inline-block', flexShrink: 0 }} />
+        Preview · what students see
+      </div>
+
+      <div style={{
+        padding: '12px 18px 10px',
+        borderBottom: `1px solid ${theme.panelBorder}`,
+        background: theme.chip,
+      }}>
+        <div style={{ fontSize: 16, fontWeight: 600, color: theme.panelTxt }}>
+          {title || 'Untitled'}
+        </div>
+      </div>
+
+      <div style={{
+        padding: '15px 18px',
+        fontSize: 13.5,
+        lineHeight: 1.7,
+        color: theme.panelTxt,
+        maxHeight: 540,
+        overflowY: 'auto',
+      }}>
+        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+          {statement || '_No statement yet._'}
+        </ReactMarkdown>
+
+        {visibleTests.length > 0 && (
+          <>
+            <div style={{
+              fontSize: 11,
+              fontWeight: 600,
+              letterSpacing: 0.8,
+              textTransform: 'uppercase',
+              color: theme.panelTxtMute,
+              margin: '18px 0 10px',
+            }}>
+              Examples
+            </div>
+            {visibleTests.map((test, i) => (
+              <div key={i} style={{
+                border: `1px solid ${theme.panelBorder}`,
+                borderRadius: 8,
+                marginBottom: 10,
+                background: theme.surface,
+                overflow: 'hidden',
+              }}>
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  padding: '6px 10px',
+                  borderBottom: `1px solid ${theme.panelBorder}`,
+                  gap: 8,
+                }}>
+                  <span style={{ flex: 1, fontSize: 12, fontWeight: 600, color: theme.panelTxtMute }}>
+                    Test {i + 1}
+                  </span>
+                </div>
+                <div style={{ display: 'flex' }}>
+                  <div style={{ flex: 1, padding: '8px 10px' }}>
+                    <div style={{ fontSize: 10, color: theme.panelTxtMute, marginBottom: 3 }}>Input</div>
+                    <pre style={{ margin: 0, fontSize: 12, fontFamily: theme.fontMono, color: theme.panelTxt, whiteSpace: 'pre-wrap' }}>
+                      {test.input || '—'}
+                    </pre>
+                  </div>
+                  <div style={{ flex: 1, padding: '8px 10px', borderLeft: `1px solid ${theme.panelBorder}` }}>
+                    <div style={{ fontSize: 10, color: theme.panelTxtMute, marginBottom: 3 }}>Expected</div>
+                    <pre style={{ margin: 0, fontSize: 12, fontFamily: theme.fontMono, color: theme.panelTxt, whiteSpace: 'pre-wrap' }}>
+                      {test.expected || '—'}
+                    </pre>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ---- Section icons ----
+
+const IconDoc = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+    <path d="M14 2v6h6M16 13H8M16 17H8M10 9H8" />
+  </svg>
+);
+
+const IconLines = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M4 6h16M4 12h16M4 18h10" />
+  </svg>
+);
+
+const IconCode = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M16 18l6-6-6-6M8 6l-6 6 6 6" />
+  </svg>
+);
+
+const IconCheckSquare = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+  </svg>
+);
 
 // ---- Main component ----
 
@@ -418,16 +572,13 @@ export default function TeacherProblemForm() {
     tests: [emptyTest(1)],
   });
   const [slugTouched, setSlugTouched] = useState(false);
-  const [preview, setPreview] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(isNew);
 
-  // Dirty tracking: snapshot form after load
   const snapshotRef = useRef<string>(JSON.stringify(form));
   const dirty = JSON.stringify(form) !== snapshotRef.current;
 
-  // Load existing problem for edit mode
   useEffect(() => {
     if (isNew) {
       snapshotRef.current = JSON.stringify(form);
@@ -458,18 +609,14 @@ export default function TeacherProblemForm() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editSlug, isNew]);
 
-  // Allow body to scroll (global CSS sets overflow:hidden for the IDE layout)
   useEffect(() => {
     const prev = document.body.style.overflowY;
     document.body.style.overflowY = 'auto';
     return () => { document.body.style.overflowY = prev; };
   }, []);
 
-  // Warn before leaving with unsaved changes
   useEffect(() => {
-    const handler = (e: BeforeUnloadEvent) => {
-      if (dirty) e.preventDefault();
-    };
+    const handler = (e: BeforeUnloadEvent) => { if (dirty) e.preventDefault(); };
     window.addEventListener('beforeunload', handler);
     return () => window.removeEventListener('beforeunload', handler);
   }, [dirty]);
@@ -528,214 +675,208 @@ export default function TeacherProblemForm() {
     }
   };
 
-  const handleCancel = () => {
-    navigate('/teacher/problems');
-  };
+  const handleCancel = () => navigate('/teacher/problems');
 
   const cmTheme = themeId === 'midnight' ? githubDark : githubLight;
-
   const tierTests = (tier: 1 | 2 | 3) =>
     form.tests.map((test, idx) => ({ test, idx })).filter(({ test }) => test.tier === tier);
+  const visibleTests = form.tests.filter((t) => t.is_visible);
 
   if (!loaded) {
     return <div style={{ padding: 24, fontFamily: theme.fontUI, color: theme.panelTxtMute }}>Loading…</div>;
   }
 
   return (
-    <div style={{
-      minHeight: '100vh',
-      background: theme.appBg,
-      fontFamily: theme.fontUI,
-      color: theme.panelTxt,
-    }}>
-      {/* Sticky action bar */}
+    <div style={{ minHeight: '100vh', background: theme.appBg, fontFamily: theme.fontUI, color: theme.panelTxt }}>
+
+      {/* Sticky topbar */}
       <div style={{
         position: 'sticky',
         top: 0,
         zIndex: 10,
-        background: theme.surfacePanel,
-        borderBottom: `1px solid ${theme.panelBorder}`,
         display: 'flex',
         alignItems: 'center',
         gap: 12,
-        padding: '10px 24px',
+        padding: '13px 20px',
+        background: `${theme.appBg}ec`,
+        backdropFilter: 'blur(6px)',
+        borderBottom: `0.5px solid ${theme.panelBorder}`,
       }}>
-        <button
-          onClick={handleCancel}
-          style={{ all: 'unset', cursor: 'pointer', fontSize: 12, color: theme.panelTxtMute }}
-        >
-          ← {t('teacher.problems')}
-        </button>
-        <span style={{ fontSize: 16, fontWeight: 700, color: theme.panelTxt }}>
-          {isNew ? t('teacher.newProblem') : t('teacher.editProblem')}
-        </span>
-        {dirty && (
-          <span style={{
-            fontSize: 11,
-            padding: '2px 8px',
-            borderRadius: 20,
-            background: 'rgba(245,158,11,0.15)',
-            color: theme.tabDirty,
-            fontWeight: 600,
-          }}>
-            {t('teacher.unsavedChanges')}
-          </span>
-        )}
-        <div style={{ flex: 1 }} />
         <button
           onClick={handleCancel}
           style={{
             all: 'unset',
             cursor: 'pointer',
-            padding: '7px 16px',
-            borderRadius: 6,
-            background: theme.chip,
-            color: theme.panelTxt,
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
             fontSize: 13,
-            fontWeight: 600,
+            color: theme.panelTxtMute,
+          }}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M19 12H5M12 19l-7-7 7-7" />
+          </svg>
+          {t('teacher.problems')}
+        </button>
+
+        <span style={{ width: 1, height: 16, background: theme.panelBorder }} />
+
+        <span style={{ fontSize: 15, fontWeight: 600, color: theme.panelTxt }}>
+          {isNew ? t('teacher.newProblem') : t('teacher.editProblem')}
+        </span>
+
+        {dirty && (
+          <span style={{
+            fontSize: 11.5,
+            padding: '2px 9px',
+            borderRadius: 999,
+            background: 'rgba(240,180,41,0.12)',
+            color: theme.tabDirty,
+          }}>
+            {t('teacher.unsavedChanges')}
+          </span>
+        )}
+
+        <div style={{ flex: 1 }} />
+
+        <button
+          onClick={handleCancel}
+          style={{
+            all: 'unset',
+            cursor: 'pointer',
+            fontSize: 13,
+            padding: '7px 15px',
+            borderRadius: 8,
+            border: `0.5px solid ${theme.panelBorder}`,
+            color: theme.panelTxtMute,
+            fontFamily: theme.fontUI,
           }}
         >
           {t('teacher.cancel')}
         </button>
+
         <button
           onClick={handleSave}
           disabled={saving}
           style={{
             all: 'unset',
             cursor: saving ? 'default' : 'pointer',
-            padding: '7px 18px',
-            borderRadius: 6,
-            background: saving ? theme.chip : theme.primaryBg,
-            color: saving ? theme.panelTxtMute : theme.primaryTxt,
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
             fontSize: 13,
             fontWeight: 600,
+            padding: '7px 15px',
+            borderRadius: 8,
+            background: saving ? theme.chip : theme.primaryBg,
+            color: saving ? theme.panelTxtMute : theme.primaryTxt,
+            fontFamily: theme.fontUI,
             opacity: saving ? 0.7 : 1,
           }}
         >
+          {!saving && (
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M20 6L9 17l-5-5" />
+            </svg>
+          )}
           {saving ? t('teacher.savingProblem') : t('teacher.saveProblem')}
         </button>
       </div>
 
-      {/* Form body */}
-      <div style={{ maxWidth: 900, margin: '0 auto', padding: '24px 24px 48px', boxSizing: 'border-box' as const }}>
+      {/* Two-pane body */}
+      <div style={{
+        maxWidth: 1080,
+        margin: '0 auto',
+        padding: '18px 20px 48px',
+        display: 'flex',
+        gap: 16,
+        alignItems: 'flex-start',
+        boxSizing: 'border-box',
+      }}>
 
-        {/* Error banner */}
-        {error && (
-          <div style={{
-            padding: '8px 12px', marginBottom: 16,
-            background: '#ff4d4d22', border: '1px solid #ff4d4d44',
-            borderRadius: 6, color: '#ff6b6b', fontSize: 13,
-          }}>
-            {error}
-          </div>
-        )}
+        {/* Left: authoring form */}
+        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 14 }}>
 
-        {/* Problem details */}
-        <FormSection title={t('teacher.problemTitle')}>
-          <div style={{ marginTop: 12 }}>
-            <FieldLabel label={t('teacher.problemTitle')} required />
-            <FieldInput
-              value={form.title}
-              onChange={handleTitleChange}
-            />
-          </div>
-          <div style={{ display: 'flex', gap: 12, marginTop: 14 }}>
-            <div style={{ flex: 2 }}>
-              <FieldLabel label={t('teacher.problemSlug')} required />
-              <FieldInput
-                value={form.slug}
-                prefix="/compete/"
-                mono
-                onChange={(v) => { setSlugTouched(true); setForm((f) => ({ ...f, slug: v })); }}
-              />
-              <div style={{ fontSize: 11, color: theme.panelTxtMute, marginTop: 4 }}>
-                {t('teacher.problemSlugHint')}
+          {error && (
+            <div style={{
+              padding: '8px 12px',
+              background: 'rgba(255,77,77,0.13)',
+              border: '0.5px solid rgba(255,77,77,0.27)',
+              borderRadius: 8,
+              color: '#ff7a7a',
+              fontSize: 13,
+            }}>
+              {error}
+            </div>
+          )}
+
+          {/* Problem details */}
+          <SectionCard icon={<IconDoc />} title={t('teacher.problemTitle')} desc="Title and list position">
+            <div style={{ marginBottom: 14 }}>
+              <FieldLabel label={t('teacher.problemTitle')} required />
+              <FieldInput value={form.title} onChange={handleTitleChange} />
+            </div>
+            <div style={{ display: 'flex', gap: 12 }}>
+              <div style={{ flex: 2 }}>
+                <FieldLabel label={t('teacher.problemSlug')} required />
+                <FieldInput
+                  value={form.slug}
+                  prefix="/compete/"
+                  mono
+                  onChange={(v) => { setSlugTouched(true); setForm((f) => ({ ...f, slug: v })); }}
+                />
+              </div>
+              <div style={{ flex: 1 }}>
+                <FieldLabel label={t('teacher.orderIndex')} />
+                <FieldInput
+                  value={String(form.order_index)}
+                  type="number"
+                  min={0}
+                  onChange={(v) => setForm((f) => ({ ...f, order_index: Number(v) || 0 }))}
+                />
               </div>
             </div>
-            <div style={{ flex: 1 }}>
-              <FieldLabel label={t('teacher.orderIndex')} />
-              <FieldInput
-                value={String(form.order_index)}
-                type="number"
-                min={0}
-                onChange={(v) => setForm((f) => ({ ...f, order_index: Number(v) || 0 }))}
-              />
-            </div>
-          </div>
-        </FormSection>
+          </SectionCard>
 
-        {/* Statement */}
-        <FormSection title={t('teacher.problemStatement')}>
-          {/* Write / Preview segmented control */}
-          <div style={{ display: 'flex', gap: 0, marginTop: 12, marginBottom: 10 }}>
-            {(['write', 'preview'] as const).map((tab) => {
-              const active = tab === (preview ? 'preview' : 'write');
-              return (
-                <button
-                  key={tab}
-                  onClick={() => setPreview(tab === 'preview')}
-                  style={{
-                    all: 'unset',
-                    cursor: 'pointer',
-                    padding: '5px 14px',
-                    fontSize: 12,
-                    fontWeight: 600,
-                    fontFamily: theme.fontUI,
-                    background: active ? theme.primaryBg : theme.chip,
-                    color: active ? theme.primaryTxt : theme.panelTxtMute,
-                    borderRadius: tab === 'write' ? '6px 0 0 6px' : '0 6px 6px 0',
-                    border: `1px solid ${theme.panelBorder}`,
-                    borderRight: tab === 'write' ? 'none' : undefined,
-                  }}
-                >
-                  {tab === 'write' ? t('teacher.write') : t('teacher.problemPreview')}
-                </button>
-              );
-            })}
-          </div>
-          {preview ? (
-            <div style={{
-              minHeight: 120, padding: 12,
-              border: `1px solid ${theme.panelBorder}`,
-              borderRadius: 6, background: theme.surface,
-              color: theme.panelTxt, fontSize: 14,
-              lineHeight: 1.6,
-            }}>
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                {form.statement || '_No content yet_'}
-              </ReactMarkdown>
-            </div>
-          ) : (
+          {/* Statement */}
+          <SectionCard icon={<IconLines />} title={t('teacher.problemStatement')} desc="Markdown">
             <textarea
               value={form.statement}
               onChange={(e) => setForm((f) => ({ ...f, statement: e.target.value }))}
-              rows={10}
+              rows={8}
               style={{
-                display: 'block', width: '100%', boxSizing: 'border-box' as const,
-                background: theme.surface, color: theme.panelTxt,
-                border: `1px solid ${theme.panelBorder}`,
-                borderRadius: 6, padding: '8px 10px',
-                fontFamily: theme.fontMono, fontSize: 13, resize: 'vertical' as const,
+                display: 'block',
+                width: '100%',
+                boxSizing: 'border-box',
+                background: theme.surface,
+                color: theme.panelTxt,
+                border: `0.5px solid ${theme.panelBorder}`,
+                borderRadius: 8,
+                padding: '9px 11px',
+                fontFamily: theme.fontMono,
+                fontSize: 13,
+                lineHeight: 1.6,
+                resize: 'vertical',
+                outline: 'none',
               }}
             />
-          )}
-        </FormSection>
+          </SectionCard>
 
-        {/* Starter code */}
-        <FormSection title={t('teacher.starterCode')}>
-          <div style={{ marginTop: 12, border: `1px solid ${theme.panelBorder}`, borderRadius: 6, overflow: 'hidden' }}>
-            <CodeMirror
-              value={form.starter_code}
-              extensions={competeProfile({ theme, lang: i18n.language, fontSize, cmTheme })}
-              onChange={(v) => setForm((f) => ({ ...f, starter_code: v }))}
-              height="200px"
-            />
-          </div>
-        </FormSection>
+          {/* Starter code */}
+          <SectionCard icon={<IconCode />} title={t('teacher.starterCode')} desc="Pre-filled for students">
+            <div style={{ border: `0.5px solid ${theme.panelBorder}`, borderRadius: 8, overflow: 'hidden' }}>
+              <CodeMirror
+                value={form.starter_code}
+                extensions={competeProfile({ theme, lang: i18n.language, fontSize, cmTheme })}
+                onChange={(v) => setForm((f) => ({ ...f, starter_code: v }))}
+                height="200px"
+              />
+            </div>
+          </SectionCard>
 
-        {/* Test cases */}
-        <FormSection title={t('teacher.tier').toUpperCase() + 'S'}>
-          <div style={{ marginTop: 12 }}>
+          {/* Test cases */}
+          <SectionCard icon={<IconCheckSquare />} title={t('teacher.testCases', 'Test cases')} desc="Each tier earns a star">
             {([1, 2, 3] as (1 | 2 | 3)[]).map((tier) => (
               <TierGroup
                 key={tier}
@@ -747,8 +888,17 @@ export default function TeacherProblemForm() {
                 onSetTest={setTest}
               />
             ))}
-          </div>
-        </FormSection>
+          </SectionCard>
+        </div>
+
+        {/* Right: sticky student preview */}
+        <div style={{ flexShrink: 0, width: 380, position: 'sticky', top: 62 }}>
+          <StudentPreview
+            title={form.title}
+            statement={form.statement}
+            visibleTests={visibleTests}
+          />
+        </div>
       </div>
     </div>
   );

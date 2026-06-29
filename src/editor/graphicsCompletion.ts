@@ -121,7 +121,7 @@ function makeJediDotSource(
   });
 }
 
-type RequestCompletions = (code: string, line: number, col: number) => Promise<JediCompletion[]>;
+export type RequestCompletions = (code: string, line: number, col: number) => Promise<JediCompletion[]>;
 
 function makeCompletionExtension(lang: string, requestCompletions: RequestCompletions | null) {
   const completions = buildCompletions(lang);

@@ -1,14 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Routes, Route, useParams } from "react-router-dom";
 import CodeMirror, { type ReactCodeMirrorRef } from "@uiw/react-codemirror";
-import { python } from "@codemirror/lang-python";
-import { indentUnit, bracketMatching, indentOnInput } from "@codemirror/language";
-import { EditorState, Prec } from "@codemirror/state";
-import { EditorView, lineNumbers, highlightActiveLine, drawSelection, highlightSpecialChars } from "@codemirror/view";
-import { autocompletion, acceptCompletion, completionKeymap } from "@codemirror/autocomplete";
-import { lintGutter, setDiagnostics } from "@codemirror/lint";
-import { keymap } from "@codemirror/view";
-import { createGraphicsExtensions, reconfigureGraphicsExtensions } from "./editor/graphicsCompletion";
+import { setDiagnostics } from "@codemirror/lint";
+import { reconfigureGraphicsExtensions } from "./editor/graphicsCompletion";
+import { graphicsProfile } from "./editor/profiles";
 import Rail from "./SideMenu";
 import { useEditor, useIde } from "./state/IdeState";
 import { getProject, getComments, type ApiComment } from "./state/api";
@@ -22,8 +17,7 @@ import CanvasWindow from "./CanvasWindow";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import LoadingScreen from "./components/LoadingScreen";
 import ConsolePanel from "./components/ConsolePanel";
-import { indentationGuideField, indentationGuides } from "./editor/theme";
-import { commentExtension, setCommentsEffect } from "./editor/comments";
+import { setCommentsEffect } from "./editor/comments";
 import { ProjectsPage } from "./components/projects";
 import TeacherDashboard from "./components/teacher/TeacherDashboard";
 import TeacherProjectView from "./components/teacher/TeacherProjectView";
@@ -418,30 +412,15 @@ function AppInner() {
                   key={`${currentFile || "no-file"}-${theme.editorBg}`}
                   value={project.files[currentFile] ?? ""}
                   onChange={onChange}
-                  extensions={[
-                    python(),
-                    EditorState.tabSize.of(4),
-                    indentUnit.of("    "),
-                    bracketMatching(),
-                    indentOnInput(),
-                    lineNumbers(),
-                    highlightActiveLine(),
-                    drawSelection(),
-                    highlightSpecialChars(),
-                    indentationGuideField,
+                  extensions={graphicsProfile({
+                    theme,
+                    lang,
+                    fontSize,
                     cmTheme,
-                    indentationGuides,
-                    EditorView.theme({ "&": { fontSize: fontSize + "px" } }),
-                    EditorView.lineWrapping,
-                    autocompletion({ defaultKeymap: false }),
-                    ...createGraphicsExtensions(theme, lang, enableAutocomplete, runner.requestCompletions),
-                    lintGutter(),
-                    Prec.high(keymap.of([
-                      { key: "Tab", run: acceptCompletion },
-                      ...completionKeymap.filter(b => b.key !== "Enter"),
-                    ])),
-                    commentExtension({ canAdd: false, onLineSelect: (line, y) => { setSelectedLine(line); setAnchorY(y); } }),
-                  ]}
+                    enableAutocomplete,
+                    requestCompletions: runner.requestCompletions,
+                    onLineSelect: (line, y) => { setSelectedLine(line); setAnchorY(y); },
+                  })}
                   height="100%"
                   width="100%"
                   className="h-full text-left"

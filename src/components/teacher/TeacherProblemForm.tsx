@@ -458,6 +458,13 @@ export default function TeacherProblemForm() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editSlug, isNew]);
 
+  // Allow body to scroll (global CSS sets overflow:hidden for the IDE layout)
+  useEffect(() => {
+    const prev = document.body.style.overflowY;
+    document.body.style.overflowY = 'auto';
+    return () => { document.body.style.overflowY = prev; };
+  }, []);
+
   // Warn before leaving with unsaved changes
   useEffect(() => {
     const handler = (e: BeforeUnloadEvent) => {

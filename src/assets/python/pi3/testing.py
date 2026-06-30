@@ -31,7 +31,7 @@ import types as _types_module
 
 __all__ = [
     'seed',
-    'Literal', 'Integer', 'Float', 'Choice', 'String',
+    'Literal', 'Compute', 'Integer', 'Float', 'Choice', 'String',
     'Permutation', 'Sample', 'UniqueSample',
     'Example', 'Easy', 'Medium', 'Hard',
 ]
@@ -67,6 +67,59 @@ class Literal(_Recipe):
 
     def materialize(self, rng):
         return self._value
+
+
+class Compute(_Recipe):
+    """A recipe that derives a value from other recipes via a pure function.
+
+    The function is called with the materialized values of its argument
+    recipes, in order. The function must be pure (no side effects, no
+    randomness of its own — use Integer/Float/etc. for randomness).
+
+    Examples:
+        n = Integer(1, 100, name="n")
+        m = Integer(1, 100, name="m")
+        # Common case with a lambda:
+        p = Compute(lambda nv, mv: nv * mv, (n, m), name="p")
+        # Named function:
+        def total(a, b, c): return a + b + c
+        s = Compute(total, (n, m, p), name="s")
+        # Single-recipe shorthand:
+        length = Compute(len, arr, name="length")
+
+    Note: arguments must be declared in the tuple. A function that
+    closes over a recipe from the enclosing scope and tries to use it
+    as a value will fail at materialization with a TypeError — recipes
+    are not values until they are materialized.
+
+    The result must be JSON-serializable (int, float, str, list, dict,
+    bool, None).
+    """
+
+    def __init__(self, fn, args, *, name=None):
+        super().__init__(name=name)
+        self._fn = fn
+        # Allow a single recipe to skip the tuple
+        if isinstance(args, _Recipe):
+            args = (args,)
+        # Validate before converting to tuple — better error message
+        if not isinstance(args, (tuple, list)):
+            raise TypeError(
+                f"Compute() args must be a recipe or a tuple of recipes, "
+                f"got {type(args).__name__}. Wrap raw values in Literal()."
+            )
+        self._args = tuple(args)
+        # Validate that every arg is a recipe — better to fail fast
+        for i, a in enumerate(self._args):
+            if not isinstance(a, _Recipe):
+                raise TypeError(
+                    f"Compute() arg #{i} must be a recipe (Integer, Compute, etc.), "
+                    f"got {type(a).__name__}. Wrap values in Literal()."
+                )
+
+    def materialize(self, rng):
+        materialized = tuple(a.materialize(rng) for a in self._args)
+        return self._fn(*materialized)
 
 
 class Integer(_Recipe):

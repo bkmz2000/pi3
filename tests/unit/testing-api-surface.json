@@ -3,6 +3,7 @@
   "_version": "1.0",
   "__all__": [
     "Choice",
+    "Compute",
     "Easy",
     "Example",
     "Float",

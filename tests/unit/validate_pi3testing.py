@@ -8,7 +8,7 @@ import json
 
 sys.path.insert(0, "src/assets/python")
 from pi3.testing import (
-    seed, Literal, Integer, Float, Choice, String,
+    seed, Literal, Compute, Integer, Float, Choice, String,
     Permutation, Sample, UniqueSample,
     Example, Easy, Medium, Hard,
 )
@@ -406,6 +406,166 @@ str_direct = str(parity_set)
 seed("testset-str-parity")
 str_bundle = str(_testing_mod._TestBundle([parity_set]))
 check_eq("testset-str-parity", json.loads(str_direct), json.loads(str_bundle))
+
+# ── Compute ────────────────────────────────────────────────────────────────────
+
+# Basic: addition
+seed("compute-basic")
+c = Compute(lambda a, b: a + b, (Literal(3), Literal(4)))
+check_eq("compute-basic-add", c.materialize(_testing_mod._rng), 7)
+
+# Basic: multiplication with degenerate integers (deterministic)
+seed("compute-mul")
+c = Compute(lambda a, b: a * b, (Integer(2, 2), Integer(5, 5)))
+check_eq("compute-mul", c.materialize(_testing_mod._rng), 10)
+
+# Single-recipe shorthand
+seed("compute-shorthand")
+c = Compute(len, Literal([1, 2, 3, 4]))
+check_eq("compute-shorthand-len", c.materialize(_testing_mod._rng), 4)
+
+# Tuple form still works identically
+seed("compute-tuple-form")
+c = Compute(len, (Literal([1, 2, 3, 4]),))
+check_eq("compute-tuple-form-len", c.materialize(_testing_mod._rng), 4)
+
+# Nesting: one level
+seed("compute-nesting")
+c = Compute(lambda x: x + 1, (Compute(lambda a, b: a * b, (Literal(2), Literal(3))),))
+check_eq("compute-nesting-1", c.materialize(_testing_mod._rng), 7)
+
+# Nesting: deeper (3+ levels)
+seed("compute-nesting-deep")
+inner = Compute(lambda a, b: a * b, (Literal(2), Literal(3)))
+mid = Compute(lambda x: x - 1, (inner,))
+outer = Compute(lambda x: x * 4, (mid,))
+check_eq("compute-nesting-deep", outer.materialize(_testing_mod._rng), 20)
+
+# Argument order matters
+seed("compute-order")
+c1 = Compute(lambda a, b: a - b, (Literal(10), Literal(3)))
+c2 = Compute(lambda a, b: a - b, (Literal(3), Literal(10)))
+check_eq("compute-order-fwd", c1.materialize(_testing_mod._rng), 7)
+check_eq("compute-order-rev", c2.materialize(_testing_mod._rng), -7)
+
+# name= fields-publishes via add_line
+seed("compute-fields")
+n = Literal(3, name="n")
+m = Literal(7, name="m")
+p = Compute(lambda n_, m_: n_ * m_, (n, m), name="p")
+ex = Example()
+ex.add_line(n)
+ex.add_line(m)
+ex.add_line(p)
+result = ex._materialize_one(_testing_mod._rng)
+check("compute-fields-p", "p" in (result.get("fields") or {}),
+       f"fields should contain 'p': {result.get('fields')}")
+check_eq("compute-fields-p-value", (result.get("fields") or {}).get("p"), 21)
+check_eq("compute-fields-n", (result.get("fields") or {}).get("n"), 3)
+check_eq("compute-fields-m", (result.get("fields") or {}).get("m"), 7)
+
+# name= only outermost publishes; inner name is dead
+seed("compute-inner-name-dead")
+n2 = Integer(1, 100, name="nn")
+m2 = Integer(1, 100, name="mm")
+ex2 = Example()
+ex2.add_line(Compute(lambda nv, mv: nv + mv, (n2, m2), name="inner"))
+result2 = ex2._materialize_one(_testing_mod._rng)
+check("compute-inner-name-present", "inner" in (result2.get("fields") or {}),
+       f"fields should contain 'inner' (it IS the top-level recipe): {result2.get('fields')}")
+
+# But: inline inner should NOT publish
+seed("compute-nested-name-dead")
+n3 = Integer(1, 100, name="na")
+m3 = Integer(1, 100, name="nb")
+ex3 = Example()
+ex3.add_line(Compute(lambda x: x * 2,
+    (Compute(lambda a, b: a * b, (n3, m3), name="inner_dead"),),
+    name="outer"))
+result3 = ex3._materialize_one(_testing_mod._rng)
+check("compute-outer-name-present", "outer" in (result3.get("fields") or {}),
+       f"fields should contain 'outer': {result3.get('fields')}")
+check("compute-inner-name-absent", "inner_dead" not in (result3.get("fields") or {}),
+       f"fields should NOT contain 'inner_dead': {result3.get('fields')}")
+
+# Determinism: same seed → same result
+seed("compute-det")
+r1 = Compute(lambda a, b: a + b, (Integer(1, 1000), Integer(1, 1000))).materialize(
+    _testing_mod._rng)
+seed("compute-det")
+r2 = Compute(lambda a, b: a + b, (Integer(1, 1000), Integer(1, 1000))).materialize(
+    _testing_mod._rng)
+check_eq("compute-determinism", r1, r2)
+
+# Compute consumes no RNG draws of its own — compare state after
+# direct materialization vs. via Compute (both should land in same state)
+seed("compute-no-self-draws")
+a = Integer(1, 10).materialize(_testing_mod._rng)
+b = Integer(1, 10).materialize(_testing_mod._rng)
+rng_direct = _testing_mod._rng.getstate()
+# Now materialize via Compute
+seed("compute-no-self-draws")
+c = Compute(lambda x, y: x + y, (Integer(1, 10), Integer(1, 10))).materialize(
+    _testing_mod._rng)
+rng_via_compute = _testing_mod._rng.getstate()
+# States should be identical: Compute adds no draws
+check_eq("compute-no-extra-draws", rng_via_compute, rng_direct)
+
+# Type error: raw ints not recipes
+try:
+    Compute(lambda a, b: a + b, (1, 2))
+    check("compute-type-err-tuple", False, "expected TypeError for raw ints")
+except TypeError as e:
+    check("compute-type-err-tuple",
+          "Literal" in str(e) and "arg #0" in str(e),
+          f"unexpected error: {e}")
+
+# Type error: raw int as single arg
+try:
+    Compute(lambda x: x + 1, 5)
+    check("compute-type-err-single", False, "expected TypeError for raw int single")
+except TypeError as e:
+    check("compute-type-err-single",
+          "must be a recipe" in str(e).lower() or "Literal" in str(e),
+          f"unexpected error: {e}")
+
+# Closure trap: function closing over a recipe raises clear error
+seed("compute-closure-trap")
+def buggy(m_val):
+    return n_clos + m_val  # n_clos is a recipe, not a value
+
+n_clos = Integer(1, 100, name="nc")
+bad = Compute(buggy, (Integer(1, 100, name="mc"),))
+try:
+    bad.materialize(_testing_mod._rng)
+    check("compute-closure-trap", False, "expected TypeError — closure over recipe")
+except TypeError as e:
+    check("compute-closure-trap",
+          "TypeError" in type(e).__name__,
+          f"expected TypeError, got {type(e).__name__}: {e}")
+
+# Integration: full Example with Compute-derived fields
+seed("compute-integration")
+ex4 = Example()
+n4 = Integer(1, 100, name="n")
+m4 = Integer(1, 100, name="m")
+p4 = Compute(lambda nv, mv: nv * mv, (n4, m4), name="p")
+ex4.add_line(n4)
+ex4.add_line(m4)
+ex4.add_line(p4)
+ex4.answer(42)
+result4 = ex4._materialize_one(_testing_mod._rng)
+# input should have 3 lines
+input_lines = result4["input"].strip().split("\n")
+check_eq("compute-integration-input-lines", len(input_lines), 3)
+# fields should have 3 named keys
+check_eq("compute-integration-field-count",
+         len(result4.get("fields") or {}), 3)
+check("compute-integration-field-n", "n" in (result4.get("fields") or {}))
+check("compute-integration-field-m", "m" in (result4.get("fields") or {}))
+check("compute-integration-field-p", "p" in (result4.get("fields") or {}))
+# expected set via answer()
+check_eq("compute-integration-expected", result4.get("expected"), "42")
 
 # ── Results ───────────────────────────────────────────────────────────────────
 if failures:

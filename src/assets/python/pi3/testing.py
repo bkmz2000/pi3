@@ -24,6 +24,7 @@ Usage:
     print(tests)
 """
 import json
+import sys
 import inspect
 import hashlib
 import random as _random_module
@@ -358,6 +359,56 @@ class _TestBundle:
 
     def __str__(self) -> str:
         tests = self._materialize_all(_rng)
+
+        # If a reference solution is attached, run it against each test's
+        # fields now and embed the expected answer directly in the test.
+        # This way print(tests) produces a self-contained JSON bundle that
+        # doesn't need the TS handler to re-run the reference.
+        if self._solution is not None:
+            import types, io as _io
+            _old_stdout = sys.stdout
+            for test in tests:
+                # Don't override explicit .answer() values
+                if 'expected' in test:
+                    continue
+                fields = test.get('fields')
+                if not fields:
+                    continue
+                ns = types.SimpleNamespace(**fields)
+                _buf = _io.StringIO()
+                sys.stdout = _buf
+                try:
+                    result = self._solution(ns)
+                    if result is not None:
+                        print(result)
+                finally:
+                    sys.stdout = _old_stdout
+                test['expected'] = _buf.getvalue().rstrip('\n')
+
+            # Checker sanity check: if a checker is also attached, verify
+            # it accepts the reference solution's output for every test.
+            if self._checker is not None:
+                for test in tests:
+                    fields = test.get('fields')
+                    if not fields:
+                        continue
+                    expected = test.get('expected')
+                    if expected is None:
+                        continue
+                    ns = types.SimpleNamespace(**fields)
+                    try:
+                        ok = self._checker(ns, expected, expected)
+                    except Exception as e:
+                        raise RuntimeError(
+                            f"Checker raised on test with fields {fields}: {e}"
+                        ) from e
+                    if not ok:
+                        raise RuntimeError(
+                            f"Checker rejected reference solution output "
+                            f"({expected!r}) for test with fields {fields}. "
+                            f"Fix the checker — it must accept the reference solution's answer."
+                        )
+
         out = {
             'tests': tests,
             'reference_solution_py': _get_source(self._solution),

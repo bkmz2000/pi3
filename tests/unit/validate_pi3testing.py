@@ -280,7 +280,8 @@ ex_j.answer(6)
 easy_j = Easy()
 easy_j.add_line(Integer(1, 50, name="n"))
 
-bundle_j = (ex_j + easy_j).with_solution(lambda test: test)
+# with_solution now embeds expected for tests without explicit .answer()
+bundle_j = (ex_j + easy_j).with_solution(lambda test: test.n)
 json_str = str(bundle_j)
 try:
     parsed = json.loads(json_str)
@@ -298,10 +299,12 @@ if "tests" in parsed:
     check("json-fields-present", "fields" in t0)
     check("json-input-present", "input" in t0)
     check_eq("json-example-expected", t0.get("expected"), "6")
-    # Easy test should NOT have 'expected' (no .answer())
+    # Easy test now has expected embedded from the solution
     t1 = parsed["tests"][1]
-    check("json-easy-no-expected", "expected" not in t1,
-          f"unexpected 'expected' key in easy test: {t1}")
+    check("json-easy-has-expected", "expected" in t1,
+          f"expected should be embedded by with_solution: {t1}")
+    check("json-easy-expected-is-int", t1.get("expected", "").isdigit(),
+          f"expected should be an integer string: {t1.get('expected')}")
 
 # reference_solution_py and checker_py
 check("json-reference-not-null", parsed.get("reference_solution_py") is not None,
@@ -317,6 +320,46 @@ check("json-checker-set", json_c.get("checker_py") is not None,
       "checker_py should be set")
 check("json-no-reference-checker-only", json_c.get("reference_solution_py") is None,
       "reference_solution_py should be null when not set")
+
+# Solution embedding: with_solution embeds expected for tests without .answer()
+seed("embedding-test")
+e1 = Easy()
+e1.add_line(Literal(3, name="n"))
+e1.add_line(Literal(7, name="m"))
+bundle_embed = _testing_mod._TestBundle([e1]).with_solution(lambda test: test.n + test.m)
+parsed_embed = json.loads(str(bundle_embed))
+check_eq("embedding-expected", parsed_embed["tests"][0]["expected"], "10")
+
+# .answer() overrides solution embedding
+seed("answer-override-test")
+e2 = Example()
+e2.add_line(Literal(5, name="n"))
+e2.answer(999)
+bundle_override = _testing_mod._TestBundle([e2]).with_solution(lambda test: test.n * 2)
+parsed_override = json.loads(str(bundle_override))
+check_eq("answer-overrides-solution", parsed_override["tests"][0]["expected"], "999")
+
+# Checker sanity: working checker passes
+seed("checker-sanity-ok")
+e3 = Easy()
+e3.add_line(Literal(4, name="n"))
+bundle_ok = _testing_mod._TestBundle([e3]).with_solution(lambda test: test.n * 3).with_checker(
+    lambda test, out, exp: int(out) == int(exp))
+parsed_ok = json.loads(str(bundle_ok))
+check_eq("checker-sanity-ok-expected", parsed_ok["tests"][0]["expected"], "12")
+
+# Checker sanity: broken checker raises RuntimeError
+seed("checker-sanity-fail")
+e4 = Easy()
+e4.add_line(Literal(4, name="n"))
+try:
+    str(_testing_mod._TestBundle([e4]).with_solution(lambda test: test.n * 3).with_checker(
+        lambda test, out, exp: False))  # always rejects
+    check("checker-sanity-fail", False, "expected RuntimeError from broken checker")
+except RuntimeError as e:
+    check("checker-sanity-fail",
+          "Fix the checker" in str(e) or "rejected" in str(e).lower(),
+          f"unexpected error: {e}")
 
 # ── Edge cases ─────────────────────────────────────────────────────────────────
 

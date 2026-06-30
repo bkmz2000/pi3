@@ -954,7 +954,24 @@
     "addTestToTier": "Добавить тест уровня {{tier}}",
     "testShown": "Видно студентам",
     "testHidden": "Скрыто",
-    "noTestsInTier": "Тестов пока нет — добавьте ниже"
+    "noTestsInTier": "Тестов пока нет — добавьте ниже",
+    "generator": {
+      "title": "Генератор",
+      "desc": "Опционально: автогенерация тестов",
+      "label": "Генератор (pi3.testing)",
+      "referenceSolution": "Эталонное решение",
+      "checker": "Чекер (необязательно)",
+      "runButton": "▶ Запустить генератор",
+      "running": "Запускается…",
+      "previewCount": "Превью — {{count}} тест сгенерирован",
+      "previewCount_plural": "Превью — {{count}} тестов сгенерировано",
+      "errorJson": "Генератор не вернул корректный JSON.",
+      "errorJsonHint": "Генератор не вернул корректный JSON. Убедитесь, что генератор заканчивается на print(tests).",
+      "errorEmpty": "Генератор не создал ни одного теста.",
+      "errorFailed": "Ошибка выполнения генератора.",
+      "errorGeneric": "Ошибка генератора: {{message}}",
+      "errorReference": "Ошибка эталонного решения на тесте #{{n}}: {{message}}"
+    }
   },
   "compete": {
     "submit": "Отправить",

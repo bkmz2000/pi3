@@ -8,6 +8,11 @@ jest.mock("../../src/state/IdeState", () => ({
   isExampleSessionId: jest.fn(() => false),
 }));
 
+jest.mock("../../src/runner/RunnerProvider", () => ({
+  runGenerator: jest.fn(),
+  runReference: jest.fn(),
+}));
+
 jest.mock("react-markdown", () => ({
   __esModule: true,
   default: ({ children }: { children: string }) => {
@@ -55,6 +60,7 @@ import React from "react";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import TeacherProblemForm from "../../src/components/teacher/TeacherProblemForm";
+import * as RunnerProvider from "../../src/runner/RunnerProvider";
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -143,5 +149,78 @@ describe("TeacherProblemForm (new mode)", () => {
     fireEvent.click(shownBadges[0]);
     // After toggle it should show "Hidden"
     expect(screen.getByText(/hidden/i)).toBeTruthy();
+  });
+});
+
+describe("TeacherProblemForm — permanent preview panel", () => {
+  it("preview panel and form are both visible simultaneously", () => {
+    render(<MemoryRouter><TeacherProblemForm /></MemoryRouter>);
+    // Form has an input for title
+    const inputs = document.querySelectorAll("input");
+    expect(inputs.length).toBeGreaterThan(0);
+    // Preview panel is always rendered alongside the form
+    expect(screen.getByTestId("preview")).toBeTruthy();
+    // Both coexist without toggling
+    expect(screen.getByText(/save problem/i)).toBeTruthy();
+  });
+
+  it("preview updates when statement is edited", async () => {
+    render(<MemoryRouter><TeacherProblemForm /></MemoryRouter>);
+    const statementArea = document.querySelectorAll("textarea")[0];
+    fireEvent.change(statementArea, { target: { value: "Hello world" } });
+    await waitFor(() => {
+      expect(screen.getByTestId("preview").textContent).toContain("Hello world");
+    });
+  });
+
+  it("preview shows visible test cards from the default tier-1 test", () => {
+    render(<MemoryRouter><TeacherProblemForm /></MemoryRouter>);
+    // The default tier-1 test has is_visible=true, so the preview should
+    // render an "Examples" section with a test card (even if input/expected are empty)
+    // The student preview is rendered outside the react-markdown mock div
+    const body = document.body.textContent ?? "";
+    expect(body).toContain("Examples");
+    // The preview card shows Input/Expected labels
+    const inputLabels = screen.getAllByText(/^Input$/i);
+    expect(inputLabels.length).toBeGreaterThan(0);
+  });
+
+  it("preview title updates when title field is edited", async () => {
+    render(<MemoryRouter><TeacherProblemForm /></MemoryRouter>);
+    const inputs = document.querySelectorAll("input");
+    fireEvent.change(inputs[0], { target: { value: "My Great Problem" } });
+    await waitFor(() => {
+      expect(document.body.textContent).toContain("My Great Problem");
+    });
+  });
+});
+
+describe("TeacherProblemForm — generator section", () => {
+  it("save button re-enables after generator error (no setSaving leak)", async () => {
+    const mockRunGenerator = RunnerProvider.runGenerator as jest.Mock;
+    mockRunGenerator.mockResolvedValue({ stdout: "not-valid-json", error: null });
+
+    render(<MemoryRouter><TeacherProblemForm /></MemoryRouter>);
+
+    // Fill in a title and slug so base validation passes when generator is present
+    const inputs = document.querySelectorAll("input");
+    fireEvent.change(inputs[0], { target: { value: "Test Problem" } });
+
+    // Fill in generator code so the generator path is taken
+    const codemirrors = document.querySelectorAll("[data-testid='codemirror']");
+    // generator_py is the 3rd CodeMirror (starter_code=0, generator=1... depends on order)
+    // Trigger change on the first codemirror (starter_code) and the generator codemirror
+    // Use the codemirror for generator_py — it's the one after starter_code
+    const generatorCm = codemirrors[1]; // starter_code=0, generator_py=1
+    fireEvent.change(generatorCm, { target: { value: "from pi3.testing import *\nprint(Easy()*1)" } });
+
+    const saveBtn = screen.getByText(/save problem/i);
+    fireEvent.click(saveBtn);
+
+    await waitFor(() => {
+      // After generator JSON parse fails, saving state should reset
+      const btn = screen.getByText(/save problem/i);
+      expect((btn as HTMLButtonElement).disabled).toBeFalsy();
+    });
   });
 });

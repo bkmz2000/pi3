@@ -197,15 +197,26 @@ Keycloak uses standard OIDC endpoints under `{KEYCLOAK_URL}/realms/{KEYCLOAK_REA
 - Password auth can be enabled via `ALLOW_PASSWORD_AUTH=true` environment variable
 - See `LOGINUS_AUTH_INTEGRATION_UNIVERSAL.md` for the original Loginus integration guide
 
-### API Surface Snapshot
+### API Surface Snapshots
 
-`tests/unit/api-surface.json` is a checked-in snapshot of the graphics library's public API surface (derived from `_manifest.py EXPORTED_NAMES`). The test at `tests/unit/apiSurfaceSnapshot.test.ts` asserts it matches the live manifest. **Any future add/remove of a public name turns CI red** until the snapshot and docs are updated.
+**Graphics library (`pi3` student API):** `tests/unit/api-surface.json` is a checked-in snapshot of the graphics library's public API surface (derived from `_manifest.py EXPORTED_NAMES`). The test at `tests/unit/apiSurfaceSnapshot.test.ts` asserts it matches the live manifest. **Any future add/remove of a public name turns CI red** until the snapshot and docs are updated.
 
 Update procedure:
 1. Edit `graphics/__init__.py` `__all__` and `_manifest.py` `EXPORTED_NAMES`
 2. Update `tests/unit/api-surface.json` to match
 3. Update `docs/api-v1.md` changelog
 4. Run `npm test` to verify the snapshot test passes
+
+**`pi3.testing` (teacher generator API):** `tests/unit/testing-api-surface.json` is a checked-in snapshot of `pi3.testing.__all__`. The test at `tests/unit/testingApiSurface.test.ts` asserts it matches the live module. **Any future add/remove/rename turns CI red** — this matters because a silent rename of `UniqueSample` or `Integer` would break every existing problem generator.
+
+Update procedure:
+1. Edit `__all__` in `src/assets/python/pi3/testing.py`
+2. Update `tests/unit/testing-api-surface.json` to match
+3. Run `npm test` to verify
+
+`pi3.__init__.py` exposes both `debug` and `testing` submodules. Use `from pi3.testing import *` in generator code.
+
+**i18n discipline for TeacherProblemForm:** Any new user-facing string in `TeacherProblemForm.tsx` must go through `t()`. Add both `en.json` and `ru.json` entries under the `teacher.generator.*` namespace (or other `teacher.*` keys as appropriate). The parity check in `friendlyErrorI18n.test.ts` enforces that en/ru have matching keys across `friendlyError`; teacher keys are manually maintained.
 
 ### Error System (Phases D-E, 2026-06-10)
 

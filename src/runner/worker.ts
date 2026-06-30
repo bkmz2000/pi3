@@ -952,7 +952,11 @@ _gen_buf.getvalue()
     } catch (err) {
       pyodide.globals.delete("_gen_src");
       pyodide.globals.delete("_gen_slug");
-      post({ type: "generator_error", error: String(err), reqId });
+      // Pyodide PythonError.message includes the formatted traceback; other errors fall back to String().
+      const message = err && typeof err === 'object' && 'message' in err
+        ? String((err as { message: unknown }).message)
+        : String(err);
+      post({ type: "generator_error", error: message, reqId });
     }
   } else if (msg.cmd === "runReference") {
     const { referencePy, fieldsJson, reqId } = msg;
@@ -988,7 +992,10 @@ _ref_buf.getvalue().rstrip('\\n')
     } catch (err) {
       pyodide.globals.delete("_ref_src");
       pyodide.globals.delete("_ref_fields_json");
-      post({ type: "reference_error", error: String(err), reqId });
+      const message = err && typeof err === 'object' && 'message' in err
+        ? String((err as { message: unknown }).message)
+        : String(err);
+      post({ type: "reference_error", error: message, reqId });
     }
   } else if (msg.cmd === "runChecker") {
     const { checkerPy, fieldsJson, studentOutput, expectedOutput, reqId } = msg;
@@ -1021,7 +1028,10 @@ bool(_chk_ns['check'](_chk_test, _chk_student_output, _chk_expected_output))
       pyodide.globals.delete("_chk_fields_json");
       pyodide.globals.delete("_chk_student_output");
       pyodide.globals.delete("_chk_expected_output");
-      post({ type: "checker_error", error: String(err), reqId });
+      const message = err && typeof err === 'object' && 'message' in err
+        ? String((err as { message: unknown }).message)
+        : String(err);
+      post({ type: "checker_error", error: message, reqId });
     }
   }
 };

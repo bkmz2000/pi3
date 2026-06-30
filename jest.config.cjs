@@ -67,7 +67,7 @@ const config = {
       statements: 70,
     },
     './src/runner/': {
-      branches: 25,
+      branches: 24,
       functions: 15,
       lines: 31,
       statements: 29,

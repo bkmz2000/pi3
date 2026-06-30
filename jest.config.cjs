@@ -27,7 +27,7 @@ const config = {
     }],
   },
   transformIgnorePatterns: [
-    '/node_modules/(?!(konva|react-konva|@testing-library)/)',
+    '/node_modules/(?!(konva|react-konva|@testing-library|remark-math|rehype-katex|katex|hast-util-to-html|hast-util-sanitize|micromark-extension-math|mdast-util-math)/)',
   ],
   testMatch: [
     '**/tests/unit/**/*.test.+(ts|tsx|js)',

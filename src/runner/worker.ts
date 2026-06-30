@@ -112,6 +112,7 @@ async function initPyodide(
   pi3Init: string,
   pi3Debug: string,
   debugTransform: string,
+  pi3Testing: string,
 ) {
   console.log("Worker: Writing modules to filesystem...");
 
@@ -146,6 +147,7 @@ async function initPyodide(
   try { p.FS.mkdir("/pi3"); } catch { /* already exists */ }
   p.FS.writeFile("/pi3/__init__.py", pi3Init);
   p.FS.writeFile("/pi3/debug.py", pi3Debug);
+  p.FS.writeFile("/pi3/testing.py", pi3Testing);
   p.FS.writeFile("/debug_transform.py", debugTransform);
 
   console.log("Worker: Files written, running Python initialization...");
@@ -776,7 +778,7 @@ self.onmessage = async (e: MessageEvent<WorkerCommand>) => {
       const p = await ensurePyodide();
       console.log("Worker: Pyodide loaded, initializing modules...");
       const errorHookSrc = msg.errorHook;
-      await initPyodide(p, msg.graphicsInit, msg.graphicsActors, msg.graphicsAnimation, msg.graphicsManifest, msg.graphicsErrors, msg.graphicsState, msg.graphicsStateInternal, msg.graphicsColor, msg.graphicsVec, msg.graphicsSheet, msg.graphicsUtils, msg.graphicsLightingHelpers, msg.graphicsSprites, msg.linter, errorHookSrc, msg.inputTransform, msg.watchTransform, msg.syntaxHints, msg.pi3Init, msg.pi3Debug, msg.debugTransform);
+      await initPyodide(p, msg.graphicsInit, msg.graphicsActors, msg.graphicsAnimation, msg.graphicsManifest, msg.graphicsErrors, msg.graphicsState, msg.graphicsStateInternal, msg.graphicsColor, msg.graphicsVec, msg.graphicsSheet, msg.graphicsUtils, msg.graphicsLightingHelpers, msg.graphicsSprites, msg.linter, errorHookSrc, msg.inputTransform, msg.watchTransform, msg.syntaxHints, msg.pi3Init, msg.pi3Debug, msg.debugTransform, msg.pi3Testing);
       console.log("Worker: Initialization complete, posting ready");
       post({ type: "ready" });
     } catch (err: unknown) {
@@ -919,6 +921,107 @@ _cq_result
     } catch (err) {
       console.warn("Worker: screenshot failed —", err);
       post({ type: "screenshot", reqId, blob: null });
+    }
+  } else if (msg.cmd === "runGenerator") {
+    const { generatorPy, slug, reqId } = msg;
+    if (!pyodide) {
+      post({ type: "generator_error", error: "Pyodide not ready", reqId });
+      return;
+    }
+    try {
+      pyodide.globals.set("_gen_src", generatorPy);
+      pyodide.globals.set("_gen_slug", slug);
+      const stdout = await pyodide.runPythonAsync(`
+import sys, io, linecache
+_gen_filename = '<pi3_generator>'
+linecache.cache[_gen_filename] = (len(_gen_src), None, _gen_src.splitlines(keepends=True), _gen_filename)
+import pi3.testing as _pi3t
+_pi3t.seed(_gen_slug)
+_old_stdout = sys.stdout
+_gen_buf = io.StringIO()
+sys.stdout = _gen_buf
+try:
+    exec(compile(_gen_src, _gen_filename, 'exec'), {})
+finally:
+    sys.stdout = _old_stdout
+_gen_buf.getvalue()
+      `);
+      pyodide.globals.delete("_gen_src");
+      pyodide.globals.delete("_gen_slug");
+      post({ type: "generator_result", stdout: String(stdout), reqId });
+    } catch (err) {
+      pyodide.globals.delete("_gen_src");
+      pyodide.globals.delete("_gen_slug");
+      post({ type: "generator_error", error: String(err), reqId });
+    }
+  } else if (msg.cmd === "runReference") {
+    const { referencePy, fieldsJson, reqId } = msg;
+    if (!pyodide) {
+      post({ type: "reference_error", error: "Pyodide not ready", reqId });
+      return;
+    }
+    try {
+      pyodide.globals.set("_ref_src", referencePy);
+      pyodide.globals.set("_ref_fields_json", fieldsJson);
+      const expected = await pyodide.runPythonAsync(`
+import sys, io, json, types, linecache
+_ref_fields = json.loads(_ref_fields_json)
+_ref_test = types.SimpleNamespace(**_ref_fields)
+_ref_filename = '<pi3_reference>'
+linecache.cache[_ref_filename] = (len(_ref_src), None, _ref_src.splitlines(keepends=True), _ref_filename)
+_ref_ns = {}
+exec(compile(_ref_src, _ref_filename, 'exec'), _ref_ns)
+_old_stdout = sys.stdout
+_ref_buf = io.StringIO()
+sys.stdout = _ref_buf
+try:
+    _ref_result = _ref_ns['solution'](_ref_test)
+    if _ref_result is not None:
+        print(_ref_result)
+finally:
+    sys.stdout = _old_stdout
+_ref_buf.getvalue().rstrip('\\n')
+      `);
+      pyodide.globals.delete("_ref_src");
+      pyodide.globals.delete("_ref_fields_json");
+      post({ type: "reference_result", expected: String(expected), reqId });
+    } catch (err) {
+      pyodide.globals.delete("_ref_src");
+      pyodide.globals.delete("_ref_fields_json");
+      post({ type: "reference_error", error: String(err), reqId });
+    }
+  } else if (msg.cmd === "runChecker") {
+    const { checkerPy, fieldsJson, studentOutput, expectedOutput, reqId } = msg;
+    if (!pyodide) {
+      post({ type: "checker_error", error: "Pyodide not ready", reqId });
+      return;
+    }
+    try {
+      pyodide.globals.set("_chk_src", checkerPy);
+      pyodide.globals.set("_chk_fields_json", fieldsJson);
+      pyodide.globals.set("_chk_student_output", studentOutput);
+      pyodide.globals.set("_chk_expected_output", expectedOutput);
+      const passed = await pyodide.runPythonAsync(`
+import json, types, linecache
+_chk_fields = json.loads(_chk_fields_json) if _chk_fields_json else {}
+_chk_test = types.SimpleNamespace(**_chk_fields)
+_chk_filename = '<pi3_checker>'
+linecache.cache[_chk_filename] = (len(_chk_src), None, _chk_src.splitlines(keepends=True), _chk_filename)
+_chk_ns = {}
+exec(compile(_chk_src, _chk_filename, 'exec'), _chk_ns)
+bool(_chk_ns['check'](_chk_test, _chk_student_output, _chk_expected_output))
+      `);
+      pyodide.globals.delete("_chk_src");
+      pyodide.globals.delete("_chk_fields_json");
+      pyodide.globals.delete("_chk_student_output");
+      pyodide.globals.delete("_chk_expected_output");
+      post({ type: "checker_result", passed: Boolean(passed), reqId });
+    } catch (err) {
+      pyodide.globals.delete("_chk_src");
+      pyodide.globals.delete("_chk_fields_json");
+      pyodide.globals.delete("_chk_student_output");
+      pyodide.globals.delete("_chk_expected_output");
+      post({ type: "checker_error", error: String(err), reqId });
     }
   }
 };

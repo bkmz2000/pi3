@@ -73,6 +73,8 @@ jest.mock("react-markdown", () => ({
   },
 }));
 jest.mock("remark-gfm", () => ({ __esModule: true, default: () => {} }));
+jest.mock("remark-math", () => ({ __esModule: true, default: () => {} }));
+jest.mock("rehype-katex", () => ({ __esModule: true, default: () => {} }));
 
 import React from "react";
 import { render, screen, waitFor } from "@testing-library/react";

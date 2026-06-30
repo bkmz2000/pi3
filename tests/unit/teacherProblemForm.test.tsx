@@ -16,6 +16,8 @@ jest.mock("react-markdown", () => ({
   },
 }));
 jest.mock("remark-gfm", () => ({ __esModule: true, default: () => {} }));
+jest.mock("remark-math", () => ({ __esModule: true, default: () => {} }));
+jest.mock("rehype-katex", () => ({ __esModule: true, default: () => {} }));
 
 // CodeMirror is ESM-only; mock it out
 jest.mock("@uiw/react-codemirror", () => ({
@@ -86,23 +88,10 @@ describe("TeacherProblemForm (new mode)", () => {
     });
   });
 
-  it("shows preview when preview button is clicked", () => {
+  it("always shows the student preview panel", () => {
     render(<MemoryRouter><TeacherProblemForm /></MemoryRouter>);
-    const previewBtn = screen.getByText(/preview/i);
-    fireEvent.click(previewBtn);
+    // Preview is a permanent side panel; the header label is always present
     expect(screen.getByTestId("preview")).toBeTruthy();
-  });
-
-  it("switches back to write mode when write button is clicked", () => {
-    render(<MemoryRouter><TeacherProblemForm /></MemoryRouter>);
-    // Click preview
-    fireEvent.click(screen.getByText(/preview/i));
-    // Now click write
-    fireEvent.click(screen.getByText(/write/i));
-    // Preview div should be gone, statement textarea should be back
-    expect(screen.queryByTestId("preview")).toBeNull();
-    const textareas = document.querySelectorAll("textarea:not([data-testid])");
-    expect(textareas.length).toBeGreaterThan(0);
   });
 
   it("shows tier sections for test cases", () => {

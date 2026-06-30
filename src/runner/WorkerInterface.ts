@@ -27,7 +27,10 @@ export type SheetRunPayload = {
 };
 
 export type WorkerCommand =
-  | { cmd: "init"; graphicsInit: string; graphicsActors: string; graphicsAnimation: string; graphicsManifest: string; graphicsErrors: string; graphicsState: string; graphicsStateInternal: string; graphicsColor: string; graphicsVec: string; graphicsSheet: string; graphicsUtils: string; graphicsLightingHelpers: string; graphicsSprites: string; linter: string; errorHook: string; inputTransform: string; watchTransform: string; syntaxHints: string; pi3Init: string; pi3Debug: string; debugTransform: string }
+  | { cmd: "init"; graphicsInit: string; graphicsActors: string; graphicsAnimation: string; graphicsManifest: string; graphicsErrors: string; graphicsState: string; graphicsStateInternal: string; graphicsColor: string; graphicsVec: string; graphicsSheet: string; graphicsUtils: string; graphicsLightingHelpers: string; graphicsSprites: string; linter: string; errorHook: string; inputTransform: string; watchTransform: string; syntaxHints: string; pi3Init: string; pi3Debug: string; debugTransform: string; pi3Testing: string }
+  | { cmd: "runGenerator"; generatorPy: string; slug: string; reqId: number }
+  | { cmd: "runReference"; referencePy: string; fieldsJson: string; reqId: number }
+  | { cmd: "runChecker"; checkerPy: string; fieldsJson: string | null; studentOutput: string; expectedOutput: string; reqId: number }
   | {
       cmd: "run";
       files: Record<string, string>;
@@ -177,4 +180,10 @@ export type WorkerEvent =
   | { type: "screenshot"; reqId: number; blob: Blob | null }
   | { type: "watch"; values: { label: string; value: string }[]; frame: number }
   | { type: "frame_history"; frames: { frame: number; blob: Blob; watches: { label: string; value: string }[] }[] }
-  | { type: "debug_frame"; frame: DebugFrame };
+  | { type: "debug_frame"; frame: DebugFrame }
+  | { type: "generator_result"; stdout: string; reqId: number }
+  | { type: "generator_error"; error: string; reqId: number }
+  | { type: "reference_result"; expected: string; reqId: number }
+  | { type: "reference_error"; error: string; reqId: number }
+  | { type: "checker_result"; passed: boolean; reqId: number }
+  | { type: "checker_error"; error: string; reqId: number };

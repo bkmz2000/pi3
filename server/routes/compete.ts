@@ -13,6 +13,9 @@ interface Problem {
   created_by: string;
   created_at: string;
   updated_at: string;
+  generator_py?: string | null;
+  reference_solution_py?: string | null;
+  checker_py?: string | null;
 }
 
 interface ProblemTest {
@@ -23,6 +26,7 @@ interface ProblemTest {
   ordinal: number;
   input: string;
   expected: string;
+  fields_json?: string | null;
 }
 
 interface TestInput {
@@ -30,6 +34,7 @@ interface TestInput {
   is_visible?: boolean;
   input: string;
   expected: string;
+  fields?: Record<string, unknown> | null;
 }
 
 interface ImportTestRow {
@@ -85,7 +90,7 @@ function slugValid(slug: string): boolean {
   return /^[a-z][a-z0-9-]{1,40}$/.test(slug);
 }
 
-function normalizeTests(tests: TestInput[]): { ordinal: number; tier: number; is_visible: number; input: string; expected: string }[] {
+function normalizeTests(tests: TestInput[]): { ordinal: number; tier: number; is_visible: number; input: string; expected: string; fields_json: string | null }[] {
   const sorted = [...tests].sort((a, b) => a.tier - b.tier);
   return sorted.map((t, i) => ({
     ordinal: i + 1,
@@ -93,6 +98,7 @@ function normalizeTests(tests: TestInput[]): { ordinal: number; tier: number; is
     is_visible: t.is_visible ? 1 : 0,
     input: t.input,
     expected: t.expected,
+    fields_json: t.fields != null ? JSON.stringify(t.fields) : null,
   }));
 }
 
@@ -150,7 +156,7 @@ export function createCompeteRouter(): Router {
   router.get('/problems/:slug', async (req: Request, res: Response): Promise<void> => {
     const client = getClient();
     const problem = (await client.execute(
-      `SELECT id, slug, title, statement, starter_code, order_index
+      `SELECT id, slug, title, statement, starter_code, order_index, checker_py
        FROM problems WHERE slug = ? AND archived = 0`,
       [req.params.slug],
     )).rows[0] as unknown as Problem | undefined;
@@ -180,7 +186,7 @@ export function createCompeteRouter(): Router {
       return;
     }
     const tests = (await client.execute(
-      `SELECT id, ordinal, tier, is_visible, input, expected
+      `SELECT id, ordinal, tier, is_visible, input, expected, fields_json
        FROM problem_tests
        WHERE problem_id = ?
        ORDER BY tier ASC, ordinal ASC`,
@@ -270,9 +276,10 @@ export function createCompeteRouter(): Router {
       res.status(400).json({ error: 'Bad Request', message: validationError });
       return;
     }
-    const { slug, title, statement, starter_code, order_index, tests } = req.body as {
+    const { slug, title, statement, starter_code, order_index, tests, generator_py, reference_solution_py, checker_py } = req.body as {
       slug: string; title: string; statement: string;
       starter_code?: string; order_index?: number; tests: TestInput[];
+      generator_py?: string | null; reference_solution_py?: string | null; checker_py?: string | null;
     };
     const client = getClient();
     const existing = (await client.execute('SELECT id FROM problems WHERE slug = ?', [slug])).rows[0];
@@ -281,17 +288,18 @@ export function createCompeteRouter(): Router {
       return;
     }
     const insertResult = await client.execute(
-      `INSERT INTO problems (slug, title, statement, starter_code, order_index, created_by)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [slug, title.trim(), statement.trim(), starter_code ?? '', order_index ?? 0, (req.user as AuthUser).id],
+      `INSERT INTO problems (slug, title, statement, starter_code, order_index, created_by, generator_py, reference_solution_py, checker_py)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [slug, title.trim(), statement.trim(), starter_code ?? '', order_index ?? 0, (req.user as AuthUser).id,
+       generator_py ?? null, reference_solution_py ?? null, checker_py ?? null],
     );
     const problemId = insertResult.lastInsertRowid;
     const normalized = normalizeTests(tests);
     await client.batch(
       normalized.map(t => ({
-        sql: `INSERT INTO problem_tests (problem_id, tier, is_visible, ordinal, input, expected)
-              VALUES (?, ?, ?, ?, ?, ?)`,
-        args: [problemId, t.tier, t.is_visible, t.ordinal, t.input, t.expected],
+        sql: `INSERT INTO problem_tests (problem_id, tier, is_visible, ordinal, input, expected, fields_json)
+              VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        args: [problemId, t.tier, t.is_visible, t.ordinal, t.input, t.expected, t.fields_json],
       })),
     );
     const problem = (await client.execute('SELECT * FROM problems WHERE id = ?', [problemId])).rows[0];
@@ -313,22 +321,25 @@ export function createCompeteRouter(): Router {
       res.status(404).json({ error: 'Not Found' });
       return;
     }
-    const { title, statement, starter_code, order_index, tests } = req.body as {
+    const { title, statement, starter_code, order_index, tests, generator_py, reference_solution_py, checker_py } = req.body as {
       title: string; statement: string; starter_code?: string; order_index?: number; tests: TestInput[];
+      generator_py?: string | null; reference_solution_py?: string | null; checker_py?: string | null;
     };
     await client.execute(
       `UPDATE problems SET title = ?, statement = ?, starter_code = ?, order_index = ?,
+         generator_py = ?, reference_solution_py = ?, checker_py = ?,
          updated_at = datetime('now')
        WHERE id = ?`,
-      [title.trim(), statement.trim(), starter_code ?? '', order_index ?? 0, problem.id],
+      [title.trim(), statement.trim(), starter_code ?? '', order_index ?? 0,
+       generator_py ?? null, reference_solution_py ?? null, checker_py ?? null, problem.id],
     );
     await client.execute('DELETE FROM problem_tests WHERE problem_id = ?', [problem.id]);
     const normalized = normalizeTests(tests);
     await client.batch(
       normalized.map(t => ({
-        sql: `INSERT INTO problem_tests (problem_id, tier, is_visible, ordinal, input, expected)
-              VALUES (?, ?, ?, ?, ?, ?)`,
-        args: [problem.id, t.tier, t.is_visible, t.ordinal, t.input, t.expected],
+        sql: `INSERT INTO problem_tests (problem_id, tier, is_visible, ordinal, input, expected, fields_json)
+              VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        args: [problem.id, t.tier, t.is_visible, t.ordinal, t.input, t.expected, t.fields_json],
       })),
     );
     const updated = (await client.execute(

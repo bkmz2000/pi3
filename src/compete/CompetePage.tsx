@@ -3,6 +3,8 @@ import { useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
+import rehypeKatex from "rehype-katex";
 import { useThemeStore } from "../state/useTheme";
 import { useRunner, useRunnerStore, runOnce } from "../runner/RunnerProvider";
 import { Icon } from "../components/Icons";
@@ -189,6 +191,7 @@ export default function CompetePage() {
         tier: t.tier as 1 | 2 | 3,
         input: t.input,
         expected: t.expected,
+        fieldsJson: (t as { fields_json?: string | null }).fields_json ?? null,
       }));
 
       const progressRunOnce: typeof runOnce = async (code, stdin, tl) => {
@@ -204,7 +207,8 @@ export default function CompetePage() {
         return runOnce(code, stdin, tl);
       };
 
-      const result = await runSubmit(codeRef.current, submitTests, progressRunOnce);
+      const checkerPy = problem?.checker_py ?? null;
+      const result = await runSubmit(codeRef.current, submitTests, progressRunOnce, checkerPy);
 
       setSubmitProgress(null);
 
@@ -291,7 +295,7 @@ export default function CompetePage() {
             fontFamily: theme.fontUI, fontSize: 14, color: theme.panelTxt,
             lineHeight: 1.7,
           }}>
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+            <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>
               {problem.statement}
             </ReactMarkdown>
 

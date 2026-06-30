@@ -79,6 +79,28 @@ describe('schema', () => {
         .run(999999, 1, 1, 'x', 'y');
     }).toThrow();
   });
+
+  it('problems table has generator_py, reference_solution_py, checker_py columns', () => {
+    const cols = db.prepare("PRAGMA table_info(problems)").all() as { name: string }[];
+    const names = cols.map(c => c.name);
+    expect(names).toContain('generator_py');
+    expect(names).toContain('reference_solution_py');
+    expect(names).toContain('checker_py');
+  });
+
+  it('problem_tests table has fields_json column', () => {
+    const cols = db.prepare("PRAGMA table_info(problem_tests)").all() as { name: string }[];
+    expect(cols.map(c => c.name)).toContain('fields_json');
+  });
+
+  it('new columns default to NULL for existing-style rows', () => {
+    const id = (db.prepare("INSERT INTO problems (slug, title, statement, starter_code, order_index, created_by) VALUES (?, ?, ?, ?, ?, ?)")
+      .run('test-null', 'T', 'S', '', 0, 'u') as { lastInsertRowid: number }).lastInsertRowid;
+    const row = db.prepare("SELECT generator_py, reference_solution_py, checker_py FROM problems WHERE id = ?").get(id) as Record<string, unknown>;
+    expect(row.generator_py).toBeNull();
+    expect(row.reference_solution_py).toBeNull();
+    expect(row.checker_py).toBeNull();
+  });
 });
 
 // ── GET /api/problems ─────────────────────────────────────────────────────────
@@ -138,6 +160,19 @@ describe('GET /api/problems/:slug', () => {
     const res = await request(app).get('/api/problems/nope').set(auth(student.api_token));
     expect(res.status).toBe(404);
   });
+
+  it('returns checker_py when set', async () => {
+    db.prepare('UPDATE problems SET checker_py = ? WHERE id = ?').run('def check(): pass', problemId);
+    const res = await request(app).get('/api/problems/sum-two').set(auth(student.api_token));
+    expect(res.status).toBe(200);
+    expect(res.body.checker_py).toBe('def check(): pass');
+  });
+
+  it('checker_py is null when not set', async () => {
+    const res = await request(app).get('/api/problems/sum-two').set(auth(student.api_token));
+    expect(res.status).toBe(200);
+    expect(res.body.checker_py).toBeNull();
+  });
 });
 
 // ── GET /api/problems/:slug/tests-for-submit ──────────────────────────────────
@@ -167,6 +202,23 @@ describe('GET /api/problems/:slug/tests-for-submit', () => {
     const inputs = res.body.map((t: { input: string }) => t.input);
     expect(inputs).toContain('visible\n');
     expect(inputs).toContain('hidden\n');
+  });
+
+  it('returns fields_json for tests that have it', async () => {
+    db.prepare('UPDATE problem_tests SET fields_json = ? WHERE problem_id = ? AND ordinal = ?')
+      .run('{"n":5}', problemId, 1);
+    const res = await request(app).get('/api/problems/sum-two/tests-for-submit').set(auth(student.api_token));
+    expect(res.status).toBe(200);
+    const t1 = res.body.find((t: { ordinal: number }) => t.ordinal === 1);
+    expect(t1.fields_json).toBe('{"n":5}');
+  });
+
+  it('fields_json is null when not set', async () => {
+    const res = await request(app).get('/api/problems/sum-two/tests-for-submit').set(auth(student.api_token));
+    expect(res.status).toBe(200);
+    for (const t of res.body) {
+      expect(t.fields_json ?? null).toBeNull();
+    }
   });
 });
 
@@ -302,6 +354,37 @@ describe('POST /api/teacher/problems', () => {
       .send({ ...PROBLEM_BODY, tests: [{ tier: 1, is_visible: false, input: 'x', expected: 'y' }] });
     expect(res.status).toBe(400);
   });
+
+  it('persists generator_py, reference_solution_py, checker_py when provided', async () => {
+    const res = await request(app)
+      .post('/api/teacher/problems')
+      .set(auth(teacher.api_token))
+      .send({ ...PROBLEM_BODY, generator_py: 'gen', reference_solution_py: 'ref', checker_py: 'chk' });
+    expect(res.status).toBe(201);
+    const row = db.prepare('SELECT generator_py, reference_solution_py, checker_py FROM problems WHERE id = ?').get(res.body.id) as Record<string, string>;
+    expect(row.generator_py).toBe('gen');
+    expect(row.reference_solution_py).toBe('ref');
+    expect(row.checker_py).toBe('chk');
+  });
+
+  it('stores NULL for generator columns when omitted', async () => {
+    const res = await request(app).post('/api/teacher/problems').set(auth(teacher.api_token)).send(PROBLEM_BODY);
+    const row = db.prepare('SELECT generator_py, reference_solution_py, checker_py FROM problems WHERE id = ?').get(res.body.id) as Record<string, unknown>;
+    expect(row.generator_py).toBeNull();
+    expect(row.reference_solution_py).toBeNull();
+    expect(row.checker_py).toBeNull();
+  });
+
+  it('persists fields_json for tests that have fields', async () => {
+    const testsWithFields = [
+      { tier: 1, is_visible: true, input: '5\n1 2 3 4 5\n', expected: '15', fields: { n: 5, arr: [1,2,3,4,5] } },
+    ];
+    const res = await request(app).post('/api/teacher/problems').set(auth(teacher.api_token))
+      .send({ ...PROBLEM_BODY, tests: testsWithFields });
+    expect(res.status).toBe(201);
+    const test = db.prepare('SELECT fields_json FROM problem_tests WHERE problem_id = ?').get(res.body.id) as { fields_json: string };
+    expect(JSON.parse(test.fields_json)).toEqual({ n: 5, arr: [1,2,3,4,5] });
+  });
 });
 
 interface ProblemTest {
@@ -335,6 +418,27 @@ describe('PUT /api/teacher/problems/:slug', () => {
     const tests = db.prepare('SELECT * FROM problem_tests WHERE problem_id = ?').all(problemId) as ProblemTest[];
     expect(tests).toHaveLength(1);
     expect(tests[0].input).toBe('new\n');
+  });
+
+  it('updates generator_py, reference_solution_py, checker_py', async () => {
+    const res = await request(app)
+      .put('/api/teacher/problems/sum-two')
+      .set(auth(teacher.api_token))
+      .send({ ...PROBLEM_BODY, generator_py: 'gen2', reference_solution_py: 'ref2', checker_py: 'chk2' });
+    expect(res.status).toBe(200);
+    const row = db.prepare('SELECT generator_py, reference_solution_py, checker_py FROM problems WHERE id = ?').get(problemId) as Record<string, string>;
+    expect(row.generator_py).toBe('gen2');
+    expect(row.reference_solution_py).toBe('ref2');
+    expect(row.checker_py).toBe('chk2');
+  });
+
+  it('clears generator columns when not sent', async () => {
+    await request(app).put('/api/teacher/problems/sum-two').set(auth(teacher.api_token))
+      .send({ ...PROBLEM_BODY, generator_py: 'gen2' });
+    const res = await request(app).put('/api/teacher/problems/sum-two').set(auth(teacher.api_token)).send(PROBLEM_BODY);
+    expect(res.status).toBe(200);
+    const row = db.prepare('SELECT generator_py FROM problems WHERE id = ?').get(problemId) as { generator_py: unknown };
+    expect(row.generator_py).toBeNull();
   });
 
   it('403 for student', async () => {

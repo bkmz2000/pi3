@@ -27,6 +27,7 @@ export interface Problem {
   starter_code: string;
   order_index: number;
   visibleTests: ServerTest[];
+  checker_py?: string | null;
 }
 
 export interface ServerTest {
@@ -45,6 +46,7 @@ export interface SubmitTestCase {
   tier: Tier;
   input: string;
   expected: string;
+  fieldsJson?: string | null;
 }
 
 export type SubmitResult =

@@ -1,7 +1,8 @@
-import { runOnce } from '../runner/RunnerProvider';
+import { runOnce, runChecker } from '../runner/RunnerProvider';
 import type { SubmitTestCase, SubmitResult, Tier } from './types';
 
 type RunOnceFn = typeof runOnce;
+type RunCheckerFn = typeof runChecker;
 
 function normalizeOutput(s: string): string {
   return s
@@ -15,6 +16,8 @@ export async function runSubmit(
   code: string,
   tests: SubmitTestCase[],
   _runOnce: RunOnceFn = runOnce,
+  checkerPy?: string | null,
+  _runChecker: RunCheckerFn = runChecker,
 ): Promise<SubmitResult> {
   const tiers: Tier[] = [1, 2, 3];
   const byTier: Record<number, SubmitTestCase[]> = { 1: [], 2: [], 3: [] };
@@ -34,7 +37,21 @@ export async function runSubmit(
       if (runtimeError) {
         return { verdict: 'rte', stars: (tier - 1) as 0 | 1 | 2, failedTier: tier, failedTest: test.ordinal };
       }
-      if (normalizeOutput(stdout) !== normalizeOutput(test.expected)) {
+
+      let passed: boolean;
+      if (checkerPy) {
+        const { passed: checkerPassed } = await _runChecker(
+          checkerPy,
+          test.fieldsJson ?? null,
+          stdout,
+          test.expected,
+        );
+        passed = checkerPassed;
+      } else {
+        passed = normalizeOutput(stdout) === normalizeOutput(test.expected);
+      }
+
+      if (!passed) {
         return { verdict: 'wa', stars: (tier - 1) as 0 | 1 | 2, failedTier: tier, failedTest: test.ordinal };
       }
     }

@@ -22,6 +22,7 @@ import WatchTransform from "../assets/python/watch_transform.py?raw";
 import SyntaxHints from "../assets/python/syntax_hints.py?raw";
 import Pi3Init from "../assets/python/pi3/__init__.py?raw";
 import Pi3Debug from "../assets/python/pi3/debug.py?raw";
+import Pi3Testing from "../assets/python/pi3/testing.py?raw";
 import DebugTransform from "../assets/python/debug_transform.py?raw";
 import { libraryUrlMap, librarySoundUrlMap } from "../state/assets";
 import { createRunnerWorker } from "./workerFactory";
@@ -271,6 +272,14 @@ export const useRunnerStore = create<RunnerState>((set) => ({
         set((s) => ({ debugFrames: [...s.debugFrames, msg.frame] }));
         break;
       }
+      // Handled by per-request listeners in runGenerator() / runReference() / runChecker()
+      case "generator_result":
+      case "generator_error":
+      case "reference_result":
+      case "reference_error":
+      case "checker_result":
+      case "checker_error":
+        break;
       default: {
         const missing: never = msg;
         throw new Error(`missing ${missing}`);
@@ -472,6 +481,7 @@ export function getWorker(): Worker {
     syntaxHints: SyntaxHints,
     pi3Init: Pi3Init,
     pi3Debug: Pi3Debug,
+    pi3Testing: Pi3Testing,
     debugTransform: DebugTransform,
   } satisfies WorkerCommand);
   return worker;
@@ -589,6 +599,91 @@ export function runOnce(
       assets: {},
       entry: "solution.py",
     } satisfies WorkerCommand);
+  });
+}
+
+let _reqCounter = 0;
+function nextReqId() { return ++_reqCounter; }
+
+/**
+ * Run a teacher's generator source in the Pyodide worker.
+ * Seeds the RNG from the problem slug and captures the generator's stdout.
+ * Returns the raw JSON string from `print(tests)`, or an error string.
+ */
+export function runGenerator(
+  generatorPy: string,
+  slug: string,
+): Promise<{ stdout: string; error?: string }> {
+  return new Promise((resolve) => {
+    const w = getWorker();
+    const reqId = nextReqId();
+    const handler = (e: MessageEvent<WorkerEvent>) => {
+      const msg = e.data;
+      if (msg.type === "generator_result" && msg.reqId === reqId) {
+        w.removeEventListener("message", handler);
+        resolve({ stdout: msg.stdout });
+      } else if (msg.type === "generator_error" && msg.reqId === reqId) {
+        w.removeEventListener("message", handler);
+        resolve({ stdout: "", error: msg.error });
+      }
+    };
+    w.addEventListener("message", handler);
+    w.postMessage({ cmd: "runGenerator", generatorPy, slug, reqId } satisfies WorkerCommand);
+  });
+}
+
+/**
+ * Run the reference solution against a single test's fields.
+ * The solution function receives a SimpleNamespace built from fieldsJson.
+ * Returns the trimmed stdout (expected output), or an error string.
+ */
+export function runReference(
+  referencePy: string,
+  fieldsJson: string,
+): Promise<{ expected: string; error?: string }> {
+  return new Promise((resolve) => {
+    const w = getWorker();
+    const reqId = nextReqId();
+    const handler = (e: MessageEvent<WorkerEvent>) => {
+      const msg = e.data;
+      if (msg.type === "reference_result" && msg.reqId === reqId) {
+        w.removeEventListener("message", handler);
+        resolve({ expected: msg.expected });
+      } else if (msg.type === "reference_error" && msg.reqId === reqId) {
+        w.removeEventListener("message", handler);
+        resolve({ expected: "", error: msg.error });
+      }
+    };
+    w.addEventListener("message", handler);
+    w.postMessage({ cmd: "runReference", referencePy, fieldsJson, reqId } satisfies WorkerCommand);
+  });
+}
+
+/**
+ * Run the teacher's checker function for a single test case.
+ * Returns `passed: true` if the checker returns truthy, false otherwise.
+ */
+export function runChecker(
+  checkerPy: string,
+  fieldsJson: string | null,
+  studentOutput: string,
+  expectedOutput: string,
+): Promise<{ passed: boolean; error?: string }> {
+  return new Promise((resolve) => {
+    const w = getWorker();
+    const reqId = nextReqId();
+    const handler = (e: MessageEvent<WorkerEvent>) => {
+      const msg = e.data;
+      if (msg.type === "checker_result" && msg.reqId === reqId) {
+        w.removeEventListener("message", handler);
+        resolve({ passed: msg.passed });
+      } else if (msg.type === "checker_error" && msg.reqId === reqId) {
+        w.removeEventListener("message", handler);
+        resolve({ passed: false, error: msg.error });
+      }
+    };
+    w.addEventListener("message", handler);
+    w.postMessage({ cmd: "runChecker", checkerPy, fieldsJson, studentOutput, expectedOutput, reqId } satisfies WorkerCommand);
   });
 }
 

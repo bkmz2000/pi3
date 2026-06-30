@@ -115,7 +115,10 @@ export function createTestDb(): Database.Database {
       archived INTEGER NOT NULL DEFAULT 0,
       created_by TEXT NOT NULL,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      generator_py TEXT NULL,
+      reference_solution_py TEXT NULL,
+      checker_py TEXT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_problems_archived_order ON problems(archived, order_index);
 
@@ -127,6 +130,7 @@ export function createTestDb(): Database.Database {
       ordinal INTEGER NOT NULL,
       input TEXT NOT NULL,
       expected TEXT NOT NULL,
+      fields_json TEXT NULL,
       UNIQUE(problem_id, ordinal)
     );
     CREATE INDEX IF NOT EXISTS idx_tests_problem_tier ON problem_tests(problem_id, tier, ordinal);

@@ -115,6 +115,10 @@ export async function initDb(): Promise<void> {
     )`,
     `CREATE INDEX IF NOT EXISTS idx_submissions_user_problem ON submissions(user_id, problem_id, ts DESC)`,
     `CREATE INDEX IF NOT EXISTS idx_submissions_problem ON submissions(problem_id, ts DESC)`,
+    `ALTER TABLE problems ADD COLUMN generator_py TEXT NULL`,
+    `ALTER TABLE problems ADD COLUMN reference_solution_py TEXT NULL`,
+    `ALTER TABLE problems ADD COLUMN checker_py TEXT NULL`,
+    `ALTER TABLE problem_tests ADD COLUMN fields_json TEXT NULL`,
   ];
   for (const stmt of migrations) {
     await swallow(c, stmt);

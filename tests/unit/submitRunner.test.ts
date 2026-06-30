@@ -3,6 +3,12 @@ import { runSubmit } from '../../src/compete/submitRunner';
 import type { SubmitTestCase } from '../../src/compete/types';
 
 type RunOnceFn = (code: string, stdin: string, timeLimitMs: number) => Promise<{ stdout: string; runtimeError: boolean; tle: boolean }>;
+type RunCheckerFn = (checkerPy: string, fieldsJson: string | null, studentOutput: string, expectedOutput: string) => Promise<{ passed: boolean }>;
+
+function makeChecker(results: boolean[]): RunCheckerFn {
+  let idx = 0;
+  return jest.fn(async () => ({ passed: results[idx++] ?? false })) as RunCheckerFn;
+}
 
 function makeRunner(results: { stdout: string; runtimeError?: boolean; tle?: boolean }[]): RunOnceFn {
   let idx = 0;
@@ -188,6 +194,85 @@ describe('output normalization', () => {
     const runner = makeRunner([{ stdout: 'ab' }]);
     const result = await runSubmit('code', tests, runner);
     expect(result.verdict).toBe('wa');
+  });
+});
+
+// ── Checker: no checker (default equality) ────────────────────────────────────
+
+describe('checker: no checker', () => {
+  it('without checker param: falls back to string equality', async () => {
+    const runner = makeRunner([{ stdout: '42\n' }]);
+    const tests: SubmitTestCase[] = [{ ordinal: 1, tier: 1, input: 'x\n', expected: '42\n' }];
+    const result = await runSubmit('code', tests, runner);
+    expect(result.verdict).toBe('ok');
+  });
+
+  it('without checker param: mismatch → wa', async () => {
+    const runner = makeRunner([{ stdout: 'wrong\n' }]);
+    const tests: SubmitTestCase[] = [{ ordinal: 1, tier: 1, input: 'x\n', expected: '42\n' }];
+    const result = await runSubmit('code', tests, runner);
+    expect(result.verdict).toBe('wa');
+  });
+});
+
+// ── Checker: with checker passing ─────────────────────────────────────────────
+
+describe('checker: passing', () => {
+  it('checker returns true → ok', async () => {
+    const runner = makeRunner([{ stdout: 'any output\n' }, { stdout: 'any output\n' }, { stdout: 'any output\n' }]);
+    const checker = makeChecker([true, true, true]);
+    const result = await runSubmit('code', TESTS_3T, runner, 'def check(...): pass', checker);
+    expect(result.verdict).toBe('ok');
+    expect(result.stars).toBe(3);
+    expect(checker).toHaveBeenCalledTimes(3);
+  });
+
+  it('checker receives fieldsJson when present', async () => {
+    const runner = makeRunner([{ stdout: 'out\n' }]);
+    const checker = makeChecker([true]);
+    const tests: SubmitTestCase[] = [{ ordinal: 1, tier: 1, input: '5\n', expected: '5\n', fieldsJson: '{"n":5}' }];
+    await runSubmit('code', tests, runner, 'checker', checker);
+    expect(checker).toHaveBeenCalledWith('checker', '{"n":5}', 'out\n', '5\n');
+  });
+});
+
+// ── Checker: with checker failing ─────────────────────────────────────────────
+
+describe('checker: failing', () => {
+  it('checker returns false → wa with correct tier/test', async () => {
+    const runner = makeRunner([{ stdout: 'ok\n' }]);
+    const checker = makeChecker([false]);
+    const tests: SubmitTestCase[] = [{ ordinal: 1, tier: 1, input: 'x\n', expected: 'ok\n' }];
+    const result = await runSubmit('code', tests, runner, 'def check(...): pass', checker);
+    expect(result).toEqual({ verdict: 'wa', stars: 0, failedTier: 1, failedTest: 1 });
+  });
+
+  it('checker tier 2 fail → wa stars=1', async () => {
+    const runner = makeRunner([{ stdout: 'ok\n' }, { stdout: 'ok\n' }, { stdout: 'ok\n' }]);
+    const checker = makeChecker([true, false]);
+    const result = await runSubmit('code', TESTS_3T, runner, 'checker', checker);
+    expect(result).toEqual({ verdict: 'wa', stars: 1, failedTier: 2, failedTest: 2 });
+    expect(checker).toHaveBeenCalledTimes(2);
+    expect(runner).toHaveBeenCalledTimes(2);
+  });
+});
+
+// ── Checker: tier-grouped ─────────────────────────────────────────────────────
+
+describe('checker: tier-grouped', () => {
+  it('passes tier 1+2, checker fails tier 3 → wa stars=2', async () => {
+    const runner = makeRunner([{ stdout: 'r\n' }, { stdout: 'r\n' }, { stdout: 'r\n' }]);
+    const checker = makeChecker([true, true, false]);
+    const result = await runSubmit('code', TESTS_3T, runner, 'checker', checker);
+    expect(result).toEqual({ verdict: 'wa', stars: 2, failedTier: 3, failedTest: 3 });
+  });
+
+  it('tle still short-circuits before checker is called', async () => {
+    const runner = makeRunner([{ stdout: '', tle: true }]);
+    const checker = makeChecker([true]);
+    const result = await runSubmit('code', TESTS_3T, runner, 'checker', checker);
+    expect(result.verdict).toBe('tle');
+    expect(checker).not.toHaveBeenCalled();
   });
 });
 

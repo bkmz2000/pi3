@@ -590,6 +590,7 @@ export default function TeacherProblemForm() {
   });
   const [generatorRunning, setGeneratorRunning] = useState(false);
   const [generatorError, setGeneratorError] = useState<GeneratorError | null>(null);
+  const [generatorOutput, setGeneratorOutput] = useState<string | null>(null);
   const [generatorPreview, setGeneratorPreview] = useState<TestDraft[] | null>(null);
   const [slugTouched, setSlugTouched] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -672,14 +673,24 @@ export default function TeacherProblemForm() {
     setGeneratorPreview((prev) => prev ? prev.filter((_, i) => i !== idx) : null);
   };
 
+  const useGeneratedTests = () => {
+    if (!generatorPreview || generatorPreview.length === 0) return;
+    setForm((f) => ({ ...f, tests: [...generatorPreview] }));
+    setGeneratorPreview(null);
+    setGeneratorOutput(null);
+    setGeneratorError(null);
+  };
+
   const handleRunGenerator = async () => {
     if (!form.generator_py.trim()) return;
     setGeneratorRunning(true);
     setGeneratorError(null);
+    setGeneratorOutput(null);
     setGeneratorPreview(null);
     const slug = isNew ? (form.slug || 'preview') : editSlug!;
     try {
       const { stdout, error: genErr } = await runGenerator(form.generator_py, slug);
+      setGeneratorOutput(stdout || null);
       if (genErr) {
         setGeneratorError({ kind: t('teacher.generator.errorGeneric'), details: genErr });
         return;
@@ -1032,12 +1043,13 @@ export default function TeacherProblemForm() {
 
           {/* Generator */}
           <SectionCard icon={<IconCode />} title={t('teacher.generator.title')} desc={t('teacher.generator.desc')}>
-            {generatorError && (
+            {/* Console: always visible when there's output or error */}
+            {(generatorError || generatorOutput) && (
               <div style={{ marginBottom: 10 }}>
                 <ConsoleView
-                  label={generatorError.kind}
-                  content={generatorError.details}
-                  status="error"
+                  label={generatorError ? generatorError.kind : t('teacher.generator.consoleOutput')}
+                  content={generatorError ? generatorError.details : (generatorOutput ?? '')}
+                  status={generatorError ? 'error' : undefined}
                   maxHeight={240}
                 />
               </div>
@@ -1078,9 +1090,25 @@ export default function TeacherProblemForm() {
                 <div style={{
                   padding: '6px 10px', background: theme.chip,
                   borderBottom: `0.5px solid ${theme.panelBorder}`,
-                  fontSize: 11.5, color: theme.panelTxtMute, fontWeight: 600,
+                  display: 'flex', alignItems: 'center', gap: 10,
                 }}>
-                  {t('teacher.generator.previewCount', { count: generatorPreview.length })}
+                  <span style={{ fontSize: 11.5, color: theme.panelTxtMute, fontWeight: 600 }}>
+                    {t('teacher.generator.previewCount', { count: generatorPreview.length })}
+                  </span>
+                  <div style={{ flex: 1 }} />
+                  <button
+                    type="button"
+                    onClick={useGeneratedTests}
+                    style={{
+                      all: 'unset', cursor: 'pointer',
+                      fontSize: 11.5, fontWeight: 600,
+                      padding: '3px 10px', borderRadius: 6,
+                      background: theme.successPill,
+                      color: theme.successPillTxt,
+                    }}
+                  >
+                    {t('teacher.generator.useTests')}
+                  </button>
                 </div>
                 <div style={{ maxHeight: 240, overflowY: 'auto' }}>
                   {generatorPreview.map((tc, i) => (

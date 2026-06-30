@@ -65,5 +65,22 @@ export function graphicsProfile(o: ProfileOpts): Extension[] {
 }
 
 export function competeProfile(o: ProfileOpts): Extension[] {
-  return [...baseProfile(o)];
+  // Same as baseProfile but without lintGutter — the problem editor
+  // doesn't run the linter and the empty gutter wastes space.
+  return [
+    python(),
+    EditorState.tabSize.of(4),
+    indentUnit.of("    "),
+    bracketMatching(),
+    indentOnInput(),
+    lineNumbers(),
+    highlightActiveLine(),
+    drawSelection(),
+    highlightSpecialChars(),
+    indentationGuideField,
+    indentationGuides,
+    o.cmTheme,
+    EditorView.theme({ "&": { fontSize: o.fontSize + "px" } }),
+    EditorView.lineWrapping,
+  ];
 }

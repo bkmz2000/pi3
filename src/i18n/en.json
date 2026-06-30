@@ -969,7 +969,9 @@
       "errorEmpty": "Generator produced no tests.",
       "errorFailed": "Generator execution failed.",
       "errorGeneric": "Generator error",
-      "errorReference": "Reference solution error on test #{{n}}"
+      "errorReference": "Reference solution error on test #{{n}}",
+      "consoleOutput": "Generator output",
+      "useTests": "Use these tests"
     }
   },
   "compete": {

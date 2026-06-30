@@ -9,9 +9,9 @@ const opts: ProfileOpts = {
 };
 
 describe("editor profiles", () => {
-  it("competeProfile includes the lint-gutter extension", () => {
+  it("competeProfile does NOT include the lint-gutter extension", () => {
     const exts = competeProfile(opts);
-    expect(exts).toContain(LINT_GUTTER_EXT);
+    expect(exts).not.toContain(LINT_GUTTER_EXT);
   });
 
   it("graphicsProfile includes the lint-gutter extension", () => {
@@ -19,16 +19,16 @@ describe("editor profiles", () => {
     expect(exts).toContain(LINT_GUTTER_EXT);
   });
 
-  it("competeProfile has the same length as baseProfile (no graphics-specific extensions added)", () => {
+  it("competeProfile is one extension shorter than baseProfile (no lint gutter)", () => {
     const base = baseProfile(opts);
     const compete = competeProfile(opts);
-    expect(compete.length).toBe(base.length);
+    expect(compete.length).toBe(base.length - 1);
   });
 
   it("graphicsProfile has more extensions than competeProfile", () => {
     const compete = competeProfile(opts);
     const graphics = graphicsProfile(opts);
-    // autocompletion + 3 graphicsExtensions + Prec.high(keymap) + commentExtension
-    expect(graphics.length).toBe(compete.length + 6);
+    // autocompletion + 3 graphicsExtensions + Prec.high(keymap) + commentExtension + lintGutter
+    expect(graphics.length).toBe(compete.length + 7);
   });
 });

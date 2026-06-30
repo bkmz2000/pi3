@@ -354,6 +354,59 @@ for _ in range(50):
 check("anti-pattern-independent-recipes", diffs > 0,
       "Integer() recipe created twice should produce independent draws")
 
+# ── _TestSet.__str__ ─────────────────────────────────────────────────────────
+
+seed("testset-str-example")
+ex_str = Example()
+ex_str.add_line(Literal(5, name="n"))
+ex_str.answer(5)
+try:
+    parsed_ex_str = json.loads(str(ex_str))
+    check("testset-str-parseable", True)
+except json.JSONDecodeError as e:
+    check("testset-str-parseable", False, f"invalid JSON: {e}")
+    parsed_ex_str = {}
+check("testset-str-has-tests", "tests" in parsed_ex_str)
+if "tests" in parsed_ex_str:
+    check_eq("testset-str-one-test", len(parsed_ex_str["tests"]), 1)
+    check_eq("testset-str-example-expected", parsed_ex_str["tests"][0].get("expected"), "5")
+
+seed("testset-str-easy")
+easy_str = Easy()
+easy_str.add_line(Integer(1, 100, name="n"))
+try:
+    parsed_easy_str = json.loads(str(easy_str))
+    check("testset-str-easy-parseable", True)
+except json.JSONDecodeError as e:
+    check("testset-str-easy-parseable", False, f"invalid JSON: {e}")
+    parsed_easy_str = {}
+if "tests" in parsed_easy_str:
+    check_eq("testset-str-easy-one-test", len(parsed_easy_str["tests"]), 1)
+    check("testset-str-easy-tier1-hidden", not parsed_easy_str["tests"][0]["visible"])
+
+seed("testset-str-mul")
+easy_mul = Easy()
+easy_mul.add_line(Integer(1, 100, name="n"))
+try:
+    parsed_mul = json.loads(str(easy_mul * 5))
+    check("testset-str-mul-parseable", True)
+except json.JSONDecodeError:
+    check("testset-str-mul-parseable", False, "invalid JSON")
+    parsed_mul = {}
+if "tests" in parsed_mul:
+    check_eq("testset-str-mul-count", len(parsed_mul["tests"]), 5)
+    ns = [t["fields"]["n"] for t in parsed_mul["tests"] if t.get("fields")]
+    check("testset-str-mul-varies", len(set(ns)) > 1, f"all n values identical: {ns}")
+
+# str(set) and str(_TestBundle([set])) are identical by construction (same code path)
+seed("testset-str-parity")
+parity_set = Easy()
+parity_set.add_line(Literal(42, name="n"))
+str_direct = str(parity_set)
+seed("testset-str-parity")
+str_bundle = str(_testing_mod._TestBundle([parity_set]))
+check_eq("testset-str-parity", json.loads(str_direct), json.loads(str_bundle))
+
 # ── Results ───────────────────────────────────────────────────────────────────
 if failures:
     print("\n".join(failures))

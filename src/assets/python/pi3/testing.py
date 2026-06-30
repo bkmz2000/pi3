@@ -240,6 +240,10 @@ class _TestSet:
     def _materialize_all(self, rng):
         return [self._materialize_one(rng) for _ in range(self._count)]
 
+    def __str__(self) -> str:
+        # Promote to a single-item bundle; each call re-materializes fresh (recipe semantic).
+        return str(_TestBundle([self]))
+
 
 class Example(_TestSet):
     tier = 1

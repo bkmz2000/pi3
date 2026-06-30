@@ -640,20 +640,45 @@ export function runGenerator(
 export function runReference(
   referencePy: string,
   fieldsJson: string,
+  timeLimitMs: number = 2000,
 ): Promise<{ expected: string; error?: string }> {
+  const w = getWorker();
+  const reqId = nextReqId();
+
+  // Zero the interrupt buffer before starting
+  if (interruptBuffer) interruptBuffer[0] = 0;
+
   return new Promise((resolve) => {
-    const w = getWorker();
-    const reqId = nextReqId();
+    let settled = false;
+    const finish = (result: { expected: string; error?: string }) => {
+      if (settled) return;
+      settled = true;
+      w.removeEventListener("message", handler);
+      clearTimeout(tleTimer);
+      resolve(result);
+    };
+
     const handler = (e: MessageEvent<WorkerEvent>) => {
       const msg = e.data;
       if (msg.type === "reference_result" && msg.reqId === reqId) {
-        w.removeEventListener("message", handler);
-        resolve({ expected: msg.expected });
+        finish({ expected: msg.expected });
       } else if (msg.type === "reference_error" && msg.reqId === reqId) {
-        w.removeEventListener("message", handler);
-        resolve({ expected: "", error: msg.error });
+        finish({ expected: "", error: msg.error });
       }
     };
+
+    const tleTimer = setTimeout(() => {
+      if (interruptBuffer) {
+        interruptBuffer[0] = 2;
+        w.postMessage({ cmd: "interrupt" } satisfies WorkerCommand);
+      }
+      // Give the interrupt 200ms to propagate, then force-resolve
+      setTimeout(() => finish({
+        expected: "",
+        error: "Time limit exceeded (2s per test)",
+      }), 200);
+    }, timeLimitMs);
+
     w.addEventListener("message", handler);
     w.postMessage({ cmd: "runReference", referencePy, fieldsJson, reqId } satisfies WorkerCommand);
   });

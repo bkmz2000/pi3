@@ -970,6 +970,8 @@
       "errorFailed": "Generator execution failed.",
       "errorGeneric": "Generator error",
       "errorReference": "Reference solution error on test #{{n}}",
+      "errorChecker": "Checker error",
+      "errorCheckerRejected": "Checker rejected reference solution on test #{{n}} — fix the checker",
       "consoleOutput": "Generator output",
       "useTests": "Use these tests"
     }

@@ -5,7 +5,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
-import { runGenerator, runReference } from '../../runner/RunnerProvider';
+import { runGenerator, runReference, runChecker } from '../../runner/RunnerProvider';
 import CodeMirror from '@uiw/react-codemirror';
 import { githubDark, githubLight } from '@uiw/codemirror-theme-github';
 import { useThemeStore } from '../../state/useTheme';
@@ -695,7 +695,7 @@ export default function TeacherProblemForm() {
         setGeneratorError({ kind: t('teacher.generator.errorGeneric'), details: genErr });
         return;
       }
-      let parsed: { tests: Array<{ tier: number; visible: boolean; fields: Record<string, unknown> | null; input: string; expected?: string }>; reference_solution_py?: string | null };
+      let parsed: { tests: Array<{ tier: number; visible: boolean; fields: Record<string, unknown> | null; input: string; expected?: string }>; reference_solution_py?: string | null; checker_py?: string | null };
       try {
         parsed = JSON.parse(stdout);
       } catch {
@@ -703,7 +703,9 @@ export default function TeacherProblemForm() {
         return;
       }
       const referencePy = parsed.reference_solution_py ?? '';
+      const checkerPy = parsed.checker_py ?? '';
       const preview: TestDraft[] = [];
+      let sanityChecked = false;
       for (let i = 0; i < parsed.tests.length; i++) {
         const tc = parsed.tests[i];
         let expected = tc.expected ?? '';
@@ -714,6 +716,27 @@ export default function TeacherProblemForm() {
             return;
           }
           expected = ref;
+        }
+        // Checker sanity check: run checker on first available test to verify it works
+        if (!sanityChecked && checkerPy && tc.fields && expected) {
+          sanityChecked = true;
+          const { passed, error: checkErr } = await runChecker(
+            checkerPy,
+            tc.fields ? JSON.stringify(tc.fields) : null,
+            expected,
+            expected,
+          );
+          if (checkErr) {
+            setGeneratorError({ kind: t('teacher.generator.errorChecker'), details: checkErr });
+            return;
+          }
+          if (!passed) {
+            setGeneratorError({
+              kind: t('teacher.generator.errorChecker'),
+              details: t('teacher.generator.errorCheckerRejected', { n: i + 1 }),
+            });
+            return;
+          }
         }
         preview.push({
           tier: Math.min(3, Math.max(1, tc.tier)) as 1 | 2 | 3,
@@ -766,7 +789,9 @@ export default function TeacherProblemForm() {
 
           // Run reference solution for tests without explicit expected
           const referencePy = parsed.reference_solution_py ?? '';
+          const checkerPy = parsed.checker_py ?? '';
           const completedTests: TestDraft[] = [];
+          let sanityChecked = false;
           for (let i = 0; i < parsed.tests.length; i++) {
             const t2 = parsed.tests[i];
             let expected = t2.expected ?? '';
@@ -777,6 +802,27 @@ export default function TeacherProblemForm() {
                 return;
               }
               expected = ref;
+            }
+            // Checker sanity check on first available test
+            if (!sanityChecked && checkerPy && t2.fields && expected) {
+              sanityChecked = true;
+              const { passed, error: checkErr } = await runChecker(
+                checkerPy,
+                t2.fields ? JSON.stringify(t2.fields) : null,
+                expected,
+                expected,
+              );
+              if (checkErr) {
+                setGeneratorError({ kind: t('teacher.generator.errorChecker'), details: checkErr });
+                return;
+              }
+              if (!passed) {
+                setGeneratorError({
+                  kind: t('teacher.generator.errorChecker'),
+                  details: t('teacher.generator.errorCheckerRejected', { n: i + 1 }),
+                });
+                return;
+              }
             }
             completedTests.push({
               tier: Math.min(3, Math.max(1, t2.tier)) as 1 | 2 | 3,

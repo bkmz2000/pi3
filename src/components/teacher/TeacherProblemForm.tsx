@@ -11,6 +11,7 @@ import { githubDark, githubLight } from '@uiw/codemirror-theme-github';
 import { useThemeStore } from '../../state/useTheme';
 import { competeProfile } from '../../editor/profiles';
 import { IconTrash, IconEye, IconEyeOff } from '../Icons';
+import ConsoleView from '../ConsoleView';
 
 interface TestDraft {
   tier: 1 | 2 | 3;
@@ -27,8 +28,15 @@ interface FormState {
   order_index: number;
   tests: TestDraft[];
   generator_py: string;
+  // Kept for backward compatibility when loading existing problems; not editable in the form.
   reference_solution_py: string;
   checker_py: string;
+}
+
+// Shape for structured generator errors: category label + raw traceback.
+interface GeneratorError {
+  kind: string;
+  details: string;
 }
 
 function emptyTest(tier: 1 | 2 | 3): TestDraft {
@@ -581,7 +589,7 @@ export default function TeacherProblemForm() {
     checker_py: '',
   });
   const [generatorRunning, setGeneratorRunning] = useState(false);
-  const [generatorError, setGeneratorError] = useState<string | null>(null);
+  const [generatorError, setGeneratorError] = useState<GeneratorError | null>(null);
   const [generatorPreview, setGeneratorPreview] = useState<TestDraft[] | null>(null);
   const [slugTouched, setSlugTouched] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -660,6 +668,10 @@ export default function TeacherProblemForm() {
     setForm((f) => ({ ...f, tests: f.tests.filter((_, i) => i !== idx) }));
   };
 
+  const removeFromPreview = (idx: number) => {
+    setGeneratorPreview((prev) => prev ? prev.filter((_, i) => i !== idx) : null);
+  };
+
   const handleRunGenerator = async () => {
     if (!form.generator_py.trim()) return;
     setGeneratorRunning(true);
@@ -668,22 +680,28 @@ export default function TeacherProblemForm() {
     const slug = isNew ? (form.slug || 'preview') : editSlug!;
     try {
       const { stdout, error: genErr } = await runGenerator(form.generator_py, slug);
-      if (genErr) { setGeneratorError(t('teacher.generator.errorGeneric', { message: genErr })); return; }
+      if (genErr) {
+        setGeneratorError({ kind: t('teacher.generator.errorGeneric'), details: genErr });
+        return;
+      }
       let parsed: { tests: Array<{ tier: number; visible: boolean; fields: Record<string, unknown> | null; input: string; expected?: string }>; reference_solution_py?: string | null };
       try {
         parsed = JSON.parse(stdout);
       } catch {
-        setGeneratorError(t('teacher.generator.errorJson'));
+        setGeneratorError({ kind: t('teacher.generator.errorJson'), details: '' });
         return;
       }
-      const referencePy = form.reference_solution_py.trim() || (parsed.reference_solution_py ?? '');
+      const referencePy = parsed.reference_solution_py ?? '';
       const preview: TestDraft[] = [];
       for (let i = 0; i < parsed.tests.length; i++) {
         const tc = parsed.tests[i];
         let expected = tc.expected ?? '';
         if (!expected && referencePy && tc.fields) {
           const { expected: ref, error: refErr } = await runReference(referencePy, JSON.stringify(tc.fields));
-          if (refErr) { setGeneratorError(t('teacher.generator.errorReference', { n: i + 1, message: refErr })); return; }
+          if (refErr) {
+            setGeneratorError({ kind: t('teacher.generator.errorReference', { n: i + 1 }), details: refErr });
+            return;
+          }
           expected = ref;
         }
         preview.push({
@@ -695,7 +713,7 @@ export default function TeacherProblemForm() {
       }
       setGeneratorPreview(preview);
     } catch {
-      setGeneratorError(t('teacher.generator.errorFailed'));
+      setGeneratorError({ kind: t('teacher.generator.errorFailed'), details: '' });
     } finally {
       setGeneratorRunning(false);
     }
@@ -720,23 +738,23 @@ export default function TeacherProblemForm() {
         try {
           const { stdout, error: genErr } = await runGenerator(form.generator_py, slug);
           if (genErr) {
-            setGeneratorError(t('teacher.generator.errorGeneric', { message: genErr }));
+            setGeneratorError({ kind: t('teacher.generator.errorGeneric'), details: genErr });
             return;
           }
           let parsed: { tests: Array<{ tier: number; visible: boolean; fields: Record<string, unknown> | null; input: string; expected?: string }>; reference_solution_py?: string | null; checker_py?: string | null };
           try {
             parsed = JSON.parse(stdout);
           } catch {
-            setGeneratorError(t('teacher.generator.errorJsonHint'));
+            setGeneratorError({ kind: t('teacher.generator.errorJsonHint'), details: '' });
             return;
           }
           if (!Array.isArray(parsed.tests) || parsed.tests.length === 0) {
-            setGeneratorError(t('teacher.generator.errorEmpty'));
+            setGeneratorError({ kind: t('teacher.generator.errorEmpty'), details: '' });
             return;
           }
 
           // Run reference solution for tests without explicit expected
-          const referencePy = form.reference_solution_py.trim() || (parsed.reference_solution_py ?? '');
+          const referencePy = parsed.reference_solution_py ?? '';
           const completedTests: TestDraft[] = [];
           for (let i = 0; i < parsed.tests.length; i++) {
             const t2 = parsed.tests[i];
@@ -744,7 +762,7 @@ export default function TeacherProblemForm() {
             if (!expected && referencePy && t2.fields) {
               const { expected: ref, error: refErr } = await runReference(referencePy, JSON.stringify(t2.fields));
               if (refErr) {
-                setGeneratorError(t('teacher.generator.errorReference', { n: i + 1, message: refErr }));
+                setGeneratorError({ kind: t('teacher.generator.errorReference', { n: i + 1 }), details: refErr });
                 return;
               }
               expected = ref;
@@ -757,16 +775,8 @@ export default function TeacherProblemForm() {
             });
           }
           testsForSave = completedTests;
-
-          // Merge any extracted sources back (generator may have embedded them via inspect.getsource)
-          if (!form.reference_solution_py.trim() && parsed.reference_solution_py) {
-            setForm((f) => ({ ...f, reference_solution_py: parsed.reference_solution_py ?? '' }));
-          }
-          if (!form.checker_py.trim() && parsed.checker_py) {
-            setForm((f) => ({ ...f, checker_py: parsed.checker_py ?? '' }));
-          }
         } catch {
-          setGeneratorError(t('teacher.generator.errorFailed'));
+          setGeneratorError({ kind: t('teacher.generator.errorFailed'), details: '' });
           return;
         } finally {
           setGeneratorRunning(false);
@@ -780,6 +790,7 @@ export default function TeacherProblemForm() {
         slug,
         tests: testsForSave,
         generator_py: form.generator_py || null,
+        // Preserve existing DB values for problems that already have them; null for new problems.
         reference_solution_py: form.reference_solution_py || null,
         checker_py: form.checker_py || null,
       };
@@ -1019,15 +1030,16 @@ export default function TeacherProblemForm() {
             ))}
           </SectionCard>
 
-          {/* Generator / reference solution / checker */}
+          {/* Generator */}
           <SectionCard icon={<IconCode />} title={t('teacher.generator.title')} desc={t('teacher.generator.desc')}>
             {generatorError && (
-              <div style={{
-                marginBottom: 10, padding: '7px 10px',
-                background: 'rgba(255,77,77,0.12)', border: '0.5px solid rgba(255,77,77,0.3)',
-                borderRadius: 8, color: '#ff7a7a', fontSize: 12.5,
-              }}>
-                {generatorError}
+              <div style={{ marginBottom: 10 }}>
+                <ConsoleView
+                  label={generatorError.kind}
+                  content={generatorError.details}
+                  status="error"
+                  maxHeight={240}
+                />
               </div>
             )}
             <div style={{ marginBottom: 12 }}>
@@ -1054,32 +1066,8 @@ export default function TeacherProblemForm() {
                   value={form.generator_py}
                   extensions={competeProfile({ theme, lang: i18n.language, fontSize, cmTheme })}
                   onChange={(v) => setForm((f) => ({ ...f, generator_py: v }))}
-                  height="160px"
+                  height="240px"
                 />
-              </div>
-            </div>
-            <div style={{ display: 'flex', gap: 10, marginBottom: generatorPreview ? 12 : 0 }}>
-              <div style={{ flex: 1 }}>
-                <FieldLabel label={t('teacher.generator.referenceSolution')} />
-                <div style={{ border: `0.5px solid ${theme.panelBorder}`, borderRadius: 8, overflow: 'hidden' }}>
-                  <CodeMirror
-                    value={form.reference_solution_py}
-                    extensions={competeProfile({ theme, lang: i18n.language, fontSize, cmTheme })}
-                    onChange={(v) => setForm((f) => ({ ...f, reference_solution_py: v }))}
-                    height="120px"
-                  />
-                </div>
-              </div>
-              <div style={{ flex: 1 }}>
-                <FieldLabel label={t('teacher.generator.checker')} />
-                <div style={{ border: `0.5px solid ${theme.panelBorder}`, borderRadius: 8, overflow: 'hidden' }}>
-                  <CodeMirror
-                    value={form.checker_py}
-                    extensions={competeProfile({ theme, lang: i18n.language, fontSize, cmTheme })}
-                    onChange={(v) => setForm((f) => ({ ...f, checker_py: v }))}
-                    height="120px"
-                  />
-                </div>
               </div>
             </div>
             {generatorPreview && (
@@ -1110,11 +1098,29 @@ export default function TeacherProblemForm() {
                           {tc.input || '—'}
                         </pre>
                       </div>
-                      <div style={{ flex: 1, padding: '6px 8px' }}>
+                      <div style={{ flex: 1, padding: '6px 8px', borderRight: `0.5px solid ${theme.panelBorder}` }}>
                         <div style={{ fontSize: 10, color: theme.panelTxtMute, marginBottom: 2 }}>Expected</div>
                         <pre style={{ margin: 0, fontSize: 11, fontFamily: theme.fontMono, color: theme.panelTxt, whiteSpace: 'pre-wrap' }}>
                           {tc.expected || '—'}
                         </pre>
+                      </div>
+                      <div style={{ width: 36, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <button
+                          type="button"
+                          onClick={() => removeFromPreview(i)}
+                          aria-label={t('teacher.generator.removeTest')}
+                          style={{
+                            all: 'unset',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            padding: 4,
+                            borderRadius: 4,
+                            color: theme.panelTxtMute,
+                          }}
+                        >
+                          <IconTrash size={12} color="currentColor" />
+                        </button>
                       </div>
                     </div>
                   ))}

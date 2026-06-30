@@ -956,21 +956,20 @@
     "testHidden": "Hidden",
     "noTestsInTier": "No tests yet — add one below",
     "generator": {
-      "title": "Generator",
-      "desc": "Optional: auto-generate tests",
+      "title": "Test generator",
+      "desc": "Generator code, reference solution, and checker — all in one file",
       "label": "Generator (pi3.testing)",
-      "referenceSolution": "Reference solution",
-      "checker": "Checker (optional)",
       "runButton": "▶ Run generator",
       "running": "Running…",
+      "removeTest": "Remove test",
       "previewCount": "Preview — {{count}} test generated",
       "previewCount_plural": "Preview — {{count}} tests generated",
       "errorJson": "Generator did not produce valid JSON.",
       "errorJsonHint": "Generator did not produce valid JSON. Make sure your generator ends with print(tests).",
       "errorEmpty": "Generator produced no tests.",
       "errorFailed": "Generator execution failed.",
-      "errorGeneric": "Generator error: {{message}}",
-      "errorReference": "Reference solution error on test #{{n}}: {{message}}"
+      "errorGeneric": "Generator error",
+      "errorReference": "Reference solution error on test #{{n}}"
     }
   },
   "compete": {

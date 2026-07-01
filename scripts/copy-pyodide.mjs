@@ -34,15 +34,21 @@ const FILES = [
   'pyodide-lock.json',
 ];
 
-if (!existsSync(SRC)) {
+const SKIP_COPY = process.env.VERCEL === '1';
+
+if (!SKIP_COPY && !existsSync(SRC)) {
   console.error(`[copy-pyodide] ${SRC} missing — run \`npm install\` first.`);
   process.exit(1);
 }
 
-mkdirSync(DST, { recursive: true });
+if (SKIP_COPY) {
+  console.log('[copy-pyodide] VERCEL=1 detected — skipping file copy, patching sw.js only');
+}
 
 let copied = 0;
 let skipped = 0;
+if (!SKIP_COPY) {
+mkdirSync(DST, { recursive: true });
 for (const name of FILES) {
   const from = join(SRC, name);
   const to = join(DST, name);
@@ -64,6 +70,7 @@ for (const name of FILES) {
   copyFileSync(from, to);
   copied++;
 }
+} // end if (!SKIP_COPY)
 
 console.log(`[copy-pyodide] ${copied} copied, ${skipped} up-to-date → public/pyodide/`);
 

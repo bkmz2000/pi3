@@ -1,0 +1,5 @@
+public/pyodide/
+node_modules/
+Dockerfile
+Dockerfile.test
+scripts/test-docker.sh

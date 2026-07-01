@@ -14,6 +14,19 @@ import inspect
 
 from graphics import _state
 
+__all__ = [
+    "array",
+    "cell",
+    "grid",
+    "label",
+    "queue",
+    "range",
+    "set",
+    "show",
+    "stack",
+    "text",
+]
+
 _COLORS = frozenset({"red", "green", "blue", "yellow", "cyan", "gray"})
 _V1_KINDS = frozenset({"array", "grid", "text", "stack", "queue", "set"})
 

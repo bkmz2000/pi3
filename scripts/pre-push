@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# Pre-push hook: run the full containerized test gate before allowing a push.
+# Install via: make install-hooks
+set -euo pipefail
+
+echo "→ Running containerized test gate (make test)…"
+make test
+
+echo "✓ All tests passed — push allowed."

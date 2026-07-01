@@ -1,0 +1,20 @@
+{
+  "_comment": "pi3.testing API surface snapshot. Teacher-facing generator API; changes here break existing problem generators. Update procedure: edit __all__ in testing.py, update this file, run npm test to verify.",
+  "_version": "1.0",
+  "__all__": [
+    "Choice",
+    "Compute",
+    "Easy",
+    "Example",
+    "Float",
+    "Hard",
+    "Integer",
+    "Literal",
+    "Medium",
+    "Permutation",
+    "Sample",
+    "String",
+    "UniqueSample",
+    "seed"
+  ]
+}

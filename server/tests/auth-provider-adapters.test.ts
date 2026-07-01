@@ -1,103 +1,108 @@
-import { describe, it, expect } from '@jest/globals';
+import { describe, it, expect, beforeEach, afterEach } from '@jest/globals';
+import { loginusAdapter } from '../auth-providers/loginus.js';
+import { AuthProviderError } from '../auth-providers/types.js';
 
-// Tests documenting the provider adapter contract
-// The actual adapters (parseLoginusToken, parseLoginusUserinfo) are tested
-// through the auth.test.ts integration tests which use recorded provider responses
+// ─── Loginus adapter ──────────────────────────────────────────────────────────
 
-describe('Provider Adapter Contract', () => {
-  describe('Token Response Shapes', () => {
-    it('documents direct token response shape (non-enveloped)', () => {
-      // Loginus may return token responses at top level
-      const directResponse = {
-        access_token: 'tok_abc123',
-        id_token: 'id_xyz789',
-        token_type: 'Bearer',
-        expires_in: 3600,
-      };
-
-      expect(directResponse.access_token).toBe('tok_abc123');
+describe('loginusAdapter.parseTokenResponse', () => {
+  it('accepts a flat (non-enveloped) token response', () => {
+    const result = loginusAdapter.parseTokenResponse({
+      access_token: 'tok_abc',
+      id_token: 'id_xyz',
     });
-
-    it('documents enveloped token response shape (data wrapper)', () => {
-      // Loginus may also wrap responses in a data field
-      const envelopedResponse = {
-        data: {
-          access_token: 'tok_def456',
-          id_token: 'id_uvw123',
-          token_type: 'Bearer',
-          expires_in: 3600,
-        },
-      };
-
-      expect(envelopedResponse.data.access_token).toBe('tok_def456');
-    });
-
-    it('documents error response shape (non-enveloped)', () => {
-      const errorResponse = {
-        error: 'invalid_grant',
-        error_description: 'Authorization code has expired',
-      } as any; // eslint-disable-line @typescript-eslint/no-explicit-any
-
-      expect(errorResponse.access_token).toBeUndefined();
-    });
-
-    it('documents error response shape (enveloped)', () => {
-      const errorResponse = {
-        data: {
-          error: 'invalid_grant',
-          error_description: 'Authorization code has expired',
-        },
-      } as any; // eslint-disable-line @typescript-eslint/no-explicit-any
-
-      expect(errorResponse.data.access_token).toBeUndefined();
-    });
+    expect(result.access_token).toBe('tok_abc');
+    expect(result.id_token).toBe('id_xyz');
   });
 
-  describe('Userinfo Response Shapes', () => {
-    it('documents direct userinfo response shape (non-enveloped)', () => {
-      const directResponse = {
-        id: 'user123',
-        email: 'user@example.com',
-        firstName: 'John',
-        lastName: 'Doe',
-        preferred_username: 'johndoe',
-        globalRoles: [{ name: 'student' }],
-      };
-
-      expect(directResponse.id).toBe('user123');
-      expect(directResponse.globalRoles).toEqual([{ name: 'student' }]);
+  it('unwraps a data-enveloped token response', () => {
+    const result = loginusAdapter.parseTokenResponse({
+      data: { access_token: 'tok_def', id_token: 'id_uvw' },
     });
-
-    it('documents enveloped userinfo response shape (data wrapper)', () => {
-      const envelopedResponse = {
-        data: {
-          id: 'user456',
-          email: 'another@example.com',
-          firstName: 'Jane',
-          lastName: 'Smith',
-          preferred_username: 'janesmith',
-          globalRoles: [{ name: 'teacher' }],
-        },
-      };
-
-      expect(envelopedResponse.data.id).toBe('user456');
-      expect(envelopedResponse.data.globalRoles).toEqual([{ name: 'teacher' }]);
-    });
-
-    it('documents minimal userinfo response (only required id)', () => {
-      const minimalResponse = {
-        id: 'minimal_user',
-      } as any; // eslint-disable-line @typescript-eslint/no-explicit-any
-
-      expect(minimalResponse.id).toBe('minimal_user');
-      expect(minimalResponse.email).toBeUndefined();
-    });
+    expect(result.access_token).toBe('tok_def');
+    expect(result.id_token).toBe('id_uvw');
   });
 
-  it('adapters are tested through OAuth callback integration tests', () => {
-    // The parseLoginusToken and parseLoginusUserinfo functions are tested
-    // via the OAuth callback flow in auth.test.ts, which exercises
-    // their validation and envelope-unwrapping behavior
-    expect(true).toBe(true);
+  it('omits id_token when absent', () => {
+    const result = loginusAdapter.parseTokenResponse({ access_token: 'tok_ghi' });
+    expect(result.id_token).toBeUndefined();
+  });
+
+  it('throws AuthProviderError when access_token is missing', () => {
+    expect(() => loginusAdapter.parseTokenResponse({ error: 'invalid_grant' }))
+      .toThrow(AuthProviderError);
+  });
+});
+
+describe('loginusAdapter.parseUserinfo', () => {
+  let savedEnv: string | undefined;
+  beforeEach(() => { savedEnv = process.env.LOGINUS_TEACHER_ROLE; });
+  afterEach(() => {
+    if (savedEnv === undefined) delete process.env.LOGINUS_TEACHER_ROLE;
+    else process.env.LOGINUS_TEACHER_ROLE = savedEnv;
+  });
+
+  it('maps a student userinfo to role=student', () => {
+    const user = loginusAdapter.parseUserinfo({
+      id: 'user-1',
+      email: 'student@example.com',
+      preferred_username: 'ivan',
+      globalRoles: [{ name: 'student' }],
+    });
+    expect(user.providerId).toBe('user-1');
+    expect(user.role).toBe('student');
+    expect(user.name).toBe('ivan');
+    expect(user.email).toBe('student@example.com');
+  });
+
+  it('maps a teacher userinfo to role=teacher', () => {
+    const user = loginusAdapter.parseUserinfo({
+      id: 'user-2',
+      globalRoles: [{ name: 'teacher' }],
+    });
+    expect(user.role).toBe('teacher');
+  });
+
+  it('respects LOGINUS_TEACHER_ROLE override', () => {
+    process.env.LOGINUS_TEACHER_ROLE = 'instructor';
+    const user = loginusAdapter.parseUserinfo({
+      id: 'user-3',
+      globalRoles: [{ name: 'instructor' }],
+    });
+    expect(user.role).toBe('teacher');
+  });
+
+  it('strips [П] / [Т] role prefixes from preferred_username', () => {
+    const user = loginusAdapter.parseUserinfo({
+      id: 'user-4',
+      preferred_username: '[Т] Иванов Иван',
+    });
+    expect(user.name).toBe('Иванов Иван');
+  });
+
+  it('falls back to firstName + lastName when preferred_username is absent', () => {
+    const user = loginusAdapter.parseUserinfo({
+      id: 'user-5',
+      firstName: 'Jane',
+      lastName: 'Smith',
+    });
+    expect(user.name).toBe('Jane Smith');
+  });
+
+  it('falls back to email when no name fields are present', () => {
+    const user = loginusAdapter.parseUserinfo({ id: 'user-6', email: 'x@y.com' });
+    expect(user.name).toBe('x@y.com');
+  });
+
+  it('accepts a data-enveloped userinfo response', () => {
+    const user = loginusAdapter.parseUserinfo({
+      data: { id: 'user-7', preferred_username: 'wrapped' },
+    });
+    expect(user.providerId).toBe('user-7');
+    expect(user.name).toBe('wrapped');
+  });
+
+  it('throws AuthProviderError when id is missing', () => {
+    expect(() => loginusAdapter.parseUserinfo({ email: 'no-id@example.com' }))
+      .toThrow(AuthProviderError);
   });
 });

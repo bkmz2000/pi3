@@ -39,6 +39,8 @@ build:
 push:
 	@echo "→ Logging in to GHCR..."
 	@gh auth token | docker login ghcr.io -u $(GITHUB_USER) --password-stdin
+	# Tag current :latest as :previous so `make rollback` has a target to revert to
+	docker pull $(IMAGE):latest && docker tag $(IMAGE):latest $(IMAGE):previous && docker push $(IMAGE):previous || true
 	docker push $(IMAGE):$(SHA)
 	docker push $(IMAGE):latest
 

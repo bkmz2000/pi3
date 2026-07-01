@@ -1,35 +1,64 @@
-.PHONY: test build install-hooks deploy rollback
+GITHUB_USER := bkmz2000
+IMAGE       := ghcr.io/$(GITHUB_USER)/pi3
+SHA         := $(shell git rev-parse --short HEAD)
 
-BRANCH ?= $(shell git branch --show-current)
-SHA    := $(shell git rev-parse --short HEAD)
-
-# Override in Makefile.local or via env: VPS=user@host make deploy
-VPS ?= pi3@vps.example.com
-
+-include .env
 -include Makefile.local
 
-# Run all four CI gates inside a container that mirrors production's base image.
+# Auto-detect: TURSO_DATABASE_URL set → vercel, else → vps
+DEPLOY_TARGET ?= $(if $(TURSO_DATABASE_URL),vercel,vps)
+
+.PHONY: deploy vps vercel build push remote-deploy test install-hooks rollback
+
 test:
 	docker build -f Dockerfile.test -t pi3-test:latest .
 	docker run --rm pi3-test:latest
 
-# Build the production image, tagged by commit SHA for rollback.
+# Usage: make deploy        (auto-detect from .env)
+#        make deploy vps    (explicit VPS)
+#        make deploy vercel (explicit Vercel)
+deploy:
+	@if echo " $(MAKECMDGOALS) " | grep -q " vercel "; then \
+		$(MAKE) _do-vercel; \
+	elif echo " $(MAKECMDGOALS) " | grep -q " vps "; then \
+		$(MAKE) _do-vps; \
+	else \
+		echo "→ Auto-detected target: $(DEPLOY_TARGET)"; \
+		$(MAKE) _do-$(DEPLOY_TARGET); \
+	fi
+
+# No-op targets consumed by deploy's MAKECMDGOALS check
+vps vercel: ;@:
+
+# ── VPS path ──────────────────────────────────────────────────────────
+_do-vps: test build push remote-deploy
+
 build:
-	docker build -t pi3:$(SHA) .
+	docker build -t $(IMAGE):$(SHA) -t $(IMAGE):latest .
 
-# One-time setup after clone.
-install-hooks:
-	git config core.hooksPath .githooks
-	chmod +x .githooks/pre-push
-	@echo "✓ Pre-push hook installed."
+push:
+	@echo "→ Logging in to GHCR..."
+	@gh auth token | docker login ghcr.io -u $(GITHUB_USER) --password-stdin
+	docker push $(IMAGE):$(SHA)
+	docker push $(IMAGE):latest
 
-# Deploy main to production VPS.
-deploy: test build
-	@echo "→ Transferring image pi3:$(SHA) to $(VPS)..."
-	docker save pi3:$(SHA) | gzip | ssh $(VPS) "gunzip | docker load"
-	@echo "→ Running remote deploy..."
-	ssh $(VPS) "bash -s" -- "$(SHA)" < scripts/remote-deploy.sh
+remote-deploy:
+	@echo "→ Deploying on VPS..."
+	@ssh $(VPS) " \
+		set -e && \
+		cd /app/pi3 && \
+		docker compose pull && \
+		docker compose up -d && \
+		echo '✓ Done' \
+	"
 
-# Revert production to the previously-deployed image.
 rollback:
-	ssh $(VPS) "bash -s" -- "rollback" < scripts/remote-deploy.sh
+	@ssh $(VPS) "cd /app/pi3 && docker compose stop && docker tag $(IMAGE):previous $(IMAGE):latest && docker compose up -d"
+
+# ── Vercel path ───────────────────────────────────────────────────────
+_do-vercel: test
+	vercel --prod
+
+install-hooks:
+	cp scripts/pre-push .git/hooks/pre-push
+	chmod +x .git/hooks/pre-push

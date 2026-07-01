@@ -1,0 +1,16 @@
+{
+  "_comment": "pi3.debug API surface snapshot. Student-facing visualization API; changes here break existing student debug code. Update procedure: edit __all__ in debug.py, update this file, run npm test to verify.",
+  "_version": "1.0",
+  "__all__": [
+    "array",
+    "cell",
+    "grid",
+    "label",
+    "queue",
+    "range",
+    "set",
+    "show",
+    "stack",
+    "text"
+  ]
+}

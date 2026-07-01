@@ -1,6 +1,6 @@
 import { useCallback, useEffect } from "react";
 import { create } from "zustand";
-import { WorkerCommand, WorkerEvent, WorkerEventType, LintDiagnostic, type RuntimeError, type JediCompletion } from "./WorkerInterface";
+import { WorkerCommand, WorkerEvent, WorkerEventType, LintDiagnostic, type RuntimeError, type JediCompletion, type DebugFrame } from "./WorkerInterface";
 import { useIde, useEditor } from "../state/IdeState";
 import GraphicsInit from "../assets/python/graphics/__init__.py?raw";
 import GraphicsActors from "../assets/python/graphics/actors/__init__.py?raw";
@@ -20,6 +20,10 @@ import ErrorHook from "../assets/python/error_hook.py?raw";
 import InputTransform from "../assets/python/input_transform.py?raw";
 import WatchTransform from "../assets/python/watch_transform.py?raw";
 import SyntaxHints from "../assets/python/syntax_hints.py?raw";
+import Pi3Init from "../assets/python/pi3/__init__.py?raw";
+import Pi3Debug from "../assets/python/pi3/debug.py?raw";
+import Pi3Testing from "../assets/python/pi3/testing.py?raw";
+import DebugTransform from "../assets/python/debug_transform.py?raw";
 import { libraryUrlMap, librarySoundUrlMap } from "../state/assets";
 import { createRunnerWorker } from "./workerFactory";
 
@@ -51,6 +55,8 @@ type RunnerState = {
   speed: 1 | 2 | 4;
   frameHistory: { frame: number; url: string; watches: { label: string; value: string }[] }[];
   scrubIndex: number | null;
+  debugFrames: DebugFrame[];
+  debugScrubIndex: number | null;
 
   _onMessage: (msg: WorkerEvent) => void;
   _appendOutput: (kind: "stdout" | "stderr", text: string) => void;
@@ -59,6 +65,7 @@ type RunnerState = {
   setPaused: (paused: boolean) => void;
   setSpeed: (speed: 1 | 2 | 4) => void;
   scrubTo: (index: number | null) => void;
+  debugScrubTo: (index: number | null) => void;
   clear: () => void;
   stop: () => void;
   pushErrorCard: (error: RuntimeError) => void;
@@ -86,6 +93,8 @@ export const useRunnerStore = create<RunnerState>((set) => ({
   speed: 1,
   frameHistory: [],
   scrubIndex: null,
+  debugFrames: [],
+  debugScrubIndex: null,
 
   addScreenshot: (snap) => set((s) => {
     const next = [snap, ...s.screenshots].slice(0, 5);
@@ -259,6 +268,18 @@ export const useRunnerStore = create<RunnerState>((set) => ({
         set({ frameHistory: next, scrubIndex: next.length > 0 ? next.length - 1 : null });
         break;
       }
+      case "debug_frame": {
+        set((s) => ({ debugFrames: [...s.debugFrames, msg.frame] }));
+        break;
+      }
+      // Handled by per-request listeners in runGenerator() / runReference() / runChecker()
+      case "generator_result":
+      case "generator_error":
+      case "reference_result":
+      case "reference_error":
+      case "checker_result":
+      case "checker_error":
+        break;
       default: {
         const missing: never = msg;
         throw new Error(`missing ${missing}`);
@@ -271,18 +292,19 @@ export const useRunnerStore = create<RunnerState>((set) => ({
   setPaused: (paused) => set({ paused }),
   setSpeed: (speed) => set({ speed }),
   scrubTo: (index) => set({ scrubIndex: index }),
+  debugScrubTo: (index) => set({ debugScrubIndex: index }),
   pushErrorCard: (error) => set((s) => ({
     output: [...s.output, { kind: "error_card", error }],
   })),
   clear: () => {
     stopAllSounds();
     useRunnerStore.getState().frameHistory.forEach((f) => URL.revokeObjectURL(f.url));
-    set({ output: [], inputPrompt: null, running: false, canvasActive: false, lintErrors: [], canvasWidth: 0, canvasHeight: 0, canvasScale: 1, watches: [], paused: false, speed: 1, frameHistory: [], scrubIndex: null });
+    set({ output: [], inputPrompt: null, running: false, canvasActive: false, lintErrors: [], canvasWidth: 0, canvasHeight: 0, canvasScale: 1, watches: [], paused: false, speed: 1, frameHistory: [], scrubIndex: null, debugFrames: [], debugScrubIndex: null });
   },
   stop: () => {
     stopAllSounds();
     useRunnerStore.getState().frameHistory.forEach((f) => URL.revokeObjectURL(f.url));
-    set({ inputPrompt: null, running: false, canvasActive: false, paused: false, frameHistory: [], scrubIndex: null });
+    set({ inputPrompt: null, running: false, canvasActive: false, paused: false, frameHistory: [], scrubIndex: null, debugFrames: [], debugScrubIndex: null });
   },
 
   respondToInput: (value) => {
@@ -412,7 +434,7 @@ function hardKillWorker() {
   useRunnerStore.getState()._bumpEpoch();
 }
 
-function getWorker(): Worker {
+export function getWorker(): Worker {
   if (worker) return worker;
 
   worker = createRunnerWorker();
@@ -457,6 +479,10 @@ function getWorker(): Worker {
     inputTransform: InputTransform,
     watchTransform: WatchTransform,
     syntaxHints: SyntaxHints,
+    pi3Init: Pi3Init,
+    pi3Debug: Pi3Debug,
+    pi3Testing: Pi3Testing,
+    debugTransform: DebugTransform,
   } satisfies WorkerCommand);
   return worker;
 }
@@ -499,6 +525,191 @@ function wireEvents(canvas: HTMLCanvasElement): () => void {
     window.removeEventListener("keydown", onKeyDown);
     window.removeEventListener("keyup", onKeyUp);
   };
+}
+
+/**
+ * Run code once with stdin injection. Returns stdout + error flags.
+ * Used by the compete submit runner to judge individual test cases.
+ * timeLimitMs: if the code runs longer, returns tle=true via interrupt buffer.
+ */
+export function runOnce(
+  code: string,
+  stdin: string,
+  timeLimitMs: number = 2000,
+): Promise<{ stdout: string; runtimeError: boolean; tle: boolean }> {
+  return new Promise((resolve) => {
+    const w = getWorker();
+    const stdoutChunks: string[] = [];
+    let settled = false;
+    let tleFired = false;
+    let runtimeError = false;
+
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      w.removeEventListener("message", handler);
+      clearTimeout(tleTimer);
+      resolve({ stdout: stdoutChunks.join(""), runtimeError, tle: tleFired });
+    };
+
+    const handler = (e: MessageEvent<WorkerEvent>) => {
+      const msg = e.data;
+      if (msg.type === "stdout") {
+        stdoutChunks.push(msg.text);
+      } else if (msg.type === "runtime_error") {
+        runtimeError = true;
+        // result message follows — finish() there
+      } else if (msg.type === "result") {
+        finish();
+      }
+    };
+
+    w.addEventListener("message", handler);
+
+    const tleTimer = setTimeout(() => {
+      tleFired = true;
+      if (interruptBuffer) {
+        interruptBuffer[0] = 2;
+        w.postMessage({ cmd: "interrupt" } satisfies WorkerCommand);
+        // result will arrive after worker handles interrupt
+      } else {
+        hardKillWorker();
+        finish();
+      }
+    }, timeLimitMs);
+
+    // Defensive: zero interrupt buffer before each test
+    if (interruptBuffer) interruptBuffer[0] = 0;
+    outputQueue = [];
+    useRunnerStore.getState().clear();
+    useRunnerStore.getState().setRunning(true);
+
+    const injected =
+      `import io as _pi3_io\n` +
+      `_pi3_data = _pi3_io.StringIO(${JSON.stringify(stdin)})\n` +
+      `async def _async_input(prompt=''):\n` +
+      `    _line = _pi3_data.readline()\n` +
+      `    return _line.rstrip('\\n') if _line else ''\n` +
+      `del _pi3_io\n` +
+      code;
+
+    w.postMessage({
+      cmd: "run",
+      files: { "solution.py": injected },
+      assets: {},
+      entry: "solution.py",
+    } satisfies WorkerCommand);
+  });
+}
+
+let _reqCounter = 0;
+function nextReqId() { return ++_reqCounter; }
+
+/**
+ * Run a teacher's generator source in the Pyodide worker.
+ * Seeds the RNG from the problem slug and captures the generator's stdout.
+ * Returns the raw JSON string from `print(tests)`, or an error string.
+ */
+export function runGenerator(
+  generatorPy: string,
+  slug: string,
+): Promise<{ stdout: string; error?: string }> {
+  return new Promise((resolve) => {
+    const w = getWorker();
+    const reqId = nextReqId();
+    const handler = (e: MessageEvent<WorkerEvent>) => {
+      const msg = e.data;
+      if (msg.type === "generator_result" && msg.reqId === reqId) {
+        w.removeEventListener("message", handler);
+        resolve({ stdout: msg.stdout });
+      } else if (msg.type === "generator_error" && msg.reqId === reqId) {
+        w.removeEventListener("message", handler);
+        resolve({ stdout: "", error: msg.error });
+      }
+    };
+    w.addEventListener("message", handler);
+    w.postMessage({ cmd: "runGenerator", generatorPy, slug, reqId } satisfies WorkerCommand);
+  });
+}
+
+/**
+ * Run the reference solution against a single test's fields.
+ * The solution function receives a SimpleNamespace built from fieldsJson.
+ * Returns the trimmed stdout (expected output), or an error string.
+ */
+export function runReference(
+  referencePy: string,
+  fieldsJson: string,
+  timeLimitMs: number = 2000,
+): Promise<{ expected: string; error?: string }> {
+  const w = getWorker();
+  const reqId = nextReqId();
+
+  // Zero the interrupt buffer before starting
+  if (interruptBuffer) interruptBuffer[0] = 0;
+
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (result: { expected: string; error?: string }) => {
+      if (settled) return;
+      settled = true;
+      w.removeEventListener("message", handler);
+      clearTimeout(tleTimer);
+      resolve(result);
+    };
+
+    const handler = (e: MessageEvent<WorkerEvent>) => {
+      const msg = e.data;
+      if (msg.type === "reference_result" && msg.reqId === reqId) {
+        finish({ expected: msg.expected });
+      } else if (msg.type === "reference_error" && msg.reqId === reqId) {
+        finish({ expected: "", error: msg.error });
+      }
+    };
+
+    const tleTimer = setTimeout(() => {
+      if (interruptBuffer) {
+        interruptBuffer[0] = 2;
+        w.postMessage({ cmd: "interrupt" } satisfies WorkerCommand);
+      }
+      // Give the interrupt 200ms to propagate, then force-resolve
+      setTimeout(() => finish({
+        expected: "",
+        error: "Time limit exceeded (2s per test)",
+      }), 200);
+    }, timeLimitMs);
+
+    w.addEventListener("message", handler);
+    w.postMessage({ cmd: "runReference", referencePy, fieldsJson, reqId } satisfies WorkerCommand);
+  });
+}
+
+/**
+ * Run the teacher's checker function for a single test case.
+ * Returns `passed: true` if the checker returns truthy, false otherwise.
+ */
+export function runChecker(
+  checkerPy: string,
+  fieldsJson: string | null,
+  studentOutput: string,
+  expectedOutput: string,
+): Promise<{ passed: boolean; error?: string }> {
+  return new Promise((resolve) => {
+    const w = getWorker();
+    const reqId = nextReqId();
+    const handler = (e: MessageEvent<WorkerEvent>) => {
+      const msg = e.data;
+      if (msg.type === "checker_result" && msg.reqId === reqId) {
+        w.removeEventListener("message", handler);
+        resolve({ passed: msg.passed });
+      } else if (msg.type === "checker_error" && msg.reqId === reqId) {
+        w.removeEventListener("message", handler);
+        resolve({ passed: false, error: msg.error });
+      }
+    };
+    w.addEventListener("message", handler);
+    w.postMessage({ cmd: "runChecker", checkerPy, fieldsJson, studentOutput, expectedOutput, reqId } satisfies WorkerCommand);
+  });
 }
 
 export function useRunner() {

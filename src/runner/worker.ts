@@ -109,6 +109,10 @@ async function initPyodide(
   inputTransform: string,
   watchTransform: string,
   syntaxHints: string,
+  pi3Init: string,
+  pi3Debug: string,
+  debugTransform: string,
+  pi3Testing: string,
 ) {
   console.log("Worker: Writing modules to filesystem...");
 
@@ -140,6 +144,11 @@ async function initPyodide(
   p.FS.writeFile("/input_transform.py", inputTransform);
   p.FS.writeFile("/watch_transform.py", watchTransform);
   p.FS.writeFile("/syntax_hints.py", syntaxHints);
+  try { p.FS.mkdir("/pi3"); } catch { /* already exists */ }
+  p.FS.writeFile("/pi3/__init__.py", pi3Init);
+  p.FS.writeFile("/pi3/debug.py", pi3Debug);
+  p.FS.writeFile("/pi3/testing.py", pi3Testing);
+  p.FS.writeFile("/debug_transform.py", debugTransform);
 
   console.log("Worker: Files written, running Python initialization...");
 
@@ -205,6 +214,14 @@ async function initPyodide(
     post({ type: "watch", values: data.values, frame: data.frame });
   });
 
+  // _ide_post_debug_frame: called from Python pi3.debug.show() with a JSON-encoded frame
+  p.globals.set("_ide_post_debug_frame", (frameJson: string) => {
+    try {
+      const frame = JSON.parse(frameJson);
+      post({ type: "debug_frame", frame });
+    } catch { /* ignore malformed debug frame */ }
+  });
+
   // _ide_flush_draw_commands: called from Python each tick with to_js(_draw_commands).
   // frameNum >= 0 on the final (post-main) flush; -1 on the pre-main flush (not captured).
   p.globals.set("_ide_flush_draw_commands", (commands: unknown[], frameNum: number = -1) => {
@@ -231,6 +248,7 @@ js._ide_post_sound = _ide_post_sound
 js._ide_post_runtime_error = _ide_post_runtime_error
 js._ide_notify_loop_ended = _ide_notify_loop_ended
 js._ide_post_watch_values = _ide_post_watch_values
+js._ide_post_debug_frame = _ide_post_debug_frame
 
 class _Writer:
     def __init__(self, kind):
@@ -575,6 +593,13 @@ else:
   await registerKnownSymbols(p);
 
   await p.runPythonAsync(`
+from graphics import _state as _gs
+_gs._debug_slots.clear()
+_gs._debug_frames.clear()
+_gs._debug_fresh_slots.clear()
+`);
+
+  await p.runPythonAsync(`
 graphics._state._running = False
 graphics._state._stop_requested = False
 graphics._reset_run_state()
@@ -639,6 +664,17 @@ except BaseException as _err:
   // _ide_notify_loop_ended will fire when the loop exits naturally.
   const isLoopRunning = p.runPython("import graphics; graphics._running") as boolean;
   if (!isLoopRunning) {
+    try {
+      await p.runPythonAsync(`
+try:
+    from graphics import _state as _gs
+    if _gs._debug_fresh_slots:
+        from pi3 import debug as _pi3d
+        _pi3d.show()
+except Exception:
+    pass
+`);
+    } catch { /* never crash on debug cleanup */ }
     post({ type: "result" });
   }
 }
@@ -693,6 +729,13 @@ except Exception as _err:
     _last_structured_error = _structured
 `;
 
+  await p.runPythonAsync(`
+from graphics import _state as _gs
+_gs._debug_slots.clear()
+_gs._debug_frames.clear()
+_gs._debug_fresh_slots.clear()
+`);
+
   post({ type: "start", canvasActive: false });
   await p.runPythonAsync(asyncCode);
 
@@ -711,6 +754,18 @@ except Exception as _err:
     }
   }
 
+  try {
+    await p.runPythonAsync(`
+try:
+    from graphics import _state as _gs
+    if _gs._debug_fresh_slots:
+        from pi3 import debug as _pi3d
+        _pi3d.show()
+except Exception:
+    pass
+`);
+  } catch { /* never crash on debug cleanup */ }
+
   post({ type: "result" });
 }
 
@@ -723,7 +778,7 @@ self.onmessage = async (e: MessageEvent<WorkerCommand>) => {
       const p = await ensurePyodide();
       console.log("Worker: Pyodide loaded, initializing modules...");
       const errorHookSrc = msg.errorHook;
-      await initPyodide(p, msg.graphicsInit, msg.graphicsActors, msg.graphicsAnimation, msg.graphicsManifest, msg.graphicsErrors, msg.graphicsState, msg.graphicsStateInternal, msg.graphicsColor, msg.graphicsVec, msg.graphicsSheet, msg.graphicsUtils, msg.graphicsLightingHelpers, msg.graphicsSprites, msg.linter, errorHookSrc, msg.inputTransform, msg.watchTransform, msg.syntaxHints);
+      await initPyodide(p, msg.graphicsInit, msg.graphicsActors, msg.graphicsAnimation, msg.graphicsManifest, msg.graphicsErrors, msg.graphicsState, msg.graphicsStateInternal, msg.graphicsColor, msg.graphicsVec, msg.graphicsSheet, msg.graphicsUtils, msg.graphicsLightingHelpers, msg.graphicsSprites, msg.linter, errorHookSrc, msg.inputTransform, msg.watchTransform, msg.syntaxHints, msg.pi3Init, msg.pi3Debug, msg.debugTransform, msg.pi3Testing);
       console.log("Worker: Initialization complete, posting ready");
       post({ type: "ready" });
     } catch (err: unknown) {

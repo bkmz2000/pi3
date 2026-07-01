@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { randomBytes, createHmac, timingSafeEqual } from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
-import { getDb } from '../db/index.js';
+import { getClient } from '../db/index.js';
 import { assignHandle } from '../db/handle.js';
 import { authMiddleware, regenerateSession } from '../middleware/auth.js';
 
@@ -239,26 +239,30 @@ router.get('/callback', async (req: Request, res: Response): Promise<void> => {
   // Loginus prefixes preferred_username with role markers like "[П] " or "[Т] ".
   const name = rawName.replace(/^\s*\[[\p{L}\d]{1,3}\]\s*/u, '').trim() || rawName;
 
-  const db = getDb();
-  const existing = db
-    .prepare('SELECT id FROM users WHERE oauth_provider_id = ?')
-    .get(userinfo.id) as { id: string } | undefined;
+  const client = getClient();
+  const existing = (await client.execute(
+    'SELECT id FROM users WHERE oauth_provider_id = ?',
+    [userinfo.id],
+  )).rows[0] as { id: string } | undefined;
 
   let userId: string;
   const now = Date.now();
 
   if (existing) {
-    db.prepare('UPDATE users SET name = ?, role = ?, updated_at = ? WHERE id = ?')
-      .run(name, role, now, existing.id);
-    userId = existing.id;
+    await client.execute(
+      'UPDATE users SET name = ?, role = ?, updated_at = ? WHERE id = ?',
+      [name, role, now, existing.id],
+    );
+    userId = existing.id as string;
   } else {
     userId = uuidv4();
     const api_token = uuidv4().replace(/-/g, '') + uuidv4().replace(/-/g, '');
-    const { seq, handle } = assignHandle(db);
-    db.prepare(`
-      INSERT INTO users (id, api_token, name, role, oauth_provider_id, handle, handle_seq, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(userId, api_token, name, role, userinfo.id, handle, seq, now, now);
+    const { seq, handle } = await assignHandle(client);
+    await client.execute(
+      `INSERT INTO users (id, api_token, name, role, oauth_provider_id, handle, handle_seq, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [userId, api_token, name, role, userinfo.id, handle, seq, now, now],
+    );
   }
 
   try {
@@ -281,11 +285,13 @@ router.get('/callback', async (req: Request, res: Response): Promise<void> => {
 // client, and the integration contract states logout must complete even if
 // Loginus is unavailable. Side-effect: the user stays signed in to Loginus
 // globally (standard SSO behavior).
-router.post('/logout', authMiddleware, (req: Request, res: Response): void => {
-  const db = getDb();
+router.post('/logout', authMiddleware, async (req: Request, res: Response): Promise<void> => {
+  const client = getClient();
   const newToken = uuidv4().replace(/-/g, '') + uuidv4().replace(/-/g, '');
-  db.prepare('UPDATE users SET api_token = ?, updated_at = ? WHERE id = ?')
-    .run(newToken, Date.now(), req.user!.id);
+  await client.execute(
+    'UPDATE users SET api_token = ?, updated_at = ? WHERE id = ?',
+    [newToken, Date.now(), req.user!.id],
+  );
 
   req.session.destroy(() => {
     res.clearCookie('connect.sid');

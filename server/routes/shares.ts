@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
-import { getDb } from '../db/index.js';
+import { getClient } from '../db/index.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { getProjectAccess } from '../middleware/projectAuth.js';
 
@@ -13,8 +13,8 @@ interface ProjectShare {
   updated_at: number;
 }
 
-function requireOwner(projectId: string, userId: string, res: Response): boolean {
-  const access = getProjectAccess(projectId, userId);
+async function requireOwner(projectId: string, userId: string, res: Response): Promise<boolean> {
+  const access = await getProjectAccess(projectId, userId);
   if (!access.exists) {
     res.status(404).json({ error: 'Not Found', message: 'Project not found' });
     return false;
@@ -30,12 +30,12 @@ export function createSharesRouter(): Router {
   const router = Router({ mergeParams: true });
   router.use(authMiddleware);
 
-  router.post('/', (req: Request, res: Response): void => {
+  router.post('/', async (req: Request, res: Response): Promise<void> => {
     const projectId = req.params.id as string;
     const { username, user_id, role = 'viewer' } = req.body;
-    const db = getDb();
+    const client = getClient();
 
-    if (!requireOwner(projectId, req.user!.id, res)) return;
+    if (!await requireOwner(projectId, req.user!.id, res)) return;
 
     if ((!username || typeof username !== 'string') && (!user_id || typeof user_id !== 'string')) {
       res.status(400).json({ error: 'Bad Request', message: 'username or user_id is required' });
@@ -47,9 +47,12 @@ export function createSharesRouter(): Router {
       return;
     }
 
-    const targetUser = user_id
-      ? db.prepare('SELECT id FROM users WHERE id = ?').get(user_id) as { id: string } | undefined
-      : db.prepare('SELECT id FROM users WHERE name = ?').get(username.trim()) as { id: string } | undefined;
+    const targetUser = (await client.execute(
+      user_id
+        ? 'SELECT id FROM users WHERE id = ?'
+        : 'SELECT id FROM users WHERE name = ?',
+      [user_id ? user_id : username.trim()],
+    )).rows[0] as { id: string } | undefined;
 
     if (!targetUser) {
       res.status(404).json({ error: 'Not Found', message: 'User not found' });
@@ -61,7 +64,10 @@ export function createSharesRouter(): Router {
       return;
     }
 
-    const existingShare = db.prepare('SELECT id FROM project_shares WHERE project_id = ? AND user_id = ?').get(projectId, targetUser.id);
+    const existingShare = (await client.execute(
+      'SELECT id FROM project_shares WHERE project_id = ? AND user_id = ?',
+      [projectId, targetUser.id],
+    )).rows[0];
     if (existingShare) {
       res.status(409).json({ error: 'Conflict', message: 'Project already shared with this user' });
       return;
@@ -71,20 +77,21 @@ export function createSharesRouter(): Router {
     const share: ProjectShare = {
       id: uuidv4(),
       project_id: projectId,
-      user_id: targetUser.id,
+      user_id: targetUser.id as string,
       role,
       created_at: now,
       updated_at: now,
     };
 
     try {
-      db.transaction(() => {
-        db.prepare(`
-          INSERT INTO project_shares (id, project_id, user_id, role, created_at, updated_at)
-          VALUES (?, ?, ?, ?, ?, ?)
-        `).run(share.id, share.project_id, share.user_id, share.role, share.created_at, share.updated_at);
-        db.prepare('UPDATE projects SET updated_at = ? WHERE id = ?').run(now, projectId);
-      })();
+      await client.batch([
+        {
+          sql: `INSERT INTO project_shares (id, project_id, user_id, role, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?)`,
+          args: [share.id, share.project_id, share.user_id, share.role, share.created_at, share.updated_at],
+        },
+        { sql: 'UPDATE projects SET updated_at = ? WHERE id = ?', args: [now, projectId] },
+      ]);
 
       res.status(201).json({
         id: share.id,
@@ -99,14 +106,17 @@ export function createSharesRouter(): Router {
     }
   });
 
-  router.delete('/:userId', (req: Request, res: Response): void => {
+  router.delete('/:userId', async (req: Request, res: Response): Promise<void> => {
     const projectId = req.params.id as string;
     const userId = req.params.userId as string;
-    const db = getDb();
+    const client = getClient();
 
-    if (!requireOwner(projectId, req.user!.id, res)) return;
+    if (!await requireOwner(projectId, req.user!.id, res)) return;
 
-    const share = db.prepare('SELECT * FROM project_shares WHERE project_id = ? AND user_id = ?').get(projectId, userId) as ProjectShare | undefined;
+    const share = (await client.execute(
+      'SELECT * FROM project_shares WHERE project_id = ? AND user_id = ?',
+      [projectId, userId],
+    )).rows[0] as unknown as ProjectShare | undefined;
 
     if (!share) {
       res.status(404).json({ error: 'Not Found', message: 'Share not found' });
@@ -115,10 +125,10 @@ export function createSharesRouter(): Router {
 
     try {
       const now = Date.now();
-      db.transaction(() => {
-        db.prepare('DELETE FROM project_shares WHERE id = ?').run(share.id);
-        db.prepare('UPDATE projects SET updated_at = ? WHERE id = ?').run(now, projectId);
-      })();
+      await client.batch([
+        { sql: 'DELETE FROM project_shares WHERE id = ?', args: [share.id] },
+        { sql: 'UPDATE projects SET updated_at = ? WHERE id = ?', args: [now, projectId] },
+      ]);
       res.status(204).send();
     } catch (error) {
       console.error('Error removing share:', error);
@@ -126,21 +136,22 @@ export function createSharesRouter(): Router {
     }
   });
 
-  router.get('/', (req: Request, res: Response): void => {
+  router.get('/', async (req: Request, res: Response): Promise<void> => {
     const projectId = req.params.id as string;
-    const db = getDb();
+    const client = getClient();
 
-    if (!requireOwner(projectId, req.user!.id, res)) return;
+    if (!await requireOwner(projectId, req.user!.id, res)) return;
 
-    const shares = db.prepare(`
-      SELECT ps.id, ps.user_id, ps.role, ps.created_at, u.name as user_name, u.handle as user_handle
-      FROM project_shares ps
-      JOIN users u ON ps.user_id = u.id
-      WHERE ps.project_id = ?
-      ORDER BY ps.created_at ASC
-    `).all(projectId);
+    const result = await client.execute(
+      `SELECT ps.id, ps.user_id, ps.role, ps.created_at, u.name as user_name, u.handle as user_handle
+       FROM project_shares ps
+       JOIN users u ON ps.user_id = u.id
+       WHERE ps.project_id = ?
+       ORDER BY ps.created_at ASC`,
+      [projectId],
+    );
 
-    res.json(shares);
+    res.json(result.rows);
   });
 
   return router;

@@ -1,3 +1,6 @@
+// express-async-errors is imported in server/index.ts for production and is
+// automatically patched when route files import express. No setup needed here.
+
 if (typeof TextEncoder === 'undefined') {
   global.TextEncoder = class TextEncoder {
     encode(str) {

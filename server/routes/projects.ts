@@ -1,6 +1,6 @@
 import { Router, Request, Response, raw } from 'express';
 import { v4 as uuidv4 } from 'uuid';
-import { getDb } from '../db/index.js';
+import { getClient } from '../db/index.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { getProjectAccess, getProjectWithAccess, hasRole } from '../middleware/projectAuth.js';
 import { createSharesRouter } from './shares.js';
@@ -28,10 +28,10 @@ export function createProjectsRouter(): Router {
   const router = Router();
   router.use(authMiddleware);
 
-  router.get('/', (req: Request, res: Response): void => {
-    const db = getDb();
-    const projects = db.prepare(`
-      SELECT DISTINCT p.id, p.name, p.description, p.is_public, p.created_at, p.updated_at,
+  router.get('/', async (req: Request, res: Response): Promise<void> => {
+    const client = getClient();
+    const result = await client.execute(
+      `SELECT DISTINCT p.id, p.name, p.description, p.is_public, p.created_at, p.updated_at,
              p.thumbnail_updated_at,
              p.user_id as owner_id,
              CASE WHEN p.user_id = ? THEN 'owner'
@@ -40,18 +40,19 @@ export function createProjectsRouter(): Router {
       FROM projects p
       LEFT JOIN project_shares ps ON p.id = ps.project_id AND ps.user_id = ?
       WHERE p.user_id = ? OR ps.user_id = ?
-      ORDER BY p.updated_at DESC
-    `).all(req.user!.id, req.user!.id, req.user!.id, req.user!.id);
-    res.json(projects);
+      ORDER BY p.updated_at DESC`,
+      [req.user!.id, req.user!.id, req.user!.id, req.user!.id],
+    );
+    res.json(result.rows);
   });
 
-  router.post('/', (req: Request, res: Response): void => {
+  router.post('/', async (req: Request, res: Response): Promise<void> => {
     const { name, description, files, assets, tilemaps, animations, sounds, currentFile } = req.body;
     if (!name || typeof name !== 'string' || name.trim().length === 0) {
       res.status(400).json({ error: 'Bad Request', message: 'Project name is required' });
       return;
     }
-    const db = getDb();
+    const client = getClient();
     const now = Date.now();
     const project: Project = {
       id: uuidv4(),
@@ -69,10 +70,13 @@ export function createProjectsRouter(): Router {
       updated_at: now,
     };
     try {
-      db.prepare(`
-        INSERT INTO projects (id, user_id, name, description, is_public, files, assets, tilemaps, animations, sounds, current_file, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(project.id, project.user_id, project.name, project.description, project.is_public, project.files, project.assets, project.tilemaps, project.animations, project.sounds, project.current_file, project.created_at, project.updated_at);
+      await client.execute(
+        `INSERT INTO projects (id, user_id, name, description, is_public, files, assets, tilemaps, animations, sounds, current_file, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [project.id, project.user_id, project.name, project.description, project.is_public,
+         project.files, project.assets, project.tilemaps, project.animations, project.sounds,
+         project.current_file, project.created_at, project.updated_at],
+      );
       res.status(201).json({
         ...project,
         files: JSON.parse(project.files || '{}'),
@@ -88,14 +92,14 @@ export function createProjectsRouter(): Router {
   });
 
   // Teacher: list all projects shared with me, grouped by student group
-  router.get('/shared-with-me', (req: Request, res: Response): void => {
+  router.get('/shared-with-me', async (req: Request, res: Response): Promise<void> => {
     if (req.user!.role !== 'teacher') {
       res.status(403).json({ error: 'Forbidden', message: 'Teachers only' });
       return;
     }
-    const db = getDb();
-    const projects = db.prepare(`
-      SELECT
+    const client = getClient();
+    const result = await client.execute(
+      `SELECT
         p.id, p.name, p.description, p.updated_at,
         u.id as student_id, u.name as student_name, u.handle as student_handle,
         hr.id as help_request_id, hr.status as help_request_status, hr.created_at as help_request_created_at,
@@ -107,16 +111,17 @@ export function createProjectsRouter(): Router {
       JOIN groups g ON g.id = gm.group_id AND g.teacher_id = ?
       LEFT JOIN help_requests hr ON hr.project_id = p.id AND hr.status = 'pending'
       WHERE ps.user_id = ?
-      ORDER BY (hr.id IS NULL), hr.created_at ASC, p.updated_at DESC
-    `).all(req.user!.id, req.user!.id);
-    res.json(projects);
+      ORDER BY (hr.id IS NULL), hr.created_at ASC, p.updated_at DESC`,
+      [req.user!.id, req.user!.id],
+    );
+    res.json(result.rows);
   });
 
   // Owner: get teacher share status for a project
-  router.get('/:id/teacher-share', (req: Request, res: Response): void => {
+  router.get('/:id/teacher-share', async (req: Request, res: Response): Promise<void> => {
     const { id } = req.params;
-    const db = getDb();
-    const access = getProjectAccess(id as string, req.user!.id);
+    const client = getClient();
+    const access = await getProjectAccess(id as string, req.user!.id);
     if (!access.exists) {
       res.status(404).json({ error: 'Not Found', message: 'Project not found' });
       return;
@@ -125,24 +130,26 @@ export function createProjectsRouter(): Router {
       res.status(403).json({ error: 'Forbidden', message: 'Only owner can view share status' });
       return;
     }
-    const teachers = db.prepare(`
-      SELECT u.id, u.name, u.handle FROM project_shares ps
-      JOIN users u ON u.id = ps.user_id
-      WHERE ps.project_id = ? AND u.role = 'teacher'
-    `).all(id) as { id: string; name: string; handle: string | null }[];
-    const helpRequest = db.prepare(`
-      SELECT id, status FROM help_requests
-      WHERE project_id = ? AND student_id = ? AND status = 'pending'
-      ORDER BY created_at DESC LIMIT 1
-    `).get(id, req.user!.id) as { id: string; status: string } | undefined;
+    const teachers = (await client.execute(
+      `SELECT u.id, u.name, u.handle FROM project_shares ps
+       JOIN users u ON u.id = ps.user_id
+       WHERE ps.project_id = ? AND u.role = 'teacher'`,
+      [id],
+    )).rows as { id: string; name: string; handle: string | null }[];
+    const helpRequest = (await client.execute(
+      `SELECT id, status FROM help_requests
+       WHERE project_id = ? AND student_id = ? AND status = 'pending'
+       ORDER BY created_at DESC LIMIT 1`,
+      [id, req.user!.id],
+    )).rows[0] as { id: string; status: string } | undefined;
     res.json({ shared: teachers.length > 0, teachers, help_request: helpRequest || null });
   });
 
   // Owner: toggle help request on a project
-  router.post('/:id/help-request', (req: Request, res: Response): void => {
+  router.post('/:id/help-request', async (req: Request, res: Response): Promise<void> => {
     const { id } = req.params;
-    const db = getDb();
-    const access = getProjectAccess(id as string, req.user!.id);
+    const client = getClient();
+    const access = await getProjectAccess(id as string, req.user!.id);
     if (!access.exists) {
       res.status(404).json({ error: 'Not Found', message: 'Project not found' });
       return;
@@ -151,38 +158,45 @@ export function createProjectsRouter(): Router {
       res.status(403).json({ error: 'Forbidden', message: 'Only project owner can request help' });
       return;
     }
-    const hasTeacher = db.prepare(`
-      SELECT ps.id FROM project_shares ps
-      JOIN users u ON u.id = ps.user_id
-      JOIN group_members gm ON gm.student_id = ? AND gm.group_id IN (
-        SELECT id FROM groups WHERE teacher_id = ps.user_id
-      )
-      WHERE ps.project_id = ? AND u.role = 'teacher' LIMIT 1
-    `).get(req.user!.id, id);
+    const hasTeacher = (await client.execute(
+      `SELECT ps.id FROM project_shares ps
+       JOIN users u ON u.id = ps.user_id
+       JOIN group_members gm ON gm.student_id = ? AND gm.group_id IN (
+         SELECT id FROM groups WHERE teacher_id = ps.user_id
+       )
+       WHERE ps.project_id = ? AND u.role = 'teacher' LIMIT 1`,
+      [req.user!.id, id],
+    )).rows[0];
     if (!hasTeacher) {
       res.status(400).json({ error: 'Bad Request', message: 'Project must be shared with a teacher first' });
       return;
     }
-    const existing = db.prepare(`
-      SELECT id FROM help_requests
-      WHERE project_id = ? AND student_id = ? AND status = 'pending'
-      ORDER BY created_at DESC LIMIT 1
-    `).get(id, req.user!.id) as { id: string } | undefined;
+    const existing = (await client.execute(
+      `SELECT id FROM help_requests
+       WHERE project_id = ? AND student_id = ? AND status = 'pending'
+       ORDER BY created_at DESC LIMIT 1`,
+      [id, req.user!.id],
+    )).rows[0] as { id: string } | undefined;
     const now = Date.now();
     if (existing) {
-      db.prepare('UPDATE help_requests SET status = ?, updated_at = ? WHERE id = ?').run('cancelled', now, existing.id);
+      await client.execute(
+        'UPDATE help_requests SET status = ?, updated_at = ? WHERE id = ?',
+        ['cancelled', now, existing.id],
+      );
       res.json({ help_request: { id: existing.id, status: 'cancelled' } });
     } else {
       const newId = uuidv4();
-      db.prepare('INSERT INTO help_requests (id, project_id, student_id, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)')
-        .run(newId, id, req.user!.id, 'pending', now, now);
+      await client.execute(
+        'INSERT INTO help_requests (id, project_id, student_id, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
+        [newId, id, req.user!.id, 'pending', now, now],
+      );
       res.status(201).json({ help_request: { id: newId, status: 'pending' } });
     }
   });
 
-  router.get('/:id', (req: Request, res: Response): void => {
+  router.get('/:id', async (req: Request, res: Response): Promise<void> => {
     const { id } = req.params;
-    const project = getProjectWithAccess<Project>(id as string, req.user!.id);
+    const project = await getProjectWithAccess<Project>(id as string, req.user!.id);
     if (!project) {
       res.status(404).json({ error: 'Not Found', message: 'Project not found' });
       return;
@@ -192,7 +206,6 @@ export function createProjectsRouter(): Router {
       return;
     }
 
-    // Parse JSON columns for response
     res.json({
       ...project,
       files: JSON.parse(project.files || '{}'),
@@ -204,11 +217,11 @@ export function createProjectsRouter(): Router {
     });
   });
 
-  router.put('/:id', (req: Request, res: Response): void => {
+  router.put('/:id', async (req: Request, res: Response): Promise<void> => {
     const { id } = req.params;
     const { name, description, is_public } = req.body;
-    const db = getDb();
-    const project = getProjectWithAccess<Project>(id as string, req.user!.id);
+    const client = getClient();
+    const project = await getProjectWithAccess<Project>(id as string, req.user!.id);
     if (!project) {
       res.status(404).json({ error: 'Not Found', message: 'Project not found' });
       return;
@@ -248,8 +261,8 @@ export function createProjectsRouter(): Router {
     values.push(id);
 
     try {
-      db.prepare(`UPDATE projects SET ${updates.join(', ')} WHERE id = ?`).run(...values);
-      const updated = db.prepare('SELECT * FROM projects WHERE id = ?').get(id);
+      await client.execute(`UPDATE projects SET ${updates.join(', ')} WHERE id = ?`, values);
+      const updated = (await client.execute('SELECT * FROM projects WHERE id = ?', [id])).rows[0];
       res.json(updated);
     } catch (error) {
       console.error('Error updating project:', error);
@@ -257,10 +270,9 @@ export function createProjectsRouter(): Router {
     }
   });
 
-  router.delete('/:id', (req: Request, res: Response): void => {
+  router.delete('/:id', async (req: Request, res: Response): Promise<void> => {
     const { id } = req.params;
-    const db = getDb();
-    const access = getProjectAccess(id as string, req.user!.id);
+    const access = await getProjectAccess(id as string, req.user!.id);
     if (!access.exists) {
       res.status(404).json({ error: 'Not Found', message: 'Project not found' });
       return;
@@ -271,12 +283,13 @@ export function createProjectsRouter(): Router {
     }
 
     try {
-      db.transaction(() => {
-        db.prepare('DELETE FROM help_requests WHERE project_id = ?').run(id);
-        db.prepare('DELETE FROM comments WHERE project_id = ?').run(id);
-        db.prepare('DELETE FROM project_shares WHERE project_id = ?').run(id);
-        db.prepare('DELETE FROM projects WHERE id = ?').run(id);
-      })();
+      const client = getClient();
+      await client.batch([
+        { sql: 'DELETE FROM help_requests WHERE project_id = ?', args: [id] },
+        { sql: 'DELETE FROM comments WHERE project_id = ?', args: [id] },
+        { sql: 'DELETE FROM project_shares WHERE project_id = ?', args: [id] },
+        { sql: 'DELETE FROM projects WHERE id = ?', args: [id] },
+      ]);
       res.status(204).send();
     } catch (error) {
       console.error('Error deleting project:', error);
@@ -284,12 +297,12 @@ export function createProjectsRouter(): Router {
     }
   });
 
-  router.put('/:id/save', (req: Request, res: Response): void => {
+  router.put('/:id/save', async (req: Request, res: Response): Promise<void> => {
     const id = req.params.id as string;
     const { files, assets, tilemaps, animations, sounds, sheet, currentFile } = req.body;
-    const db = getDb();
+    const client = getClient();
 
-    const access = getProjectAccess(id as string, req.user!.id);
+    const access = await getProjectAccess(id as string, req.user!.id);
     if (!access.exists) {
       res.status(404).json({ error: 'Not Found', message: 'Project not found' });
       return;
@@ -303,48 +316,27 @@ export function createProjectsRouter(): Router {
     const updates: string[] = ['updated_at = ?'];
     const values: unknown[] = [now];
 
-    if (files !== undefined) {
-      updates.push('files = ?');
-      values.push(JSON.stringify(files));
-    }
-    if (assets !== undefined) {
-      updates.push('assets = ?');
-      values.push(JSON.stringify(assets));
-    }
-    if (tilemaps !== undefined) {
-      updates.push('tilemaps = ?');
-      values.push(JSON.stringify(tilemaps));
-    }
-    if (animations !== undefined) {
-      updates.push('animations = ?');
-      values.push(JSON.stringify(animations));
-    }
-    if (sounds !== undefined) {
-      updates.push('sounds = ?');
-      values.push(JSON.stringify(sounds));
-    }
-    if (currentFile !== undefined) {
-      updates.push('current_file = ?');
-      values.push(currentFile);
-    }
-    if (sheet !== undefined) {
-      updates.push('sheet = ?');
-      values.push(sheet === null ? null : JSON.stringify(sheet));
-    }
+    if (files !== undefined) { updates.push('files = ?'); values.push(JSON.stringify(files)); }
+    if (assets !== undefined) { updates.push('assets = ?'); values.push(JSON.stringify(assets)); }
+    if (tilemaps !== undefined) { updates.push('tilemaps = ?'); values.push(JSON.stringify(tilemaps)); }
+    if (animations !== undefined) { updates.push('animations = ?'); values.push(JSON.stringify(animations)); }
+    if (sounds !== undefined) { updates.push('sounds = ?'); values.push(JSON.stringify(sounds)); }
+    if (currentFile !== undefined) { updates.push('current_file = ?'); values.push(currentFile); }
+    if (sheet !== undefined) { updates.push('sheet = ?'); values.push(sheet === null ? null : JSON.stringify(sheet)); }
 
     values.push(id);
 
     try {
-      db.prepare(`UPDATE projects SET ${updates.join(', ')} WHERE id = ?`).run(...values);
-      const updated = db.prepare('SELECT * FROM projects WHERE id = ?').get(id) as Project;
+      await client.execute(`UPDATE projects SET ${updates.join(', ')} WHERE id = ?`, values);
+      const updated = (await client.execute('SELECT * FROM projects WHERE id = ?', [id])).rows[0] as unknown as Project;
       res.json({
         ...updated,
-        files: JSON.parse(updated.files || '{}'),
-        assets: JSON.parse(updated.assets || '{}'),
-        tilemaps: JSON.parse(updated.tilemaps || '{}'),
-        animations: JSON.parse(updated.animations || '{}'),
-        sounds: JSON.parse(updated.sounds || '{}'),
-        sheet: updated.sheet ? JSON.parse(updated.sheet) : undefined,
+        files: JSON.parse((updated.files as string) || '{}'),
+        assets: JSON.parse((updated.assets as string) || '{}'),
+        tilemaps: JSON.parse((updated.tilemaps as string) || '{}'),
+        animations: JSON.parse((updated.animations as string) || '{}'),
+        sounds: JSON.parse((updated.sounds as string) || '{}'),
+        sheet: updated.sheet ? JSON.parse(updated.sheet as string) : undefined,
       });
     } catch (error) {
       console.error('Error saving project content:', error);
@@ -352,16 +344,18 @@ export function createProjectsRouter(): Router {
     }
   });
 
-  router.get('/:id/thumbnail', (req: Request, res: Response): void => {
+  router.get('/:id/thumbnail', async (req: Request, res: Response): Promise<void> => {
     const { id } = req.params;
-    const access = getProjectAccess(id as string, req.user!.id);
+    const access = await getProjectAccess(id as string, req.user!.id);
     if (!access.exists || !access.role) {
       res.status(404).end();
       return;
     }
-    const row = getDb()
-      .prepare('SELECT thumbnail, thumbnail_updated_at FROM projects WHERE id = ?')
-      .get(id) as { thumbnail: Buffer | null; thumbnail_updated_at: number | null } | undefined;
+    const client = getClient();
+    const row = (await client.execute(
+      'SELECT thumbnail, thumbnail_updated_at FROM projects WHERE id = ?',
+      [id],
+    )).rows[0] as { thumbnail: Buffer | null; thumbnail_updated_at: number | null } | undefined;
     if (!row || !row.thumbnail) {
       res.status(404).end();
       return;
@@ -369,7 +363,7 @@ export function createProjectsRouter(): Router {
     res.setHeader('Content-Type', 'image/png');
     res.setHeader('Cache-Control', 'private, max-age=60');
     if (row.thumbnail_updated_at) {
-      res.setHeader('Last-Modified', new Date(row.thumbnail_updated_at).toUTCString());
+      res.setHeader('Last-Modified', new Date(row.thumbnail_updated_at as number).toUTCString());
     }
     res.send(row.thumbnail);
   });
@@ -377,9 +371,9 @@ export function createProjectsRouter(): Router {
   router.put(
     '/:id/thumbnail',
     raw({ type: 'image/png', limit: '1mb' }),
-    (req: Request, res: Response): void => {
+    async (req: Request, res: Response): Promise<void> => {
       const { id } = req.params;
-      const access = getProjectAccess(id as string, req.user!.id);
+      const access = await getProjectAccess(id as string, req.user!.id);
       if (!access.exists) {
         res.status(404).json({ error: 'Not Found', message: 'Project not found' });
         return;
@@ -394,16 +388,17 @@ export function createProjectsRouter(): Router {
         return;
       }
       const now = Date.now();
-      getDb()
-        .prepare('UPDATE projects SET thumbnail = ?, thumbnail_updated_at = ?, updated_at = ? WHERE id = ?')
-        .run(body, now, now, id);
+      await getClient().execute(
+        'UPDATE projects SET thumbnail = ?, thumbnail_updated_at = ?, updated_at = ? WHERE id = ?',
+        [body, now, now, id],
+      );
       res.json({ thumbnail_updated_at: now });
     },
   );
 
-  router.delete('/:id/thumbnail', (req: Request, res: Response): void => {
+  router.delete('/:id/thumbnail', async (req: Request, res: Response): Promise<void> => {
     const { id } = req.params;
-    const access = getProjectAccess(id as string, req.user!.id);
+    const access = await getProjectAccess(id as string, req.user!.id);
     if (!access.exists) {
       res.status(404).end();
       return;
@@ -412,9 +407,10 @@ export function createProjectsRouter(): Router {
       res.status(403).end();
       return;
     }
-    getDb()
-      .prepare('UPDATE projects SET thumbnail = NULL, thumbnail_updated_at = NULL WHERE id = ?')
-      .run(id);
+    await getClient().execute(
+      'UPDATE projects SET thumbnail = NULL, thumbnail_updated_at = NULL WHERE id = ?',
+      [id],
+    );
     res.status(204).end();
   });
 

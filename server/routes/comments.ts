@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
-import { getDb } from '../db/index.js';
+import { getClient } from '../db/index.js';
+import { first } from '../db/client.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { getProjectAccess, hasRole } from '../middleware/projectAuth.js';
 
@@ -15,9 +16,10 @@ interface CommentRow {
   created_at: number;
 }
 
-function isTeacher(userId: string): boolean {
-  const db = getDb();
-  const user = db.prepare("SELECT role FROM users WHERE id = ?").get(userId) as { role: string } | undefined;
+async function isTeacher(userId: string): Promise<boolean> {
+  const client = getClient();
+  const result = await client.execute('SELECT role FROM users WHERE id = ?', [userId]);
+  const user = result.rows[0] as { role: string } | undefined;
   return user?.role === 'teacher';
 }
 
@@ -26,9 +28,9 @@ export function createProjectCommentsRouter(): Router {
   const router = Router({ mergeParams: true });
   router.use(authMiddleware);
 
-  router.get('/', (req: Request, res: Response): void => {
+  router.get('/', async (req: Request, res: Response): Promise<void> => {
     const projectId = req.params['id'] as string;
-    const access = getProjectAccess(projectId, req.user!.id);
+    const access = await getProjectAccess(projectId, req.user!.id);
     if (!access.exists) {
       res.status(404).json({ error: 'Not Found', message: 'Project not found' });
       return;
@@ -38,32 +40,33 @@ export function createProjectCommentsRouter(): Router {
       return;
     }
     const { file } = req.query;
-    const db = getDb();
-    let rows;
+    const client = getClient();
+    let result;
     if (file && typeof file === 'string') {
-      rows = db.prepare(`
-        SELECT c.*, u.name as author_name, u.handle as author_handle
-        FROM comments c JOIN users u ON u.id = c.author_id
-        WHERE c.project_id = ? AND c.file_path = ?
-        ORDER BY c.line_number ASC, c.created_at ASC
-      `).all(projectId, file);
+      result = await client.execute(
+        `SELECT c.*, u.name as author_name, u.handle as author_handle
+         FROM comments c JOIN users u ON u.id = c.author_id
+         WHERE c.project_id = ? AND c.file_path = ?
+         ORDER BY c.line_number ASC, c.created_at ASC`,
+        [projectId, file],
+      );
     } else {
-      rows = db.prepare(`
-        SELECT c.*, u.name as author_name, u.handle as author_handle
-        FROM comments c JOIN users u ON u.id = c.author_id
-        WHERE c.project_id = ?
-        ORDER BY c.file_path ASC, c.line_number ASC, c.created_at ASC
-      `).all(projectId);
+      result = await client.execute(
+        `SELECT c.*, u.name as author_name, u.handle as author_handle
+         FROM comments c JOIN users u ON u.id = c.author_id
+         WHERE c.project_id = ?
+         ORDER BY c.file_path ASC, c.line_number ASC, c.created_at ASC`,
+        [projectId],
+      );
     }
-    res.json(rows);
+    res.json(result.rows);
   });
 
-  router.post('/', (req: Request, res: Response): void => {
+  router.post('/', async (req: Request, res: Response): Promise<void> => {
     const projectId = req.params['id'] as string;
-    const access = getProjectAccess(projectId, req.user!.id);
-    // Only teachers with a non-owner share (editor or viewer) can add comments
+    const access = await getProjectAccess(projectId, req.user!.id);
     const hasShare = access.role === 'editor' || access.role === 'viewer';
-    if (!hasShare || !isTeacher(req.user!.id)) {
+    if (!hasShare || !await isTeacher(req.user!.id)) {
       res.status(403).json({ error: 'Forbidden', message: 'Only teachers with share access can add comments' });
       return;
     }
@@ -80,33 +83,38 @@ export function createProjectCommentsRouter(): Router {
       res.status(400).json({ error: 'Bad Request', message: 'text is required' });
       return;
     }
-    const db = getDb();
+    const client = getClient();
     const now = Date.now();
     const id = uuidv4();
-    db.prepare(`
-      INSERT INTO comments (id, project_id, file_path, line_number, anchor_text, text, author_id, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(id, projectId, file_path, line_number, anchor_text ?? '', text.trim(), req.user!.id, now);
-    const row = db.prepare(`
-      SELECT c.*, u.name as author_name, u.handle as author_handle FROM comments c JOIN users u ON u.id = c.author_id WHERE c.id = ?
-    `).get(id);
+    await client.execute(
+      `INSERT INTO comments (id, project_id, file_path, line_number, anchor_text, text, author_id, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [id, projectId, file_path, line_number, anchor_text ?? '', text.trim(), req.user!.id, now],
+    );
+    const row = (await client.execute(
+      `SELECT c.*, u.name as author_name, u.handle as author_handle
+       FROM comments c JOIN users u ON u.id = c.author_id WHERE c.id = ?`,
+      [id],
+    )).rows[0];
     res.status(201).json(row);
   });
 
-  router.delete('/:commentId', (req: Request, res: Response): void => {
+  router.delete('/:commentId', async (req: Request, res: Response): Promise<void> => {
     const commentId = req.params['commentId'] as string;
-    const db = getDb();
-    const comment = db.prepare('SELECT * FROM comments WHERE id = ?').get(commentId) as CommentRow | undefined;
+    const client = getClient();
+    const comment = first<CommentRow>(await client.execute(
+      'SELECT * FROM comments WHERE id = ?',
+      [commentId],
+    ));
     if (!comment) {
       res.status(404).json({ error: 'Not Found', message: 'Comment not found' });
       return;
     }
-    // Must be author and must have access to the project
     if (comment.author_id !== req.user!.id) {
       res.status(403).json({ error: 'Forbidden', message: 'Only the author can delete a comment' });
       return;
     }
-    db.prepare('DELETE FROM comments WHERE id = ?').run(commentId);
+    await client.execute('DELETE FROM comments WHERE id = ?', [commentId]);
     res.status(204).send();
   });
 

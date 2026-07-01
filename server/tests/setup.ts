@@ -1,5 +1,6 @@
 import Database from 'better-sqlite3';
-import { setTestDb } from '../db/index.js';
+import { setTestClient } from '../db/index.js';
+import { createSqliteClient } from '../db/sqlite-shim.js';
 
 export function createTestDb(): Database.Database {
   const db = new Database(':memory:');
@@ -103,14 +104,59 @@ export function createTestDb(): Database.Database {
       updated_at INTEGER NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_help_requests_project_status ON help_requests(project_id, status);
+
+    CREATE TABLE IF NOT EXISTS problems (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      slug TEXT NOT NULL UNIQUE,
+      title TEXT NOT NULL,
+      statement TEXT NOT NULL,
+      order_index INTEGER NOT NULL DEFAULT 0,
+      starter_code TEXT NOT NULL DEFAULT '',
+      archived INTEGER NOT NULL DEFAULT 0,
+      created_by TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      generator_py TEXT NULL,
+      reference_solution_py TEXT NULL,
+      checker_py TEXT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_problems_archived_order ON problems(archived, order_index);
+
+    CREATE TABLE IF NOT EXISTS problem_tests (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      problem_id INTEGER NOT NULL REFERENCES problems(id) ON DELETE CASCADE,
+      tier INTEGER NOT NULL,
+      is_visible INTEGER NOT NULL DEFAULT 0,
+      ordinal INTEGER NOT NULL,
+      input TEXT NOT NULL,
+      expected TEXT NOT NULL,
+      fields_json TEXT NULL,
+      UNIQUE(problem_id, ordinal)
+    );
+    CREATE INDEX IF NOT EXISTS idx_tests_problem_tier ON problem_tests(problem_id, tier, ordinal);
+
+    CREATE TABLE IF NOT EXISTS submissions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id TEXT NOT NULL,
+      problem_id INTEGER NOT NULL REFERENCES problems(id),
+      code TEXT NOT NULL,
+      stars INTEGER NOT NULL,
+      verdict TEXT NOT NULL,
+      failed_test INTEGER,
+      failed_tier INTEGER,
+      ts TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_submissions_user_problem ON submissions(user_id, problem_id, ts DESC);
+    CREATE INDEX IF NOT EXISTS idx_submissions_problem ON submissions(problem_id, ts DESC);
   `);
 
-  setTestDb(db);
+  const client = createSqliteClient(db);
+  setTestClient(client);
   return db;
 }
 
 export function closeTestDb(): void {
-  setTestDb(undefined);
+  setTestClient(undefined);
 }
 
 export default { createTestDb, closeTestDb };

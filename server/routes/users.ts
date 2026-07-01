@@ -1,7 +1,8 @@
 import { Router, Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import bcrypt from 'bcryptjs';
-import { getDb } from '../db/index.js';
+import { getClient } from '../db/index.js';
+import { first } from '../db/client.js';
 import { assignHandle } from '../db/handle.js';
 import { authMiddleware, regenerateSession } from '../middleware/auth.js';
 
@@ -37,9 +38,9 @@ router.post('/outsider', async (req: Request, res: Response): Promise<void> => {
     return;
   }
 
-  const db = getDb();
+  const client = getClient();
 
-  const existing = db.prepare('SELECT id FROM users WHERE name = ?').get(name.trim());
+  const existing = (await client.execute('SELECT id FROM users WHERE name = ?', [name.trim()])).rows[0];
   if (existing) {
     res.status(409).json({ error: 'Conflict', message: 'Username already taken' });
     return;
@@ -59,11 +60,12 @@ router.post('/outsider', async (req: Request, res: Response): Promise<void> => {
   };
 
   try {
-    const { seq, handle } = assignHandle(db);
-    db.prepare(`
-      INSERT INTO users (id, api_token, name, role, password_hash, handle, handle_seq, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(user.id, user.api_token, user.name, user.role, user.password_hash, handle, seq, user.created_at, user.updated_at);
+    const { seq, handle } = await assignHandle(client);
+    await client.execute(
+      `INSERT INTO users (id, api_token, name, role, password_hash, handle, handle_seq, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [user.id, user.api_token, user.name, user.role, user.password_hash, handle, seq, user.created_at, user.updated_at],
+    );
 
     await regenerateSession(req);
     req.session.userId = user.id;
@@ -99,15 +101,15 @@ router.post('/outsider/login', async (req: Request, res: Response): Promise<void
     return;
   }
 
-  const db = getDb();
-  const user = db.prepare('SELECT * FROM users WHERE name = ?').get(name.trim()) as User | undefined;
+  const client = getClient();
+  const user = first<User>(await client.execute('SELECT * FROM users WHERE name = ?', [name.trim()]));
 
   if (!user || !user.password_hash) {
     res.status(401).json({ error: 'Unauthorized', message: 'Invalid username or password' });
     return;
   }
 
-  const valid = await bcrypt.compare(password, user.password_hash);
+  const valid = await bcrypt.compare(password, user.password_hash as string);
   if (!valid) {
     res.status(401).json({ error: 'Unauthorized', message: 'Invalid username or password' });
     return;
@@ -115,7 +117,7 @@ router.post('/outsider/login', async (req: Request, res: Response): Promise<void
 
   try {
     await regenerateSession(req);
-    req.session.userId = user.id;
+    req.session.userId = user.id as string;
     res.json({
       id: user.id,
       name: user.name,
@@ -130,39 +132,40 @@ router.post('/outsider/login', async (req: Request, res: Response): Promise<void
 });
 
 // GET /api/users/search?q=… — used by share dialog and teacher invite
-// Returns up to 8 users whose display name OR handle contains q (case-insensitive), excluding self.
-router.get('/search', authMiddleware, (req: Request, res: Response): void => {
+router.get('/search', authMiddleware, async (req: Request, res: Response): Promise<void> => {
   const q = typeof req.query.q === 'string' ? req.query.q.trim() : '';
   if (q.length < 2) {
     res.json([]);
     return;
   }
-  const db = getDb();
-  // Strip leading @ so users can type "@handle" or "handle"
+  const client = getClient();
   const needle = q.replace(/^@+/, '').toLowerCase();
   const like = `%${needle}%`;
-  const rows = db.prepare(`
-    SELECT id, name, handle, role
-    FROM users
-    WHERE id != ?
-      AND (LOWER(name) LIKE ? OR LOWER(handle) LIKE ?)
-    ORDER BY
-      CASE WHEN LOWER(handle) = ? THEN 0
-           WHEN LOWER(name) = ? THEN 1
-           WHEN LOWER(handle) LIKE ? THEN 2
-           ELSE 3 END,
-      name ASC
-    LIMIT 8
-  `).all(req.user!.id, like, like, needle, needle, `${needle}%`) as { id: string; name: string; handle: string | null; role: string }[];
-  res.json(rows);
+  const result = await client.execute(
+    `SELECT id, name, handle, role
+     FROM users
+     WHERE id != ?
+       AND (LOWER(name) LIKE ? OR LOWER(handle) LIKE ?)
+     ORDER BY
+       CASE WHEN LOWER(handle) = ? THEN 0
+            WHEN LOWER(name) = ? THEN 1
+            WHEN LOWER(handle) LIKE ? THEN 2
+            ELSE 3 END,
+       name ASC
+     LIMIT 8`,
+    [req.user!.id, like, like, needle, needle, `${needle}%`],
+  );
+  res.json(result.rows);
 });
 
 // GET /api/users/me
-router.get('/me', authMiddleware, (req: Request, res: Response): void => {
-  const db = getDb();
-  const user = db
-    .prepare('SELECT id, name, handle, role, created_at FROM users WHERE id = ?')
-    .get(req.user!.id) as Pick<User, 'id' | 'name' | 'handle' | 'role' | 'created_at'> | undefined;
+router.get('/me', authMiddleware, async (req: Request, res: Response): Promise<void> => {
+  const client = getClient();
+  const result = await client.execute(
+    'SELECT id, name, handle, role, created_at FROM users WHERE id = ?',
+    [req.user!.id],
+  );
+  const user = first<Pick<User, 'id' | 'name' | 'handle' | 'role' | 'created_at'>>(result);
 
   if (!user) {
     res.status(404).json({ error: 'Not Found', message: 'User not found' });

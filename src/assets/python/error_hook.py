@@ -31,6 +31,12 @@ def _safe(fn, *args, _enrichment_name: str = "unknown", **kwargs):
         return fn(*args, **kwargs)
     except Exception as _e:
         _enrichment_failures.append({"name": _enrichment_name, "error": repr(_e)})
+        try:
+            import traceback as _tb
+            from js import console
+            console.error(f"[pi3 classifier] enrichment '{_enrichment_name}' crashed: {_e}\n{_tb.format_exc()}")
+        except Exception:
+            pass
         return None
 
 
@@ -171,21 +177,29 @@ def _build_error_keys(
     msg = str(exc)
 
     if category == "naming":
-        args = {}
-        if token:
-            args["name"] = token
+        if not token:
+            return (None, {})
+        args: dict = {"name": token}
         if suggestions and suggestions[0].get("candidates"):
             candidates = suggestions[0]["candidates"]
             if len(candidates) == 1:
                 args["candidate"] = candidates[0]
+                return ("friendlyError.naming.undefinedWithCandidate", args)
             else:
                 args["candidates"] = ", ".join(candidates[:3])
-        return ("friendlyError.naming.undefined", args) if token else (None, {})
+                return ("friendlyError.naming.undefinedWithCandidates", args)
+        # No suggestions — don't show a friendly "name not recognized" wrapper,
+        # let the raw Python error show instead (message_key=None triggers the fallback).
+        return (None, {})
 
     if category == "types":
         clean = re.sub(r"<class '(\w+)'>", r"\1", msg)
         if "unsupported operand type" in clean and "+" in clean:
             m = re.search(r"unsupported operand type.*for\s+\+:\s*'(\w+)'\s+and\s+'(\w+)'", clean)
+            if m:
+                return ("friendlyError.types.badOperator", {"op": "+", "left": m.group(1), "right": m.group(2)})
+        if "can only concatenate" in clean:
+            m = re.search(r"can only concatenate (\w+) \(not \"(\w+)\"\)", clean)
             if m:
                 return ("friendlyError.types.badOperator", {"op": "+", "left": m.group(1), "right": m.group(2)})
         if "object is not callable" in clean:
@@ -378,7 +392,12 @@ def _classify_error_inner(
             message_args_override = homo_args
             suggestions = [{"token": token, "candidates": [homo_args["fixed"]]}]
         else:
-            _cands = _safe(_compute_suggestions, token, all_candidates, _enrichment_name="suggestions")
+            # Short tokens (≤5 chars) produce too many false positives at distance 2
+            # (e.g. "prtn" matches "print" and "run" at dist=2 despite being unrelated).
+            # Distance 1 — a single-character typo — is the only reliable signal for
+            # short names.
+            max_dist = 1 if len(token) <= 5 else 2
+            _cands = _safe(_compute_suggestions, token, all_candidates, max_dist, _enrichment_name="suggestions")
             candidates = _cands if _cands is not None else []
             if candidates:
                 suggestions = [{"token": token, "candidates": candidates}]
@@ -406,6 +425,7 @@ def _classify_error_inner(
         "category": category,
         "titleKey": title_key,
         "messageKey": message_key,
+        "message": f"{type(exc).__name__}: {exc}" if message_key is None else None,
         "messageArgs": message_args,
         "raw": raw,
         "cleanRaw": clean_raw,

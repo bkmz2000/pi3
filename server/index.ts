@@ -13,6 +13,7 @@ import projectsRouter from './routes/projects.js';
 import authRouter from './routes/auth.js';
 import { createGroupsRouter } from './routes/groups.js';
 import { createHelpRequestsRouter } from './routes/help-requests.js';
+import { createCompeteRouter } from './routes/compete.js';
 import { decompressRequest } from './middleware/decompress.js';
 
 const PORT = process.env.PORT || 3001;
@@ -139,6 +140,7 @@ app.use('/api/users', createUsersRouter(ALLOW_PASSWORD_AUTH));
 app.use('/api/projects', projectsRouter);
 app.use('/api/groups', createGroupsRouter());
 app.use('/api/help-requests', createHelpRequestsRouter());
+app.use('/api', createCompeteRouter());
 
 app.use((req, res, next) => {
   if (!req.path.startsWith('/api/')) {

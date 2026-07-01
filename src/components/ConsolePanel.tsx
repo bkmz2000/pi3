@@ -5,6 +5,7 @@ import { useRunner, useRunnerStore, type WatchEntry } from "../runner/RunnerProv
 import { useThemeStore } from "../state/useTheme";
 import type { RuntimeError } from "../runner/WorkerInterface";
 import type { Theme } from "../state/useTheme";
+import DebugPanel from "./DebugPanel";
 
 function BlinkDot({ color, delay = 0 }: { color: string; delay?: number }) {
   return (
@@ -46,7 +47,7 @@ const CATEGORY_COLORS: Record<string, { bg: string; border: string; text: string
   internal: { bg: "#f1f5f9", border: "#94a3b8", text: "#334155" },
 };
 
-function ErrorCard({ error }: { error: RuntimeError }) {
+export function ErrorCard({ error }: { error: RuntimeError }) {
   const { t } = useTranslation();
   const { applySuggestion } = useRunner();
   const [showRaw, setShowRaw] = useState(false);
@@ -566,6 +567,9 @@ export default function ConsolePanel({ onRight = false }: { onRight?: boolean })
           {t('app.clearConsole')}
         </button>
       </div>
+
+      {/* Debug panel — auto-appears when pi3.debug.show() is called */}
+      <DebugPanel />
 
       {/* Watch panel — auto-appears when watch() is called */}
       <WatchPanel watches={shownWatches} rewinding={rewinding} theme={theme} />

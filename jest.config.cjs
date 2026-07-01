@@ -27,7 +27,7 @@ const config = {
     }],
   },
   transformIgnorePatterns: [
-    '/node_modules/(?!(konva|react-konva|@testing-library)/)',
+    '/node_modules/(?!(konva|react-konva|@testing-library|remark-math|rehype-katex|katex|hast-util-to-html|hast-util-sanitize|micromark-extension-math|mdast-util-math)/)',
   ],
   testMatch: [
     '**/tests/unit/**/*.test.+(ts|tsx|js)',
@@ -46,20 +46,13 @@ const config = {
   // Rule: these only move UP. Bump the relevant slot in the same PR that adds a
   // tier's tests. Path-specific keys are checked independently and subtracted
   // from the global pool, so each area regresses (and gates) on its own.
-  //
-  // Global floors recalibrated 2026-06-21: debug tools (DBG-1–5) landed on main
-  // without unit tests, lowering the global residual. Pre-push hook now gates
-  // future drops. src/state/ and src/utils/ were unaffected and unchanged.
-  //
-  // PR7: runner/ floor dipped because RunnerProvider.tsx was brought to final
-  // state (includes compete code). PR8 will restore/raise these floors once
-  // compete tests land.
+  // Global floors recalibrated after compete-mode + DBG tools on main.
   coverageThreshold: {
     global: {
-      branches: 15,
-      functions: 16,
-      lines: 25,
-      statements: 25,
+      branches: 17,
+      functions: 19,
+      lines: 27,
+      statements: 27,
     },
     './src/state/': {
       branches: 48,
@@ -74,9 +67,9 @@ const config = {
       statements: 70,
     },
     './src/runner/': {
-      branches: 22,
+      branches: 24,
       functions: 15,
-      lines: 30,
+      lines: 31,
       statements: 29,
     },
   },

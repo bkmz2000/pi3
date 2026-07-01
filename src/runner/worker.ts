@@ -709,8 +709,33 @@ async function runScript(
     `import input_transform; input_transform.transform(_transform_source)`
   );
   p.globals.delete("_transform_source");
-  const indented = transformed.split('\n').map((l) => '    ' + l).join('\n');
   const filename = entry || "main.py";
+
+  // Pre-check: compile user code to catch SyntaxErrors before embedding in asyncCode.
+  // When user code has a SyntaxError, Python compiles the whole asyncCode string at
+  // compile time — before the try/except block executes — so the exception escapes to
+  // JS without ever reaching classify_error. Running compile() here first catches it
+  // and routes it through the friendly classifier (e.g. grammar.missingColon).
+  await p.runPythonAsync(`import error_hook as _eh
+try:
+    compile(${JSON.stringify(transformed)}, ${JSON.stringify(filename)}, 'exec')
+except SyntaxError as _se:
+    _last_structured_error = _eh.classify_error(_se, ${JSON.stringify(code)}, ${JSON.stringify(filename)})`);
+  {
+    const preCheckErr = p.globals.get("_last_structured_error");
+    if (preCheckErr) {
+      try {
+        const error: RuntimeError = preCheckErr.toJs({ dict_converter: Object.fromEntries });
+        p.globals.delete("_last_structured_error");
+        post({ type: "start", canvasActive: false });
+        post({ type: "runtime_error", error });
+        post({ type: "result" });
+        return;
+      } catch { /* fall through to asyncCode path */ }
+    }
+  }
+
+  const indented = transformed.split('\n').map((l) => '    ' + l).join('\n');
 
   // Build async wrapper with error_hook integration (no re-raise — JS reads _last_structured_error)
   const asyncCode = `
@@ -921,6 +946,117 @@ _cq_result
     } catch (err) {
       console.warn("Worker: screenshot failed —", err);
       post({ type: "screenshot", reqId, blob: null });
+    }
+  } else if (msg.cmd === "runGenerator") {
+    const { generatorPy, slug, reqId } = msg;
+    if (!pyodide) {
+      post({ type: "generator_error", error: "Pyodide not ready", reqId });
+      return;
+    }
+    try {
+      pyodide.globals.set("_gen_src", generatorPy);
+      pyodide.globals.set("_gen_slug", slug);
+      const stdout = await pyodide.runPythonAsync(`
+import sys, io, linecache
+_gen_filename = '<pi3_generator>'
+linecache.cache[_gen_filename] = (len(_gen_src), None, _gen_src.splitlines(keepends=True), _gen_filename)
+import pi3.testing as _pi3t
+_pi3t.seed(_gen_slug)
+_old_stdout = sys.stdout
+_gen_buf = io.StringIO()
+sys.stdout = _gen_buf
+try:
+    exec(compile(_gen_src, _gen_filename, 'exec'), {})
+finally:
+    sys.stdout = _old_stdout
+_gen_buf.getvalue()
+      `);
+      pyodide.globals.delete("_gen_src");
+      pyodide.globals.delete("_gen_slug");
+      post({ type: "generator_result", stdout: String(stdout), reqId });
+    } catch (err) {
+      pyodide.globals.delete("_gen_src");
+      pyodide.globals.delete("_gen_slug");
+      // Pyodide PythonError.message includes the formatted traceback; other errors fall back to String().
+      const message = err && typeof err === 'object' && 'message' in err
+        ? String((err as { message: unknown }).message)
+        : String(err);
+      post({ type: "generator_error", error: message, reqId });
+    }
+  } else if (msg.cmd === "runReference") {
+    const { referencePy, fieldsJson, reqId } = msg;
+    if (!pyodide) {
+      post({ type: "reference_error", error: "Pyodide not ready", reqId });
+      return;
+    }
+    try {
+      pyodide.globals.set("_ref_src", referencePy);
+      pyodide.globals.set("_ref_fields_json", fieldsJson);
+      const expected = await pyodide.runPythonAsync(`
+import sys, io, json, types, linecache
+_ref_fields = json.loads(_ref_fields_json)
+_ref_test = types.SimpleNamespace(**_ref_fields)
+_ref_filename = '<pi3_reference>'
+linecache.cache[_ref_filename] = (len(_ref_src), None, _ref_src.splitlines(keepends=True), _ref_filename)
+_ref_ns = {}
+exec(compile(_ref_src, _ref_filename, 'exec'), _ref_ns)
+_old_stdout = sys.stdout
+_ref_buf = io.StringIO()
+sys.stdout = _ref_buf
+try:
+    _ref_result = _ref_ns['solution'](_ref_test)
+    if _ref_result is not None:
+        print(_ref_result)
+finally:
+    sys.stdout = _old_stdout
+_ref_buf.getvalue().rstrip('\\n')
+      `);
+      pyodide.globals.delete("_ref_src");
+      pyodide.globals.delete("_ref_fields_json");
+      post({ type: "reference_result", expected: String(expected), reqId });
+    } catch (err) {
+      pyodide.globals.delete("_ref_src");
+      pyodide.globals.delete("_ref_fields_json");
+      const message = err && typeof err === 'object' && 'message' in err
+        ? String((err as { message: unknown }).message)
+        : String(err);
+      post({ type: "reference_error", error: message, reqId });
+    }
+  } else if (msg.cmd === "runChecker") {
+    const { checkerPy, fieldsJson, studentOutput, expectedOutput, reqId } = msg;
+    if (!pyodide) {
+      post({ type: "checker_error", error: "Pyodide not ready", reqId });
+      return;
+    }
+    try {
+      pyodide.globals.set("_chk_src", checkerPy);
+      pyodide.globals.set("_chk_fields_json", fieldsJson);
+      pyodide.globals.set("_chk_student_output", studentOutput);
+      pyodide.globals.set("_chk_expected_output", expectedOutput);
+      const passed = await pyodide.runPythonAsync(`
+import json, types, linecache
+_chk_fields = json.loads(_chk_fields_json) if _chk_fields_json else {}
+_chk_test = types.SimpleNamespace(**_chk_fields)
+_chk_filename = '<pi3_checker>'
+linecache.cache[_chk_filename] = (len(_chk_src), None, _chk_src.splitlines(keepends=True), _chk_filename)
+_chk_ns = {}
+exec(compile(_chk_src, _chk_filename, 'exec'), _chk_ns)
+bool(_chk_ns['check'](_chk_test, _chk_student_output, _chk_expected_output))
+      `);
+      pyodide.globals.delete("_chk_src");
+      pyodide.globals.delete("_chk_fields_json");
+      pyodide.globals.delete("_chk_student_output");
+      pyodide.globals.delete("_chk_expected_output");
+      post({ type: "checker_result", passed: Boolean(passed), reqId });
+    } catch (err) {
+      pyodide.globals.delete("_chk_src");
+      pyodide.globals.delete("_chk_fields_json");
+      pyodide.globals.delete("_chk_student_output");
+      pyodide.globals.delete("_chk_expected_output");
+      const message = err && typeof err === 'object' && 'message' in err
+        ? String((err as { message: unknown }).message)
+        : String(err);
+      post({ type: "checker_error", error: message, reqId });
     }
   }
 };

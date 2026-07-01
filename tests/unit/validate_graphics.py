@@ -1847,8 +1847,11 @@ try:
     _exc = NameError("name 'apple' is not defined")
     _res = _eh2.classify_error(_exc, "apple\n", "test.py")
     test("broken homoglyph: result category is naming", _res["category"] == "naming")
-    test("broken homoglyph: messageKey is friendlyError.naming.*",
-         _res.get("messageKey", "").startswith("friendlyError.naming."))
+    # When homoglyph fails and there are no other suggestions, messageKey is None
+    # and the raw Python error is shown via the "message" field instead.
+    test("broken homoglyph: messageKey is None or friendlyError.naming.*",
+         _res.get("messageKey") is None or
+         (_res.get("messageKey") or "").startswith("friendlyError.naming."))
     test("broken homoglyph: enrichment failure logged",
          any(f["name"] == "homoglyph" for f in _eh2._enrichment_failures))
     test("broken homoglyph: exactly one enrichment failure logged",

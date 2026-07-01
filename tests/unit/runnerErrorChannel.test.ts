@@ -133,3 +133,181 @@ describe("error channel — structured payload", () => {
     expect(text.length).toBeGreaterThan(0);
   });
 });
+
+describe("syntax error regression — missing colon routes to grammar, not internal", () => {
+  // Regression for: `if cond\nprint hello` was producing an `internal/classifierFailed`
+  // card. Root cause: runScript embeds user code directly in the asyncCode Python string;
+  // a SyntaxError causes Python to fail at compile time before the try/except block runs,
+  // so classify_error was never called. Fixed by pre-compiling with compile() first.
+  // The worker now posts a runtime_error with category="grammar"; these tests pin that shape.
+
+  it("runtime_error with grammar/missingColon arrives as a grammar card — not downgraded to internal", () => {
+    act(() => {
+      useRunnerStore.getState()._onMessage({
+        type: "runtime_error",
+        error: {
+          category: "grammar",
+          titleKey: "friendlyError.grammar.title",
+          messageKey: "friendlyError.grammar.missingColon",
+          messageArgs: {},
+          raw: "SyntaxError: expected ':' (<string>, line 1)",
+          cleanRaw: "SyntaxError: expected ':' (<string>, line 1)",
+          suggestions: [],
+          isBlocking: true,
+        },
+      });
+    });
+
+    const output = useRunnerStore.getState().output;
+    expect(output).toHaveLength(1);
+    const card = output[0];
+    expect(card.kind).toBe("error_card");
+    if (card.kind !== "error_card") return;
+    expect(card.error.category).toBe("grammar");
+    expect(card.error.messageKey).toBe("friendlyError.grammar.missingColon");
+    expect(card.error.isBlocking).toBe(true);
+    // If the bug regresses, the worker posts `type:"error"` instead, and RunnerProvider
+    // hardcodes this key. Asserting it's absent locks in the grammar classification.
+    expect(card.error.messageKey).not.toBe("friendlyError.internal.classifierFailed");
+  });
+
+  it("grammar error card has isBlocking true (SyntaxError blocks execution)", () => {
+    act(() => {
+      useRunnerStore.getState()._onMessage({
+        type: "runtime_error",
+        error: {
+          category: "grammar",
+          titleKey: "friendlyError.grammar.title",
+          messageKey: "friendlyError.grammar.syntaxError",
+          messageArgs: {},
+          raw: "SyntaxError: invalid syntax",
+          suggestions: [],
+          isBlocking: true,
+        },
+      });
+    });
+
+    const card = useRunnerStore.getState().output[0];
+    expect(card.kind).toBe("error_card");
+    if (card.kind !== "error_card") return;
+    expect(card.error.isBlocking).toBe(true);
+    expect(card.error.category).toBe("grammar");
+  });
+});
+
+describe("naming error — undefined key routing by candidate count", () => {
+  // Regression for: naming.undefined always embedded {{candidate}} but messageArgs
+  // only included it when suggestions existed. With no suggestions (e.g. an arbitrary
+  // name like 'dfkjsfj'), {{candidate}} rendered as a raw placeholder.
+  // Fixed by splitting into three keys: undefined / undefinedWithCandidate / undefinedWithCandidates.
+
+  it("no candidates → naming.undefined (no {{candidate}} in args)", () => {
+    act(() => {
+      useRunnerStore.getState()._onMessage({
+        type: "runtime_error",
+        error: {
+          category: "naming",
+          titleKey: "friendlyError.naming.title",
+          messageKey: "friendlyError.naming.undefined",
+          messageArgs: { name: "dfkjsfj" },
+          raw: "NameError: name 'dfkjsfj' is not defined",
+          suggestions: [],
+          isBlocking: false,
+        },
+      });
+    });
+
+    const card = useRunnerStore.getState().output[0];
+    expect(card.kind).toBe("error_card");
+    if (card.kind !== "error_card") return;
+    expect(card.error.messageKey).toBe("friendlyError.naming.undefined");
+    expect(card.error.messageArgs).not.toHaveProperty("candidate");
+    expect(card.error.messageArgs).not.toHaveProperty("candidates");
+  });
+
+  it("one candidate → naming.undefinedWithCandidate with candidate in args", () => {
+    act(() => {
+      useRunnerStore.getState()._onMessage({
+        type: "runtime_error",
+        error: {
+          category: "naming",
+          titleKey: "friendlyError.naming.title",
+          messageKey: "friendlyError.naming.undefinedWithCandidate",
+          messageArgs: { name: "backgrond", candidate: "background" },
+          raw: "NameError: name 'backgrond' is not defined",
+          suggestions: [{ token: "backgrond", candidates: ["background"] }],
+          isBlocking: false,
+        },
+      });
+    });
+
+    const card = useRunnerStore.getState().output[0];
+    expect(card.kind).toBe("error_card");
+    if (card.kind !== "error_card") return;
+    expect(card.error.messageKey).toBe("friendlyError.naming.undefinedWithCandidate");
+    expect(card.error.messageArgs).toHaveProperty("candidate", "background");
+    expect(card.error.messageArgs).not.toHaveProperty("candidates");
+  });
+
+  it("multiple candidates → naming.undefinedWithCandidates with candidates in args", () => {
+    act(() => {
+      useRunnerStore.getState()._onMessage({
+        type: "runtime_error",
+        error: {
+          category: "naming",
+          titleKey: "friendlyError.naming.title",
+          messageKey: "friendlyError.naming.undefinedWithCandidates",
+          messageArgs: { name: "crcle", candidates: "circle, Circle" },
+          raw: "NameError: name 'crcle' is not defined",
+          suggestions: [{ token: "crcle", candidates: ["circle", "Circle"] }],
+          isBlocking: false,
+        },
+      });
+    });
+
+    const card = useRunnerStore.getState().output[0];
+    expect(card.kind).toBe("error_card");
+    if (card.kind !== "error_card") return;
+    expect(card.error.messageKey).toBe("friendlyError.naming.undefinedWithCandidates");
+    expect(card.error.messageArgs).toHaveProperty("candidates", "circle, Circle");
+    expect(card.error.messageArgs).not.toHaveProperty("candidate");
+  });
+});
+
+describe("naming error — no suggestions falls back to raw Python error", () => {
+  // Regression for: `if prtn:` was producing "Имя 'prtn' не распознано. Ты имеешь в виду один из: print, run?"
+  // because KNOWN_SYMBOLS contains "print" and "run" at Levenshtein distance 2 from "prtn".
+  // Fix: short tokens (≤5 chars) use max_distance=1, and naming errors with no suggestions
+  // show the raw Python error (messageKey=null, message="{ExcType}: {exc}") instead of a
+  // friendly wrapper.
+
+  it("NameError with no suggestions → messageKey falsy and message is raw Python error", () => {
+    act(() => {
+      useRunnerStore.getState()._onMessage({
+        type: "runtime_error",
+        error: {
+          category: "naming",
+          titleKey: "friendlyError.naming.title",
+          messageKey: undefined,
+          message: "NameError: name 'prtn' is not defined",
+          messageArgs: {},
+          raw: "Traceback (most recent call last):\n  File \"main.py\", line 1\nNameError: name 'prtn' is not defined",
+          suggestions: [],
+          isBlocking: false,
+        },
+      });
+    });
+
+    const card = useRunnerStore.getState().output[0];
+    expect(card.kind).toBe("error_card");
+    if (card.kind !== "error_card") return;
+    // No friendly message key — ErrorCard falls back to error.message
+    expect(card.error.messageKey).toBeFalsy();
+    expect(card.error.message).toBe("NameError: name 'prtn' is not defined");
+    // No suggestion chips should appear
+    expect(card.error.suggestions).toHaveLength(0);
+    // Must NOT carry any candidate interpolation args
+    expect(card.error.messageArgs).not.toHaveProperty("candidate");
+    expect(card.error.messageArgs).not.toHaveProperty("candidates");
+  });
+});

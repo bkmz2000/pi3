@@ -52,10 +52,15 @@ export interface Theme {
   successPill: string;
   successPillTxt: string;
 
+  primaryBg: string;
+  primaryTxt: string;
+
   accent: string;
   runBg: string;
   runTxt: string;
   stopBg: string;
+  submitBg: string;
+  submitTxt: string;
 
   canvasFrame: string;
   canvasBorder: string;
@@ -153,10 +158,14 @@ const THEMES: Record<ThemeId, Theme> = {
     consoleErr: "#c4451c",
     successPill: "rgba(52,168,83,0.16)",
     successPillTxt: "#0e7c52",
+    primaryBg: "#0e9aa7",
+    primaryTxt: "#ffffff",
     accent: "#f6a560",
     runBg: "#34a853",
     runTxt: "#ffffff",
     stopBg: "#ef4444",
+    submitBg: "#2563eb",
+    submitTxt: "#ffffff",
     canvasFrame: "#0a3d44",
     canvasBorder: "rgba(255,255,255,0.10)",
     canvasTitle: "#0a3d44",
@@ -226,10 +235,14 @@ const THEMES: Record<ThemeId, Theme> = {
     consoleErr: "#ff8b8b",
     successPill: "rgba(126,224,168,0.14)",
     successPillTxt: "#7ee0a8",
+    primaryBg: "#0e9aa7",
+    primaryTxt: "#ffffff",
     accent: "#f7b67a",
     runBg: "#7ed3a4",
     runTxt: "#062a26",
     stopBg: "#ff8b8b",
+    submitBg: "#3b82f6",
+    submitTxt: "#ffffff",
     canvasFrame: "#031518",
     canvasBorder: "rgba(255,255,255,0.06)",
     canvasTitle: "#031518",

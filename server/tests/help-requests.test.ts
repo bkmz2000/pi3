@@ -191,4 +191,65 @@ describe('Help Requests', () => {
       .set(auth(teacher.api_token));
     expect(res.body[0].help_request_status).toBe('pending');
   });
+
+  it('non-teacher gets 403 on GET /api/help-requests', async () => {
+    const res = await request(app)
+      .get('/api/help-requests')
+      .set(auth(student.api_token));
+    expect(res.status).toBe(403);
+  });
+
+  it('teacher list can filter by group_id', async () => {
+    await request(app).post(`/api/projects/${projectId}/help-request`).set(auth(student.api_token));
+    const res = await request(app)
+      .get(`/api/help-requests?group_id=${groupId}`)
+      .set(auth(teacher.api_token));
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(1);
+  });
+
+  it('non-teacher gets 403 on PATCH', async () => {
+    const cr = await request(app).post(`/api/projects/${projectId}/help-request`).set(auth(student.api_token));
+    const res = await request(app)
+      .patch(`/api/help-requests/${cr.body.help_request.id}`)
+      .set(auth(student.api_token));
+    expect(res.status).toBe(403);
+  });
+
+  it('PATCH rejects invalid status', async () => {
+    const cr = await request(app).post(`/api/projects/${projectId}/help-request`).set(auth(student.api_token));
+    const res = await request(app)
+      .patch(`/api/help-requests/${cr.body.help_request.id}`)
+      .set(auth(teacher.api_token))
+      .send({ status: 'nonsense' });
+    expect(res.status).toBe(400);
+  });
+
+  it('PATCH returns 404 for unknown help request', async () => {
+    const res = await request(app)
+      .patch(`/api/help-requests/${uuidv4()}`)
+      .set(auth(teacher.api_token));
+    expect(res.status).toBe(404);
+  });
+
+  it('teacher can mark help request in_progress', async () => {
+    const cr = await request(app).post(`/api/projects/${projectId}/help-request`).set(auth(student.api_token));
+    const res = await request(app)
+      .patch(`/api/help-requests/${cr.body.help_request.id}`)
+      .set(auth(teacher.api_token))
+      .send({ status: 'in_progress' });
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe('in_progress');
+  });
+
+  it('PATCH rejects transition of already-addressed request', async () => {
+    const cr = await request(app).post(`/api/projects/${projectId}/help-request`).set(auth(student.api_token));
+    const hrId = cr.body.help_request.id;
+    await request(app).patch(`/api/help-requests/${hrId}`).set(auth(teacher.api_token));
+    const res = await request(app)
+      .patch(`/api/help-requests/${hrId}`)
+      .set(auth(teacher.api_token))
+      .send({ status: 'in_progress' });
+    expect(res.status).toBe(400);
+  });
 });

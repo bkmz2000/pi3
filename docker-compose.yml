@@ -10,11 +10,17 @@ services:
       - PORT=3001
       - DB_PATH=/app/db/pi3.db
       - SESSION_SECRET=${SESSION_SECRET}
+      - APP_BASE_URL=${APP_BASE_URL:-https://pi3.sys5.ru}
+      - AUTH_PROVIDER=${AUTH_PROVIDER:-loginus}
       - LOGINUS_DOMAIN=${LOGINUS_DOMAIN:-https://lk.systematika.org}
       - LOGINUS_CLIENT_ID=${LOGINUS_CLIENT_ID}
       - LOGINUS_CLIENT_SECRET=${LOGINUS_CLIENT_SECRET}
-      - APP_BASE_URL=${APP_BASE_URL:-https://pi3.sys5.ru}
       - LOGINUS_TEACHER_ROLE=${LOGINUS_TEACHER_ROLE:-teacher}
+      - KEYCLOAK_URL=${KEYCLOAK_URL}
+      - KEYCLOAK_REALM=${KEYCLOAK_REALM}
+      - KEYCLOAK_CLIENT_ID=${KEYCLOAK_CLIENT_ID}
+      - KEYCLOAK_CLIENT_SECRET=${KEYCLOAK_CLIENT_SECRET}
+      - KEYCLOAK_TEACHER_ROLE=${KEYCLOAK_TEACHER_ROLE:-teacher}
     env_file:
       - .env
     volumes:

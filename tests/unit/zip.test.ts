@@ -192,6 +192,65 @@ describe('zip — downloadProjectZip', () => {
   });
 });
 
+describe('zip — tilemaps / sheet / sounds / notes', () => {
+  it('round-trips tilemaps through the zip', async () => {
+    const project = makeProject({
+      tilemaps: {
+        'level1': { width: 4, height: 3, cells: [1, 2, 3] } as unknown as import('../../src/utils/zip').TilemapData,
+      },
+    });
+    const bytes = await projectToZip(project);
+    const round = await zipToProject(bytes);
+    expect(round.tilemaps?.level1).toBeDefined();
+    expect((round.tilemaps!.level1 as unknown as { width: number }).width).toBe(4);
+  });
+
+  it('round-trips a sheet blob', async () => {
+    const project = makeProject({
+      sheet: { palette: ['#000', '#fff'], sprites: [] } as unknown as import('../../src/utils/zip').SheetData,
+    });
+    const bytes = await projectToZip(project);
+    const round = await zipToProject(bytes);
+    expect(round.sheet).toBeDefined();
+    expect((round.sheet as unknown as { palette: string[] }).palette).toEqual(['#000', '#fff']);
+  });
+
+  it('writes notes.txt for URL-based sounds and fires onWarning on import', async () => {
+    const project = makeProject({
+      sounds: { 'stream.mp3': 'https://example.com/audio/stream.mp3' },
+    });
+    const bytes = await projectToZip(project);
+
+    // notes.txt must be present in the archive
+    const JSZip = (await import('jszip')).default;
+    const inspect = await JSZip.loadAsync(bytes);
+    expect(inspect.file('notes.txt')).not.toBeNull();
+
+    const warnings: string[] = [];
+    const round = await zipToProject(bytes, undefined, (msg) => warnings.push(msg));
+    expect(warnings.length).toBe(1);
+    expect(warnings[0]).toMatch(/stream\.mp3/);
+    // Non-data-URL sound is NOT restored (documented lossy behavior).
+    expect(round.sounds?.['stream.mp3']).toBeUndefined();
+  });
+
+  it('does not write notes.txt when there are no URL sounds', async () => {
+    const project = makeProject({ sounds: {} });
+    const bytes = await projectToZip(project);
+    const JSZip = (await import('jszip')).default;
+    const inspect = await JSZip.loadAsync(bytes);
+    expect(inspect.file('notes.txt')).toBeNull();
+  });
+
+  it('does not call onWarning when notes.txt is absent', async () => {
+    const project = makeProject();
+    const bytes = await projectToZip(project);
+    const warnings: string[] = [];
+    await zipToProject(bytes, undefined, (m) => warnings.push(m));
+    expect(warnings).toEqual([]);
+  });
+});
+
 describe('zip — importProjectFromFile', () => {
   it('reads a File and returns the parsed project, defaulting name from filename', async () => {
     const project = makeProject({ name: 'OnDisk' });

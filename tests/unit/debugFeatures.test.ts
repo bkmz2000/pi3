@@ -102,6 +102,36 @@ describe("DBG-2 — Watch panel", () => {
   });
 });
 
+// ── debug_frame ring buffer ─────────────────────────────────────────────────
+
+describe("debug_frame — buffer cap", () => {
+  it("appends debug_frame events to debugFrames", () => {
+    useRunnerStore.getState()._onMessage({
+      type: "debug_frame",
+      frame: { index: 0, slots: [] },
+    } as unknown as import("../../src/runner/WorkerInterface").WorkerEvent);
+    useRunnerStore.getState()._onMessage({
+      type: "debug_frame",
+      frame: { index: 1, slots: [] },
+    } as unknown as import("../../src/runner/WorkerInterface").WorkerEvent);
+    expect(useRunnerStore.getState().debugFrames).toHaveLength(2);
+  });
+
+  it("caps debugFrames at 500 frames — oldest frames evicted", () => {
+    for (let i = 0; i < 520; i++) {
+      useRunnerStore.getState()._onMessage({
+        type: "debug_frame",
+        frame: { index: i, slots: [] },
+      } as unknown as import("../../src/runner/WorkerInterface").WorkerEvent);
+    }
+    const frames = useRunnerStore.getState().debugFrames;
+    expect(frames).toHaveLength(500);
+    // First surviving frame should be index 20 (evicted 0..19)
+    expect((frames[0] as { index: number }).index).toBe(20);
+    expect((frames[499] as { index: number }).index).toBe(519);
+  });
+});
+
 // ── DBG-3: Pause / step / speed ──────────────────────────────────────────────
 
 describe("DBG-3 — Pause / step / speed", () => {

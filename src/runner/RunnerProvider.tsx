@@ -76,6 +76,26 @@ type RunnerState = {
   clearScreenshots: () => void;
 };
 
+function replaceIdentifier(source: string, oldName: string, newName: string): string {
+  const isWordChar = (c: string) => /[\w$]/.test(c);
+  let out = '';
+  let i = 0;
+  while (i < source.length) {
+    if (source.startsWith(oldName, i)) {
+      const prev = i > 0 ? source[i - 1] : '';
+      const next = source[i + oldName.length] ?? '';
+      if (!isWordChar(prev) && !isWordChar(next)) {
+        out += newName;
+        i += oldName.length;
+        continue;
+      }
+    }
+    out += source[i];
+    i++;
+  }
+  return out;
+}
+
 export const useRunnerStore = create<RunnerState>((set) => ({
   ready: false,
   running: false,
@@ -269,7 +289,12 @@ export const useRunnerStore = create<RunnerState>((set) => ({
         break;
       }
       case "debug_frame": {
-        set((s) => ({ debugFrames: [...s.debugFrames, msg.frame] }));
+        set((s) => {
+          const MAX_DEBUG_FRAMES = 500;
+          const next = [...s.debugFrames, msg.frame];
+          if (next.length > MAX_DEBUG_FRAMES) next.splice(0, next.length - MAX_DEBUG_FRAMES);
+          return { debugFrames: next };
+        });
         break;
       }
       // Handled by per-request listeners in runGenerator() / runReference() / runChecker()
@@ -297,11 +322,13 @@ export const useRunnerStore = create<RunnerState>((set) => ({
     output: [...s.output, { kind: "error_card", error }],
   })),
   clear: () => {
+    flushNow();
     stopAllSounds();
     useRunnerStore.getState().frameHistory.forEach((f) => URL.revokeObjectURL(f.url));
     set({ output: [], inputPrompt: null, running: false, canvasActive: false, lintErrors: [], canvasWidth: 0, canvasHeight: 0, canvasScale: 1, watches: [], paused: false, speed: 1, frameHistory: [], scrubIndex: null, debugFrames: [], debugScrubIndex: null });
   },
   stop: () => {
+    flushNow();
     stopAllSounds();
     useRunnerStore.getState().frameHistory.forEach((f) => URL.revokeObjectURL(f.url));
     set({ inputPrompt: null, running: false, canvasActive: false, paused: false, frameHistory: [], scrubIndex: null, debugFrames: [], debugScrubIndex: null });
@@ -318,9 +345,7 @@ export const useRunnerStore = create<RunnerState>((set) => ({
   applySuggestion: (token, replacement) => {
     const editor = useEditor.getState();
     const code = editor.project.files[editor.currentFile] ?? "";
-    // Replace first occurrence — word-boundary-aware to avoid partial matches
-    const wordBoundary = new RegExp(`\\b${token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`);
-    const newCode = code.replace(wordBoundary, replacement);
+    const newCode = replaceIdentifier(code, token, replacement);
     if (newCode !== code) {
       editor.changeFile(editor.currentFile, newCode);
     }
@@ -384,11 +409,52 @@ let interruptBuffer: Uint8Array | null = null;
 // Output batching — accumulate lines and flush on animation frame
 let outputQueue: { kind: "stdout" | "stderr"; text: string }[] = [];
 let flushHandle: number | null = null;
+let lastFlushTime = 0;
+
+// compete guard — when a compete runOnce is in flight, the shared onmessage
+// handler must not mutate the IDE store (D5).
+let competeRunActive = false;
+
+function flushNow() {
+  if (flushHandle !== null) {
+    cancelAnimationFrame(flushHandle);
+    flushHandle = null;
+  }
+  if (!outputQueue.length) return;
+
+  const stdoutLines = outputQueue
+    .filter((l) => l.kind === "stdout")
+    .map((l) => l.text);
+  const stderrLines = outputQueue
+    .filter((l) => l.kind === "stderr")
+    .map((l) => l.text);
+  outputQueue = [];
+
+  const store = useRunnerStore.getState();
+  if (stdoutLines.length)
+    store._appendOutput("stdout", stdoutLines.join("\n"));
+  if (stderrLines.length)
+    store._appendOutput("stderr", stderrLines.join("\n"));
+}
 
 function scheduleFlush() {
   if (flushHandle !== null) return;
+
+  // Detect RAF throttling: when the tab is hidden, RAF may be heavily
+  // throttled or paused. Fall back to setTimeout so output still arrives.
+  const now = Date.now();
+  const rafThrottled =
+    (typeof document !== "undefined" && document.visibilityState === "hidden") ||
+    (lastFlushTime > 0 && now - lastFlushTime > 100);
+
+  if (rafThrottled) {
+    flushNow();
+    return;
+  }
+
   flushHandle = requestAnimationFrame(() => {
     flushHandle = null;
+    lastFlushTime = Date.now();
     if (!outputQueue.length) return;
 
     const stdoutLines = outputQueue
@@ -422,6 +488,7 @@ function initInterruptBuffer(w: Worker) {
 }
 
 function hardKillWorker() {
+  flushNow();
   worker?.terminate();
   worker = null;
   canvasTransferred = false;
@@ -441,6 +508,13 @@ export function getWorker(): Worker {
 
   worker.onmessage = (e: MessageEvent<WorkerEvent>) => {
     const msg = e.data;
+    // When a compete runOnce is active, suppress store mutations (D5).
+    if (competeRunActive &&
+        (msg.type === "stdout" || msg.type === "stderr" ||
+         msg.type === "result" || msg.type === "runtime_error" ||
+         msg.type === "start")) {
+      return;
+    }
     // Intercept output messages and batch them instead of dispatching immediately
     if (msg.type === "stdout" || msg.type === "stderr") {
       outputQueue.push({ kind: msg.type, text: msg.text });
@@ -544,9 +618,13 @@ export function runOnce(
     let tleFired = false;
     let runtimeError = false;
 
+    // Guard the shared store against events from this compete run (D5).
+    competeRunActive = true;
+
     const finish = () => {
       if (settled) return;
       settled = true;
+      competeRunActive = false;
       w.removeEventListener("message", handler);
       clearTimeout(tleTimer);
       resolve({ stdout: stdoutChunks.join(""), runtimeError, tle: tleFired });
@@ -580,9 +658,6 @@ export function runOnce(
 
     // Defensive: zero interrupt buffer before each test
     if (interruptBuffer) interruptBuffer[0] = 0;
-    outputQueue = [];
-    useRunnerStore.getState().clear();
-    useRunnerStore.getState().setRunning(true);
 
     const injected =
       `import io as _pi3_io\n` +

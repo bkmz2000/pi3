@@ -162,6 +162,8 @@ export default function SheetEditor({ onClose, initialSprite }: { onClose: () =>
   const pendingScrollAdjust = useRef<{ left: number; top: number } | null>(null);
 
   const undoHistRef = useRef(makeUndoStack());
+  // Reset undo history on every editor open (mount)
+  useEffect(() => { undoHistRef.current = makeUndoStack(); }, []);
   const clipboardRef = useRef<{ pixels: Uint8ClampedArray; w: number; h: number } | null>(null);
   const renderCanvasRef = useRef<() => void>(() => {});
   const imageDataRef = useRef<ImageData | null>(null);

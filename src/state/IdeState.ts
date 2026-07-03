@@ -226,6 +226,7 @@ export const useIde = create<IdeState>((set, get) => ({
       // If offline, queue the save for later sync
       if (!isOnline()) {
         await projectStorage.queueSave({ id: currentProjectId, ...content, savedAt: Date.now() });
+        useEditor.getState().incrementQueuedSaves();
         set({ saveError: { kind: "network", message: "Offline — saved locally, will sync when online" } });
         return true;
       }
@@ -267,12 +268,13 @@ export const useIde = create<IdeState>((set, get) => ({
           : errorMessage;
         if (kind === "network") {
           await projectStorage.queueSave({ id: currentProjectId, ...content, savedAt: Date.now() });
+          useEditor.getState().incrementQueuedSaves();
         }
         if (kind === "auth") {
           // Not logged in — persist locally so work is never lost.
           // IndexedDB cache was written above; also write to anonymous stash.
           writeAnonStash({
-            exampleName: currentProjectId,
+            exampleName: `__anon_real_project__${currentProjectId}`,
             project,
           });
         }
@@ -303,6 +305,7 @@ export const useIde = create<IdeState>((set, get) => ({
           currentFile: q.content.currentFile,
         });
         await projectStorage.removeQueuedSave(q.id);
+        useEditor.getState().decrementQueuedSaves();
       } catch (err) {
         // If still failing (e.g. offline), stop trying
         if (!isOnline() || (err instanceof Error && err.message === "Unauthorized")) break;
@@ -382,7 +385,9 @@ export const useIde = create<IdeState>((set, get) => ({
   },
 
   importProjectFromFile: async (file: File) => {
-    const importedProject = await importZipFile(file);
+    const importedProject = await importZipFile(file, undefined, (msg) => {
+      console.warn('ZIP import warning:', msg);
+    });
 
     const files: Record<string, string> = {};
     importedProject.files.forEach((f) => {

@@ -6,7 +6,7 @@ function snapshot(pixels: Uint8ClampedArray, sprites: SheetSprites): UndoEntry {
   return { pixels: new Uint8ClampedArray(pixels), sprites: structuredClone(sprites) };
 }
 
-export function makeUndoStack(limit = 50) {
+export function makeUndoStack(limit = 20) {
   const undo: UndoEntry[] = [];
   const redo: UndoEntry[] = [];
 

@@ -9,6 +9,7 @@ type EditorState = {
   project: Project;
   currentProjectId: string | null;
   dirtyFiles: Set<string>;
+  queuedSaveCount: number;
 
   changeCurrentFile: (name: string) => void;
   changeCurrentProject: (project: Project, projectId?: string) => void;
@@ -26,6 +27,8 @@ type EditorState = {
   removeSound: (name: string) => void;
   setSheet: (data: SheetData) => void;
   markClean: (keys?: Iterable<string>) => void;
+  incrementQueuedSaves: () => void;
+  decrementQueuedSaves: () => void;
 };
 
 function ensureSessionId(s: EditorState): { currentProjectId: string } | Record<string, never> {
@@ -40,6 +43,7 @@ export const useEditor = create<EditorState>((set) => ({
   currentProjectId: null,
 
   dirtyFiles: new Set(),
+  queuedSaveCount: 0,
 
   changeFile: (name, text) =>
     set((s) => {
@@ -229,4 +233,7 @@ export const useEditor = create<EditorState>((set) => ({
     for (const k of keys) next.delete(k);
     return { dirtyFiles: next };
   }),
+
+  incrementQueuedSaves: () => set((s) => ({ queuedSaveCount: s.queuedSaveCount + 1 })),
+  decrementQueuedSaves: () => set((s) => ({ queuedSaveCount: Math.max(0, s.queuedSaveCount - 1) })),
 }));

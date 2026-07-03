@@ -8,6 +8,8 @@ import rehypeKatex from "rehype-katex";
 import { useThemeStore } from "../state/useTheme";
 import { useRunner, useRunnerStore, runOnce } from "../runner/RunnerProvider";
 import { Icon } from "../components/Icons";
+import { SafeLink } from "../components/SafeLink";
+import { useToasts } from "../state/useToasts";
 import Rail from "../SideMenu";
 import CompeteLeft from "./CompeteLeft";
 import { runSubmit } from "./submitRunner";
@@ -103,6 +105,7 @@ function ProgressBar({ progress }: { progress: SubmitProgress }) {
 export default function CompetePage() {
   const { slug } = useParams<{ slug: string }>();
   const { t } = useTranslation();
+  const { show: showToast } = useToasts();
   const theme = useThemeStore((s) => s.theme);
 
   const [problem, setProblem] = useState<Problem | null>(null);
@@ -129,8 +132,10 @@ export default function CompetePage() {
           setCode(data.starter_code ?? '');
         }
       })
-      .catch(() => {});
-  }, [slug]);
+      .catch(() => {
+        showToast(t('compete.loadError'), 'error');
+      });
+  }, [slug, showToast, t]);
 
   // ── Visible test runner ────────────────────────────────────────────────────
 
@@ -295,7 +300,7 @@ export default function CompetePage() {
             fontFamily: theme.fontUI, fontSize: 14, color: theme.panelTxt,
             lineHeight: 1.7,
           }}>
-            <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>
+            <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]} components={{ a: SafeLink }}>
               {problem.statement}
             </ReactMarkdown>
 

@@ -223,7 +223,8 @@ router.get('/callback', authOauthLimiter, async (req: Request, res: Response): P
     // scope/mapper misconfig visible in prod logs without dumping PII.
     console.log('[auth/callback] userinfo keys:', Object.keys(userinfoJson as object));
     console.log('[auth/callback] id_token keys:', Object.keys(idTokenClaims));
-    console.log('[auth/callback] id_token scope claim:', (idTokenClaims as Record<string, unknown>).scope);
+    console.log('[auth/callback] groups (userinfo):', (userinfoJson as Record<string, unknown>).groups);
+    console.log('[auth/callback] groups (id_token):', idTokenClaims.groups);
     const user = authAdapter.parseUserinfo(userinfoJson, idTokenClaims);
     providerId = user.providerId;
     userName   = user.name;

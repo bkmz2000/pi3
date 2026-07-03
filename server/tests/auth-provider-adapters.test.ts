@@ -220,4 +220,38 @@ describe('keycloakAdapter.parseUserinfo', () => {
     );
     expect(user.role).toBe('teacher');
   });
+
+  it('maps teacher via group membership when KEYCLOAK_TEACHER_GROUP set', () => {
+    process.env.KEYCLOAK_TEACHER_GROUP = 'teachers';
+    try {
+      const user = keycloakAdapter.parseUserinfo({
+        sub: 'kc-user-10',
+        groups: ['/platform/teachers', '/other/users'],
+      });
+      expect(user.role).toBe('teacher');
+    } finally {
+      delete process.env.KEYCLOAK_TEACHER_GROUP;
+    }
+  });
+
+  it('ignores group membership when KEYCLOAK_TEACHER_GROUP is unset', () => {
+    const user = keycloakAdapter.parseUserinfo({
+      sub: 'kc-user-11',
+      groups: ['/platform/teachers'],
+    });
+    expect(user.role).toBe('student');
+  });
+
+  it('reads groups from id_token when userinfo has none', () => {
+    process.env.KEYCLOAK_TEACHER_GROUP = 'teachers';
+    try {
+      const user = keycloakAdapter.parseUserinfo(
+        { sub: 'kc-user-12' },
+        { groups: ['/platform/teachers'] },
+      );
+      expect(user.role).toBe('teacher');
+    } finally {
+      delete process.env.KEYCLOAK_TEACHER_GROUP;
+    }
+  });
 });

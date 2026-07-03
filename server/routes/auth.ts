@@ -218,14 +218,7 @@ router.get('/callback', authOauthLimiter, async (req: Request, res: Response): P
       res.redirect('/?auth_error=userinfo');
       return;
     }
-    const userinfoJson = await userinfoRes.json();
-    // Diagnostic: log role-relevant claim shape from both sources to make KC
-    // scope/mapper misconfig visible in prod logs without dumping PII.
-    console.log('[auth/callback] userinfo keys:', Object.keys(userinfoJson as object));
-    console.log('[auth/callback] id_token keys:', Object.keys(idTokenClaims));
-    console.log('[auth/callback] groups (userinfo):', (userinfoJson as Record<string, unknown>).groups);
-    console.log('[auth/callback] groups (id_token):', idTokenClaims.groups);
-    const user = authAdapter.parseUserinfo(userinfoJson, idTokenClaims);
+    const user = authAdapter.parseUserinfo(await userinfoRes.json(), idTokenClaims);
     providerId = user.providerId;
     userName   = user.name;
     userEmail  = user.email;

@@ -15,6 +15,17 @@ function isTeacherRole(roles: string[], teacherRole: string): boolean {
   return roles.includes(teacherRole);
 }
 
+// Groups arrive as full paths ("/platform/teachers"); match by exact tail
+// segment so callers just configure the leaf name (e.g. "teachers").
+function isInTeacherGroup(groups: string[], teacherGroup: string): boolean {
+  if (!teacherGroup) return false;
+  return groups.some(g => {
+    if (typeof g !== 'string') return false;
+    const leaf = g.replace(/^\/+/, '').split('/').pop() || '';
+    return leaf === teacherGroup || g === teacherGroup;
+  });
+}
+
 export const keycloakAdapter: AuthAdapter = {
   name: 'keycloak',
   get clientId()     { return process.env.KEYCLOAK_CLIENT_ID     || ''; },
@@ -76,12 +87,27 @@ export const keycloakAdapter: AuthAdapter = {
     };
     const roles = readRoles(payload).length > 0 ? readRoles(payload) : readRoles(idTokenClaims);
 
+    // Groups: some realms model teacher status as group membership instead of
+    // realm roles. Adapter accepts either via KEYCLOAK_TEACHER_GROUP.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const readGroups = (src: any): string[] => {
+      if (!src || typeof src !== 'object') return [];
+      if (Array.isArray(src.groups)) {
+        return (src.groups as unknown[]).filter((g): g is string => typeof g === 'string');
+      }
+      return [];
+    };
+    const groups = readGroups(payload).length > 0 ? readGroups(payload) : readGroups(idTokenClaims);
+
     const teacherRole = process.env.KEYCLOAK_TEACHER_ROLE || 'teacher';
+    const teacherGroup = process.env.KEYCLOAK_TEACHER_GROUP || '';
+    const isTeacher = isTeacherRole(roles, teacherRole) || isInTeacherGroup(groups, teacherGroup);
+
     return {
       providerId: payload.sub as string,
       email: email || undefined,
       name,
-      role: isTeacherRole(roles, teacherRole) ? 'teacher' : 'student',
+      role: isTeacher ? 'teacher' : 'student',
     };
   },
 };

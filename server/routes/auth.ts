@@ -221,15 +221,9 @@ router.get('/callback', authOauthLimiter, async (req: Request, res: Response): P
     const userinfoJson = await userinfoRes.json();
     // Diagnostic: log role-relevant claim shape from both sources to make KC
     // scope/mapper misconfig visible in prod logs without dumping PII.
-    console.log('[auth/callback] role-claims userinfo:', {
-      hasRoles: Array.isArray((userinfoJson as Record<string, unknown>)?.roles),
-      hasRealmAccess: !!(userinfoJson as Record<string, unknown>)?.realm_access,
-      realmAccessRoles: ((userinfoJson as Record<string, unknown>)?.realm_access as Record<string, unknown> | undefined)?.roles,
-    }, 'id_token:', {
-      hasRoles: Array.isArray(idTokenClaims.roles),
-      hasRealmAccess: !!idTokenClaims.realm_access,
-      realmAccessRoles: (idTokenClaims.realm_access as Record<string, unknown> | undefined)?.roles,
-    });
+    console.log('[auth/callback] userinfo keys:', Object.keys(userinfoJson as object));
+    console.log('[auth/callback] id_token keys:', Object.keys(idTokenClaims));
+    console.log('[auth/callback] id_token scope claim:', (idTokenClaims as Record<string, unknown>).scope);
     const user = authAdapter.parseUserinfo(userinfoJson, idTokenClaims);
     providerId = user.providerId;
     userName   = user.name;

@@ -11,9 +11,18 @@ importers:
       '@codemirror/lang-python':
         specifier: ^6.2.1
         version: 6.2.1
+      '@codemirror/language':
+        specifier: ^6.12.4
+        version: 6.12.4
       '@codemirror/lint':
-        specifier: ^6.9.6
+        specifier: ^6.9.7
         version: 6.9.7
+      '@codemirror/state':
+        specifier: ^6.7.0
+        version: 6.7.0
+      '@codemirror/view':
+        specifier: ^6.43.4
+        version: 6.43.4
       '@libsql/client':
         specifier: ^0.17.4
         version: 0.17.4

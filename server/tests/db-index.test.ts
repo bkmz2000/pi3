@@ -41,7 +41,7 @@ describe('server/db/index', () => {
     db.close();
   });
 
-  it('initDb is idempotent (re-running swallows already-exists errors)', async () => {
+  it('initDb is idempotent (re-running is safe via schema_migrations tracking)', async () => {
     const db = new Database(':memory:');
     db.pragma('foreign_keys = ON');
     const client = createSqliteClient(db);

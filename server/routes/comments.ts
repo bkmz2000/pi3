@@ -4,6 +4,7 @@ import { getClient } from '../db/index.js';
 import { first } from '../db/client.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { getProjectAccess, hasRole } from '../middleware/projectAuth.js';
+import { sanitizeText, InputTooLongError } from '../utils/sanitize.js';
 
 interface CommentRow {
   id: string;
@@ -64,9 +65,14 @@ export function createProjectCommentsRouter(): Router {
 
   router.post('/', async (req: Request, res: Response): Promise<void> => {
     const projectId = req.params['id'] as string;
+    const client = getClient();
     const access = await getProjectAccess(projectId, req.user!.id);
+
+    const isOwner = access.role === 'owner';
     const hasShare = access.role === 'editor' || access.role === 'viewer';
-    if (!hasShare || !await isTeacher(req.user!.id)) {
+    const canComment = isOwner || (hasShare && await isTeacher(req.user!.id));
+
+    if (!canComment) {
       res.status(403).json({ error: 'Forbidden', message: 'Only teachers with share access can add comments' });
       return;
     }
@@ -83,13 +89,28 @@ export function createProjectCommentsRouter(): Router {
       res.status(400).json({ error: 'Bad Request', message: 'text is required' });
       return;
     }
-    const client = getClient();
+
+    let safeText: string;
+    try {
+      safeText = sanitizeText(text, { maxLen: 10000, field: 'text' });
+    } catch (err) {
+      if (err instanceof InputTooLongError) {
+        res.status(400).json({ error: 'Bad Request', message: err.message });
+        return;
+      }
+      throw err;
+    }
+    if (!safeText) {
+      res.status(400).json({ error: 'Bad Request', message: 'text is required' });
+      return;
+    }
+
     const now = Date.now();
     const id = uuidv4();
     await client.execute(
       `INSERT INTO comments (id, project_id, file_path, line_number, anchor_text, text, author_id, created_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [id, projectId, file_path, line_number, anchor_text ?? '', text.trim(), req.user!.id, now],
+      [id, projectId, file_path, line_number, anchor_text ?? '', safeText, req.user!.id, now],
     );
     const row = (await client.execute(
       `SELECT c.*, u.name as author_name, u.handle as author_handle

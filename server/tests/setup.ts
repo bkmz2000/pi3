@@ -38,6 +38,7 @@ export function createTestDb(): Database.Database {
       current_file TEXT NOT NULL DEFAULT 'main.py',
       thumbnail BLOB,
       thumbnail_updated_at INTEGER,
+      version INTEGER NOT NULL DEFAULT 1,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL,
       FOREIGN KEY (user_id) REFERENCES users(id)

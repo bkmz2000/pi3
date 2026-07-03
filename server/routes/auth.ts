@@ -1,9 +1,10 @@
 import { Router, Request, Response } from 'express';
-import { randomBytes, createHmac, timingSafeEqual } from 'crypto';
+import { randomBytes, createHmac, timingSafeEqual, createHash } from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import { getClient } from '../db/index.js';
 import { assignHandle } from '../db/handle.js';
 import { authMiddleware, regenerateSession } from '../middleware/auth.js';
+import { authOauthLimiter } from '../middleware/rateLimit.js';
 import { authAdapter, AuthProviderError } from '../auth-providers/index.js';
 
 const router = Router();
@@ -35,31 +36,59 @@ function verifyState(cookie: string, urlState: string): boolean {
   return timingSafeEqual(sigBuf, expBuf) && state === urlState;
 }
 
+function verifyNonce(cookie: string, idTokenNonce: string): boolean {
+  const dot = cookie.lastIndexOf('.');
+  if (dot === -1) return false;
+  const nonce = cookie.slice(0, dot);
+  const sig = cookie.slice(dot + 1);
+  const expected = createHmac('sha256', STATE_SECRET).update(nonce).digest('hex');
+  const sigBuf = Buffer.from(sig, 'hex');
+  const expBuf = Buffer.from(expected, 'hex');
+  if (sigBuf.length !== expBuf.length) return false;
+  return timingSafeEqual(sigBuf, expBuf) && nonce === idTokenNonce;
+}
+
+function verifyPkce(cookie: string): string | null {
+  const dot = cookie.lastIndexOf('.');
+  if (dot === -1) return null;
+  const verifier = cookie.slice(0, dot);
+  const sig = cookie.slice(dot + 1);
+  const expected = createHmac('sha256', STATE_SECRET).update(verifier).digest('hex');
+  const sigBuf = Buffer.from(sig, 'hex');
+  const expBuf = Buffer.from(expected, 'hex');
+  if (sigBuf.length !== expBuf.length) return null;
+  if (!timingSafeEqual(sigBuf, expBuf)) return null;
+  return verifier;
+}
+
 // GET /api/auth/login
-router.get('/login', (req: Request, res: Response): void => {
+router.get('/login', authOauthLimiter, (req: Request, res: Response): void => {
   const state = randomBytes(16).toString('hex');
   const nonce = randomBytes(16).toString('hex');
 
   const rawReturnUrl = typeof req.query.return_url === 'string' ? req.query.return_url : undefined;
   const returnUrl = rawReturnUrl && isSafeReturnUrl(rawReturnUrl) ? rawReturnUrl : '/';
 
-  res.cookie('oauth_state', signState(state), {
+  const cookieOpts = {
     httpOnly: true,
     secure: IS_PROD,
-    sameSite: 'lax',
+    sameSite: 'lax' as const,
     maxAge: 10 * 60 * 1000,
     path: '/',
-  });
+  };
+
+  res.cookie('oauth_state', signState(state), cookieOpts);
+
+  res.cookie('oauth_nonce', signState(nonce), cookieOpts);
 
   if (returnUrl !== '/') {
-    res.cookie('oauth_return', returnUrl, {
-      httpOnly: true,
-      secure: IS_PROD,
-      sameSite: 'lax',
-      maxAge: 10 * 60 * 1000,
-      path: '/',
-    });
+    res.cookie('oauth_return', returnUrl, cookieOpts);
   }
+
+  // PKCE: generate code_verifier and code_challenge
+  const codeVerifier = randomBytes(32).toString('base64url');
+  const codeChallenge = createHash('sha256').update(codeVerifier).digest('base64url');
+  res.cookie('oauth_pkce', signState(codeVerifier), cookieOpts);
 
   const params = new URLSearchParams({
     client_id: authAdapter.clientId,
@@ -68,13 +97,15 @@ router.get('/login', (req: Request, res: Response): void => {
     scope: 'openid email profile',
     state,
     nonce,
+    code_challenge: codeChallenge,
+    code_challenge_method: 'S256',
   });
 
   res.redirect(`${authAdapter.authorizationUrl}?${params}`);
 });
 
 // GET /api/auth/callback
-router.get('/callback', async (req: Request, res: Response): Promise<void> => {
+router.get('/callback', authOauthLimiter, async (req: Request, res: Response): Promise<void> => {
   const { code, state, error } = req.query;
 
   if (error) {
@@ -92,8 +123,22 @@ router.get('/callback', async (req: Request, res: Response): Promise<void> => {
   res.clearCookie('oauth_state', { path: '/' });
 
   if (!stateCookie || !verifyState(stateCookie, state)) {
-    console.error('[auth/callback] state mismatch — cookie:', stateCookie, 'url state:', state);
+    console.error('[auth/callback] state mismatch');
     res.redirect('/?auth_error=state');
+    return;
+  }
+
+  // Nonce cookie — read and clear
+  const nonceCookie = req.cookies?.oauth_nonce;
+  res.clearCookie('oauth_nonce', { path: '/' });
+
+  // PKCE cookie — read, clear, and verify
+  const pkceCookie = req.cookies?.oauth_pkce;
+  res.clearCookie('oauth_pkce', { path: '/' });
+  const codeVerifier = pkceCookie ? verifyPkce(pkceCookie) : null;
+  if (!codeVerifier) {
+    console.error('[auth/callback] pkce verification failed');
+    res.redirect('/?auth_error=pkce');
     return;
   }
 
@@ -113,10 +158,11 @@ router.get('/callback', async (req: Request, res: Response): Promise<void> => {
         client_id: authAdapter.clientId,
         client_secret: authAdapter.clientSecret,
         redirect_uri: REDIRECT_URI,
+        code_verifier: codeVerifier,
       }),
     });
     if (!tokenRes.ok) {
-      console.error('Token exchange failed:', await tokenRes.text());
+      console.error('Token exchange failed:', tokenRes.status);
       res.redirect('/?auth_error=token');
       return;
     }
@@ -134,6 +180,31 @@ router.get('/callback', async (req: Request, res: Response): Promise<void> => {
     return;
   }
 
+  // Verify nonce in id_token
+  if (!id_token) {
+    console.error('[auth/callback] missing id_token');
+    res.redirect('/?auth_error=nonce');
+    return;
+  }
+  {
+    let idTokenNonce: string | undefined;
+    try {
+      const parts = id_token.split('.');
+      if (parts.length !== 3) throw new Error('invalid id_token format');
+      const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
+      idTokenNonce = payload.nonce;
+    } catch {
+      console.error('[auth/callback] failed to decode id_token');
+      res.redirect('/?auth_error=nonce');
+      return;
+    }
+    if (!idTokenNonce || !nonceCookie || !verifyNonce(nonceCookie, idTokenNonce)) {
+      console.error('[auth/callback] nonce mismatch');
+      res.redirect('/?auth_error=nonce');
+      return;
+    }
+  }
+
   let providerId: string;
   let userName: string;
   let userEmail: string | undefined;
@@ -143,7 +214,7 @@ router.get('/callback', async (req: Request, res: Response): Promise<void> => {
       headers: { Authorization: `Bearer ${access_token}` },
     });
     if (!userinfoRes.ok) {
-      console.error('Userinfo fetch failed:', await userinfoRes.text());
+      console.error('Userinfo fetch failed:', userinfoRes.status);
       res.redirect('/?auth_error=userinfo');
       return;
     }

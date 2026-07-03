@@ -18,6 +18,7 @@ export const loginusAdapter: AuthAdapter = {
   get userinfoUrl()      { return `${DOMAIN}/api/v2/oauth/userinfo`; },
   // Loginus end_session is not reliably configured; local-only logout is used.
   endSessionUrl: undefined,
+  scopes: 'openid email profile',
 
   parseTokenResponse(raw: unknown) {
     const payload = unwrap(raw);

@@ -94,7 +94,7 @@ router.get('/login', authOauthLimiter, (req: Request, res: Response): void => {
     client_id: authAdapter.clientId,
     redirect_uri: REDIRECT_URI,
     response_type: 'code',
-    scope: 'openid email profile',
+    scope: authAdapter.scopes,
     state,
     nonce,
     code_challenge: codeChallenge,
@@ -218,7 +218,19 @@ router.get('/callback', authOauthLimiter, async (req: Request, res: Response): P
       res.redirect('/?auth_error=userinfo');
       return;
     }
-    const user = authAdapter.parseUserinfo(await userinfoRes.json(), idTokenClaims);
+    const userinfoJson = await userinfoRes.json();
+    // Diagnostic: log role-relevant claim shape from both sources to make KC
+    // scope/mapper misconfig visible in prod logs without dumping PII.
+    console.log('[auth/callback] role-claims userinfo:', {
+      hasRoles: Array.isArray((userinfoJson as Record<string, unknown>)?.roles),
+      hasRealmAccess: !!(userinfoJson as Record<string, unknown>)?.realm_access,
+      realmAccessRoles: ((userinfoJson as Record<string, unknown>)?.realm_access as Record<string, unknown> | undefined)?.roles,
+    }, 'id_token:', {
+      hasRoles: Array.isArray(idTokenClaims.roles),
+      hasRealmAccess: !!idTokenClaims.realm_access,
+      realmAccessRoles: (idTokenClaims.realm_access as Record<string, unknown> | undefined)?.roles,
+    });
+    const user = authAdapter.parseUserinfo(userinfoJson, idTokenClaims);
     providerId = user.providerId;
     userName   = user.name;
     userEmail  = user.email;

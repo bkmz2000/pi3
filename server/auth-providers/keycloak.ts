@@ -23,6 +23,7 @@ export const keycloakAdapter: AuthAdapter = {
   get tokenUrl()         { return `${realmBase()}/token`; },
   get userinfoUrl()      { return `${realmBase()}/userinfo`; },
   get endSessionUrl()    { return `${realmBase()}/logout`; },
+  scopes: 'openid email profile roles',
 
   parseTokenResponse(raw: unknown) {
     // Keycloak returns standard OIDC — no envelope wrapper.

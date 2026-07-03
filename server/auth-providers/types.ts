@@ -13,6 +13,10 @@ export interface AuthAdapter {
   readonly tokenUrl: string;
   readonly userinfoUrl: string;
   readonly endSessionUrl?: string;
+  // OAuth scopes to request. Provider-specific because e.g. Keycloak needs
+  // `roles` to receive realm_access.roles in tokens, while Loginus doesn't
+  // recognize that scope and would reject it with invalid_scope.
+  readonly scopes: string;
   parseTokenResponse(raw: unknown): { access_token: string; id_token?: string };
   // idTokenClaims: decoded id_token JWT payload. Adapters MAY use it as an
   // additional source (e.g. Keycloak emits realm roles in id_token by default

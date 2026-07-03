@@ -204,6 +204,8 @@ async function initPyodide(
 
   // _ide_notify_loop_ended: called from _tick when the game loop exits normally (stop requested)
   p.globals.set("_ide_notify_loop_ended", () => {
+    // A3: drain buffered stdout/stderr so a trailing `print("x", end="")` doesn't vanish.
+    try { p.runPython("import sys; sys.stdout.flush(); sys.stderr.flush()"); } catch { /* ignore */ }
     post({ type: "result" });
   });
 
@@ -256,6 +258,8 @@ class _Writer:
         self._buf = ""
     def write(self, s):
         self._buf += s
+        # A3: flush on newline OR at soft boundaries; also expose flush() so
+        # _ide_notify_loop_ended / post-runScript teardown can drain the tail.
         if "\\n" in s:
             _ide_post_output(self._kind, self._buf)
             self._buf = ""
@@ -349,10 +353,14 @@ function handleExecutionError(err: unknown, p: PyodideInterface) {
   try {
     const structuredJs = p.globals.get("_last_structured_error");
     if (structuredJs) {
-      const error: RuntimeError = structuredJs.toJs({ dict_converter: Object.fromEntries });
-      p.globals.delete("_last_structured_error");
-      post({ type: "runtime_error", error });
-      return;
+      try {
+        const error: RuntimeError = structuredJs.toJs({ dict_converter: Object.fromEntries });
+        post({ type: "runtime_error", error });
+        return;
+      } finally {
+        // A4: always clear so a toJs() failure doesn't leak the error into the next run.
+        try { p.globals.delete("_last_structured_error"); } catch { /* ignore */ }
+      }
     }
   } catch {
     // hook didn't fire or failed — fall through to JS-side classification
@@ -487,7 +495,8 @@ import json
 # Reset actor state from previous runs
 Actor._registry.clear()
 Actor._id_counter = 0
-graphics._state._loop_generation = graphics._state._loop_generation + 1
+# _loop_generation is bumped once inside graphics._run(); do not increment
+# here or in _reset_run_state (A2).
 graphics._state._show_hitboxes = ${showHitboxes ? "True" : "False"}
 graphics._state._show_actor_info = ${showActorInfo ? "True" : "False"}
 
@@ -649,14 +658,19 @@ except BaseException as _err:
   const structuredJs = p.globals.get("_last_structured_error");
   if (structuredJs) {
     try {
-      const error: RuntimeError = structuredJs.toJs({ dict_converter: Object.fromEntries });
-      p.globals.delete("_last_structured_error");
-      p.globals.set("_using_graphics", false);
-      post({ type: "runtime_error", error });
-      post({ type: "result" });
-      return;
-    } catch {
-      // fall through to raw error
+      try {
+        const error: RuntimeError = structuredJs.toJs({ dict_converter: Object.fromEntries });
+        p.globals.set("_using_graphics", false);
+        post({ type: "runtime_error", error });
+        post({ type: "result" });
+        return;
+      } catch {
+        // fall through to raw error
+      }
+    } finally {
+      // A4: always delete, even if toJs() throws — otherwise the stale error
+      // resurfaces on the next run.
+      try { p.globals.delete("_last_structured_error"); } catch { /* ignore */ }
     }
   }
 
@@ -675,6 +689,8 @@ except Exception:
     pass
 `);
     } catch { /* never crash on debug cleanup */ }
+    // A3: drain trailing stdout/stderr.
+    try { p.runPython("import sys; sys.stdout.flush(); sys.stderr.flush()"); } catch { /* ignore */ }
     post({ type: "result" });
   }
 }
@@ -725,13 +741,17 @@ except SyntaxError as _se:
     const preCheckErr = p.globals.get("_last_structured_error");
     if (preCheckErr) {
       try {
-        const error: RuntimeError = preCheckErr.toJs({ dict_converter: Object.fromEntries });
-        p.globals.delete("_last_structured_error");
-        post({ type: "start", canvasActive: false });
-        post({ type: "runtime_error", error });
-        post({ type: "result" });
-        return;
-      } catch { /* fall through to asyncCode path */ }
+        try {
+          const error: RuntimeError = preCheckErr.toJs({ dict_converter: Object.fromEntries });
+          post({ type: "start", canvasActive: false });
+          post({ type: "runtime_error", error });
+          post({ type: "result" });
+          return;
+        } catch { /* fall through to asyncCode path */ }
+      } finally {
+        // A4: guarantee clear so a subsequent asyncCode path doesn't inherit it.
+        try { p.globals.delete("_last_structured_error"); } catch { /* ignore */ }
+      }
     }
   }
 
@@ -768,14 +788,18 @@ _gs._debug_fresh_slots.clear()
   const structuredJs = p.globals.get("_last_structured_error");
   if (structuredJs) {
     try {
-      const error: RuntimeError = structuredJs.toJs({ dict_converter: Object.fromEntries });
-      p.globals.delete("_last_structured_error");
-      p.globals.set("_using_graphics", false);
-      post({ type: "runtime_error", error });
-      post({ type: "result" });
-      return;
-    } catch {
-      // fall through
+      try {
+        const error: RuntimeError = structuredJs.toJs({ dict_converter: Object.fromEntries });
+        p.globals.set("_using_graphics", false);
+        post({ type: "runtime_error", error });
+        post({ type: "result" });
+        return;
+      } catch {
+        // fall through
+      }
+    } finally {
+      // A4: always delete so failure to convert doesn't poison the next run.
+      try { p.globals.delete("_last_structured_error"); } catch { /* ignore */ }
     }
   }
 
@@ -791,6 +815,8 @@ except Exception:
 `);
   } catch { /* never crash on debug cleanup */ }
 
+  // A3: drain trailing stdout/stderr.
+  try { p.runPython("import sys; sys.stdout.flush(); sys.stderr.flush()"); } catch { /* ignore */ }
   post({ type: "result" });
 }
 
@@ -858,6 +884,8 @@ self.onmessage = async (e: MessageEvent<WorkerCommand>) => {
     }
     rewindArmed = false;
     clearRewindBuf();
+    // A3: drain trailing stdout/stderr so the last print before interrupt survives.
+    try { pyodide.runPython("import sys; sys.stdout.flush(); sys.stderr.flush()"); } catch { /* ignore */ }
     post({ type: "interrupt_ack" });
   } else if (msg.cmd === "pause") {
     if (!pyodide) return;

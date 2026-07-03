@@ -15,6 +15,7 @@ import { createGroupsRouter } from './routes/groups.js';
 import { createHelpRequestsRouter } from './routes/help-requests.js';
 import { createCompeteRouter } from './routes/compete.js';
 import { decompressRequest } from './middleware/decompress.js';
+import { requireCsrfHeader } from './middleware/auth.js';
 
 const PORT = process.env.PORT || 3001;
 const DIST_DIR = process.env.DIST_DIR || join(dirname(fileURLToPath(import.meta.url)), '../dist');
@@ -86,6 +87,8 @@ app.use(session({
     maxAge: 7 * 24 * 60 * 60 * 1000,
   },
 }));
+
+app.use(requireCsrfHeader);
 
 const LOG_SKIP_PREFIXES = ['/assets/', '/pyodide/', '/icons/'];
 const LOG_SKIP_EXACT = new Set([

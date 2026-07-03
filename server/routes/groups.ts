@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { randomBytes } from 'crypto';
 import { getClient } from '../db/index.js';
 import { authMiddleware } from '../middleware/auth.js';
+import { sanitizeText, InputTooLongError } from '../utils/sanitize.js';
 
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 const CODE_LEN = 6;
@@ -143,13 +144,27 @@ export function createGroupsRouter(): Router {
       res.status(400).json({ error: 'Bad Request', message: 'Group name is required' });
       return;
     }
+    let safeName: string;
+    try {
+      safeName = sanitizeText(name, { maxLen: 100, field: 'name' });
+    } catch (err) {
+      if (err instanceof InputTooLongError) {
+        res.status(400).json({ error: 'Bad Request', message: err.message });
+        return;
+      }
+      throw err;
+    }
+    if (!safeName) {
+      res.status(400).json({ error: 'Bad Request', message: 'Group name is required' });
+      return;
+    }
     const client = getClient();
     const now = Date.now();
     const inviteCode = await mintUniqueCode();
     const group: Group = {
       id: uuidv4(),
       teacher_id: req.user!.id,
-      name: name.trim(),
+      name: safeName,
       invite_code: inviteCode,
       archived_at: null,
       created_at: now,
@@ -174,12 +189,22 @@ export function createGroupsRouter(): Router {
     const updates: string[] = [];
     const values: unknown[] = [];
     if (name !== undefined) {
-      if (typeof name !== 'string' || !name.trim()) {
+      let safeName: string;
+      try {
+        safeName = sanitizeText(name, { maxLen: 100, field: 'name' });
+      } catch (err) {
+        if (err instanceof InputTooLongError) {
+          res.status(400).json({ error: 'Bad Request', message: err.message });
+          return;
+        }
+        throw err;
+      }
+      if (!safeName) {
         res.status(400).json({ error: 'Bad Request', message: 'Name must be non-empty' });
         return;
       }
       updates.push('name = ?');
-      values.push(name.trim());
+      values.push(safeName);
     }
     if (archived !== undefined) {
       updates.push('archived_at = ?');

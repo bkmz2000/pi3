@@ -5,6 +5,7 @@ import { authMiddleware } from '../middleware/auth.js';
 import { getProjectAccess, getProjectWithAccess, hasRole } from '../middleware/projectAuth.js';
 import { createSharesRouter } from './shares.js';
 import { createProjectCommentsRouter } from './comments.js';
+import { sanitizeText, InputTooLongError } from '../utils/sanitize.js';
 
 interface Project {
   id: string;
@@ -19,6 +20,7 @@ interface Project {
   sounds: string;
   sheet?: string | null;
   current_file: string;
+  version: number;
   created_at: number;
   updated_at: number;
 }
@@ -26,12 +28,30 @@ interface Project {
 
 export function createProjectsRouter(): Router {
   const router = Router();
+
+  // Public browse — no auth required
+  router.get('/public', async (_req: Request, res: Response): Promise<void> => {
+    const client = getClient();
+    const result = await client.execute(
+      `SELECT p.id, p.name, p.description, p.is_public, p.created_at, p.updated_at,
+              p.version, p.user_id as owner_id,
+              u.name as owner_name, u.handle as owner_handle
+       FROM projects p
+       JOIN users u ON u.id = p.user_id
+       WHERE p.is_public = 1
+       ORDER BY p.updated_at DESC
+       LIMIT 50`,
+    );
+    res.json(result.rows);
+  });
+
   router.use(authMiddleware);
 
   router.get('/', async (req: Request, res: Response): Promise<void> => {
     const client = getClient();
     const result = await client.execute(
       `SELECT DISTINCT p.id, p.name, p.description, p.is_public, p.created_at, p.updated_at,
+             p.version,
              p.thumbnail_updated_at,
              p.user_id as owner_id,
              CASE WHEN p.user_id = ? THEN 'owner'
@@ -52,13 +72,31 @@ export function createProjectsRouter(): Router {
       res.status(400).json({ error: 'Bad Request', message: 'Project name is required' });
       return;
     }
+    let safeName: string;
+    let safeDesc: string | null;
+    try {
+      safeName = sanitizeText(name, { maxLen: 200, field: 'name' });
+      safeDesc = description !== undefined && description !== null
+        ? sanitizeText(description, { maxLen: 2000, field: 'description' }) || null
+        : null;
+    } catch (err) {
+      if (err instanceof InputTooLongError) {
+        res.status(400).json({ error: 'Bad Request', message: err.message });
+        return;
+      }
+      throw err;
+    }
+    if (!safeName) {
+      res.status(400).json({ error: 'Bad Request', message: 'Project name is required' });
+      return;
+    }
     const client = getClient();
     const now = Date.now();
     const project: Project = {
       id: uuidv4(),
       user_id: req.user!.id,
-      name: name.trim(),
-      description: description?.trim() || null,
+      name: safeName,
+      description: safeDesc,
       is_public: 0,
       files: JSON.stringify(files || {}),
       assets: JSON.stringify(assets || {}),
@@ -66,16 +104,17 @@ export function createProjectsRouter(): Router {
       animations: JSON.stringify(animations || {}),
       sounds: JSON.stringify(sounds || {}),
       current_file: currentFile || 'main.py',
+      version: 1,
       created_at: now,
       updated_at: now,
     };
     try {
       await client.execute(
-        `INSERT INTO projects (id, user_id, name, description, is_public, files, assets, tilemaps, animations, sounds, current_file, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO projects (id, user_id, name, description, is_public, files, assets, tilemaps, animations, sounds, current_file, version, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [project.id, project.user_id, project.name, project.description, project.is_public,
          project.files, project.assets, project.tilemaps, project.animations, project.sounds,
-         project.current_file, project.created_at, project.updated_at],
+         project.current_file, project.version, project.created_at, project.updated_at],
       );
       res.status(201).json({
         ...project,
@@ -100,7 +139,7 @@ export function createProjectsRouter(): Router {
     const client = getClient();
     const result = await client.execute(
       `SELECT
-        p.id, p.name, p.description, p.updated_at,
+        p.id, p.name, p.description, p.updated_at, p.version,
         u.id as student_id, u.name as student_name, u.handle as student_handle,
         hr.id as help_request_id, hr.status as help_request_status, hr.created_at as help_request_created_at,
         g.name as group_name
@@ -236,16 +275,36 @@ export function createProjectsRouter(): Router {
     const values: unknown[] = [];
 
     if (name !== undefined) {
-      if (typeof name !== 'string' || name.trim().length === 0) {
+      let safeName: string;
+      try {
+        safeName = sanitizeText(name, { maxLen: 200, field: 'name' });
+      } catch (err) {
+        if (err instanceof InputTooLongError) {
+          res.status(400).json({ error: 'Bad Request', message: err.message });
+          return;
+        }
+        throw err;
+      }
+      if (!safeName) {
         res.status(400).json({ error: 'Bad Request', message: 'Project name must be a non-empty string' });
         return;
       }
       updates.push('name = ?');
-      values.push(name.trim());
+      values.push(safeName);
     }
     if (description !== undefined) {
+      let safeDesc: string | null;
+      try {
+        safeDesc = sanitizeText(description, { maxLen: 2000, field: 'description' }) || null;
+      } catch (err) {
+        if (err instanceof InputTooLongError) {
+          res.status(400).json({ error: 'Bad Request', message: err.message });
+          return;
+        }
+        throw err;
+      }
       updates.push('description = ?');
-      values.push(description?.trim() || null);
+      values.push(safeDesc);
     }
     if (is_public !== undefined && project.role === 'owner') {
       updates.push('is_public = ?');
@@ -312,8 +371,12 @@ export function createProjectsRouter(): Router {
       return;
     }
 
+    // Read If-Match header (expected version) for optimistic concurrency
+    const ifMatchRaw = req.headers['if-match'];
+    const expectedVersion = ifMatchRaw !== undefined ? Number(ifMatchRaw) : undefined;
+
     const now = Date.now();
-    const updates: string[] = ['updated_at = ?'];
+    const updates: string[] = ['updated_at = ?', 'version = version + 1'];
     const values: unknown[] = [now];
 
     if (files !== undefined) { updates.push('files = ?'); values.push(JSON.stringify(files)); }
@@ -324,24 +387,44 @@ export function createProjectsRouter(): Router {
     if (currentFile !== undefined) { updates.push('current_file = ?'); values.push(currentFile); }
     if (sheet !== undefined) { updates.push('sheet = ?'); values.push(sheet === null ? null : JSON.stringify(sheet)); }
 
-    values.push(id);
+    if (expectedVersion !== undefined && Number.isFinite(expectedVersion)) {
+      // Optimistic concurrency: only update if version matches
+      values.push(id);
+      values.push(expectedVersion);
+      const result = await client.execute(
+        `UPDATE projects SET ${updates.join(', ')} WHERE id = ? AND version = ?`,
+        values,
+      );
 
-    try {
+      if (result.rowsAffected === 0) {
+        // Mismatch — fetch current version to report back
+        const current = (await client.execute(
+          'SELECT version FROM projects WHERE id = ?',
+          [id],
+        )).rows[0] as { version: number } | undefined;
+        res.status(409).json({
+          error: 'Conflict',
+          message: 'Project was modified in another tab',
+          current_version: current?.version ?? null,
+        });
+        return;
+      }
+    } else {
+      // No If-Match header — fall back to last-write-wins (still bump version)
+      values.push(id);
       await client.execute(`UPDATE projects SET ${updates.join(', ')} WHERE id = ?`, values);
-      const updated = (await client.execute('SELECT * FROM projects WHERE id = ?', [id])).rows[0] as unknown as Project;
-      res.json({
-        ...updated,
-        files: JSON.parse((updated.files as string) || '{}'),
-        assets: JSON.parse((updated.assets as string) || '{}'),
-        tilemaps: JSON.parse((updated.tilemaps as string) || '{}'),
-        animations: JSON.parse((updated.animations as string) || '{}'),
-        sounds: JSON.parse((updated.sounds as string) || '{}'),
-        sheet: updated.sheet ? JSON.parse(updated.sheet as string) : undefined,
-      });
-    } catch (error) {
-      console.error('Error saving project content:', error);
-      res.status(500).json({ error: 'Internal Server Error', message: 'Failed to save project content' });
     }
+
+    const updated = (await client.execute('SELECT * FROM projects WHERE id = ?', [id])).rows[0] as unknown as Project;
+    res.json({
+      ...updated,
+      files: JSON.parse((updated.files as string) || '{}'),
+      assets: JSON.parse((updated.assets as string) || '{}'),
+      tilemaps: JSON.parse((updated.tilemaps as string) || '{}'),
+      animations: JSON.parse((updated.animations as string) || '{}'),
+      sounds: JSON.parse((updated.sounds as string) || '{}'),
+      sheet: updated.sheet ? JSON.parse(updated.sheet as string) : undefined,
+    });
   });
 
   router.get('/:id/thumbnail', async (req: Request, res: Response): Promise<void> => {

@@ -177,7 +177,12 @@ def _build_error_keys(
     msg = str(exc)
 
     if category == "naming":
+        # A5: fall back to raw name extraction when tokenization failed,
+        # otherwise the error card renders empty (only a title).
         if not token:
+            m = re.search(r"name '([^']+)' is not defined", msg)
+            if m:
+                return ("friendlyError.naming.undefined", {"name": m.group(1)})
             return (None, {})
         args: dict = {"name": token}
         if suggestions and suggestions[0].get("candidates"):
@@ -188,9 +193,8 @@ def _build_error_keys(
             else:
                 args["candidates"] = ", ".join(candidates[:3])
                 return ("friendlyError.naming.undefinedWithCandidates", args)
-        # No suggestions — don't show a friendly "name not recognized" wrapper,
-        # let the raw Python error show instead (message_key=None triggers the fallback).
-        return (None, {})
+        # Fall back to the plain "undefined" key so the card always has text.
+        return ("friendlyError.naming.undefined", args)
 
     if category == "types":
         clean = re.sub(r"<class '(\w+)'>", r"\1", msg)

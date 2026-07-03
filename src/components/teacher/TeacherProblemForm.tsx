@@ -5,6 +5,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
+import { SafeLink } from '../SafeLink';
 import { runGenerator, runReference, runChecker } from '../../runner/RunnerProvider';
 import CodeMirror from '@uiw/react-codemirror';
 import { githubDark, githubLight } from '@uiw/codemirror-theme-github';
@@ -481,7 +482,7 @@ function StudentPreview({
         maxHeight: 540,
         overflowY: 'auto',
       }}>
-        <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>
+        <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]} components={{ a: SafeLink }}>
           {statement || '_No statement yet._'}
         </ReactMarkdown>
 
@@ -764,6 +765,9 @@ export default function TeacherProblemForm() {
 
     try {
       let testsForSave: TestDraft[] = form.tests;
+      // hoisted: generator-derived reference/checker take priority over form values
+      let generatorReferencePy: string | null = null;
+      let generatorCheckerPy: string | null = null;
       const slug = isNew ? form.slug : editSlug!;
 
       // If generator source is present, run it to produce tests
@@ -790,6 +794,8 @@ export default function TeacherProblemForm() {
           // Run reference solution for tests without explicit expected
           const referencePy = parsed.reference_solution_py ?? '';
           const checkerPy = parsed.checker_py ?? '';
+          generatorReferencePy = referencePy || null;
+          generatorCheckerPy = checkerPy || null;
           const completedTests: TestDraft[] = [];
           let sanityChecked = false;
           for (let i = 0; i < parsed.tests.length; i++) {
@@ -847,9 +853,9 @@ export default function TeacherProblemForm() {
         slug,
         tests: testsForSave,
         generator_py: form.generator_py || null,
-        // Preserve existing DB values for problems that already have them; null for new problems.
-        reference_solution_py: form.reference_solution_py || null,
-        checker_py: form.checker_py || null,
+        // Generator-derived values take priority; fall back to form values; else omit
+        reference_solution_py: generatorReferencePy ?? (form.reference_solution_py || null),
+        checker_py: generatorCheckerPy ?? (form.checker_py || null),
       };
       const res = await fetch(url, {
         method,

@@ -77,12 +77,12 @@ describe('Comments — create', () => {
     expect(res.body.line_number).toBe(1);
   });
 
-  it('student (owner) cannot add a comment', async () => {
+  it('student (owner) can add a comment', async () => {
     const res = await request(app)
       .post(`/api/projects/${projectId}/comments`)
       .set(auth(student.api_token))
       .send({ file_path: 'main.py', line_number: 1, anchor_text: '', text: 'Self note' });
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(201);
   });
 
   it('student with viewer share cannot add a comment (not a teacher)', async () => {

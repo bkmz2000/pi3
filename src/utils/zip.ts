@@ -1,5 +1,15 @@
 import JSZip from "jszip";
 
+function isSafeEntryName(name: string): boolean {
+  if (!name || name.length === 0) return false;
+  if (name.startsWith('/') || name.startsWith('\\')) return false;
+  if (name.includes('..')) return false;
+  // Reject entries with control chars or backslashes (Windows-style)
+  // eslint-disable-next-line no-control-regex
+  if (/[\x00-\x1f\\]/.test(name)) return false;
+  return true;
+}
+
 // Local subset of IdeState types to avoid circular imports.
 export type TilemapLayer = {
   name: string;
@@ -145,6 +155,7 @@ export async function projectToZip(project: StoredProject): Promise<Uint8Array> 
   }
 
   // Sounds (URL/data-URL strings)
+  const lostUrls: string[] = [];
   for (const [name, url] of Object.entries(project.sounds || {})) {
     const normalized = SOUNDS_DIR + name;
     if (url.startsWith("data:")) {
@@ -153,7 +164,15 @@ export async function projectToZip(project: StoredProject): Promise<Uint8Array> 
     } else {
       // URL string — store as text reference (sounds don't round-trip perfectly without fetch)
       zip.file(normalized + ".url.txt", textToBytes(url), { createFolders: true });
+      lostUrls.push(name);
     }
+  }
+  // Write notes.txt listing assets that cannot round-trip through ZIP.
+  if (lostUrls.length > 0) {
+    const note = "The following sound assets used external URLs and could not be embedded in this ZIP:\n" +
+      lostUrls.map((n) => `  - ${n}`).join("\n") +
+      "\n\nRe-import this project and re-add those sounds manually if needed.\n";
+    zip.file("notes.txt", textToBytes(note), { createFolders: true });
   }
 
   // Sheet
@@ -172,13 +191,14 @@ export async function projectToZip(project: StoredProject): Promise<Uint8Array> 
 
 export async function zipToProject(
   zipInput: ArrayBuffer | Uint8Array,
-  defaults?: { id?: string; name?: string }
+  defaults?: { id?: string; name?: string },
+  onWarning?: (msg: string) => void
 ): Promise<StoredProject> {
   const zip = await JSZip.loadAsync(zipInput instanceof Uint8Array ? zipInput : new Uint8Array(zipInput));
 
   let manifest: ProjectManifest | null = null;
   const manifestFile = zip.file(MANIFEST);
-  if (manifestFile) {
+  if (manifestFile && isSafeEntryName(MANIFEST)) {
     try {
       const text = await manifestFile.async("string");
       manifest = JSON.parse(text) as ProjectManifest;
@@ -187,12 +207,24 @@ export async function zipToProject(
     }
   }
 
+  // Check for notes.txt
+  const notesFile = zip.file("notes.txt");
+  if (notesFile && isSafeEntryName("notes.txt")) {
+    try {
+      const notesText = await notesFile.async("string");
+      if (notesText.trim() && onWarning) {
+        onWarning(notesText.trim());
+      }
+    } catch { /* ignore unreadable notes */ }
+  }
+
   // Files
   const files: { name: string; content: string }[] = [];
   const fileEntries = Object.values(zip.files).filter(
     (e) => !e.dir && e.name.replace(/\\/g, "/").startsWith(FILES_DIR)
   );
   for (const e of fileEntries) {
+    if (!isSafeEntryName(e.name)) { console.warn('Skipping unsafe zip entry:', e.name); continue; }
     const name = e.name.replace(/\\/g, "/").slice(FILES_DIR.length);
     const content = await e.async("string");
     files.push({ name, content });
@@ -204,6 +236,7 @@ export async function zipToProject(
     (e) => !e.dir && e.name.replace(/\\/g, "/").startsWith(ASSETS_DIR)
   );
   for (const e of assetEntries) {
+    if (!isSafeEntryName(e.name)) { console.warn('Skipping unsafe zip entry:', e.name); continue; }
     const name = e.name.replace(/\\/g, "/").slice(ASSETS_DIR.length);
     const buf = await e.async("uint8array");
     const type = guessMimeByExt(name);
@@ -216,6 +249,7 @@ export async function zipToProject(
     (e) => !e.dir && e.name.replace(/\\/g, "/").startsWith(TILEMAPS_DIR) && e.name.endsWith(".json")
   );
   for (const e of tilemapEntries) {
+    if (!isSafeEntryName(e.name)) { console.warn('Skipping unsafe zip entry:', e.name); continue; }
     const name = e.name.replace(/\\/g, "/").slice(TILEMAPS_DIR.length).replace(/\.json$/, "");
     try {
       const text = await e.async("string");
@@ -229,6 +263,7 @@ export async function zipToProject(
     (e) => !e.dir && e.name.replace(/\\/g, "/").startsWith(SOUNDS_DIR) && !e.name.endsWith(".url.txt")
   );
   for (const e of soundEntries) {
+    if (!isSafeEntryName(e.name)) { console.warn('Skipping unsafe zip entry:', e.name); continue; }
     const name = e.name.replace(/\\/g, "/").slice(SOUNDS_DIR.length);
     const buf = await e.async("uint8array");
     const type = guessMimeByExt(name);
@@ -239,7 +274,7 @@ export async function zipToProject(
   // Sheet
   let sheet: SheetData | undefined;
   const sheetFile = zip.file(SHEET_FILE);
-  if (sheetFile) {
+  if (sheetFile && isSafeEntryName(SHEET_FILE)) {
     try {
       const text = await sheetFile.async("string");
       sheet = JSON.parse(text) as SheetData;
@@ -283,9 +318,9 @@ export async function downloadProjectZip(project: StoredProject, filename?: stri
   URL.revokeObjectURL(url);
 }
 
-export async function importProjectFromFile(file: File, defaults?: { id?: string; name?: string }) {
+export async function importProjectFromFile(file: File, defaults?: { id?: string; name?: string }, onWarning?: (msg: string) => void) {
   const ab = await file.arrayBuffer();
-  return await zipToProject(ab, defaults ?? { name: file.name.replace(/\.zip$/i, "") });
+  return await zipToProject(ab, defaults ?? { name: file.name.replace(/\.zip$/i, "") }, onWarning);
 }
 
 function safeFilename(name: string) {

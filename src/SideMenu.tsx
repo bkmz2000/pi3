@@ -130,9 +130,11 @@ export default function Rail() {
   const [showImportDialog, setShowImportDialog] = useState(false);
   const [alertMsg, setAlertMsg] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState<(() => Promise<void>) | null>(null);
+  const [dirtySnapshot, setDirtySnapshot] = useState<Set<string> | null>(null);
 
   const withUnsavedGuard = (action: () => Promise<void>) => {
     if (dirtyFiles.size > 0) {
+      setDirtySnapshot(new Set(dirtyFiles));
       setPendingAction(() => action);
     } else {
       action();
@@ -148,6 +150,14 @@ export default function Rail() {
   const { user } = useUser();
   const { ready } = useRunner();
   const { running, handleRunToggle } = useRunButton();
+  const [transitioning, setTransitioning] = useState(false);
+
+  // Clear transitioning state once the runner settles (running becomes false).
+  useEffect(() => {
+    if (!running) {
+      setTransitioning(false);
+    }
+  }, [running]);
   const {
     userProjects,
     loading,
@@ -261,8 +271,11 @@ export default function Rail() {
               type="button"
               onClick={async () => {
                 const action = pendingAction;
+                const snapshot = dirtySnapshot;
                 setPendingAction(null);
-                markClean();
+                setDirtySnapshot(null);
+                if (snapshot) markClean(snapshot);
+                else markClean();
                 await action();
               }}
               style={{
@@ -341,21 +354,28 @@ export default function Rail() {
         <div style={{ position: "relative", marginTop: 4, marginBottom: 4 }}>
           <button
             type="button"
-            onClick={(e) => { (e.currentTarget as HTMLButtonElement).blur(); handleRunToggle(); }}
+            onClick={() => {
+              if (running) setTransitioning(true);
+              handleRunToggle();
+            }}
             aria-label={isRunning ? t('sideMenu.stop') : t('sideMenu.run')}
             title={isRunning ? t('sideMenu.stop') : t('sideMenu.run')}
-            disabled={!ready}
+            disabled={!ready || transitioning}
             style={{
               all: "unset",
-              cursor: ready ? "pointer" : "not-allowed",
+              cursor: ready && !transitioning ? "pointer" : "not-allowed",
               width: 44, height: 44, borderRadius: theme.radiusButton,
-              background: isRunning ? theme.stopBg : theme.runBg,
+              background: transitioning ? theme.stopBg : isRunning ? theme.stopBg : theme.runBg,
               color: theme.runTxt,
               display: "flex", alignItems: "center", justifyContent: "center",
-              opacity: ready ? 1 : 0.5,
+              opacity: ready && !transitioning ? 1 : 0.5,
             }}
           >
-            <Icon name={runIcon} size={20} color="currentColor" />
+            {transitioning ? (
+              <Icon name="settings" size={20} color="currentColor" />
+            ) : (
+              <Icon name={runIcon} size={20} color="currentColor" />
+            )}
           </button>
         </div>
 

@@ -77,6 +77,15 @@ check("same-line-one-slot", len(frame["slots"]) == 1,
 check("same-line-last-value", frame["slots"][0]["data"] == [3],
       f"expected [3], got {frame['slots'][0]['data']}")
 
+# ── Test: two distinct calls on the same line → two slots (D7 regression) ─────
+reset()
+_a = [1]; _b = [2]
+debug.array(_a); debug.array(_b)  # two calls, same lineno, different f_lasti
+debug.show()
+frame = _state._debug_frames[-1]
+check("same-line-distinct-calls-two-slots", len(frame["slots"]) == 2,
+      f"expected 2 slots (D7), got {len(frame['slots'])}")
+
 # ── Test: stale marking ───────────────────────────────────────────────────────
 reset()
 debug.array([1, 2, 3])

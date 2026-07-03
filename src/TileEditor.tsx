@@ -98,6 +98,8 @@ export default function TileEditor({ open, initialName, onClose, onSave, onNewSp
   // ── Undo/redo ─────────────────────────────────────────────────────────────
   const [history, setHistory] = useState<UndoEntry[]>([]);
   const [historyIdx, setHistoryIdx] = useState(-1);
+  const historyIdxRef = useRef(historyIdx);
+  useEffect(() => { historyIdxRef.current = historyIdx; }, [historyIdx]);
 
   // ── Sprite images ─────────────────────────────────────────────────────────
   const [spriteImages, setSpriteImages] = useState<Record<string, HTMLImageElement>>({});
@@ -176,22 +178,22 @@ export default function TileEditor({ open, initialName, onClose, onSave, onNewSp
   const commitLayer = useCallback((layerIdx: number, newCells: Record<number, Record<number, string>>) => {
     setLayers(prev => prev.map((l, i) => i === layerIdx ? { ...l, cells: newCells } : l));
     setHistory(prev => {
-      const trimmed = prev.slice(0, historyIdx + 1);
+      const trimmed = prev.slice(0, historyIdxRef.current + 1);
       const entry: UndoEntry = { kind: "layer", layerIdx, cells: newCells };
       return [...trimmed, entry].slice(-100);
     });
     setHistoryIdx(prev => Math.min(prev + 1, 99));
-  }, [historyIdx]);
+  }, []);
 
   const commitArea = useCallback((areaName: string, newCells: AreaCells) => {
     setAreas(prev => ({ ...prev, [areaName]: newCells }));
     setHistory(prev => {
-      const trimmed = prev.slice(0, historyIdx + 1);
+      const trimmed = prev.slice(0, historyIdxRef.current + 1);
       const entry: UndoEntry = { kind: "area", areaName, cells: newCells };
       return [...trimmed, entry].slice(-100);
     });
     setHistoryIdx(prev => Math.min(prev + 1, 99));
-  }, [historyIdx]);
+  }, []);
 
   // Walk history backwards from a given index to find the prior state of the
   // same target — undo restores to the latest matching entry, or empty if none.

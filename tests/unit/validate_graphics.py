@@ -1215,6 +1215,25 @@ test("TilemapLayer no longer has tag method", not hasattr(la, "tag"))
 test("TilemapLayer no longer has all_tiles method", not hasattr(la, "all_tiles"))
 
 
+# --- TileMap.collides_with: multi-tile merge reports top-left cell (regression: A1) ---
+# Prior to the fix, col/row were derived from the merged rect's CENTER, so a 5-tile
+# horizontal wall at cols 3..7 reported col=5. Correct answer: leftmost cell (col=3).
+print("\n=== Runtime: TileMap.collides_with multi-tile cell coord ===")
+reset()
+g._width = 800; g._height = 400
+la4 = g.TilemapLayer("g", 32, {c: {4: "brick"} for c in range(3, 8)}, {})
+wall_cells = [[c, 4] for c in range(3, 8)]
+tm4 = TileMap([la4], {"g": la4}, {"wall": {"cells": wall_cells}})
+# Merged rect: cols 3..7, row 4 → left=96, top=128, width=160, height=32.
+# Hero centered inside the merged rect at world (150, 140) — well inside.
+hero4 = Circle(150, 140, 4)
+hit = tm4.collides_with(hero4, "wall")
+test("collides_with returns a hit for multi-tile wall", hit is not None)
+test("hit.col == 3 (leftmost cell of merged rect)", hit is not None and hit.col == 3)
+test("hit.row == 4 (topmost cell of merged rect)", hit is not None and hit.row == 4)
+test("hit.tile == 'brick' (looked up at top-left cell)", hit is not None and hit.tile == "brick")
+
+
 # --- Actor.future_state ---
 
 print("\n=== Runtime: Actor.future_state ===")

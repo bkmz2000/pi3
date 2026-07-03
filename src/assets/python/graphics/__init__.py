@@ -833,6 +833,9 @@ def _tick(main, my_generation):
         _state._running = False
         return
     except Exception as _exc:
+        # A8: drain any partial draw commands so the next run doesn't inherit them
+        # if the user code catches this exception in main() and continues.
+        _state._draw_commands.clear()
         try:
             import json as _json
             import error_hook as _eh
@@ -981,7 +984,8 @@ def _reset_run_state():
     """Reset state between program runs while maintaining monotonic loop generation."""
     global frame_count
     frame_count = 0
-    _state._loop_generation += 1
+    # A2: _loop_generation is bumped exactly once inside _run(); do NOT bump
+    # here — a triple-increment weakened the stale-tick guard.
     _state._mouse_x = 0
     _state._mouse_y = 0
     _state._mouse_down = False
@@ -1285,11 +1289,16 @@ class TileMap:
         if not hit_rect:
             return None
 
-        # Resolve the grid cell and tile name from the collision rect
+        # Resolve the grid cell and tile name from the collision rect.
+        # hit_rect.x/y are the merged rect's CENTER (Rect draws centered);
+        # convert to top-left before dividing by tile_size so multi-tile
+        # merges report the leftmost/topmost cell they cover.
         primary_layer = self._layers[0]
         tile_size = primary_layer.tile_size
-        col = int(hit_rect.x / tile_size)
-        row = int(hit_rect.y / tile_size)
+        left = hit_rect.x - hit_rect.width / 2
+        top = hit_rect.y - hit_rect.height / 2
+        col = int(left / tile_size)
+        row = int(top / tile_size)
         tile_name = primary_layer.get_tile(col, row)
 
         return TileCollision(hit_rect, area_name, tile_name, col, row)
@@ -1417,6 +1426,15 @@ def _build_areas_namespace(areas: dict, layers: list):
     the first layer's `tile_size` (all layers in a tilemap share size today).
     """
     tile_size = layers[0].tile_size if layers else 32
+    # A9: assert every layer uses the same tile_size — mixed sizes would
+    # silently break the collision geometry derived from layer[0].
+    for _l in layers[1:]:
+        if _l.tile_size != tile_size:
+            raise ValueError(
+                f"TileMap: layer '{_l.name}' tile_size={_l.tile_size} "
+                f"differs from primary layer tile_size={tile_size}. "
+                "All layers must share the same tile size."
+            )
     built = {}
     for name, area in areas.items():
         cells = area.get("cells", []) if isinstance(area, dict) else area

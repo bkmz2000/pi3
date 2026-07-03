@@ -5,6 +5,8 @@ import { getClient } from '../db/index.js';
 import { first } from '../db/client.js';
 import { assignHandle } from '../db/handle.js';
 import { authMiddleware, regenerateSession } from '../middleware/auth.js';
+import { outsiderSignupLimiter, outsiderLoginLimiter } from '../middleware/rateLimit.js';
+import { sanitizeText, InputTooLongError } from '../utils/sanitize.js';
 
 export function createUsersRouter(allowPasswordAuth: boolean = false) {
   const router = Router();
@@ -21,7 +23,7 @@ interface User {
 }
 
 // POST /api/users/outsider — create outsider account + start session
-router.post('/outsider', async (req: Request, res: Response): Promise<void> => {
+router.post('/outsider', outsiderSignupLimiter, async (req: Request, res: Response): Promise<void> => {
   if (!allowPasswordAuth) {
     res.status(403).json({ error: 'Forbidden', message: 'Password authentication is not enabled' });
     return;
@@ -33,6 +35,22 @@ router.post('/outsider', async (req: Request, res: Response): Promise<void> => {
     res.status(400).json({ error: 'Bad Request', message: 'Name is required' });
     return;
   }
+
+  let safeName: string;
+  try {
+    safeName = sanitizeText(name, { maxLen: 60, field: 'name' });
+  } catch (err) {
+    if (err instanceof InputTooLongError) {
+      res.status(400).json({ error: 'Bad Request', message: err.message });
+      return;
+    }
+    throw err;
+  }
+  if (!safeName) {
+    res.status(400).json({ error: 'Bad Request', message: 'Name is required' });
+    return;
+  }
+
   if (!password || typeof password !== 'string' || password.length < 4) {
     res.status(400).json({ error: 'Bad Request', message: 'Password must be at least 4 characters' });
     return;
@@ -40,7 +58,7 @@ router.post('/outsider', async (req: Request, res: Response): Promise<void> => {
 
   const client = getClient();
 
-  const existing = (await client.execute('SELECT id FROM users WHERE name = ?', [name.trim()])).rows[0];
+  const existing = (await client.execute('SELECT id FROM users WHERE name = ?', [safeName])).rows[0];
   if (existing) {
     res.status(409).json({ error: 'Conflict', message: 'Username already taken' });
     return;
@@ -51,7 +69,7 @@ router.post('/outsider', async (req: Request, res: Response): Promise<void> => {
   const user: User = {
     id: uuidv4(),
     api_token: uuidv4().replace(/-/g, '') + uuidv4().replace(/-/g, ''),
-    name: name.trim(),
+    name: safeName,
     role: 'student',
     password_hash,
     handle: null,
@@ -84,7 +102,7 @@ router.post('/outsider', async (req: Request, res: Response): Promise<void> => {
 });
 
 // POST /api/users/outsider/login — sign in with username/password + start session
-router.post('/outsider/login', async (req: Request, res: Response): Promise<void> => {
+router.post('/outsider/login', outsiderLoginLimiter, async (req: Request, res: Response): Promise<void> => {
   if (!allowPasswordAuth) {
     res.status(403).json({ error: 'Forbidden', message: 'Password authentication is not enabled' });
     return;
@@ -96,13 +114,25 @@ router.post('/outsider/login', async (req: Request, res: Response): Promise<void
     res.status(400).json({ error: 'Bad Request', message: 'Name is required' });
     return;
   }
+
+  let safeName: string;
+  try {
+    safeName = sanitizeText(name, { maxLen: 60, field: 'name' });
+  } catch (err) {
+    if (err instanceof InputTooLongError) {
+      res.status(400).json({ error: 'Bad Request', message: err.message });
+      return;
+    }
+    throw err;
+  }
+
   if (!password || typeof password !== 'string') {
     res.status(400).json({ error: 'Bad Request', message: 'Password is required' });
     return;
   }
 
   const client = getClient();
-  const user = first<User>(await client.execute('SELECT * FROM users WHERE name = ?', [name.trim()]));
+  const user = first<User>(await client.execute('SELECT * FROM users WHERE name = ?', [safeName]));
 
   if (!user || !user.password_hash) {
     res.status(401).json({ error: 'Unauthorized', message: 'Invalid username or password' });

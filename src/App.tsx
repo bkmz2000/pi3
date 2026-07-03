@@ -6,7 +6,7 @@ import { reconfigureGraphicsExtensions } from "./editor/graphicsCompletion";
 import { graphicsProfile } from "./editor/profiles";
 import Rail from "./SideMenu";
 import { useEditor, useIde } from "./state/IdeState";
-import { getProject, getComments, type ApiComment } from "./state/api";
+import { getProject, getComments, saveProjectContent, type ApiComment } from "./state/api";
 import { projectStorage } from "./utils/storage";
 import { encodeSheet, decodeSheet } from "./state/sheetCodec";
 import { toEditorProject } from "./state/projectNormalization";
@@ -85,7 +85,29 @@ function ClaimOnLogin() {
     const stash = readAnonStash();
     if (!stash) return;
 
-    const name = stash.exampleName?.replace(/^__example_session_/, '') || 'untitled';
+    const exampleName = stash.exampleName || '';
+
+    // Real projects stored under __anon_real_project__<UUID>
+    if (exampleName.startsWith('__anon_real_project__')) {
+      const realProjectId = exampleName.slice('__anon_real_project__'.length);
+
+      // Push the stashed content to the existing project on the server
+      saveProjectContent(realProjectId, {
+        files: stash.project.files,
+        assets: stash.project.assets,
+        tilemaps: stash.project.tilemaps,
+        sounds: stash.project.sounds,
+        sheet: stash.project.sheet ? encodeSheet(stash.project.sheet) : undefined,
+        currentFile: Object.keys(stash.project.files)[0] || '',
+      }).then(() => {
+        changeCurrentProject(stash.project, realProjectId);
+        clearAnonStash();
+      }).catch(() => {});
+      return;
+    }
+
+    // Example projects: __example_session_<name>
+    const name = exampleName.replace(/^__example_session_/, '') || 'untitled';
 
     forkExample(name, stash.project, `${name} (saved work)`).then((forked) => {
       if (forked) {
@@ -181,6 +203,7 @@ function AppInner() {
   const project = useEditor((s) => s.project);
   const markClean = useEditor((s) => s.markClean);
   const dirtyFiles = useEditor((s) => s.dirtyFiles);
+  const queuedSaveCount = useEditor((s) => s.queuedSaveCount);
   const currentProjectId = useEditor((s) => s.currentProjectId);
   const saveCurrentProject = useIde((s) => s.saveCurrentProject);
   const forkExample = useIde((s) => s.forkExample);
@@ -206,14 +229,14 @@ function AppInner() {
 
   useEffect(() => {
     const handler = (e: BeforeUnloadEvent) => {
-      if (dirtyFiles.size > 0) {
+      if (dirtyFiles.size > 0 || queuedSaveCount > 0) {
         e.preventDefault();
         e.returnValue = '';
       }
     };
     window.addEventListener('beforeunload', handler);
     return () => window.removeEventListener('beforeunload', handler);
-  }, [dirtyFiles]);
+  }, [dirtyFiles, queuedSaveCount]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);

@@ -73,3 +73,43 @@ export async function authMiddleware(req: Request, res: Response, next: NextFunc
   req.user = user;
   next();
 }
+
+// CSRF header check for cookie-based state-changing requests.
+// Bearer-authenticated requests and safe methods (GET/HEAD/OPTIONS) are allowed through.
+// Certain paths used by browser redirects or health checks are skipped.
+const CSRF_SKIP_PREFIXES = ['/api/auth/', '/api/health', '/api/config'];
+const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
+
+export function requireCsrfHeader(req: Request, res: Response, next: NextFunction): void {
+  if (SAFE_METHODS.has(req.method)) {
+    next();
+    return;
+  }
+
+  if (CSRF_SKIP_PREFIXES.some((prefix) => req.path.startsWith(prefix))) {
+    next();
+    return;
+  }
+
+  const authHeader = req.headers.authorization;
+  if (authHeader?.startsWith('Bearer ')) {
+    next();
+    return;
+  }
+
+  // Cross-site simple <form> POSTs cannot set X-Requested-With nor a JSON
+  // Content-Type without a CORS preflight, so either header presence indicates
+  // the request originated from same-origin JS. Combined with SameSite=lax
+  // cookies, this is sufficient CSRF defense.
+  if (req.headers['x-requested-with'] === 'XMLHttpRequest') {
+    next();
+    return;
+  }
+  const contentType = req.headers['content-type'] ?? '';
+  if (contentType.startsWith('application/json')) {
+    next();
+    return;
+  }
+
+  res.status(403).json({ error: 'Forbidden', message: 'Missing CSRF header' });
+}

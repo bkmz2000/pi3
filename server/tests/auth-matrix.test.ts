@@ -250,14 +250,14 @@ describe('IDOR / cross-tenant isolation', () => {
 // Comment authorization (current correct behavior)
 // ---------------------------------------------------------------------------
 describe('comment authorization', () => {
-  it('project owner (student) cannot comment on their own project', async () => {
+  it('project owner (student) can comment on their own project', async () => {
     const owner = mkUser('student', 'student');
     const projectId = mkProject(owner.id);
     const res = await request(app)
       .post(`/api/projects/${projectId}/comments`)
       .set(auth(owner.api_token))
       .send({ file_path: 'main.py', line_number: 1, text: 'nope' });
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(201);
   });
 
   it('a shared user can comment; a stranger cannot', async () => {

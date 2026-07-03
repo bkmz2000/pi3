@@ -1,5 +1,5 @@
 const CACHE_NAME = 'webide-v4';
-const PYODIDE_VERSION = '0.29.3';
+const PYODIDE_VERSION = '0.29.4';
 
 // We ship Pyodide from the same origin (public/pyodide/, mirrored from
 // node_modules at build time). The CDN URLs remain as a runtime fallback

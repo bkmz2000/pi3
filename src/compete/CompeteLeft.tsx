@@ -1,4 +1,5 @@
 import { useRef, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import CodeMirror, { type ReactCodeMirrorRef } from "@uiw/react-codemirror";
 import { python } from "@codemirror/lang-python";
 import { EditorView } from "@codemirror/view";
@@ -48,6 +49,7 @@ export default function CompeteLeft({
 }) {
   const theme = useThemeStore((s) => s.theme);
   const themeId = useThemeStore((s) => s.themeId);
+  const { t } = useTranslation();
   const cmTheme = themeId === 'midnight' ? githubDark : githubLight;
   const cmRef = useRef<ReactCodeMirrorRef>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -83,7 +85,7 @@ export default function CompeteLeft({
           Python
         </span>
         <span style={{ fontFamily: theme.fontMono, fontSize: 12, color: theme.panelTxtMute }}>
-          solution.py
+          {t('compete.solutionPy')}
         </span>
         <div style={{ flex: 1 }} />
 
@@ -115,7 +117,7 @@ export default function CompeteLeft({
             opacity: running || submitting ? 0.6 : 1,
           }}
         >
-          {running ? 'Running…' : 'Run'}
+          {running ? t('compete.running') : t('compete.run')}
         </button>
 
         <button
@@ -135,7 +137,7 @@ export default function CompeteLeft({
             opacity: running || submitting ? 0.6 : 1,
           }}
         >
-          {submitting ? 'Submitting…' : 'Submit'}
+          {submitting ? t('compete.submitting') : t('compete.submit')}
         </button>
       </div>
 
@@ -185,7 +187,7 @@ export default function CompeteLeft({
             textTransform: 'uppercase',
             letterSpacing: 0.5,
           }}>
-            Console
+            {t('compete.console')}
           </span>
           {running && (
             <span style={{ display: 'inline-flex', gap: 3 }}>
@@ -220,7 +222,7 @@ export default function CompeteLeft({
               );
             })}
             {output.length === 0 && !running && (
-              <span style={{ color: theme.consoleTxtMute }}>No output yet.</span>
+              <span style={{ color: theme.consoleTxtMute }}>{t('compete.noOutput')}</span>
             )}
             <div ref={bottomRef} />
           </div>

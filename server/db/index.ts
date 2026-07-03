@@ -1,4 +1,4 @@
-import { readFileSync } from 'fs';
+import { readFileSync, readdirSync } from 'fs';
 import { join } from 'path';
 import { fileURLToPath } from 'url';
 import { backfillHandles } from './handle.js';
@@ -47,37 +47,51 @@ export async function initDb(): Promise<void> {
   }
   const c = getClient();
 
+  // Schema migration tracking table
+  await c.execute(
+    `CREATE TABLE IF NOT EXISTS schema_migrations (
+      filename TEXT PRIMARY KEY,
+      applied_at INTEGER NOT NULL
+    )`,
+  );
+
+  // Load and apply file-based migrations with tracking
   const migrationsDir = fileURLToPath(new URL('migrations', import.meta.url));
-  const schemaPath = join(migrationsDir, '001_initial.sql');
-  const schema2Path = join(migrationsDir, '002_teacher_dashboard.sql');
-  for (const stmt of splitSql(readFileSync(schemaPath, 'utf8'))) {
-    await swallow(c, stmt);
-  }
-  for (const stmt of splitSql(readFileSync(schema2Path, 'utf8'))) {
-    await swallow(c, stmt);
+  const files = readdirSync(migrationsDir)
+    .filter(f => f.endsWith('.sql'))
+    .sort();
+
+  for (const file of files) {
+    const already = (await c.execute(
+      'SELECT 1 FROM schema_migrations WHERE filename = ?',
+      [file],
+    )).rows[0];
+    if (already) continue;
+
+    const sql = readFileSync(join(migrationsDir, file), 'utf8');
+    const stmts = splitSql(sql);
+    const now = Date.now();
+
+    // Apply migration file + tracking insert in one batch (transactional)
+    await c.batch([
+      ...stmts.map(s => ({ sql: s })),
+      { sql: 'INSERT INTO schema_migrations (filename, applied_at) VALUES (?, ?)', args: [file, now] },
+    ]);
   }
 
-  const migrations = [
+  // Inline migrations for schema elements not yet extracted to migration files.
+  // Each is individually guarded to stay idempotent across re-runs.
+  const inlineMigrations = [
+    // Columns that may pre-date the migration file system
     `ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'student' CHECK (role IN ('student', 'teacher'))`,
     `ALTER TABLE users ADD COLUMN password_hash TEXT`,
     `ALTER TABLE projects ADD COLUMN files TEXT NOT NULL DEFAULT '{}'`,
     `ALTER TABLE projects ADD COLUMN assets TEXT NOT NULL DEFAULT '{}'`,
     `ALTER TABLE projects ADD COLUMN current_file TEXT NOT NULL DEFAULT 'main.py'`,
-    `ALTER TABLE users ADD COLUMN oauth_provider_id TEXT`,
-    `CREATE UNIQUE INDEX IF NOT EXISTS idx_users_oauth_provider_id ON users(oauth_provider_id) WHERE oauth_provider_id IS NOT NULL`,
-    `ALTER TABLE projects ADD COLUMN tilemaps TEXT NOT NULL DEFAULT '{}'`,
-    `ALTER TABLE projects ADD COLUMN animations TEXT NOT NULL DEFAULT '{}'`,
-    `ALTER TABLE projects ADD COLUMN sounds TEXT NOT NULL DEFAULT '{}'`,
-    `ALTER TABLE users ADD COLUMN handle TEXT`,
-    `ALTER TABLE users ADD COLUMN handle_seq INTEGER`,
-    `CREATE UNIQUE INDEX IF NOT EXISTS idx_users_handle_lower ON users(lower(handle)) WHERE handle IS NOT NULL`,
-    `CREATE UNIQUE INDEX IF NOT EXISTS idx_users_handle_seq ON users(handle_seq) WHERE handle_seq IS NOT NULL`,
-    `ALTER TABLE groups ADD COLUMN invite_code TEXT`,
-    `ALTER TABLE groups ADD COLUMN archived_at INTEGER`,
-    `CREATE UNIQUE INDEX IF NOT EXISTS idx_groups_invite_code ON groups(invite_code) WHERE invite_code IS NOT NULL`,
     `ALTER TABLE projects ADD COLUMN thumbnail BLOB`,
     `ALTER TABLE projects ADD COLUMN thumbnail_updated_at INTEGER`,
     `ALTER TABLE projects ADD COLUMN sheet TEXT`,
+    // Problems / tests / submissions subsystem
     `CREATE TABLE IF NOT EXISTS problems (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       slug TEXT NOT NULL UNIQUE,
@@ -120,8 +134,18 @@ export async function initDb(): Promise<void> {
     `ALTER TABLE problems ADD COLUMN checker_py TEXT NULL`,
     `ALTER TABLE problem_tests ADD COLUMN fields_json TEXT NULL`,
   ];
-  for (const stmt of migrations) {
-    await swallow(c, stmt);
+
+  for (const stmt of inlineMigrations) {
+    try {
+      await c.execute(stmt);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      // Allow duplicate-column / already-exists on re-run; surface everything else
+      if (!msg.includes('already exists') && !msg.includes('duplicate column')) {
+        console.error('Inline migration failed:', stmt.slice(0, 80), err);
+        throw err;
+      }
+    }
   }
 
   try {
@@ -131,20 +155,10 @@ export async function initDb(): Promise<void> {
   }
 }
 
-async function swallow(c: DbClient, sql: string): Promise<void> {
-  try {
-    await c.execute(sql);
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    if (!msg.includes('already exists') && !msg.includes('duplicate column')) {
-      console.error('Migration failed:', sql.slice(0, 80), err);
-      throw err;
-    }
-  }
-}
-
 function splitSql(sql: string): string[] {
-  return sql
+  // Remove single-line comments (they may contain semicolons that break splitting)
+  const noComments = sql.replace(/--.*$/gm, '');
+  return noComments
     .split(';')
     .map(s => s.trim())
     .filter(s => s.length > 0);
@@ -163,6 +177,7 @@ export async function resetDatabase(): Promise<void> {
     { sql: 'DROP TABLE IF EXISTS project_shares' },
     { sql: 'DROP TABLE IF EXISTS projects' },
     { sql: 'DROP TABLE IF EXISTS users' },
+    { sql: 'DROP TABLE IF EXISTS schema_migrations' },
   ]);
 }
 

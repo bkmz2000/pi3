@@ -46,6 +46,7 @@
     "test:docker": "bash scripts/test-docker.sh"
   },
   "dependencies": {
+    "@codemirror/autocomplete": "^6.20.3",
     "@codemirror/lang-python": "^6.2.1",
     "@codemirror/language": "^6.12.4",
     "@codemirror/lint": "^6.9.7",

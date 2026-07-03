@@ -39,8 +39,10 @@ build:
 push:
 	@echo "→ Logging in to GHCR..."
 	@gh auth token | docker login ghcr.io -u $(GITHUB_USER) --password-stdin
-	# Tag current :latest as :previous so `make rollback` has a target to revert to
-	docker pull $(IMAGE):latest && docker tag $(IMAGE):latest $(IMAGE):previous && docker push $(IMAGE):previous || true
+	# Snapshot current registry :latest as :previous for rollback.
+	# Use registry-side retag (buildx imagetools) so the local :latest tag
+	# produced by `make build` is NOT clobbered by a `docker pull :latest`.
+	-docker buildx imagetools create --tag $(IMAGE):previous $(IMAGE):latest
 	docker push $(IMAGE):$(SHA)
 	docker push $(IMAGE):latest
 

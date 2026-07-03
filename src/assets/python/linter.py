@@ -1110,15 +1110,23 @@ def _annotate_diagnostics(diagnostics, tree, scope_tracker):
         if code == "F821" or (code == "E225Call" and "name" in diag.get("messageArgs", {})):
             name = diag.get("messageArgs", {}).get("name", "")
             if name and _known_names:
-                # Check for Cyrillic homoglyphs (wrong keyboard layout)
-                from syntax_hints import check_homoglyph
-                homo_key, homo_args = check_homoglyph(name, _known_names)
+                # A7: an uncaught check_homoglyph exception used to kill annotation
+                # for every remaining diagnostic in the batch. Isolate it.
+                homo_key, homo_args = None, None
+                try:
+                    from syntax_hints import check_homoglyph
+                    homo_key, homo_args = check_homoglyph(name, _known_names)
+                except Exception:
+                    homo_key, homo_args = None, None
                 if homo_key:
                     diag["messageKey"] = homo_key
                     diag["messageArgs"] = homo_args
                     diag["suggestions"] = [{"token": name, "candidates": [homo_args["fixed"]]}]
                 else:
-                    candidates = _compute_lint_suggestions(name, _known_names)
+                    try:
+                        candidates = _compute_lint_suggestions(name, _known_names)
+                    except Exception:
+                        candidates = []
                     if candidates:
                         diag["suggestions"] = [{"token": name, "candidates": candidates}]
 

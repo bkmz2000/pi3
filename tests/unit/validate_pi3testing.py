@@ -610,6 +610,31 @@ check("compute-integration-field-p", "p" in (result4.get("fields") or {}))
 # expected set via answer()
 check_eq("compute-integration-expected", result4.get("expected"), "42")
 
+# ── Construction-time validation (A6 / D10) ───────────────────────────────────
+
+def _expect_valueerror(label, fn):
+    try:
+        fn()
+        check(label, False, "expected ValueError, none raised")
+    except ValueError:
+        check(label, True)
+    except Exception as e:
+        check(label, False, f"expected ValueError, got {type(e).__name__}: {e}")
+
+_expect_valueerror("Integer-lo-gt-hi", lambda: Integer(5, 3))
+_expect_valueerror("Float-lo-gt-hi", lambda: Float(1.0, 0.0))
+_expect_valueerror("String-zero-length", lambda: String(0))
+_expect_valueerror("String-empty-chars", lambda: String(3, chars=""))
+_expect_valueerror("UniqueSample-k-exceeds", lambda: UniqueSample([1, 2, 3], k=5))
+_expect_valueerror("UniqueSample-negative-k", lambda: UniqueSample([1, 2, 3], k=-1))
+# Boundary: equal lo/hi still valid.
+try:
+    _ = Integer(5, 5)
+    _ = Float(1.0, 1.0)
+    check("boundary-equal-lo-hi", True)
+except Exception as e:
+    check("boundary-equal-lo-hi", False, f"unexpected: {e}")
+
 # ── Results ───────────────────────────────────────────────────────────────────
 if failures:
     print("\n".join(failures))

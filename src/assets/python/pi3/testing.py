@@ -127,6 +127,8 @@ class Integer(_Recipe):
     """A random integer in [lo, hi] (inclusive)."""
     def __init__(self, lo: int, hi: int, *, name=None):
         super().__init__(name=name)
+        if lo > hi:
+            raise ValueError(f"Integer: lo ({lo}) must be <= hi ({hi}).")
         self.lo = lo
         self.hi = hi
 
@@ -138,6 +140,8 @@ class Float(_Recipe):
     """A random float in [lo, hi)."""
     def __init__(self, lo: float, hi: float, *, name=None):
         super().__init__(name=name)
+        if lo > hi:
+            raise ValueError(f"Float: lo ({lo}) must be <= hi ({hi}).")
         self.lo = lo
         self.hi = hi
 
@@ -159,6 +163,10 @@ class String(_Recipe):
     """A random string of given length from a character set."""
     def __init__(self, length: int, chars: str = 'abcdefghijklmnopqrstuvwxyz', *, name=None):
         super().__init__(name=name)
+        if length < 1:
+            raise ValueError(f"String: length must be >= 1 (got {length}).")
+        if not chars:
+            raise ValueError("String: chars must be a non-empty character set.")
         self.length = length
         self.chars = chars
 
@@ -194,6 +202,13 @@ class UniqueSample(_Recipe):
     def __init__(self, population, k: int, *, name=None):
         super().__init__(name=name)
         self._population = list(population)
+        if k < 0:
+            raise ValueError(f"UniqueSample: k must be >= 0 (got {k}).")
+        if k > len(self._population):
+            raise ValueError(
+                f"UniqueSample: k={k} exceeds population size {len(self._population)}. "
+                "Reduce k or expand the population."
+            )
         self.k = k
 
     def materialize(self, rng):

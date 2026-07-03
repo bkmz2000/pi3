@@ -31,6 +31,7 @@ _COLORS = frozenset({"red", "green", "blue", "yellow", "cyan", "gray"})
 _V1_KINDS = frozenset({"array", "grid", "text", "stack", "queue", "set"})
 
 
+
 # ── Selection sentinel types ──────────────────────────────────────────────────
 
 class _Range:
@@ -122,7 +123,11 @@ def _register(kind: str, data, highlights_raw: dict, labels: dict) -> None:
     caller = frame.f_back.f_back if (frame and frame.f_back) else None
     filename = caller.f_code.co_filename if caller else "<unknown>"
     lineno = caller.f_lineno if caller else 0
-    slot_id = (filename, lineno)
+    # D7: disambiguate by bytecode-instruction pointer so two distinct calls on
+    # the SAME line (e.g. `debug.array(a); debug.array(b)`) get separate slots,
+    # while a single call in a loop keeps the same slot (same f_lasti).
+    lasti = caller.f_lasti if caller else 0
+    slot_id = (filename, lineno, lasti)
 
     is_grid = kind == "grid"
     normalizer = _normalize_2d if is_grid else _normalize_1d

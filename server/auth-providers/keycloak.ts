@@ -37,7 +37,7 @@ export const keycloakAdapter: AuthAdapter = {
     };
   },
 
-  parseUserinfo(raw: unknown): NormalizedUser {
+  parseUserinfo(raw: unknown, idTokenClaims?: Record<string, unknown>): NormalizedUser {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const payload = typeof raw === 'object' && raw !== null ? (raw as any) : {};
 
@@ -56,19 +56,24 @@ export const keycloakAdapter: AuthAdapter = {
       || email
       || payload.sub as string;
 
-    // Roles can live in realm_access.roles (standard Keycloak JWT claim propagated
-    // to userinfo via mapper) or as a top-level `roles` array if the realm is
-    // configured with a "User Realm Role" userinfo mapper.
-    let roles: string[] = [];
-    if (Array.isArray(payload.roles)) {
-      roles = payload.roles.filter((r: unknown) => typeof r === 'string');
-    } else if (
-      typeof payload.realm_access === 'object' &&
-      payload.realm_access !== null &&
-      Array.isArray(payload.realm_access.roles)
-    ) {
-      roles = payload.realm_access.roles.filter((r: unknown) => typeof r === 'string');
-    }
+    // Roles: check userinfo first (top-level `roles[]` from custom mapper, or
+    // `realm_access.roles[]` if a "User Realm Role" userinfo mapper is set),
+    // then fall back to id_token claims. Keycloak's default `roles` client
+    // scope emits realm_access.roles into id_token/access_token but NOT into
+    // userinfo, so id_token is the reliable source unless IT configures the
+    // userinfo mapper explicitly.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const readRoles = (src: any): string[] => {
+      if (!src || typeof src !== 'object') return [];
+      if (Array.isArray(src.roles) && src.roles.every((r: unknown) => typeof r === 'string')) {
+        return src.roles as string[];
+      }
+      if (src.realm_access && typeof src.realm_access === 'object' && Array.isArray(src.realm_access.roles)) {
+        return (src.realm_access.roles as unknown[]).filter((r): r is string => typeof r === 'string');
+      }
+      return [];
+    };
+    const roles = readRoles(payload).length > 0 ? readRoles(payload) : readRoles(idTokenClaims);
 
     const teacherRole = process.env.KEYCLOAK_TEACHER_ROLE || 'teacher';
     return {

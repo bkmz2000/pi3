@@ -14,7 +14,10 @@ export interface AuthAdapter {
   readonly userinfoUrl: string;
   readonly endSessionUrl?: string;
   parseTokenResponse(raw: unknown): { access_token: string; id_token?: string };
-  parseUserinfo(raw: unknown): NormalizedUser;
+  // idTokenClaims: decoded id_token JWT payload. Adapters MAY use it as an
+  // additional source (e.g. Keycloak emits realm roles in id_token by default
+  // but not in userinfo unless a mapper is configured).
+  parseUserinfo(raw: unknown, idTokenClaims?: Record<string, unknown>): NormalizedUser;
 }
 
 export class AuthProviderError extends Error {

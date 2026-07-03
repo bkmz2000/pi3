@@ -196,4 +196,28 @@ describe('keycloakAdapter.parseUserinfo', () => {
     expect(() => keycloakAdapter.parseUserinfo({ email: 'no-sub@example.com' }))
       .toThrow(AuthProviderError);
   });
+
+  it('falls back to id_token realm_access.roles when userinfo has no roles', () => {
+    const user = keycloakAdapter.parseUserinfo(
+      { sub: 'kc-user-7', preferred_username: 'teach' },
+      { realm_access: { roles: ['teacher', 'offline_access'] } },
+    );
+    expect(user.role).toBe('teacher');
+  });
+
+  it('prefers userinfo roles over id_token roles when both present', () => {
+    const user = keycloakAdapter.parseUserinfo(
+      { sub: 'kc-user-8', roles: ['student'] },
+      { realm_access: { roles: ['teacher'] } },
+    );
+    expect(user.role).toBe('student');
+  });
+
+  it('reads roles from id_token top-level roles[] when userinfo empty', () => {
+    const user = keycloakAdapter.parseUserinfo(
+      { sub: 'kc-user-9' },
+      { roles: ['teacher'] },
+    );
+    expect(user.role).toBe('teacher');
+  });
 });

@@ -180,29 +180,29 @@ router.get('/callback', authOauthLimiter, async (req: Request, res: Response): P
     return;
   }
 
-  // Verify nonce in id_token
+  // Decode id_token once — used for nonce check AND passed to parseUserinfo
+  // so adapters can read claims (e.g. Keycloak realm roles) that live in the
+  // id_token but not in the userinfo response.
   if (!id_token) {
     console.error('[auth/callback] missing id_token');
     res.redirect('/?auth_error=nonce');
     return;
   }
-  {
-    let idTokenNonce: string | undefined;
-    try {
-      const parts = id_token.split('.');
-      if (parts.length !== 3) throw new Error('invalid id_token format');
-      const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
-      idTokenNonce = payload.nonce;
-    } catch {
-      console.error('[auth/callback] failed to decode id_token');
-      res.redirect('/?auth_error=nonce');
-      return;
-    }
-    if (!idTokenNonce || !nonceCookie || !verifyNonce(nonceCookie, idTokenNonce)) {
-      console.error('[auth/callback] nonce mismatch');
-      res.redirect('/?auth_error=nonce');
-      return;
-    }
+  let idTokenClaims: Record<string, unknown>;
+  try {
+    const parts = id_token.split('.');
+    if (parts.length !== 3) throw new Error('invalid id_token format');
+    idTokenClaims = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
+  } catch {
+    console.error('[auth/callback] failed to decode id_token');
+    res.redirect('/?auth_error=nonce');
+    return;
+  }
+  const idTokenNonce = typeof idTokenClaims.nonce === 'string' ? idTokenClaims.nonce : undefined;
+  if (!idTokenNonce || !nonceCookie || !verifyNonce(nonceCookie, idTokenNonce)) {
+    console.error('[auth/callback] nonce mismatch');
+    res.redirect('/?auth_error=nonce');
+    return;
   }
 
   let providerId: string;
@@ -218,7 +218,7 @@ router.get('/callback', authOauthLimiter, async (req: Request, res: Response): P
       res.redirect('/?auth_error=userinfo');
       return;
     }
-    const user = authAdapter.parseUserinfo(await userinfoRes.json());
+    const user = authAdapter.parseUserinfo(await userinfoRes.json(), idTokenClaims);
     providerId = user.providerId;
     userName   = user.name;
     userEmail  = user.email;

@@ -72,11 +72,29 @@ export async function initDb(): Promise<void> {
     const stmts = splitSql(sql);
     const now = Date.now();
 
-    // Apply migration file + tracking insert in one batch (transactional)
-    await c.batch([
-      ...stmts.map(s => ({ sql: s })),
-      { sql: 'INSERT INTO schema_migrations (filename, applied_at) VALUES (?, ?)', args: [file, now] },
-    ]);
+    // Apply migration file + tracking insert in one batch (transactional).
+    // If the DB predates migration tracking, ALTER/CREATE may fail as
+    // already-present — tolerate those per-statement and still record the
+    // migration as applied.
+    try {
+      await c.batch([
+        ...stmts.map(s => ({ sql: s })),
+        { sql: 'INSERT INTO schema_migrations (filename, applied_at) VALUES (?, ?)', args: [file, now] },
+      ]);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (!msg.includes('already exists') && !msg.includes('duplicate column')) {
+        throw err;
+      }
+      for (const s of stmts) {
+        try { await c.execute(s); }
+        catch (e: unknown) {
+          const m = e instanceof Error ? e.message : String(e);
+          if (!m.includes('already exists') && !m.includes('duplicate column')) throw e;
+        }
+      }
+      await c.execute('INSERT INTO schema_migrations (filename, applied_at) VALUES (?, ?)', [file, now]);
+    }
   }
 
   // Inline migrations for schema elements not yet extracted to migration files.

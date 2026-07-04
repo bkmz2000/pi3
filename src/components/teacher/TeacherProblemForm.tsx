@@ -100,7 +100,7 @@ function SectionCard({
         display: 'flex',
         alignItems: 'center',
         gap: 10,
-        padding: '12px 15px',
+        padding: '8px 12px',
         borderBottom: `0.5px solid ${theme.panelBorder}`,
       }}>
         <span style={{ color: theme.primaryBg, flexShrink: 0 }}>{icon}</span>
@@ -111,7 +111,7 @@ function SectionCard({
           </span>
         )}
       </div>
-      <div style={{ padding: 15 }}>{children}</div>
+      <div style={{ padding: '10px 12px' }}>{children}</div>
     </div>
   );
 }
@@ -284,7 +284,7 @@ function TestCaseCard({
         display: 'flex',
         alignItems: 'center',
         gap: 8,
-        padding: '7px 11px',
+        padding: '5px 10px',
         background: 'rgba(255,255,255,0.03)',
         borderBottom: `0.5px solid ${theme.panelBorder}`,
       }}>
@@ -374,8 +374,8 @@ function TierGroup({
   const { t } = useTranslation();
 
   return (
-    <div style={{ marginBottom: 24 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 8 }}>
+    <div style={{ marginBottom: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 6 }}>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 2 }}>
           {[1, 2, 3].map((i) => <StarIcon key={i} filled={i <= tier} />)}
         </span>
@@ -597,6 +597,9 @@ export default function TeacherProblemForm() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(isNew);
+  const [tab, setTab] = useState<'details' | 'statement' | 'tests' | 'generator'>('details');
+  const [previewOpen, setPreviewOpen] = useState(true);
+  const [submitted, setSubmitted] = useState(false);
 
   const snapshotRef = useRef<string>(JSON.stringify(form));
   const dirty = JSON.stringify(form) !== snapshotRef.current;
@@ -755,10 +758,17 @@ export default function TeacherProblemForm() {
   };
 
   const handleSave = async () => {
+    setSubmitted(true);
     const validationError = form.generator_py.trim()
       ? null  // generator mode: tests come from the generator
       : validateForm(form, t);
-    if (validationError) { setError(validationError); return; }
+    if (validationError) {
+      setError(validationError);
+      if (!form.title.trim() || !/^[a-z][a-z0-9-]{1,40}$/.test(form.slug)) setTab('details');
+      else if (!form.statement.trim()) setTab('statement');
+      else setTab('tests');
+      return;
+    }
     setError(null);
     setGeneratorError(null);
     setSaving(true);
@@ -885,26 +895,45 @@ export default function TeacherProblemForm() {
     form.tests.map((test, idx) => ({ test, idx })).filter(({ test }) => test.tier === tier);
   const visibleTests = form.tests.filter((t) => t.is_visible);
 
+  const hasDetailsError = !form.title.trim() || !/^[a-z][a-z0-9-]{1,40}$/.test(form.slug);
+  const hasStatementError = !form.statement.trim();
+  const hasTestsError = !form.generator_py.trim() && (
+    !form.tests.some((tc) => tc.tier === 1) || !form.tests.some((tc) => tc.is_visible)
+  );
+  const tabErr = { details: hasDetailsError, statement: hasStatementError, tests: hasTestsError, generator: false } as const;
+
+  const tabs: { key: 'details' | 'statement' | 'tests' | 'generator'; label: string }[] = [
+    { key: 'details', label: t('teacher.tabDetails') },
+    { key: 'statement', label: t('teacher.tabStatement') },
+    { key: 'tests', label: t('teacher.tabTests') },
+    { key: 'generator', label: t('teacher.tabGenerator') },
+  ];
+
   if (!loaded) {
     return <div style={{ padding: 24, fontFamily: theme.fontUI, color: theme.panelTxtMute }}>Loading…</div>;
   }
 
+  const headerTitle = form.title || (isNew ? t('teacher.newProblem') : t('teacher.editProblem'));
+
   return (
     <div style={{ minHeight: '100vh', background: theme.appBg, fontFamily: theme.fontUI, color: theme.panelTxt }}>
 
-      {/* Sticky topbar */}
+      {/* Sticky topbar (two rows: actions + tabs) */}
       <div style={{
         position: 'sticky',
         top: 0,
         zIndex: 10,
-        display: 'flex',
-        alignItems: 'center',
-        gap: 12,
-        padding: '13px 20px',
         background: `${theme.appBg}ec`,
         backdropFilter: 'blur(6px)',
         borderBottom: `0.5px solid ${theme.panelBorder}`,
       }}>
+        {/* Row 1: actions */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+          padding: '10px 20px',
+        }}>
         <button
           onClick={handleCancel}
           style={{
@@ -925,8 +954,16 @@ export default function TeacherProblemForm() {
 
         <span style={{ width: 1, height: 16, background: theme.panelBorder }} />
 
-        <span style={{ fontSize: 15, fontWeight: 600, color: theme.panelTxt }}>
-          {isNew ? t('teacher.newProblem') : t('teacher.editProblem')}
+        <span style={{
+          fontSize: 15,
+          fontWeight: 600,
+          color: theme.panelTxt,
+          maxWidth: 360,
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+        }}>
+          {headerTitle}
         </span>
 
         {dirty && (
@@ -941,7 +978,45 @@ export default function TeacherProblemForm() {
           </span>
         )}
 
+        {error && (
+          <span style={{
+            fontSize: 11.5,
+            padding: '2px 9px',
+            borderRadius: 999,
+            background: 'rgba(255,77,77,0.13)',
+            color: '#ff7a7a',
+            maxWidth: 320,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}>
+            {error}
+          </span>
+        )}
+
         <div style={{ flex: 1 }} />
+
+        <button
+          onClick={() => setPreviewOpen((v) => !v)}
+          aria-label={previewOpen ? t('teacher.hidePreview') : t('teacher.showPreview')}
+          title={previewOpen ? t('teacher.hidePreview') : t('teacher.showPreview')}
+          style={{
+            all: 'unset',
+            cursor: 'pointer',
+            display: 'inline-flex',
+            alignItems: 'center',
+            padding: '6px 8px',
+            borderRadius: 8,
+            border: `0.5px solid ${theme.panelBorder}`,
+            color: theme.panelTxtMute,
+          }}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            {previewOpen
+              ? <path d="M9 6l6 6-6 6" />
+              : <path d="M15 6l-6 6 6 6" />}
+          </svg>
+        </button>
 
         <button
           onClick={handleCancel}
@@ -985,42 +1060,71 @@ export default function TeacherProblemForm() {
           )}
           {saving ? t('teacher.savingProblem') : t('teacher.saveProblem')}
         </button>
+        </div>
+
+        {/* Row 2: tab bar */}
+        <div style={{
+          display: 'flex',
+          gap: 4,
+          padding: '0 20px',
+          borderTop: `0.5px solid ${theme.panelBorder}`,
+        }}>
+          {tabs.map((tb) => {
+            const active = tab === tb.key;
+            const showDot = submitted && tabErr[tb.key];
+            return (
+              <button
+                key={tb.key}
+                onClick={() => setTab(tb.key)}
+                style={{
+                  all: 'unset',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '10px 14px',
+                  fontSize: 13,
+                  fontFamily: theme.fontUI,
+                  color: active ? theme.panelTxt : theme.panelTxtMute,
+                  borderBottom: `2px solid ${active ? theme.primaryBg : 'transparent'}`,
+                  marginBottom: -1,
+                }}
+              >
+                {tb.label}
+                {showDot && (
+                  <span
+                    aria-label={t('teacher.tabHasErrors')}
+                    style={{ width: 6, height: 6, borderRadius: '50%', background: '#ff7a7a', display: 'inline-block' }}
+                  />
+                )}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* Two-pane body */}
       <div style={{
         maxWidth: 1080,
         margin: '0 auto',
-        padding: '18px 20px 48px',
+        padding: '12px 20px 32px',
         display: 'flex',
-        gap: 16,
+        flexWrap: 'wrap',
+        gap: 12,
         alignItems: 'flex-start',
         boxSizing: 'border-box',
       }}>
 
         {/* Left: authoring form */}
-        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 10 }}>
 
-          {error && (
-            <div style={{
-              padding: '8px 12px',
-              background: 'rgba(255,77,77,0.13)',
-              border: '0.5px solid rgba(255,77,77,0.27)',
-              borderRadius: 8,
-              color: '#ff7a7a',
-              fontSize: 13,
-            }}>
-              {error}
-            </div>
-          )}
-
-          {/* Problem details */}
+          <div style={{ display: tab === 'details' ? 'flex' : 'none', flexDirection: 'column', gap: 10 }}>
           <SectionCard icon={<IconDoc />} title={t('teacher.problemTitle')} desc="Title and list position">
-            <div style={{ marginBottom: 14 }}>
+            <div style={{ marginBottom: 10 }}>
               <FieldLabel label={t('teacher.problemTitle')} required />
               <FieldInput value={form.title} onChange={handleTitleChange} />
             </div>
-            <div style={{ display: 'flex', gap: 12 }}>
+            <div style={{ display: 'flex', gap: 10 }}>
               <div style={{ flex: 2 }}>
                 <FieldLabel label={t('teacher.problemSlug')} required />
                 <FieldInput
@@ -1041,13 +1145,14 @@ export default function TeacherProblemForm() {
               </div>
             </div>
           </SectionCard>
+          </div>
 
-          {/* Statement */}
+          <div style={{ display: tab === 'statement' ? 'flex' : 'none', flexDirection: 'column', gap: 10 }}>
           <SectionCard icon={<IconLines />} title={t('teacher.problemStatement')} desc="Markdown">
             <textarea
               value={form.statement}
               onChange={(e) => setForm((f) => ({ ...f, statement: e.target.value }))}
-              rows={8}
+              rows={20}
               style={{
                 display: 'block',
                 width: '100%',
@@ -1066,19 +1171,19 @@ export default function TeacherProblemForm() {
             />
           </SectionCard>
 
-          {/* Starter code */}
           <SectionCard icon={<IconCode />} title={t('teacher.starterCode')} desc="Pre-filled for students">
             <div style={{ border: `0.5px solid ${theme.panelBorder}`, borderRadius: 8, overflow: 'hidden' }}>
               <CodeMirror
                 value={form.starter_code}
                 extensions={competeProfile({ theme, lang: i18n.language, fontSize, cmTheme })}
                 onChange={(v) => setForm((f) => ({ ...f, starter_code: v }))}
-                height="200px"
+                height="260px"
               />
             </div>
           </SectionCard>
+          </div>
 
-          {/* Test cases */}
+          <div style={{ display: tab === 'tests' ? 'block' : 'none' }}>
           <SectionCard icon={<IconCheckSquare />} title={t('teacher.testCases', 'Test cases')} desc="Each tier earns a star">
             {([1, 2, 3] as (1 | 2 | 3)[]).map((tier) => (
               <TierGroup
@@ -1092,8 +1197,9 @@ export default function TeacherProblemForm() {
               />
             ))}
           </SectionCard>
+          </div>
 
-          {/* Generator */}
+          <div style={{ display: tab === 'generator' ? 'block' : 'none' }}>
           <SectionCard icon={<IconCode />} title={t('teacher.generator.title')} desc={t('teacher.generator.desc')}>
             {/* Console: always visible when there's output or error */}
             {(generatorError || generatorOutput) && (
@@ -1208,16 +1314,19 @@ export default function TeacherProblemForm() {
               </div>
             )}
           </SectionCard>
+          </div>
         </div>
 
-        {/* Right: sticky student preview */}
-        <div style={{ flexShrink: 0, width: 380, position: 'sticky', top: 62 }}>
-          <StudentPreview
-            title={form.title}
-            statement={form.statement}
-            visibleTests={visibleTests}
-          />
-        </div>
+        {/* Right: sticky student preview (collapsible) */}
+        {previewOpen && (
+          <div style={{ flexShrink: 0, width: 380, position: 'sticky', top: 92 }}>
+            <StudentPreview
+              title={form.title}
+              statement={form.statement}
+              visibleTests={visibleTests}
+            />
+          </div>
+        )}
       </div>
     </div>
   );

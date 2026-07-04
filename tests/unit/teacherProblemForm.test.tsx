@@ -118,6 +118,7 @@ describe("TeacherProblemForm (new mode)", () => {
 
   it("removes a test when remove button is clicked", () => {
     render(<MemoryRouter><TeacherProblemForm /></MemoryRouter>);
+    fireEvent.click(screen.getByText("Tests"));
     // Add a tier-1 test first so there is something to remove
     fireEvent.click(screen.getAllByText(/add test/i)[0]);
     const removeBtns = screen.getAllByRole("button", { name: /remove/i });
@@ -293,6 +294,7 @@ describe("TeacherProblemForm — generator section", () => {
     });
 
     render(<MemoryRouter><TeacherProblemForm /></MemoryRouter>);
+    fireEvent.click(screen.getByText("Generator"));
 
     const codemirrors = document.querySelectorAll("[data-testid='codemirror']");
     fireEvent.change(codemirrors[1], { target: { value: "x = 1" } });
@@ -325,6 +327,7 @@ describe("TeacherProblemForm — generator section", () => {
     });
 
     render(<MemoryRouter><TeacherProblemForm /></MemoryRouter>);
+    fireEvent.click(screen.getByText("Generator"));
 
     // Count hand-authored test cards before running generator
     const textareasBefore = document.querySelectorAll("textarea").length;

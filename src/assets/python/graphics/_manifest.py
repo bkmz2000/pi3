@@ -26,6 +26,7 @@ EXPORTED_NAMES = [
     "_version",
     "size", "width", "height",
     "circle", "rect", "ellipse", "line", "point",
+    "polyline", "polygon", "spline",
     "text", "text_size", "text_align",
     "say",
     "fill", "no_fill", "stroke", "no_stroke", "stroke_width",

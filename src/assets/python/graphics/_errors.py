@@ -117,6 +117,8 @@ ALL_MESSAGE_KEYS = [
     # API misuse
     "friendlyError.apiMisuse.title",
     "friendlyError.apiMisuse.fallback",
+    "friendlyError.apiMisuse.polylineNotIterable",
+    "friendlyError.apiMisuse.polylineBadPoint",
     # Internal (classifier crashed)
     "friendlyError.internal.title",
     "friendlyError.internal.classifierFailed",

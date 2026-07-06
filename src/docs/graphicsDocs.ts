@@ -161,6 +161,40 @@ export const DOCS: DocCategory[] = [
         ],
       },
       {
+        id: "polyline",
+        name: "polyline",
+        signature: "polyline(points)",
+        en: "Draw connected straight segments through a list of (x, y) points. Uses current stroke; no fill.",
+        ru: "Рисует ломаную по списку точек (x, y). Использует текущий stroke, без заливки.",
+        example: 'stroke("black")\npolyline([(20, 20), (60, 90), (140, 40), (180, 120)])',
+        params: [
+          { name: "points", type: "list[(x, y)]", en: "List of at least 2 (x, y) tuples.", ru: "Список из минимум 2 пар (x, y)." },
+        ],
+      },
+      {
+        id: "polygon",
+        name: "polygon",
+        signature: "polygon(points)",
+        en: "Draw a closed shape through a list of (x, y) points. Uses current fill and stroke.",
+        ru: "Рисует замкнутый многоугольник по списку точек (x, y). Использует текущие fill и stroke.",
+        example: 'fill("red")\npolygon([(100, 20), (180, 160), (20, 160)])',
+        params: [
+          { name: "points", type: "list[(x, y)]", en: "List of at least 3 (x, y) tuples.", ru: "Список из минимум 3 пар (x, y)." },
+        ],
+      },
+      {
+        id: "spline",
+        name: "spline",
+        signature: "spline(points, tension=0.5)",
+        en: "Draw a smooth curve through a list of (x, y) points using Catmull-Rom interpolation. Uses current stroke; no fill.",
+        ru: "Рисует гладкую кривую через список точек (x, y) сплайном Catmull-Rom. Использует текущий stroke, без заливки.",
+        example: 'stroke("blue")\nspline([(20, 100), (60, 40), (140, 160), (180, 100)])',
+        params: [
+          { name: "points", type: "list[(x, y)]", en: "List of at least 2 (x, y) tuples.", ru: "Список из минимум 2 пар (x, y)." },
+          { name: "tension", type: "number", optional: true, en: "Curve tightness 0–1. 0 = straight polyline; 1 = loose curves. Default 0.5.", ru: "Натяжение кривой 0–1. 0 — ломаная, 1 — свободные дуги. По умолчанию 0.5." },
+        ],
+      },
+      {
         id: "point",
         name: "point",
         signature: "point(x, y)",

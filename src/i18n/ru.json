@@ -1153,7 +1153,9 @@
     },
     "apiMisuse": {
       "title": "Ошибка API",
-      "fallback": "API использовано неподдерживаемым способом."
+      "fallback": "API использовано неподдерживаемым способом.",
+      "polylineNotIterable": "{{name}}() ждёт список точек, а получил {{type}}.",
+      "polylineBadPoint": "{{name}}(): точка №{{index}} — не пара (x, y), а {{value}}."
     },
     "internal": {
       "title": "В pi3 что-то пошло не так",

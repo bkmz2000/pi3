@@ -273,6 +273,55 @@ ${assetMapEntries.join(",\n")}
           ctx.stroke();
           break;
         }
+        case "polyline": {
+          const [flat] = args;
+          if (flat.length < 4) break;
+          ctx.beginPath();
+          ctx.moveTo(flat[0], flat[1]);
+          for (let i = 2; i < flat.length; i += 2) ctx.lineTo(flat[i], flat[i + 1]);
+          if (_hasStroke) ctx.stroke();
+          break;
+        }
+        case "polygon": {
+          const [flat] = args;
+          if (flat.length < 6) break;
+          ctx.beginPath();
+          ctx.moveTo(flat[0], flat[1]);
+          for (let i = 2; i < flat.length; i += 2) ctx.lineTo(flat[i], flat[i + 1]);
+          ctx.closePath();
+          if (_hasFill) ctx.fill();
+          if (_hasStroke) ctx.stroke();
+          break;
+        }
+        case "spline": {
+          const [flat, tension] = args;
+          const n = flat.length / 2;
+          if (n < 2) break;
+          ctx.beginPath();
+          ctx.moveTo(flat[0], flat[1]);
+          if (n === 2) {
+            ctx.lineTo(flat[2], flat[3]);
+          } else {
+            const s = tension;
+            for (let i = 0; i < n - 1; i++) {
+              const p0x = flat[2 * Math.max(i - 1, 0)];
+              const p0y = flat[2 * Math.max(i - 1, 0) + 1];
+              const p1x = flat[2 * i];
+              const p1y = flat[2 * i + 1];
+              const p2x = flat[2 * (i + 1)];
+              const p2y = flat[2 * (i + 1) + 1];
+              const p3x = flat[2 * Math.min(i + 2, n - 1)];
+              const p3y = flat[2 * Math.min(i + 2, n - 1) + 1];
+              const cp1x = p1x + ((p2x - p0x) * s) / 6;
+              const cp1y = p1y + ((p2y - p0y) * s) / 6;
+              const cp2x = p2x - ((p3x - p1x) * s) / 6;
+              const cp2y = p2y - ((p3y - p1y) * s) / 6;
+              ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, p2x, p2y);
+            }
+          }
+          if (_hasStroke) ctx.stroke();
+          break;
+        }
         case "point": {
           const [x, y] = args;
           ctx.fillStyle = _hex(_strokeColor);

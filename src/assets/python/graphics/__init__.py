@@ -539,6 +539,52 @@ def line(x1, y1, x2, y2) -> None:
     _state._draw_commands.append(("line", (float(x1), float(y1), float(x2), float(y2)), {}))
 
 
+def _flatten_points(points, name):
+    if not hasattr(points, "__iter__"):
+        raise FriendlyError(
+            "friendlyError.apiMisuse.polylineNotIterable",
+            {"name": name, "type": type(points).__name__},
+        )
+    out = []
+    for i, p in enumerate(points):
+        try:
+            x, y = p
+        except (TypeError, ValueError):
+            raise FriendlyError(
+                "friendlyError.apiMisuse.polylineBadPoint",
+                {"name": name, "index": i, "value": repr(p)},
+            )
+        out.append(float(x))
+        out.append(float(y))
+    return out
+
+
+def polyline(points) -> None:
+    flat = _flatten_points(points, "polyline")
+    if len(flat) < 4:
+        return
+    _state._draw_commands.append(("polyline", (flat,), {}))
+
+
+def polygon(points) -> None:
+    flat = _flatten_points(points, "polygon")
+    if len(flat) < 6:
+        return
+    _state._draw_commands.append(("polygon", (flat,), {}))
+
+
+def spline(points, tension: float = 0.5) -> None:
+    flat = _flatten_points(points, "spline")
+    if len(flat) < 4:
+        return
+    t = float(tension)
+    if t < 0.0:
+        t = 0.0
+    elif t > 1.0:
+        t = 1.0
+    _state._draw_commands.append(("spline", (flat, t), {}))
+
+
 def point(x, y) -> None:
     _state._draw_commands.append(("point", (float(x), float(y)), {}))
 
@@ -1725,6 +1771,7 @@ __all__ = [
     "_version",
     "size", "width", "height",
     "circle", "rect", "ellipse", "line", "point",
+    "polyline", "polygon", "spline",
     "text", "text_size", "text_align",
     "say",
     "fill", "no_fill", "stroke", "no_stroke", "stroke_width",

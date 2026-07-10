@@ -1232,5 +1232,61 @@
     "paintTool": "Paint — Shift+drag for straight lines",
     "eraseTool": "Erase — Shift+drag for straight lines",
     "fillTool": "Fill"
+  },
+  "welcome": {
+    "language": {
+      "en": "English",
+      "ru": "Русский"
+    },
+    "hero": {
+      "headline": "Your students code. You see every line — in real time.",
+      "subheadline": "pi3 is a free, teacher-first Python environment where every personal project and every classroom group lives in one place. No credit card, no time limit, no sales pitch.",
+      "cta": "Start free",
+      "trinketNote": "Trinket is shutting down. pi3 is a working alternative today — not a future promise. No account card required."
+    },
+    "free": {
+      "title": "What's free, forever",
+      "unlimitedProjects": {
+        "title": "Unlimited personal projects",
+        "body": "Every teacher and every student gets unlimited projects on their personal account. Build, fork, and experiment without caps."
+      },
+      "teacherUpgrade": {
+        "title": "Teacher dashboard on demand",
+        "body": "Upgrade to a teacher account and create up to 3 groups with 10 students each — 30 seats total. See every student's latest code from one screen."
+      },
+      "noCard": {
+        "title": "Permanently free, no credit card",
+        "body": "No trial periods, no billing forms, no surprise invoices. pi3 is free because we believe coding classrooms deserve permanent infrastructure."
+      }
+    },
+    "classroom": {
+      "title": "Classroom view",
+      "body": "A real teacher dashboard — not just a code editor. See every student's latest work, open any project with one click, and give feedback without leaving your screen.",
+      "screenshotPlaceholder": "Classroom snapshot preview"
+    },
+    "pedagogy": {
+      "title": "Why pi3",
+      "body": "A readable graphics API lets students focus on ideas, not boilerplate. Five lines produce a visible, colorful result — no hidden state, no magic imports.",
+      "codeCaption": "Readable source produces clear, colorful output — no boilerplate."
+    },
+    "migration": {
+      "title": "Migrating from Trinket",
+      "body": "Rebuilding a project in pi3 takes minutes. Copy your Python in, adjust the graphics calls, keep teaching. No auto-import from Trinket — but the migration is quick, and we're happy to help."
+    },
+    "faq": {
+      "title": "FAQ",
+      "q1": "Is student data private?",
+      "a1": "Yes. Students join via anonymous handles and a join code — no real names, no email addresses, no personally identifiable information. You control who enters your classroom.",
+      "q2": "How much does it cost?",
+      "a2": "pi3 is free, permanently. Every account gets unlimited personal projects. Teacher accounts add 3 groups of 10 students each — 30 seats — at no cost.",
+      "q3": "What happens when I hit the group cap?",
+      "a3": "The current cap is 3 groups × 10 students. If you need more, contact us and we'll work out an expansion — still free.",
+      "q4": "How long does migration take?",
+      "a4": "Most projects migrate in under ten minutes. Paste your Python code, update graphics calls to the pi3 API, and you're done. We're available to help with trickier cases."
+    },
+    "footer": {
+      "cta": "Start free",
+      "feedbackLinkPlaceholder": "Feedback thread"
+    }
   }
 }

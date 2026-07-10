@@ -24,6 +24,7 @@ import TeacherProjectView from "./components/teacher/TeacherProjectView";
 import TeacherProblemList from "./components/teacher/TeacherProblemList";
 import TeacherProblemForm from "./components/teacher/TeacherProblemForm";
 import CompetePage from "./compete/CompetePage";
+import { WelcomePage } from "./pages/WelcomePage";
 import { useUser } from "./state/useUser";
 import { useTranslation } from "react-i18next";
 import ForkDialog from "./components/dialogs/ForkDialog";
@@ -495,6 +496,7 @@ export default function App() {
         <Route path="/teacher/problems/new" element={<TeacherProblemForm />} />
         <Route path="/teacher/problems/:slug/edit" element={<TeacherProblemForm />} />
         <Route path="/compete/:slug" element={<CompetePage />} />
+        <Route path="/welcome" element={<WelcomePage />} />
         <Route path="/ide/:projectId" element={<AppInner />} />
         <Route path="/" element={<AppInner />} />
       </Routes>

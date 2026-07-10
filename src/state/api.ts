@@ -3,14 +3,20 @@ import { API_BASE } from './apiBase';
 interface ApiError {
   error: string;
   message: string;
+  code?: string;
+  limit?: number;
 }
 
 export class ApiHttpError extends Error {
   status: number;
-  constructor(status: number, message: string) {
+  code?: string;
+  limit?: number;
+  constructor(status: number, message: string, code?: string, limit?: number) {
     super(message);
     this.name = "ApiHttpError";
     this.status = status;
+    this.code = code;
+    this.limit = limit;
   }
 }
 
@@ -63,7 +69,7 @@ class ApiClient {
         error: 'Error',
         message: 'An error occurred',
       }));
-      throw new ApiHttpError(response.status, error.message || error.error);
+      throw new ApiHttpError(response.status, error.message || error.error, error.code, error.limit);
     }
 
     if (response.status === 204) {
@@ -146,6 +152,10 @@ export async function uploadProjectThumbnail(id: string, blob: Blob): Promise<{ 
 
 export async function getMe(): Promise<User> {
   return api.get<User>('/api/users/me');
+}
+
+export async function upgradeToTeacher(): Promise<User> {
+  return api.post<User>('/api/users/me/upgrade-teacher');
 }
 
 export async function outsiderSignup(name: string, password: string, role: 'student' | 'teacher' = 'student'): Promise<User> {

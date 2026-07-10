@@ -77,6 +77,27 @@ describe('Groups API', () => {
       const res = await request(app).post('/api/groups').send({ name: 'X' });
       expect(res.status).toBe(401);
     });
+
+    it('rejects 4th group with cap_groups_reached', async () => {
+      for (const n of ['G1', 'G2', 'G3']) {
+        await request(app).post('/api/groups').set(auth(teacher.api_token)).send({ name: n });
+      }
+      const res = await request(app).post('/api/groups').set(auth(teacher.api_token)).send({ name: 'G4' });
+      expect(res.status).toBe(409);
+      expect(res.body.code).toBe('cap_groups_reached');
+      expect(res.body.limit).toBe(3);
+    });
+
+    it('archived groups do not count toward cap', async () => {
+      const created: string[] = [];
+      for (const n of ['G1', 'G2', 'G3']) {
+        const r = await request(app).post('/api/groups').set(auth(teacher.api_token)).send({ name: n });
+        created.push(r.body.id);
+      }
+      await request(app).patch(`/api/groups/${created[0]}`).set(auth(teacher.api_token)).send({ archived: true });
+      const res = await request(app).post('/api/groups').set(auth(teacher.api_token)).send({ name: 'G4' });
+      expect(res.status).toBe(201);
+    });
   });
 
   describe('GET /api/groups', () => {
@@ -132,6 +153,25 @@ describe('Groups API', () => {
         .set(auth(student1.api_token))
         .send({ username: student2.name });
       expect(res.status).toBe(403);
+    });
+
+    it('rejects 11th member with cap_members_reached', async () => {
+      const now = Date.now();
+      const extras: { id: string; name: string; api_token: string }[] = [];
+      for (let i = 0; i < 11; i++) {
+        const u = { id: uuidv4(), name: `Extra${i}`, api_token: uuidv4().replace(/-/g, '') + uuidv4().replace(/-/g, '') };
+        db.prepare('INSERT INTO users (id, api_token, name, role, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)')
+          .run(u.id, u.api_token, u.name, 'student', now, now);
+        extras.push(u);
+      }
+      for (let i = 0; i < 10; i++) {
+        const r = await request(app).post(`/api/groups/${groupId}/invite`).set(auth(teacher.api_token)).send({ username: extras[i]!.name });
+        expect(r.status).toBe(201);
+      }
+      const res = await request(app).post(`/api/groups/${groupId}/invite`).set(auth(teacher.api_token)).send({ username: extras[10]!.name });
+      expect(res.status).toBe(409);
+      expect(res.body.code).toBe('cap_members_reached');
+      expect(res.body.limit).toBe(10);
     });
 
     it('cannot invite a teacher (non-student)', async () => {

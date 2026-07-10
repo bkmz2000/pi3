@@ -94,7 +94,7 @@ function IdentityBlock({ user }: { user: { name: string; handle?: string | null;
 export function UserMenu() {
   const { t } = useTranslation();
   const theme = useThemeStore((s) => s.theme);
-  const { user, logout } = useUser();
+  const { user, logout, upgradeToTeacher } = useUser();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -158,6 +158,22 @@ export function UserMenu() {
           highlighted: false,
           comingSoon: true,
           onClick: () => {},
+        },
+        {
+          icon: <Icon name="sparkle" size={14} color={theme.runBg} />,
+          label: t('teacher.upgradeToTeacher'),
+          highlighted: true,
+          comingSoon: false,
+          onClick: async () => {
+            if (!window.confirm(t('teacher.upgradeConfirm'))) return;
+            try {
+              await upgradeToTeacher();
+              setOpen(false);
+              navigate('/teacher');
+            } catch {
+              window.alert(t('teacher.upgradeFailed'));
+            }
+          },
         },
       ];
 

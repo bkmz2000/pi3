@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { api, User, outsiderSignup, outsiderLogin, getMe } from './api';
+import { api, User, outsiderSignup, outsiderLogin, getMe, upgradeToTeacher } from './api';
 
 type AuthState = 'loading' | 'logged_out' | 'logged_in';
 
@@ -13,6 +13,7 @@ interface UserStore {
   outsiderSignup: (name: string, password: string, role: 'student' | 'teacher') => Promise<void>;
   logout: () => Promise<void>;
   checkSession: () => Promise<void>;
+  upgradeToTeacher: () => Promise<void>;
 }
 
 export const useUser = create<UserStore>((set) => ({
@@ -54,6 +55,11 @@ export const useUser = create<UserStore>((set) => ({
     }
     set({ authState: 'logged_out', user: null });
     window.location.href = '/';
+  },
+
+  upgradeToTeacher: async () => {
+    const user = await upgradeToTeacher();
+    set({ user });
   },
 
   checkSession: async () => {

@@ -7,6 +7,9 @@ import { authMiddleware } from '../middleware/auth.js';
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 const CODE_LEN = 6;
 
+export const MAX_GROUPS_PER_TEACHER = 3;
+export const MAX_MEMBERS_PER_GROUP = 10;
+
 function generateInviteCode(): string {
   const buf = randomBytes(CODE_LEN);
   let out = '';
@@ -144,6 +147,19 @@ export function createGroupsRouter(): Router {
       return;
     }
     const client = getClient();
+    const activeCount = (await client.execute(
+      'SELECT COUNT(*) as n FROM groups WHERE teacher_id = ? AND archived_at IS NULL',
+      [req.user!.id],
+    )).rows[0] as { n: number };
+    if (Number(activeCount.n) >= MAX_GROUPS_PER_TEACHER) {
+      res.status(409).json({
+        error: 'Conflict',
+        code: 'cap_groups_reached',
+        message: `Group cap reached (${MAX_GROUPS_PER_TEACHER} per teacher). Archive or delete an existing group first.`,
+        limit: MAX_GROUPS_PER_TEACHER,
+      });
+      return;
+    }
     const now = Date.now();
     const inviteCode = await mintUniqueCode();
     const group: Group = {
@@ -296,6 +312,19 @@ export function createGroupsRouter(): Router {
     )).rows[0];
     if (existing) {
       res.status(409).json({ error: 'Conflict', message: 'User is already in this group' });
+      return;
+    }
+    const memberCount = (await client.execute(
+      'SELECT COUNT(*) as n FROM group_members WHERE group_id = ?',
+      [req.params['id'] as string],
+    )).rows[0] as { n: number };
+    if (Number(memberCount.n) >= MAX_MEMBERS_PER_GROUP) {
+      res.status(409).json({
+        error: 'Conflict',
+        code: 'cap_members_reached',
+        message: `Member cap reached (${MAX_MEMBERS_PER_GROUP} per group). Remove an existing member first.`,
+        limit: MAX_MEMBERS_PER_GROUP,
+      });
       return;
     }
     const member: GroupMember = {

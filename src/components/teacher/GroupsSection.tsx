@@ -4,6 +4,7 @@ import { useThemeStore } from '../../state/useTheme';
 import {
   getGroups, createGroup, getGroup, deleteGroup, inviteToGroup, removeFromGroup,
   updateGroup, regenerateInviteCode,
+  ApiHttpError,
   type Group, type GroupDetail,
 } from '../../state/api';
 import { asyncAction } from '../../state/asyncAction';
@@ -65,7 +66,11 @@ export function GroupsSection() {
       setNewName('');
       setShowCreate(false);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed');
+      if (e instanceof ApiHttpError && e.code === 'cap_groups_reached') {
+        setError(t('teacher.capGroupsReached', { limit: e.limit ?? 3 }));
+      } else {
+        setError(e instanceof Error ? e.message : 'Failed');
+      }
     }
     setSubmitting(false);
   }
@@ -91,7 +96,12 @@ export function GroupsSection() {
     if (!value) return;
     try {
       await asyncAction(() => inviteToGroup(groupId, value), {
-        errorMessage: () => t('teacher.inviteFailed'),
+        errorMessage: (err) => {
+          if (err instanceof ApiHttpError && err.code === 'cap_members_reached') {
+            return t('teacher.capMembersReached', { limit: err.limit ?? 10 });
+          }
+          return t('teacher.inviteFailed');
+        },
       });
       setInviteInputs((prev) => ({ ...prev, [groupId]: '' }));
       setGroups((prev) => prev.map((g) => g.id === groupId ? { ...g, member_count: g.member_count + 1 } : g));

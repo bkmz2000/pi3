@@ -158,6 +158,26 @@ router.get('/search', authMiddleware, async (req: Request, res: Response): Promi
   res.json(result.rows);
 });
 
+// POST /api/users/me/upgrade-teacher — self-serve teacher upgrade (free forever, no approval)
+router.post('/me/upgrade-teacher', authMiddleware, async (req: Request, res: Response): Promise<void> => {
+  const client = getClient();
+  const now = Date.now();
+  await client.execute(
+    "UPDATE users SET role = 'teacher', updated_at = ? WHERE id = ?",
+    [now, req.user!.id],
+  );
+  const result = await client.execute(
+    'SELECT id, name, handle, role, created_at FROM users WHERE id = ?',
+    [req.user!.id],
+  );
+  const user = first<Pick<User, 'id' | 'name' | 'handle' | 'role' | 'created_at'>>(result);
+  if (!user) {
+    res.status(404).json({ error: 'Not Found', message: 'User not found' });
+    return;
+  }
+  res.json(user);
+});
+
 // GET /api/users/me
 router.get('/me', authMiddleware, async (req: Request, res: Response): Promise<void> => {
   const client = getClient();

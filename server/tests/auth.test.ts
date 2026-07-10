@@ -201,3 +201,32 @@ describe('Session-gated logout (CSRF defense)', () => {
     expect(meRes.status).toBe(401);
   });
 });
+
+describe('POST /api/users/me/upgrade-teacher', () => {
+  it('upgrades a student to teacher role', async () => {
+    const { id, api_token } = makeUser();
+    const res = await request(app)
+      .post('/api/users/me/upgrade-teacher')
+      .set('Authorization', `Bearer ${api_token}`);
+    expect(res.status).toBe(200);
+    expect(res.body.role).toBe('teacher');
+    const row = db.prepare('SELECT role FROM users WHERE id = ?').get(id) as { role: string };
+    expect(row.role).toBe('teacher');
+  });
+
+  it('is idempotent on an already-teacher account', async () => {
+    const { api_token } = makeUser();
+    await request(app).post('/api/users/me/upgrade-teacher').set('Authorization', `Bearer ${api_token}`);
+    const res = await request(app)
+      .post('/api/users/me/upgrade-teacher')
+      .set('Authorization', `Bearer ${api_token}`);
+    expect(res.status).toBe(200);
+    expect(res.body.role).toBe('teacher');
+  });
+
+  it('requires auth', async () => {
+    db = createTestDb();
+    const res = await request(app).post('/api/users/me/upgrade-teacher');
+    expect(res.status).toBe(401);
+  });
+});

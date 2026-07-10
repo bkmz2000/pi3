@@ -368,6 +368,27 @@ export async function removeFromGroup(groupId: string, userId: string): Promise<
   return api.delete<void>(`/api/groups/${groupId}/members/${userId}`);
 }
 
+export interface GroupSnapshotMember {
+  student_id: string;
+  student_name: string;
+  student_handle: string | null;
+  project_id: string | null;
+  project_name: string | null;
+  updated_at: number | null;
+  current_file: string | null;
+  files: Record<string, string> | null;
+}
+
+export interface GroupSnapshot {
+  group_id: string;
+  generated_at: number;
+  members: GroupSnapshotMember[];
+}
+
+export async function getGroupSnapshot(groupId: string): Promise<GroupSnapshot> {
+  return api.get<GroupSnapshot>(`/api/groups/${groupId}/snapshot`);
+}
+
 export interface Config {
   allowPasswordAuth: boolean;
 }

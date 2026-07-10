@@ -11,6 +11,7 @@ import { asyncAction } from '../../state/asyncAction';
 import { Icon } from '../Icons';
 import { ThemedDialog } from '../ThemedDialog';
 import { GroupQueueView } from './GroupQueueView';
+import { GroupSnapshotView } from './GroupSnapshotView';
 import { inputStyle, btnPrimary, btnSecondary } from './styles';
 import { userLabel } from '../../utils/userDisplay';
 
@@ -21,6 +22,7 @@ export function GroupsSection() {
   const [loading, setLoading] = useState(true);
   const [showArchived, setShowArchived] = useState(false);
   const [queueGroupId, setQueueGroupId] = useState<string | null>(null);
+  const [snapshotGroupId, setSnapshotGroupId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [expandedDetail, setExpandedDetail] = useState<GroupDetail | null>(null);
   const [renamingId, setRenamingId] = useState<string | null>(null);
@@ -166,6 +168,10 @@ export function GroupsSection() {
     const group = groups.find((g) => g.id === queueGroupId);
     return <GroupQueueView groupId={queueGroupId} groupName={group?.name ?? ''} onBack={() => setQueueGroupId(null)} />;
   }
+  if (snapshotGroupId) {
+    const group = groups.find((g) => g.id === snapshotGroupId);
+    return <GroupSnapshotView groupId={snapshotGroupId} groupName={group?.name ?? ''} onBack={() => setSnapshotGroupId(null)} />;
+  }
 
   return (
     <div style={{ flex: 1, overflow: 'auto', padding: 28 }}>
@@ -228,6 +234,14 @@ export function GroupsSection() {
                     </span>
                   )}
                   <span style={{ fontSize: 12, color: theme.panelTxtMute }}>{t('teacher.members', { count: g.member_count })}</span>
+                  <button
+                    type="button"
+                    onClick={() => setSnapshotGroupId(g.id)}
+                    title={t('teacher.openSnapshot')}
+                    style={{ all: 'unset', cursor: 'pointer', color: theme.panelTxtMute, padding: 4, fontSize: 11, fontFamily: theme.fontUI, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}
+                  >
+                    {t('teacher.classroom')}
+                  </button>
                   <button
                     type="button"
                     onClick={() => setQueueGroupId(g.id)}

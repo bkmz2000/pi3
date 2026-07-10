@@ -306,6 +306,46 @@ export function createGroupsRouter(): Router {
     res.json({ ...group, members });
   });
 
+  // GET /api/groups/:id/snapshot — teacher: latest code per member (Phase D)
+  router.get('/:id/snapshot', async (req: Request, res: Response): Promise<void> => {
+    if (!requireTeacher(req, res)) return;
+    const groupId = req.params['id'] as string;
+    const group = await checkGroupOwnership(groupId, req.user!.id);
+    if (!group) {
+      res.status(404).json({ error: 'Not Found', message: 'Group not found' });
+      return;
+    }
+    const client = getClient();
+    const rows = (await client.execute(
+      `SELECT gm.student_id, u.name AS student_name, u.handle AS student_handle,
+              p.id AS project_id, p.name AS project_name, p.updated_at, p.current_file, p.files
+       FROM group_members gm
+       JOIN users u ON u.id = gm.student_id
+       LEFT JOIN projects p ON p.id = (
+         SELECT id FROM projects WHERE user_id = gm.student_id
+         ORDER BY updated_at DESC LIMIT 1
+       )
+       WHERE gm.group_id = ?
+       ORDER BY gm.joined_at ASC`,
+      [groupId],
+    )).rows as unknown as Array<{
+      student_id: string; student_name: string; student_handle: string | null;
+      project_id: string | null; project_name: string | null;
+      updated_at: number | null; current_file: string | null; files: string | null;
+    }>;
+    const members = rows.map((r) => ({
+      student_id: r.student_id,
+      student_name: r.student_name,
+      student_handle: r.student_handle,
+      project_id: r.project_id,
+      project_name: r.project_name,
+      updated_at: r.updated_at,
+      current_file: r.current_file,
+      files: r.files ? JSON.parse(r.files) : null,
+    }));
+    res.json({ group_id: groupId, generated_at: Date.now(), members });
+  });
+
   // DELETE /api/groups/:id — teacher: delete group
   router.delete('/:id', async (req: Request, res: Response): Promise<void> => {
     if (!requireTeacher(req, res)) return;

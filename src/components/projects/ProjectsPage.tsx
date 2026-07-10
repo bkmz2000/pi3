@@ -8,7 +8,7 @@ import { NewProjectDialog } from './NewProjectDialog';
 import { useNavigate } from 'react-router-dom';
 import { Icon } from '../Icons';
 import { ThemedDialog } from '../ThemedDialog';
-import { joinGroupByCode } from '../../state/api';
+import { joinGroupByCode, ApiHttpError } from '../../state/api';
 
 export function ProjectsPage() {
   const { t } = useTranslation();
@@ -52,7 +52,15 @@ export function ProjectsPage() {
       });
       setJoinCode('');
     } catch (e) {
-      setJoinFeedback({ kind: 'error', text: e instanceof Error ? e.message : t('teacher.joinFailed') });
+      let text = t('teacher.joinFailed');
+      if (e instanceof ApiHttpError) {
+        if (e.code === 'cap_members_reached') text = t('teacher.joinGroupFull', { limit: e.limit ?? 10 });
+        else if (e.code === 'join_rate_limited') text = t('teacher.joinRateLimited');
+        else if (e.message) text = e.message;
+      } else if (e instanceof Error) {
+        text = e.message;
+      }
+      setJoinFeedback({ kind: 'error', text });
     }
     setJoining(false);
   };

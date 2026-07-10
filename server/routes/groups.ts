@@ -10,6 +10,29 @@ const CODE_LEN = 6;
 export const MAX_GROUPS_PER_TEACHER = 3;
 export const MAX_MEMBERS_PER_GROUP = 10;
 
+const JOIN_ATTEMPT_WINDOW_MS = 60_000;
+const JOIN_ATTEMPT_MAX_FAILURES = 10;
+const joinFailures = new Map<string, { count: number; firstAt: number }>();
+
+function recordJoinFailure(userId: string): boolean {
+  const now = Date.now();
+  const entry = joinFailures.get(userId);
+  if (!entry || now - entry.firstAt > JOIN_ATTEMPT_WINDOW_MS) {
+    joinFailures.set(userId, { count: 1, firstAt: now });
+    return false;
+  }
+  entry.count += 1;
+  return entry.count > JOIN_ATTEMPT_MAX_FAILURES;
+}
+
+function clearJoinFailures(userId: string): void {
+  joinFailures.delete(userId);
+}
+
+export function __resetJoinRateLimitForTests(): void {
+  joinFailures.clear();
+}
+
 function generateInviteCode(): string {
   const buf = randomBytes(CODE_LEN);
   let out = '';
@@ -76,6 +99,7 @@ export function createGroupsRouter(): Router {
       res.status(400).json({ error: 'Bad Request', message: 'Invite code is required' });
       return;
     }
+    const userId = req.user!.id;
     const client = getClient();
     const normalized = code.trim().toUpperCase();
     const group = (await client.execute(
@@ -83,25 +107,49 @@ export function createGroupsRouter(): Router {
       [normalized],
     )).rows[0] as unknown as Group | undefined;
     if (!group) {
+      const throttled = recordJoinFailure(userId);
+      if (throttled) {
+        res.status(429).json({
+          error: 'Too Many Requests',
+          code: 'join_rate_limited',
+          message: 'Too many invalid attempts. Wait a minute before trying again.',
+        });
+        return;
+      }
       res.status(404).json({ error: 'Not Found', message: 'Invalid or expired invite code' });
       return;
     }
-    if (group.teacher_id === req.user!.id) {
+    if (group.teacher_id === userId) {
       res.status(400).json({ error: 'Bad Request', message: 'Teachers cannot join their own group' });
       return;
     }
     const existing = (await client.execute(
       'SELECT id FROM group_members WHERE group_id = ? AND student_id = ?',
-      [group.id, req.user!.id],
+      [group.id, userId],
     )).rows[0];
     if (existing) {
+      clearJoinFailures(userId);
       res.status(200).json({ id: group.id, name: group.name, already_member: true });
+      return;
+    }
+    const memberCount = (await client.execute(
+      'SELECT COUNT(*) as n FROM group_members WHERE group_id = ?',
+      [group.id],
+    )).rows[0] as { n: number };
+    if (Number(memberCount.n) >= MAX_MEMBERS_PER_GROUP) {
+      res.status(409).json({
+        error: 'Conflict',
+        code: 'cap_members_reached',
+        message: `This group is full (${MAX_MEMBERS_PER_GROUP} members). Ask your teacher to make room.`,
+        limit: MAX_MEMBERS_PER_GROUP,
+      });
       return;
     }
     await client.execute(
       'INSERT INTO group_members (id, group_id, student_id, joined_at) VALUES (?, ?, ?, ?)',
-      [uuidv4(), group.id, req.user!.id, Date.now()],
+      [uuidv4(), group.id, userId, Date.now()],
     );
+    clearJoinFailures(userId);
     res.status(201).json({ id: group.id, name: group.name });
   });
 

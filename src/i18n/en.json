@@ -888,6 +888,8 @@
     "joinFailed": "Invalid invite code.",
     "capGroupsReached": "Group cap reached ({{limit}} per teacher). Archive or delete an existing group first.",
     "capMembersReached": "Member cap reached ({{limit}} per group). Remove an existing member first.",
+    "joinGroupFull": "This group is full ({{limit}} members). Ask your teacher to make room.",
+    "joinRateLimited": "Too many invalid attempts. Wait a minute before trying again.",
     "upgradeToTeacher": "Become a teacher",
     "upgradeConfirm": "Enable teacher tools on this account? Free forever, up to 3 groups of 10 students.",
     "upgradeSuccess": "Teacher tools enabled.",

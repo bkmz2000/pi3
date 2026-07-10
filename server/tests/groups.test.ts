@@ -5,7 +5,7 @@ import request from 'supertest';
 import Database from 'better-sqlite3';
 import { createTestDb, closeTestDb } from './setup.js';
 import { v4 as uuidv4 } from 'uuid';
-import { createGroupsRouter } from '../routes/groups.js';
+import { createGroupsRouter, __resetJoinRateLimitForTests } from '../routes/groups.js';
 
 let app: express.Application;
 let db: Database.Database;
@@ -26,6 +26,7 @@ beforeAll(() => {
 });
 
 beforeEach(() => {
+  __resetJoinRateLimitForTests();
   db = createTestDb();
   const now = Date.now();
 
@@ -224,6 +225,62 @@ describe('Groups API', () => {
       const res = await request(app).get('/api/groups/my').set(auth(student1.api_token));
       expect(res.status).toBe(200);
       expect(res.body).toHaveLength(0);
+    });
+  });
+
+  describe('POST /api/groups/join', () => {
+    async function createGroupAndCode(): Promise<{ id: string; code: string }> {
+      const r = await request(app).post('/api/groups').set(auth(teacher.api_token)).send({ name: 'G1' });
+      return { id: r.body.id, code: r.body.invite_code };
+    }
+
+    it('student joins with valid code', async () => {
+      const { code } = await createGroupAndCode();
+      const res = await request(app).post('/api/groups/join').set(auth(student1.api_token)).send({ code });
+      expect(res.status).toBe(201);
+    });
+
+    it('invalid code returns 404', async () => {
+      const res = await request(app).post('/api/groups/join').set(auth(student1.api_token)).send({ code: 'NOPE99' });
+      expect(res.status).toBe(404);
+    });
+
+    it('rejects 11th student with cap_members_reached', async () => {
+      const { code } = await createGroupAndCode();
+      const now = Date.now();
+      for (let i = 0; i < 11; i++) {
+        const u = { id: uuidv4(), name: `S${i}`, api_token: uuidv4().replace(/-/g, '') + uuidv4().replace(/-/g, '') };
+        db.prepare('INSERT INTO users (id, api_token, name, role, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)')
+          .run(u.id, u.api_token, u.name, 'student', now, now);
+        const res = await request(app).post('/api/groups/join').set(auth(u.api_token)).send({ code });
+        if (i < 10) expect(res.status).toBe(201);
+        else {
+          expect(res.status).toBe(409);
+          expect(res.body.code).toBe('cap_members_reached');
+        }
+      }
+    });
+
+    it('rate-limits after 10 invalid attempts within window', async () => {
+      for (let i = 0; i < 10; i++) {
+        const res = await request(app).post('/api/groups/join').set(auth(student1.api_token)).send({ code: 'BADCOD' });
+        expect(res.status).toBe(404);
+      }
+      const res = await request(app).post('/api/groups/join').set(auth(student1.api_token)).send({ code: 'BADCOD' });
+      expect(res.status).toBe(429);
+      expect(res.body.code).toBe('join_rate_limited');
+    });
+
+    it('successful join clears failure counter', async () => {
+      const { code } = await createGroupAndCode();
+      for (let i = 0; i < 9; i++) {
+        await request(app).post('/api/groups/join').set(auth(student1.api_token)).send({ code: 'BADCOD' });
+      }
+      const good = await request(app).post('/api/groups/join').set(auth(student1.api_token)).send({ code });
+      expect(good.status).toBe(201);
+      // Fresh bad attempts should not immediately trip 429
+      const bad = await request(app).post('/api/groups/join').set(auth(student1.api_token)).send({ code: 'BADCOD' });
+      expect(bad.status).toBe(404);
     });
   });
 

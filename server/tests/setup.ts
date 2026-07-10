@@ -56,6 +56,7 @@ export function createTestDb(): Database.Database {
     );
 
     CREATE INDEX IF NOT EXISTS idx_projects_user_id ON projects(user_id);
+    CREATE INDEX IF NOT EXISTS idx_projects_user_updated ON projects(user_id, updated_at);
     CREATE INDEX IF NOT EXISTS idx_project_shares_project_id ON project_shares(project_id);
     CREATE INDEX IF NOT EXISTS idx_project_shares_user_id ON project_shares(user_id);
     CREATE INDEX IF NOT EXISTS idx_users_api_token ON users(api_token);

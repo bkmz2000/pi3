@@ -38,6 +38,8 @@ describe('server/db/index', () => {
     expect(userCols).toEqual(expect.arrayContaining(['handle', 'handle_seq']));
     expect(projCols).toEqual(expect.arrayContaining(['sounds', 'tilemaps', 'animations']));
     expect(groupCols).toEqual(expect.arrayContaining(['invite_code', 'archived_at']));
+    const projIdx = (await client.execute("PRAGMA index_list('projects')")).rows.map(r => r['name']);
+    expect(projIdx).toContain('idx_projects_user_updated');
     db.close();
   });
 

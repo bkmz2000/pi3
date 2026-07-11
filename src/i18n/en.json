@@ -1269,6 +1269,43 @@
       "body": "A readable graphics API lets students focus on ideas, not boilerplate. Five lines produce a visible, colorful result — no hidden state, no magic imports.",
       "codeCaption": "Readable source produces clear, colorful output — no boilerplate."
     },
+    "builtForGames": {
+      "title": "Built for games, not textbooks",
+      "intro": "Everything you need to build a real game — sprite editor, tilemap editor, and an actor system — in one tool.",
+      "chip1": {
+        "title": "Pixel editor",
+        "body": "Draw sprites at 16\u00d716 or 32\u00d732. Animate frames. Palette locked to the Python `Colors` namespace so what you draw is what your code names."
+      },
+      "chip2": {
+        "title": "Actor system",
+        "body": "Objects on screen with position, sprite, and collision. `actor.move_to(x, y)`, `actor.collides_with(other)`. Same mental model as Scratch, real Python underneath."
+      },
+      "chip3": {
+        "title": "Tilemap editor",
+        "body": "Layered grid maps, click-to-paint. Loads back into Python as an addressable grid — no asset pipeline to manage."
+      }
+    },
+    "exampleGames": {
+      "title": "Example games shipped in the tool",
+      "intro": "Every install ships with runnable projects your students can open, tweak, and remix. A few of the flagship builds:",
+      "screenshotPlaceholder": "Screenshot coming soon",
+      "card1": {
+        "title": "Sokoban",
+        "body": "The classic warehouse puzzle. Push boxes onto targets. Teaches tilemaps, grid movement, and win conditions."
+      },
+      "card2": {
+        "title": "Flappy Bird",
+        "body": "The one-tap arcade hit. Teaches gravity, timers, and endless obstacle spawning."
+      },
+      "card3": {
+        "title": "Game of Life",
+        "body": "Conway's cellular automaton. Teaches 2D arrays, neighbor iteration, and generational updates."
+      },
+      "card4": {
+        "title": "Harmonograph",
+        "body": "A pendulum-driven curve simulator. Teaches trigonometry, parametric equations, and animated math."
+      }
+    },
     "migration": {
       "title": "Migrating from Trinket",
       "body": "Rebuilding a project in pi3 takes minutes. Copy your Python in, adjust the graphics calls, keep teaching. No auto-import from Trinket — but the migration is quick, and we're happy to help."

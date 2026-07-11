@@ -441,7 +441,208 @@ for x in range(0, 400, 20):
 }
 
 /* ================================================================== */
-/*  6. Honest migration note                                            */
+/*  6. Built for games, not textbooks                                   */
+/* ================================================================== */
+function BuiltForGames() {
+  const theme = useThemeStore((s) => s.theme);
+  const isMobile = useIsMobile();
+  const { t } = useTranslation();
+
+  const chips = [
+    { title: t('welcome.builtForGames.chip1.title'), body: t('welcome.builtForGames.chip1.body') },
+    { title: t('welcome.builtForGames.chip2.title'), body: t('welcome.builtForGames.chip2.body') },
+    { title: t('welcome.builtForGames.chip3.title'), body: t('welcome.builtForGames.chip3.body') },
+  ];
+
+  return (
+    <Section>
+      <h2
+        style={{
+          fontFamily: theme.fontUI,
+          fontWeight: 700,
+          fontSize: 'clamp(22px, 4vw, 28px)',
+          color: theme.panelTxt,
+          textAlign: 'center',
+          margin: '0 0 16px 0',
+        }}
+      >
+        {t('welcome.builtForGames.title')}
+      </h2>
+      <p
+        style={{
+          fontFamily: theme.fontUI,
+          fontWeight: 500,
+          fontSize: 16,
+          color: theme.panelTxtMute,
+          textAlign: 'center',
+          maxWidth: 640,
+          margin: '0 auto 28px auto',
+          lineHeight: 1.5,
+        }}
+      >
+        {t('welcome.builtForGames.intro')}
+      </p>
+
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr 1fr',
+          gap: 24,
+        }}
+      >
+        {chips.map((chip, i) => (
+          <div
+            key={i}
+            style={{
+              background: theme.surfacePanel,
+              borderRadius: theme.radiusCard,
+              border: `1px solid ${theme.panelBorder}`,
+              borderLeft: `4px solid ${theme.accent}`,
+              padding: 24,
+            }}
+          >
+            <h3
+              style={{
+                fontFamily: theme.fontUI,
+                fontWeight: 700,
+                fontSize: 17,
+                color: theme.panelTxt,
+                margin: '0 0 10px 0',
+              }}
+            >
+              {chip.title}
+            </h3>
+            <p
+              style={{
+                fontFamily: theme.fontUI,
+                fontWeight: 500,
+                fontSize: 14,
+                color: theme.panelTxtMute,
+                margin: 0,
+                lineHeight: 1.55,
+              }}
+            >
+              {chip.body}
+            </p>
+          </div>
+        ))}
+      </div>
+    </Section>
+  );
+}
+
+/* ================================================================== */
+/*  7. Example games shipped in the tool                               */
+/* ================================================================== */
+function ExampleGames() {
+  const theme = useThemeStore((s) => s.theme);
+  const isMobile = useIsMobile();
+  const { t } = useTranslation();
+
+  const cards = [
+    { title: t('welcome.exampleGames.card1.title'), body: t('welcome.exampleGames.card1.body') },
+    { title: t('welcome.exampleGames.card2.title'), body: t('welcome.exampleGames.card2.body') },
+    { title: t('welcome.exampleGames.card3.title'), body: t('welcome.exampleGames.card3.body') },
+    { title: t('welcome.exampleGames.card4.title'), body: t('welcome.exampleGames.card4.body') },
+  ];
+
+  return (
+    <Section>
+      <h2
+        style={{
+          fontFamily: theme.fontUI,
+          fontWeight: 700,
+          fontSize: 'clamp(22px, 4vw, 28px)',
+          color: theme.panelTxt,
+          textAlign: 'center',
+          margin: '0 0 16px 0',
+        }}
+      >
+        {t('welcome.exampleGames.title')}
+      </h2>
+      <p
+        style={{
+          fontFamily: theme.fontUI,
+          fontWeight: 500,
+          fontSize: 16,
+          color: theme.panelTxtMute,
+          textAlign: 'center',
+          maxWidth: 640,
+          margin: '0 auto 28px auto',
+          lineHeight: 1.5,
+        }}
+      >
+        {t('welcome.exampleGames.intro')}
+      </p>
+
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr',
+          gap: 24,
+        }}
+      >
+        {cards.map((card, i) => (
+          <div
+            key={i}
+            style={{
+              background: theme.surfacePanel,
+              borderRadius: theme.radiusCard,
+              border: `1px solid ${theme.panelBorder}`,
+              overflow: 'hidden',
+            }}
+          >
+            {/* Screenshot placeholder */}
+            <div
+              style={{
+                background: theme.chip,
+                borderBottom: `1px solid ${theme.panelBorder}`,
+                minHeight: 140,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontFamily: theme.fontUI,
+                fontSize: 14,
+                color: theme.panelTxtMute,
+              }}
+            >
+              {t('welcome.exampleGames.screenshotPlaceholder')}
+            </div>
+            {/* Card text */}
+            <div style={{ padding: 20 }}>
+              <h3
+                style={{
+                  fontFamily: theme.fontUI,
+                  fontWeight: 700,
+                  fontSize: 17,
+                  color: theme.panelTxt,
+                  margin: '0 0 8px 0',
+                }}
+              >
+                {card.title}
+              </h3>
+              <p
+                style={{
+                  fontFamily: theme.fontUI,
+                  fontWeight: 500,
+                  fontSize: 14,
+                  color: theme.panelTxtMute,
+                  margin: 0,
+                  lineHeight: 1.55,
+                }}
+              >
+                {card.body}
+              </p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </Section>
+  );
+}
+
+/* ================================================================== */
+/*  8. Honest migration note                                            */
 /* ================================================================== */
 function MigrationNote() {
   const theme = useThemeStore((s) => s.theme);
@@ -480,7 +681,7 @@ function MigrationNote() {
 }
 
 /* ================================================================== */
-/*  7. FAQ accordion                                                    */
+/*  9. FAQ accordion                                                    */
 /* ================================================================== */
 function FAQ() {
   const theme = useThemeStore((s) => s.theme);
@@ -549,7 +750,7 @@ function FAQ() {
 }
 
 /* ================================================================== */
-/*  8. Footer CTA                                                      */
+/*  10. Footer CTA                                                      */
 /* ================================================================== */
 function FooterCTA() {
   const theme = useThemeStore((s) => s.theme);
@@ -592,7 +793,11 @@ export function WelcomePage() {
   return (
     <div
       style={{
-        minHeight: '100vh',
+        position: 'fixed',
+        inset: 0,
+        overflowY: 'auto',
+        overflowX: 'hidden',
+        WebkitOverflowScrolling: 'touch',
         background: theme.appBg,
         color: theme.panelTxt,
         fontFamily: theme.fontUI,
@@ -604,6 +809,8 @@ export function WelcomePage() {
       <FreeForever />
       <ClassroomView />
       <Pedagogy />
+      <BuiltForGames />
+      <ExampleGames />
       <MigrationNote />
       <FAQ />
       <FooterCTA />

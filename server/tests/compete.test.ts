@@ -513,3 +513,150 @@ describe('GET /api/teacher/problems/:slug/submissions', () => {
     expect(res.status).toBe(403);
   });
 });
+
+// ── Phase 9 alignment tests ───────────────────────────────────────────────────
+
+describe('Phase 9: created_by never in any compete-mode response body', () => {
+  beforeEach(async () => {
+    await request(app).post('/api/teacher/problems').set(auth(teacher.api_token)).send(PROBLEM_BODY);
+  });
+
+  function assertNoCreatedBy(body: unknown, path = ''): void {
+    if (Array.isArray(body)) {
+      body.forEach((item, i) => assertNoCreatedBy(item, `${path}[${i}]`));
+      return;
+    }
+    if (body && typeof body === 'object') {
+      for (const [k, v] of Object.entries(body)) {
+        if (k === 'created_by') {
+          throw new Error(`created_by leaked at ${path}.${k}`);
+        }
+        assertNoCreatedBy(v, `${path}.${k}`);
+      }
+    }
+  }
+
+  it('GET /api/problems does not include created_by', async () => {
+    const res = await request(app).get('/api/problems').set(auth(student.api_token));
+    expect(res.status).toBe(200);
+    assertNoCreatedBy(res.body);
+  });
+
+  it('GET /api/problems/:slug does not include created_by', async () => {
+    const res = await request(app).get('/api/problems/sum-two').set(auth(student.api_token));
+    expect(res.status).toBe(200);
+    assertNoCreatedBy(res.body);
+  });
+
+  it('GET /api/teacher/problems does not include created_by', async () => {
+    const res = await request(app).get('/api/teacher/problems').set(auth(teacher.api_token));
+    expect(res.status).toBe(200);
+    assertNoCreatedBy(res.body);
+  });
+
+  it('GET /api/teacher/problems/:slug does not include created_by (previously a SELECT * leak)', async () => {
+    const res = await request(app).get('/api/teacher/problems/sum-two').set(auth(teacher.api_token));
+    expect(res.status).toBe(200);
+    assertNoCreatedBy(res.body);
+  });
+
+  it('POST /api/teacher/problems response body does not include created_by', async () => {
+    const res = await request(app).post('/api/teacher/problems').set(auth(teacher.api_token)).send({
+      ...PROBLEM_BODY,
+      slug: 'sum-three',
+    });
+    expect(res.status).toBe(201);
+    assertNoCreatedBy(res.body);
+  });
+
+  it('PUT /api/teacher/problems/:slug response body does not include created_by', async () => {
+    const res = await request(app).put('/api/teacher/problems/sum-two').set(auth(teacher.api_token)).send({
+      ...PROBLEM_BODY,
+      title: 'Renamed',
+    });
+    expect(res.status).toBe(200);
+    assertNoCreatedBy(res.body);
+  });
+});
+
+describe('Phase 9: problem source (archive provenance) is separate from created_by', () => {
+  it('accepts and returns a `source` field independent of created_by', async () => {
+    const res = await request(app).post('/api/teacher/problems').set(auth(teacher.api_token)).send({
+      ...PROBLEM_BODY,
+      slug: 'vsosh-2024',
+      source: 'ВсОШ 2024, региональный этап, задача 3',
+    });
+    expect(res.status).toBe(201);
+    expect(res.body.source).toBe('ВсОШ 2024, региональный этап, задача 3');
+    expect(res.body).not.toHaveProperty('created_by');
+    // Round-trip via GET
+    const get = await request(app).get('/api/teacher/problems/vsosh-2024').set(auth(teacher.api_token));
+    expect(get.body.source).toBe('ВсОШ 2024, региональный этап, задача 3');
+    expect(get.body).not.toHaveProperty('created_by');
+  });
+});
+
+describe('Phase 9: content scanner runs at author boundaries', () => {
+  it('flags a problem whose statement contains an email', async () => {
+    const res = await request(app).post('/api/teacher/problems').set(auth(teacher.api_token)).send({
+      ...PROBLEM_BODY,
+      slug: 'contact-me',
+      statement: 'Email me at foo@example.com for hints.',
+    });
+    expect(res.status).toBe(201);
+    expect(res.body.scan_status).toBe('flagged');
+  });
+
+  it('flags a problem whose reference_solution contains a phone number', async () => {
+    const res = await request(app).post('/api/teacher/problems').set(auth(teacher.api_token)).send({
+      ...PROBLEM_BODY,
+      slug: 'phone-leak',
+      reference_solution_py: '# my phone: +7 900 123 4567\nprint(input())',
+    });
+    expect(res.status).toBe(201);
+    expect(res.body.scan_status).toBe('flagged');
+  });
+
+  it('reports clean on a well-behaved problem', async () => {
+    const res = await request(app).post('/api/teacher/problems').set(auth(teacher.api_token)).send({
+      ...PROBLEM_BODY,
+      slug: 'clean-one',
+    });
+    expect(res.status).toBe(201);
+    expect(res.body.scan_status).toBe('clean');
+  });
+});
+
+describe('GET /api/problems/:slug/solve-count (Phase 9 aggregate-only)', () => {
+  it('returns distinct-account solve count with no identity', async () => {
+    const res = await request(app).post('/api/teacher/problems').set(auth(teacher.api_token)).send(PROBLEM_BODY);
+    const problemId = res.body.id;
+    // 2 submissions from same user with stars, 1 from another user, 1 with 0 stars
+    db.prepare('INSERT INTO submissions (user_id, problem_id, code, stars, verdict) VALUES (?, ?, ?, ?, ?)')
+      .run(student.id, problemId, 'c1', 3, 'ok');
+    db.prepare('INSERT INTO submissions (user_id, problem_id, code, stars, verdict) VALUES (?, ?, ?, ?, ?)')
+      .run(student.id, problemId, 'c2', 2, 'ok');
+    const other = uuidv4();
+    db.prepare('INSERT INTO users (id, api_token, name, role, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)')
+      .run(other, uuidv4(), 'Zed', 'student', Date.now(), Date.now());
+    db.prepare('INSERT INTO submissions (user_id, problem_id, code, stars, verdict) VALUES (?, ?, ?, ?, ?)')
+      .run(other, problemId, 'c3', 1, 'ok');
+    const zero = uuidv4();
+    db.prepare('INSERT INTO users (id, api_token, name, role, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)')
+      .run(zero, uuidv4(), 'Q', 'student', Date.now(), Date.now());
+    db.prepare('INSERT INTO submissions (user_id, problem_id, code, stars, verdict) VALUES (?, ?, ?, ?, ?)')
+      .run(zero, problemId, 'c4', 0, 'wa');
+
+    const sc = await request(app).get('/api/problems/sum-two/solve-count').set(auth(student.api_token));
+    expect(sc.status).toBe(200);
+    expect(sc.body).toEqual({ solve_count: 2 });
+    // No solver list, no user id, no user name
+    expect(sc.body).not.toHaveProperty('users');
+    expect(sc.body).not.toHaveProperty('solvers');
+  });
+
+  it('404 for unknown problem', async () => {
+    const sc = await request(app).get('/api/problems/nope/solve-count').set(auth(student.api_token));
+    expect(sc.status).toBe(404);
+  });
+});

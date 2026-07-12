@@ -22,6 +22,7 @@ type SnapshotRow = {
   scan_status: 'pending' | 'clean' | 'flagged';
   scan_findings: string | null;
   view_count: number;
+  fork_count: number;
   public_status: 'unlisted' | 'requested' | 'approved' | 'rejected';
 };
 
@@ -31,6 +32,8 @@ function newShareLink(): string {
 }
 
 // The public projection strips owner_id and any internal state, per P#7.
+// Fork count is an *aggregate* — no endpoint enumerates the forks — so it is
+// safe to expose (P#3 aggregate-stats-only clause).
 function projectPublic(row: SnapshotRow) {
   return {
     share_link: row.share_link,
@@ -39,6 +42,7 @@ function projectPublic(row: SnapshotRow) {
     assets: JSON.parse(row.assets_json || '{}'),
     created_at: row.created_at,
     public_status: row.public_status,
+    fork_count: row.fork_count,
   };
 }
 
@@ -56,6 +60,7 @@ function projectOwner(row: SnapshotRow) {
     scan_status: row.scan_status,
     scan_findings: row.scan_findings ? JSON.parse(row.scan_findings) : [],
     view_count: row.view_count,
+    fork_count: row.fork_count,
     public_status: row.public_status,
   };
 }
@@ -230,6 +235,54 @@ export function createSnapshotsRouter(): Router {
       }
     }
     res.json(projectPublic(row));
+  });
+
+  // Fork a snapshot into a new private project owned by the caller.
+  // Per Phase 8, the fork is a private copy — it does not auto-publish.
+  // The parent snapshot's fork_count is incremented as an aggregate stat;
+  // NO endpoint returns the list of forks or their owners for a given
+  // snapshot (verified in the test suite by omission).
+  router.post('/s/:shareLink/fork', authMiddleware, async (req: Request, res: Response): Promise<void> => {
+    if (!req.user) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+    const client = getClient();
+    const snap = (await client.execute(
+      'SELECT * FROM project_snapshots WHERE share_link = ?',
+      [req.params.shareLink],
+    )).rows[0] as unknown as SnapshotRow | undefined;
+    if (!snap) {
+      res.status(404).json({ error: 'Not Found' });
+      return;
+    }
+    if (snap.revoked_at !== null) {
+      res.status(410).json({ error: 'Gone', message: 'Cannot fork a revoked share' });
+      return;
+    }
+    const newProjectId = uuidv4();
+    const now = Date.now();
+    await client.execute(
+      `INSERT INTO projects (id, user_id, name, files, assets, current_file,
+                             forked_from_snapshot_id, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [newProjectId, req.user.id, snap.title, snap.files_json, snap.assets_json,
+       'main.py', snap.id, now, now],
+    );
+    await client.execute(
+      'UPDATE project_snapshots SET fork_count = fork_count + 1 WHERE id = ?',
+      [snap.id],
+    );
+    res.status(201).json({
+      project_id: newProjectId,
+      // One-directional backlink metadata the client can render, if desired,
+      // as "forked from [title]". No reverse list from parent → forks exists.
+      forked_from: {
+        snapshot_id: snap.id,
+        share_link: snap.share_link,
+        title: snap.title,
+      },
+    });
   });
 
   return router;

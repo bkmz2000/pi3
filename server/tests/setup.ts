@@ -38,6 +38,7 @@ export function createTestDb(): Database.Database {
       current_file TEXT NOT NULL DEFAULT 'main.py',
       thumbnail BLOB,
       thumbnail_updated_at INTEGER,
+      forked_from_snapshot_id TEXT,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL,
       FOREIGN KEY (user_id) REFERENCES users(id)
@@ -119,7 +120,10 @@ export function createTestDb(): Database.Database {
       updated_at TEXT NOT NULL DEFAULT (datetime('now')),
       generator_py TEXT NULL,
       reference_solution_py TEXT NULL,
-      checker_py TEXT NULL
+      checker_py TEXT NULL,
+      source TEXT,
+      scan_status TEXT NOT NULL DEFAULT 'pending' CHECK (scan_status IN ('pending', 'clean', 'flagged')),
+      scan_findings TEXT
     );
     CREATE INDEX IF NOT EXISTS idx_problems_archived_order ON problems(archived, order_index);
 
@@ -163,6 +167,7 @@ export function createTestDb(): Database.Database {
       scan_status TEXT NOT NULL DEFAULT 'pending' CHECK (scan_status IN ('pending', 'clean', 'flagged')),
       scan_findings TEXT,
       view_count INTEGER NOT NULL DEFAULT 0,
+      fork_count INTEGER NOT NULL DEFAULT 0,
       public_status TEXT NOT NULL DEFAULT 'unlisted' CHECK (public_status IN ('unlisted', 'requested', 'approved', 'rejected'))
     );
     CREATE INDEX IF NOT EXISTS idx_project_snapshots_owner ON project_snapshots(owner_id, created_at DESC);

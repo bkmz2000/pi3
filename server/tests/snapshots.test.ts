@@ -245,3 +245,62 @@ describe('POST /api/snapshots/:id/request-public (Phase 7 gate)', () => {
     expect(res.status).toBe(409);
   });
 });
+
+describe('POST /api/snapshots/s/:shareLink/fork (Phase 8)', () => {
+  it('401 without auth', async () => {
+    const projectId = await seedProject(owner.id);
+    const snap = await request(app).post(`/api/snapshots/projects/${projectId}/snapshot`).set(auth(owner.api_token));
+    const res = await request(app).post(`/api/snapshots/s/${snap.body.share_link}/fork`);
+    expect(res.status).toBe(401);
+  });
+
+  it('creates a private copy in the forker\'s account (not auto-published)', async () => {
+    const projectId = await seedProject(owner.id, 'ParentTitle', { 'main.py': 'print("hi")' });
+    const snap = await request(app).post(`/api/snapshots/projects/${projectId}/snapshot`).set(auth(owner.api_token));
+    const fork = await request(app).post(`/api/snapshots/s/${snap.body.share_link}/fork`).set(auth(stranger.api_token));
+    expect(fork.status).toBe(201);
+    expect(typeof fork.body.project_id).toBe('string');
+    // Confirm the fork row is owned by the forker and contains the copied content.
+    const row = db.prepare('SELECT user_id, name, files, is_public, forked_from_snapshot_id FROM projects WHERE id = ?').get(fork.body.project_id) as {
+      user_id: string; name: string; files: string; is_public: number; forked_from_snapshot_id: string;
+    };
+    expect(row.user_id).toBe(stranger.id);
+    expect(row.name).toBe('ParentTitle');
+    expect(JSON.parse(row.files)['main.py']).toBe('print("hi")');
+    expect(row.is_public).toBe(0);
+    expect(row.forked_from_snapshot_id).toBe(snap.body.id);
+  });
+
+  it('increments the parent snapshot\'s fork_count (aggregate only)', async () => {
+    const projectId = await seedProject(owner.id);
+    const snap = await request(app).post(`/api/snapshots/projects/${projectId}/snapshot`).set(auth(owner.api_token));
+    await request(app).post(`/api/snapshots/s/${snap.body.share_link}/fork`).set(auth(stranger.api_token));
+    const publicRes = await request(app).get(`/api/snapshots/s/${snap.body.share_link}`);
+    expect(publicRes.body.fork_count).toBe(1);
+  });
+
+  it('the parent-facing surface never enumerates forks (aggregate only)', async () => {
+    const projectId = await seedProject(owner.id);
+    const snap = await request(app).post(`/api/snapshots/projects/${projectId}/snapshot`).set(auth(owner.api_token));
+    await request(app).post(`/api/snapshots/s/${snap.body.share_link}/fork`).set(auth(stranger.api_token));
+    const publicRes = await request(app).get(`/api/snapshots/s/${snap.body.share_link}`);
+    // The public projection must NOT contain any per-fork data
+    expect(publicRes.body).not.toHaveProperty('forks');
+    expect(publicRes.body).not.toHaveProperty('fork_ids');
+    expect(publicRes.body).not.toHaveProperty('forker_ids');
+    // And the owner projection must not either
+    const mine = await request(app).get('/api/snapshots/mine').set(auth(owner.api_token));
+    expect(mine.body[0]).not.toHaveProperty('forks');
+    expect(mine.body[0]).not.toHaveProperty('fork_ids');
+    // Only the aggregate count is present
+    expect(mine.body[0].fork_count).toBe(1);
+  });
+
+  it('cannot fork a revoked share', async () => {
+    const projectId = await seedProject(owner.id);
+    const snap = await request(app).post(`/api/snapshots/projects/${projectId}/snapshot`).set(auth(owner.api_token));
+    await request(app).post(`/api/snapshots/${snap.body.id}/revoke`).set(auth(owner.api_token));
+    const res = await request(app).post(`/api/snapshots/s/${snap.body.share_link}/fork`).set(auth(stranger.api_token));
+    expect(res.status).toBe(410);
+  });
+});

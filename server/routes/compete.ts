@@ -1,6 +1,44 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { getClient } from '../db/index.js';
 import { authMiddleware, AuthUser } from '../middleware/auth.js';
+import { scanSnapshot } from '../snapshots/scanner.js';
+
+// Column list for problems that intentionally omits `created_by`, per
+// Phase 9 doctrine: author-project linkage is internal-only and must never
+// appear in any response body. Every teacher-facing SELECT uses this list.
+const PROBLEM_PUBLIC_COLUMNS = `
+  id, slug, title, statement, order_index, starter_code, archived,
+  created_at, updated_at, generator_py, reference_solution_py, checker_py,
+  source, scan_status, scan_findings
+`;
+
+// Runs the pre-share content scanner over the full raw text of a problem
+// authoring payload (P#6: no carve-outs). Returns scan_status + JSON of
+// findings, both safe to persist into `problems.scan_status` /
+// `problems.scan_findings`.
+function scanProblemPayload(payload: {
+  title: string;
+  statement: string;
+  starter_code?: string | null;
+  generator_py?: string | null;
+  reference_solution_py?: string | null;
+  checker_py?: string | null;
+  tests: { input: string; expected: string }[];
+}): { status: 'clean' | 'flagged'; findings_json: string } {
+  const files: Record<string, string> = {
+    'statement.md': payload.statement,
+    'starter.py': payload.starter_code ?? '',
+    'generator.py': payload.generator_py ?? '',
+    'reference.py': payload.reference_solution_py ?? '',
+    'checker.py': payload.checker_py ?? '',
+  };
+  payload.tests.forEach((t, i) => {
+    files[`tests/${i}.in`] = t.input ?? '';
+    files[`tests/${i}.out`] = t.expected ?? '';
+  });
+  const scan = scanSnapshot({ title: payload.title, files });
+  return { status: scan.status, findings_json: JSON.stringify(scan.findings) };
+}
 
 interface Problem {
   id: number;
@@ -256,7 +294,7 @@ export function createCompeteRouter(): Router {
   router.get('/teacher/problems/:slug', teacherOnly, async (req: Request, res: Response): Promise<void> => {
     const client = getClient();
     const problem = (await client.execute(
-      'SELECT * FROM problems WHERE slug = ?',
+      `SELECT ${PROBLEM_PUBLIC_COLUMNS} FROM problems WHERE slug = ?`,
       [req.params.slug],
     )).rows[0] as unknown as Problem | undefined;
     if (!problem) {
@@ -276,10 +314,11 @@ export function createCompeteRouter(): Router {
       res.status(400).json({ error: 'Bad Request', message: validationError });
       return;
     }
-    const { slug, title, statement, starter_code, order_index, tests, generator_py, reference_solution_py, checker_py } = req.body as {
+    const { slug, title, statement, starter_code, order_index, tests, generator_py, reference_solution_py, checker_py, source } = req.body as {
       slug: string; title: string; statement: string;
       starter_code?: string; order_index?: number; tests: TestInput[];
       generator_py?: string | null; reference_solution_py?: string | null; checker_py?: string | null;
+      source?: string | null;
     };
     const client = getClient();
     const existing = (await client.execute('SELECT id FROM problems WHERE slug = ?', [slug])).rows[0];
@@ -287,11 +326,17 @@ export function createCompeteRouter(): Router {
       res.status(409).json({ error: 'Conflict', message: 'slug already exists' });
       return;
     }
+    const scan = scanProblemPayload({
+      title, statement, starter_code, generator_py, reference_solution_py, checker_py, tests,
+    });
     const insertResult = await client.execute(
-      `INSERT INTO problems (slug, title, statement, starter_code, order_index, created_by, generator_py, reference_solution_py, checker_py)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO problems (slug, title, statement, starter_code, order_index, created_by,
+                             generator_py, reference_solution_py, checker_py,
+                             source, scan_status, scan_findings)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [slug, title.trim(), statement.trim(), starter_code ?? '', order_index ?? 0, (req.user as AuthUser).id,
-       generator_py ?? null, reference_solution_py ?? null, checker_py ?? null],
+       generator_py ?? null, reference_solution_py ?? null, checker_py ?? null,
+       source ?? null, scan.status, scan.findings_json],
     );
     const problemId = insertResult.lastInsertRowid;
     const normalized = normalizeTests(tests);
@@ -302,7 +347,10 @@ export function createCompeteRouter(): Router {
         args: [problemId, t.tier, t.is_visible, t.ordinal, t.input, t.expected, t.fields_json],
       })),
     );
-    const problem = (await client.execute('SELECT * FROM problems WHERE id = ?', [problemId])).rows[0];
+    const problem = (await client.execute(
+      `SELECT ${PROBLEM_PUBLIC_COLUMNS} FROM problems WHERE id = ?`,
+      [problemId],
+    )).rows[0];
     res.status(201).json(problem);
   });
 
@@ -321,17 +369,23 @@ export function createCompeteRouter(): Router {
       res.status(404).json({ error: 'Not Found' });
       return;
     }
-    const { title, statement, starter_code, order_index, tests, generator_py, reference_solution_py, checker_py } = req.body as {
+    const { title, statement, starter_code, order_index, tests, generator_py, reference_solution_py, checker_py, source } = req.body as {
       title: string; statement: string; starter_code?: string; order_index?: number; tests: TestInput[];
       generator_py?: string | null; reference_solution_py?: string | null; checker_py?: string | null;
+      source?: string | null;
     };
+    const scan = scanProblemPayload({
+      title, statement, starter_code, generator_py, reference_solution_py, checker_py, tests,
+    });
     await client.execute(
       `UPDATE problems SET title = ?, statement = ?, starter_code = ?, order_index = ?,
          generator_py = ?, reference_solution_py = ?, checker_py = ?,
+         source = ?, scan_status = ?, scan_findings = ?,
          updated_at = datetime('now')
        WHERE id = ?`,
       [title.trim(), statement.trim(), starter_code ?? '', order_index ?? 0,
-       generator_py ?? null, reference_solution_py ?? null, checker_py ?? null, problem.id],
+       generator_py ?? null, reference_solution_py ?? null, checker_py ?? null,
+       source ?? null, scan.status, scan.findings_json, problem.id],
     );
     await client.execute('DELETE FROM problem_tests WHERE problem_id = ?', [problem.id]);
     const normalized = normalizeTests(tests);
@@ -343,8 +397,9 @@ export function createCompeteRouter(): Router {
       })),
     );
     const updated = (await client.execute(
-      `SELECT p.*, (SELECT COUNT(*) FROM problem_tests WHERE problem_id = p.id) as test_count
-       FROM problems p WHERE p.id = ?`,
+      `SELECT ${PROBLEM_PUBLIC_COLUMNS},
+        (SELECT COUNT(*) FROM problem_tests WHERE problem_id = problems.id) as test_count
+       FROM problems WHERE id = ?`,
       [problem.id],
     )).rows[0];
     res.json(updated);
@@ -454,6 +509,26 @@ export function createCompeteRouter(): Router {
       return;
     }
     res.status(204).end();
+  });
+
+  // Aggregate solve count per problem — public. Returns *only* the number of
+  // distinct users who have earned any stars for the problem. No solver list,
+  // no leaderboard, no identity, per Phase 9 P#3 aggregate-only clause.
+  router.get('/problems/:slug/solve-count', async (req: Request, res: Response): Promise<void> => {
+    const client = getClient();
+    const problem = (await client.execute(
+      'SELECT id FROM problems WHERE slug = ? AND archived = 0',
+      [req.params.slug],
+    )).rows[0] as { id: number } | undefined;
+    if (!problem) {
+      res.status(404).json({ error: 'Not Found' });
+      return;
+    }
+    const row = (await client.execute(
+      'SELECT COUNT(DISTINCT user_id) as count FROM submissions WHERE problem_id = ? AND stars > 0',
+      [problem.id],
+    )).rows[0] as { count: number };
+    res.json({ solve_count: row.count });
   });
 
   router.get('/teacher/problems/:slug/submissions', teacherOnly, async (req: Request, res: Response): Promise<void> => {

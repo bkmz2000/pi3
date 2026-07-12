@@ -112,16 +112,37 @@ function mapImportTests(tests: ImportTestRow[]): TestInput[] {
   return result;
 }
 
-function teacherOnly(req: Request, res: Response, next: NextFunction): void {
+// Any authenticated account. Problem authoring is open under the redesigned
+// model (Safety & Privacy Design Principle #1: no persistent roles) — safety
+// is enforced by the pre-share content scanner (Phase 6, server/snapshots/
+// scanner.ts, wired into POST/PUT problem endpoints in this file) and the
+// human review gate, not by role. Write endpoints below add their own
+// ownership check via `created_by` where mutation semantics require it.
+function authedOnly(req: Request, res: Response, next: NextFunction): void {
   if (!req.user) {
     res.status(401).json({ error: 'Unauthorized' });
     return;
   }
-  if (req.user.role !== 'teacher') {
-    res.status(403).json({ error: 'Forbidden', message: 'Teacher role required' });
-    return;
-  }
   next();
+}
+
+// Ownership check for mutating an existing problem. Any authed user can
+// author a problem; only the original author can edit or archive it.
+async function requireProblemOwnership(req: Request, res: Response, problemId: number): Promise<boolean> {
+  const client = getClient();
+  const row = (await client.execute(
+    'SELECT created_by FROM problems WHERE id = ?',
+    [problemId],
+  )).rows[0] as { created_by: string } | undefined;
+  if (!row) {
+    res.status(404).json({ error: 'Not Found' });
+    return false;
+  }
+  if (row.created_by !== req.user!.id) {
+    res.status(403).json({ error: 'Forbidden', message: 'Only the problem author can modify it' });
+    return false;
+  }
+  return true;
 }
 
 function slugValid(slug: string): boolean {
@@ -276,7 +297,7 @@ export function createCompeteRouter(): Router {
 
   // ── Teacher routes ───────────────────────────────────────────────────────────
 
-  router.get('/teacher/problems', teacherOnly, async (_req: Request, res: Response): Promise<void> => {
+  router.get('/teacher/problems', authedOnly, async (_req: Request, res: Response): Promise<void> => {
     const client = getClient();
     const result = await client.execute(
       `SELECT p.id, p.slug, p.title, p.order_index, p.archived, p.updated_at,
@@ -291,7 +312,7 @@ export function createCompeteRouter(): Router {
     res.json(result.rows);
   });
 
-  router.get('/teacher/problems/:slug', teacherOnly, async (req: Request, res: Response): Promise<void> => {
+  router.get('/teacher/problems/:slug', authedOnly, async (req: Request, res: Response): Promise<void> => {
     const client = getClient();
     const problem = (await client.execute(
       `SELECT ${PROBLEM_PUBLIC_COLUMNS} FROM problems WHERE slug = ?`,
@@ -308,7 +329,7 @@ export function createCompeteRouter(): Router {
     res.json({ ...problem, tests });
   });
 
-  router.post('/teacher/problems', teacherOnly, async (req: Request, res: Response): Promise<void> => {
+  router.post('/teacher/problems', authedOnly, async (req: Request, res: Response): Promise<void> => {
     const validationError = validateProblemBody(req.body);
     if (validationError) {
       res.status(400).json({ error: 'Bad Request', message: validationError });
@@ -354,7 +375,7 @@ export function createCompeteRouter(): Router {
     res.status(201).json(problem);
   });
 
-  router.put('/teacher/problems/:slug', teacherOnly, async (req: Request, res: Response): Promise<void> => {
+  router.put('/teacher/problems/:slug', authedOnly, async (req: Request, res: Response): Promise<void> => {
     const validationError = validateProblemBody({ ...req.body, slug: req.params.slug });
     if (validationError) {
       res.status(400).json({ error: 'Bad Request', message: validationError });
@@ -369,6 +390,7 @@ export function createCompeteRouter(): Router {
       res.status(404).json({ error: 'Not Found' });
       return;
     }
+    if (!(await requireProblemOwnership(req, res, problem.id))) return;
     const { title, statement, starter_code, order_index, tests, generator_py, reference_solution_py, checker_py, source } = req.body as {
       title: string; statement: string; starter_code?: string; order_index?: number; tests: TestInput[];
       generator_py?: string | null; reference_solution_py?: string | null; checker_py?: string | null;
@@ -405,7 +427,7 @@ export function createCompeteRouter(): Router {
     res.json(updated);
   });
 
-  router.post('/teacher/problems/import', teacherOnly, async (req: Request, res: Response): Promise<void> => {
+  router.post('/teacher/problems/import', authedOnly, async (req: Request, res: Response): Promise<void> => {
     const { problems: rawProblems, lang = 'ru', overwrite = false } = req.body as {
       problems: ImportProblem[];
       lang?: 'ru' | 'en';
@@ -498,16 +520,21 @@ export function createCompeteRouter(): Router {
     res.json({ imported: imported.length, skipped: skipped.length, errors });
   });
 
-  router.post('/teacher/problems/:slug/archive', teacherOnly, async (req: Request, res: Response): Promise<void> => {
+  router.post('/teacher/problems/:slug/archive', authedOnly, async (req: Request, res: Response): Promise<void> => {
     const client = getClient();
-    const result = await client.execute(
-      `UPDATE problems SET archived = 1, updated_at = datetime('now') WHERE slug = ?`,
+    const row = (await client.execute(
+      'SELECT id FROM problems WHERE slug = ?',
       [req.params.slug],
-    );
-    if (result.rowsAffected === 0) {
+    )).rows[0] as { id: number } | undefined;
+    if (!row) {
       res.status(404).json({ error: 'Not Found' });
       return;
     }
+    if (!(await requireProblemOwnership(req, res, row.id))) return;
+    await client.execute(
+      `UPDATE problems SET archived = 1, updated_at = datetime('now') WHERE id = ?`,
+      [row.id],
+    );
     res.status(204).end();
   });
 
@@ -531,7 +558,7 @@ export function createCompeteRouter(): Router {
     res.json({ solve_count: row.count });
   });
 
-  router.get('/teacher/problems/:slug/submissions', teacherOnly, async (req: Request, res: Response): Promise<void> => {
+  router.get('/teacher/problems/:slug/submissions', authedOnly, async (req: Request, res: Response): Promise<void> => {
     const client = getClient();
     const problem = (await client.execute(
       'SELECT id FROM problems WHERE slug = ?',

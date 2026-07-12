@@ -6,6 +6,7 @@ import Database from 'better-sqlite3';
 import { createTestDb, closeTestDb } from './setup.js';
 import { v4 as uuidv4 } from 'uuid';
 import { createCompeteRouter } from '../routes/compete.js';
+import { createUsersRouter } from '../routes/users.js';
 
 let app: express.Application;
 let db: Database.Database;
@@ -35,8 +36,18 @@ beforeAll(() => {
   app = express();
   app.use(express.json());
   app.use(session({ secret: 'test', resave: false, saveUninitialized: false }));
+  app.use('/api/users', createUsersRouter(true));
   app.use('/api', createCompeteRouter());
 });
+
+// Real-signup helper for the regression proof. No fixture shortcuts.
+async function signup(): Promise<{ id: string; api_token: string; handle: string }> {
+  const res = await request(app).post('/api/users/outsider').send({ password: 'pw1234' });
+  const id = res.body.id as string;
+  const handle = res.body.handle as string;
+  const row = db.prepare('SELECT api_token FROM users WHERE id = ?').get(id) as { api_token: string };
+  return { id, api_token: row.api_token, handle };
+}
 
 beforeEach(() => {
   db = createTestDb();
@@ -45,10 +56,14 @@ beforeEach(() => {
   student = { id: uuidv4(), api_token: uuidv4() };
   teacher = { id: uuidv4(), api_token: uuidv4() };
 
+  // Both accounts are inserted with role='student' — the same shape a real
+  // signup would produce after 92abf57 (see routes/users.ts). The variable
+  // names `student` and `teacher` are legacy; both are just accounts. Any
+  // account can author problems now (Phase 2 role-gate removal).
   db.prepare('INSERT INTO users (id, api_token, name, role, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)')
-    .run(student.id, student.api_token, 'Alice', 'student', now, now);
+    .run(student.id, student.api_token, null, 'student', now, now);
   db.prepare('INSERT INTO users (id, api_token, name, role, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)')
-    .run(teacher.id, teacher.api_token, 'Bob', 'teacher', now, now);
+    .run(teacher.id, teacher.api_token, null, 'student', now, now);
 });
 
 afterEach(() => {
@@ -295,10 +310,10 @@ describe('GET /api/submissions/me', () => {
 
 // ── Teacher routes ─────────────────────────────────────────────────────────────
 
-describe('teacher routes — access control', () => {
-  it('403 for student on GET /teacher/problems', async () => {
+describe('teacher routes — access control (open to any authed account under Phase 2)', () => {
+  it('any authenticated account can list problems (previously teacher-only)', async () => {
     const res = await request(app).get('/api/teacher/problems').set(auth(student.api_token));
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(200);
   });
 
   it('401 for anonymous on GET /teacher/problems', async () => {
@@ -441,7 +456,7 @@ describe('PUT /api/teacher/problems/:slug', () => {
     expect(row.generator_py).toBeNull();
   });
 
-  it('403 for student', async () => {
+  it('403 for a different authenticated account that is not the author (ownership check, not role check)', async () => {
     const res = await request(app).put('/api/teacher/problems/sum-two').set(auth(student.api_token)).send(PROBLEM_BODY);
     expect(res.status).toBe(403);
   });
@@ -498,7 +513,7 @@ describe('GET /api/teacher/problems/:slug/submissions', () => {
     const now = Date.now();
     const otherTeacher = { id: uuidv4(), api_token: uuidv4() };
     db.prepare('INSERT INTO users (id, api_token, name, role, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)')
-      .run(otherTeacher.id, otherTeacher.api_token, 'Carol', 'teacher', now, now);
+      .run(otherTeacher.id, otherTeacher.api_token, null, 'student', now, now);
     const res = await request(app).get('/api/teacher/problems/sum-two/submissions').set(auth(otherTeacher.api_token));
     expect(res.status).toBe(200);
     expect(res.body).toHaveLength(0);
@@ -510,9 +525,10 @@ describe('GET /api/teacher/problems/:slug/submissions', () => {
     expect(res.body).toHaveLength(0);
   });
 
-  it('403 for student', async () => {
+  it('an account not in any group with the submitter sees an empty list, not 403', async () => {
     const res = await request(app).get('/api/teacher/problems/sum-two/submissions').set(auth(student.api_token));
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(0);
   });
 });
 
@@ -660,5 +676,53 @@ describe('GET /api/problems/:slug/solve-count (Phase 9 aggregate-only)', () => {
   it('404 for unknown problem', async () => {
     const sc = await request(app).get('/api/problems/nope/solve-count').set(auth(student.api_token));
     expect(sc.status).toBe(404);
+  });
+});
+
+// ── Phase 2 regression proof: real signup can author a problem end-to-end ──
+
+describe('Phase 2 regression: real signup can author a problem, no role gate', () => {
+  it('freshly signed-up account creates + edits + archives its own problem', async () => {
+    const author = await signup();
+    // Create — previously would have 403'd with teacherOnly.
+    const create = await request(app).post('/api/teacher/problems').set(auth(author.api_token)).send({
+      ...PROBLEM_BODY,
+      slug: 'author-owned',
+    });
+    expect(create.status).toBe(201);
+    // Edit — ownership check passes for the author.
+    const put = await request(app).put('/api/teacher/problems/author-owned').set(auth(author.api_token)).send({
+      ...PROBLEM_BODY,
+      slug: 'author-owned',
+      title: 'Renamed',
+    });
+    expect(put.status).toBe(200);
+    // Archive — same ownership rule.
+    const archive = await request(app).post('/api/teacher/problems/author-owned/archive').set(auth(author.api_token));
+    expect(archive.status).toBe(204);
+  });
+
+  it('a fresh signup does NOT get 403 on GET /teacher/problems (the failure that shipped)', async () => {
+    const anyone = await signup();
+    const res = await request(app).get('/api/teacher/problems').set(auth(anyone.api_token));
+    expect(res.status).not.toBe(403);
+    expect(res.status).toBe(200);
+  });
+
+  it('ownership blocks a different fresh account from editing someone else\'s problem', async () => {
+    const author = await signup();
+    const outsider = await signup();
+    await request(app).post('/api/teacher/problems').set(auth(author.api_token)).send({
+      ...PROBLEM_BODY,
+      slug: 'protected',
+    });
+    const putRes = await request(app).put('/api/teacher/problems/protected').set(auth(outsider.api_token)).send({
+      ...PROBLEM_BODY,
+      slug: 'protected',
+      title: 'Hostile edit',
+    });
+    expect(putRes.status).toBe(403);
+    const archRes = await request(app).post('/api/teacher/problems/protected/archive').set(auth(outsider.api_token));
+    expect(archRes.status).toBe(403);
   });
 });

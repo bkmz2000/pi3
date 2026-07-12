@@ -149,6 +149,33 @@ export function createTestDb(): Database.Database {
     );
     CREATE INDEX IF NOT EXISTS idx_submissions_user_problem ON submissions(user_id, problem_id, ts DESC);
     CREATE INDEX IF NOT EXISTS idx_submissions_problem ON submissions(problem_id, ts DESC);
+
+    CREATE TABLE IF NOT EXISTS project_snapshots (
+      id TEXT PRIMARY KEY,
+      share_link TEXT UNIQUE NOT NULL,
+      owner_id TEXT NOT NULL REFERENCES users(id),
+      original_project_id TEXT,
+      title TEXT NOT NULL,
+      files_json TEXT NOT NULL,
+      assets_json TEXT NOT NULL DEFAULT '{}',
+      created_at INTEGER NOT NULL,
+      revoked_at INTEGER,
+      scan_status TEXT NOT NULL DEFAULT 'pending' CHECK (scan_status IN ('pending', 'clean', 'flagged')),
+      scan_findings TEXT,
+      view_count INTEGER NOT NULL DEFAULT 0,
+      public_status TEXT NOT NULL DEFAULT 'unlisted' CHECK (public_status IN ('unlisted', 'requested', 'approved', 'rejected'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_project_snapshots_owner ON project_snapshots(owner_id, created_at DESC);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_project_snapshots_share_link ON project_snapshots(share_link);
+
+    CREATE TABLE IF NOT EXISTS snapshot_views (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      snapshot_id TEXT NOT NULL REFERENCES project_snapshots(id) ON DELETE CASCADE,
+      viewer_id TEXT NOT NULL REFERENCES users(id),
+      first_viewed_at INTEGER NOT NULL,
+      UNIQUE(snapshot_id, viewer_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_snapshot_views_snapshot ON snapshot_views(snapshot_id);
   `);
 
   const client = createSqliteClient(db);

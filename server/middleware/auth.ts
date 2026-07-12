@@ -73,3 +73,18 @@ export async function authMiddleware(req: Request, res: Response, next: NextFunc
   req.user = user;
   next();
 }
+
+// Same auth resolution as `authMiddleware`, but never rejects — routes that
+// serve both anonymous and logged-in traffic (public snapshot reads) attach
+// this so they can attribute a view to the caller if they happen to be
+// signed in, without demanding auth from anonymous readers.
+export async function optionalAuthMiddleware(req: Request, _res: Response, next: NextFunction): Promise<void> {
+  if (process.env.SKIP_AUTH === 'true') {
+    req.user = { id: 'test-user', name: 'Test User', role: 'student' };
+    next();
+    return;
+  }
+  const user = await resolveUser(req);
+  if (user) req.user = user;
+  next();
+}

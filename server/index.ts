@@ -15,6 +15,7 @@ import { createGroupsRouter } from './routes/groups.js';
 import { createHelpRequestsRouter } from './routes/help-requests.js';
 import { createCompeteRouter } from './routes/compete.js';
 import { createSessionsRouter } from './routes/sessions.js';
+import { createSnapshotsRouter } from './routes/snapshots.js';
 import { decompressRequest } from './middleware/decompress.js';
 
 const PORT = process.env.PORT || 3001;
@@ -142,6 +143,7 @@ app.use('/api/projects', projectsRouter);
 app.use('/api/groups', createGroupsRouter());
 app.use('/api/help-requests', createHelpRequestsRouter());
 app.use('/api/sessions', createSessionsRouter());
+app.use('/api/snapshots', createSnapshotsRouter());
 app.use('/api', createCompeteRouter());
 
 app.use((req, res, next) => {

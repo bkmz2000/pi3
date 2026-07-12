@@ -74,18 +74,15 @@ interface GroupMember {
   student_name?: string;
 }
 
-function requireTeacher(req: Request, res: Response): boolean {
-  if (req.user!.role !== 'teacher') {
-    res.status(403).json({ error: 'Forbidden', message: 'Only teachers can perform this action' });
-    return false;
-  }
-  return true;
-}
-
-async function checkGroupOwnership(groupId: string, teacherId: string): Promise<Group | undefined> {
+// Group ownership check: the caller must be the account that created this
+// group. The role concept is gone (per Safety & Privacy Design Principle #1);
+// "who can act on this group" is now purely a question of ownership.
+// The column is still called `teacher_id` — that name is cosmetic legacy and
+// intentionally not renamed as part of this fix.
+async function checkGroupOwnership(groupId: string, ownerId: string): Promise<Group | undefined> {
   return (await getClient().execute(
     'SELECT * FROM groups WHERE id = ? AND teacher_id = ?',
-    [groupId, teacherId],
+    [groupId, ownerId],
   )).rows[0] as unknown as Group | undefined;
 }
 
@@ -121,7 +118,7 @@ export function createGroupsRouter(): Router {
       return;
     }
     if (group.teacher_id === userId) {
-      res.status(400).json({ error: 'Bad Request', message: 'Teachers cannot join their own group' });
+      res.status(400).json({ error: 'Bad Request', message: 'The group creator cannot join their own group' });
       return;
     }
     const existing = (await client.execute(
@@ -171,7 +168,6 @@ export function createGroupsRouter(): Router {
 
   // GET /api/groups — teacher: list my groups with member count
   router.get('/', async (req: Request, res: Response): Promise<void> => {
-    if (!requireTeacher(req, res)) return;
     const client = getClient();
     const includeArchived = req.query['include_archived'] === '1';
     const result = await client.execute(
@@ -189,7 +185,6 @@ export function createGroupsRouter(): Router {
 
   // POST /api/groups — teacher: create group
   router.post('/', async (req: Request, res: Response): Promise<void> => {
-    if (!requireTeacher(req, res)) return;
     const { name } = req.body;
     if (!name || typeof name !== 'string' || !name.trim()) {
       res.status(400).json({ error: 'Bad Request', message: 'Group name is required' });
@@ -228,7 +223,6 @@ export function createGroupsRouter(): Router {
 
   // PATCH /api/groups/:id — teacher: rename or archive/unarchive
   router.patch('/:id', async (req: Request, res: Response): Promise<void> => {
-    if (!requireTeacher(req, res)) return;
     const groupId = req.params['id'] as string;
     const group = await checkGroupOwnership(groupId, req.user!.id);
     if (!group) {
@@ -263,7 +257,6 @@ export function createGroupsRouter(): Router {
 
   // POST /api/groups/:id/invite-code/regenerate — teacher: rotate invite code
   router.post('/:id/invite-code/regenerate', async (req: Request, res: Response): Promise<void> => {
-    if (!requireTeacher(req, res)) return;
     const groupId = req.params['id'] as string;
     const group = await checkGroupOwnership(groupId, req.user!.id);
     if (!group) {
@@ -315,7 +308,6 @@ export function createGroupsRouter(): Router {
   // This is the *time-boxing* mechanism: without a live token, the snapshot
   // endpoint is unreachable. See Safety & Privacy Design Principle #1.
   router.post('/:id/session/start', async (req: Request, res: Response): Promise<void> => {
-    if (!requireTeacher(req, res)) return;
     const groupId = req.params['id'] as string;
     const group = await checkGroupOwnership(groupId, req.user!.id);
     if (!group) {
@@ -342,7 +334,6 @@ export function createGroupsRouter(): Router {
   // Student `name` field is NOT returned — handle-only, per Safety &
   // Privacy Design Principle #2.
   router.get('/:id/snapshot', async (req: Request, res: Response): Promise<void> => {
-    if (!requireTeacher(req, res)) return;
     const groupId = req.params['id'] as string;
     const group = await checkGroupOwnership(groupId, req.user!.id);
     if (!group) {
@@ -402,7 +393,6 @@ export function createGroupsRouter(): Router {
 
   // DELETE /api/groups/:id — teacher: delete group
   router.delete('/:id', async (req: Request, res: Response): Promise<void> => {
-    if (!requireTeacher(req, res)) return;
     const groupId = req.params['id'] as string;
     const group = await checkGroupOwnership(groupId, req.user!.id);
     if (!group) {
@@ -419,7 +409,6 @@ export function createGroupsRouter(): Router {
 
   // POST /api/groups/:id/invite — teacher: invite user by handle/name
   router.post('/:id/invite', async (req: Request, res: Response): Promise<void> => {
-    if (!requireTeacher(req, res)) return;
     const group = await checkGroupOwnership(req.params['id'] as string, req.user!.id);
     if (!group) {
       res.status(404).json({ error: 'Not Found', message: 'Group not found' });
@@ -484,7 +473,6 @@ export function createGroupsRouter(): Router {
 
   // DELETE /api/groups/:id/members/:userId — teacher: remove member
   router.delete('/:id/members/:userId', async (req: Request, res: Response): Promise<void> => {
-    if (!requireTeacher(req, res)) return;
     const group = await checkGroupOwnership(req.params['id'] as string, req.user!.id);
     if (!group) {
       res.status(404).json({ error: 'Not Found', message: 'Group not found' });

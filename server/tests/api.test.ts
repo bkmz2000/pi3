@@ -68,23 +68,25 @@ afterAll(() => {
 });
 
 describe('Users API', () => {
-  it('POST /api/users/outsider creates a new user', async () => {
+  it('POST /api/users/outsider creates a new user (handle-only, no name collected)', async () => {
     const res = await request(app)
       .post('/api/users/outsider')
       .send({ name: 'Charlie', password: 'secret123' });
 
     expect(res.status).toBe(201);
     expect(res.body).toHaveProperty('id');
-    expect(res.body.name).toBe('Charlie');
+    expect(res.body).not.toHaveProperty('name');
+    expect(typeof res.body.handle).toBe('string');
     expect(res.body).not.toHaveProperty('api_token');
   });
 
-  it('POST /api/users/outsider rejects empty name', async () => {
+  it('POST /api/users/outsider ignores empty `name` (no longer required)', async () => {
     const res = await request(app)
       .post('/api/users/outsider')
       .send({ name: '', password: 'secret123' });
 
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(201);
+    expect(res.body).not.toHaveProperty('name');
   });
 
   it('POST /api/users/outsider rejects missing password', async () => {
@@ -95,32 +97,33 @@ describe('Users API', () => {
     expect(res.status).toBe(400);
   });
 
-  it('POST /api/users/outsider/login succeeds with correct credentials', async () => {
-    await request(app).post('/api/users/outsider').send({ name: 'Eve', password: 'pass1234' });
+  it('POST /api/users/outsider/login succeeds via handle', async () => {
+    const reg = await request(app).post('/api/users/outsider').send({ password: 'pass1234' });
     const res = await request(app)
       .post('/api/users/outsider/login')
-      .send({ name: 'Eve', password: 'pass1234' });
+      .send({ handle: reg.body.handle, password: 'pass1234' });
 
     expect(res.status).toBe(200);
     expect(res.body).toHaveProperty('id');
+    expect(res.body).not.toHaveProperty('name');
   });
 
   it('POST /api/users/outsider/login rejects wrong password', async () => {
-    await request(app).post('/api/users/outsider').send({ name: 'Frank', password: 'correct' });
+    const reg = await request(app).post('/api/users/outsider').send({ password: 'correct' });
     const res = await request(app)
       .post('/api/users/outsider/login')
-      .send({ name: 'Frank', password: 'wrong' });
+      .send({ handle: reg.body.handle, password: 'wrong' });
 
     expect(res.status).toBe(401);
   });
 
-  it('GET /api/users/me returns current user', async () => {
+  it('GET /api/users/me returns handle only, never name', async () => {
     const res = await request(app)
       .get('/api/users/me')
       .set(authHeader(testUser1.api_token));
 
     expect(res.status).toBe(200);
-    expect(res.body.name).toBe(testUser1.name);
+    expect(res.body).not.toHaveProperty('name');
     expect(res.body).not.toHaveProperty('api_token');
   });
 
@@ -445,58 +448,11 @@ describe('Thumbnail API', () => {
   });
 });
 
-describe('User Search API', () => {
-  beforeEach(() => {
-    const now = Date.now();
-    db.prepare('INSERT INTO users (id, api_token, name, handle, role, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
-      .run(uuidv4(), uuidv4().replace(/-/g, ''), 'Charlie', 'charlie42', 'student', now, now);
-    db.prepare('INSERT INTO users (id, api_token, name, handle, role, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
-      .run(uuidv4(), uuidv4().replace(/-/g, ''), 'Charlotte', 'lotte99', 'teacher', now, now);
-  });
-
-  it('GET /api/users/search returns empty array for short query', async () => {
-    const res = await request(app)
-      .get('/api/users/search?q=x')
-      .set(authHeader(testUser1.api_token));
-
-    expect(res.status).toBe(200);
-    expect(res.body).toEqual([]);
-  });
-
-  it('GET /api/users/search finds users by name', async () => {
+describe('User Search API (removed under P#3 tripwire)', () => {
+  it('GET /api/users/search returns 410 Gone', async () => {
     const res = await request(app)
       .get('/api/users/search?q=char')
       .set(authHeader(testUser1.api_token));
-
-    expect(res.status).toBe(200);
-    expect(res.body.length).toBeGreaterThanOrEqual(2);
-    const names = res.body.map((u: { name: string }) => u.name);
-    expect(names).toContain('Charlie');
-    expect(names).toContain('Charlotte');
-  });
-
-  it('GET /api/users/search finds users by handle with @ prefix', async () => {
-    const res = await request(app)
-      .get('/api/users/search?q=@charlie')
-      .set(authHeader(testUser1.api_token));
-
-    expect(res.status).toBe(200);
-    expect(res.body.length).toBeGreaterThanOrEqual(1);
-    expect(res.body[0].name).toBe('Charlie');
-  });
-
-  it('GET /api/users/search excludes self', async () => {
-    const res = await request(app)
-      .get('/api/users/search?q=alice')
-      .set(authHeader(testUser1.api_token));
-
-    expect(res.status).toBe(200);
-    const ids = res.body.map((u: { id: string }) => u.id);
-    expect(ids).not.toContain(testUser1.id);
-  });
-
-  it('GET /api/users/search requires auth', async () => {
-    const res = await request(app).get('/api/users/search?q=char');
-    expect(res.status).toBe(401);
+    expect(res.status).toBe(410);
   });
 });

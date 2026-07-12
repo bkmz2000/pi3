@@ -11,6 +11,12 @@ export type SessionPayload = {
   starterId: string; // user who started the session
   iat: number;       // issued-at (unix ms)
   exp: number;       // expiry (unix ms)
+  // Optional binding: when a session is started against a specific group
+  // (e.g. a live-code check-in), the token is bound to that group's id.
+  // Endpoints scoped to a group can verify token.groupId matches, which is
+  // the mechanism that turns the previously-standing snapshot endpoint into
+  // a time-boxed one.
+  groupId?: string;
 };
 
 export type VerifiedSession = SessionPayload & {
@@ -31,12 +37,17 @@ function b64urlDecode(s: string): Buffer {
   return Buffer.from(padded.replace(/-/g, '+').replace(/_/g, '/'), 'base64');
 }
 
-export function issueSessionToken(starterId: string, now: number = Date.now()): { token: string; payload: SessionPayload } {
+export function issueSessionToken(
+  starterId: string,
+  now: number = Date.now(),
+  opts: { groupId?: string } = {},
+): { token: string; payload: SessionPayload } {
   const payload: SessionPayload = {
     sid: randomBytes(9).toString('hex'), // 18-char session id, short enough for a share link
     starterId,
     iat: now,
     exp: now + SESSION_TTL_MS,
+    ...(opts.groupId ? { groupId: opts.groupId } : {}),
   };
   const body = b64urlEncode(Buffer.from(JSON.stringify(payload), 'utf8'));
   const sig = createHmac('sha256', getSecret()).update(body).digest();

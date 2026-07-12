@@ -284,8 +284,13 @@ describe('Groups API', () => {
     });
   });
 
-  describe('GET /api/groups/:id/snapshot', () => {
+  describe('GET /api/groups/:id/snapshot (time-boxed)', () => {
     let groupId: string;
+
+    async function mintToken(): Promise<string> {
+      const r = await request(app).post(`/api/groups/${groupId}/session/start`).set(auth(teacher.api_token));
+      return r.body.token as string;
+    }
 
     beforeEach(async () => {
       const r = await request(app).post('/api/groups').set(auth(teacher.api_token)).send({ name: 'G1' });
@@ -294,12 +299,29 @@ describe('Groups API', () => {
       await request(app).post(`/api/groups/${groupId}/invite`).set(auth(teacher.api_token)).send({ username: student2.name });
     });
 
-    it('returns null files for members with no projects', async () => {
+    it('401 without a session token (previously polled anytime)', async () => {
       const res = await request(app).get(`/api/groups/${groupId}/snapshot`).set(auth(teacher.api_token));
+      expect(res.status).toBe(401);
+    });
+
+    it('403 when the token is bound to a different group', async () => {
+      const r2 = await request(app).post('/api/groups').set(auth(teacher.api_token)).send({ name: 'G2' });
+      const otherToken = (await request(app).post(`/api/groups/${r2.body.id}/session/start`).set(auth(teacher.api_token))).body.token;
+      const res = await request(app).get(`/api/groups/${groupId}/snapshot?token=${otherToken}`).set(auth(teacher.api_token));
+      expect(res.status).toBe(403);
+    });
+
+    it('returns null files for members with no projects — when a valid token is presented', async () => {
+      const token = await mintToken();
+      const res = await request(app).get(`/api/groups/${groupId}/snapshot?token=${token}`).set(auth(teacher.api_token));
       expect(res.status).toBe(200);
       expect(res.body.members).toHaveLength(2);
       expect(res.body.members[0].files).toBeNull();
       expect(res.body.members[0].project_id).toBeNull();
+      // PII scrubbed — handle only, no `student_name`
+      expect(res.body.members[0]).not.toHaveProperty('student_name');
+      // Time-boxed — response includes the session expiry
+      expect(typeof res.body.session_expires_at).toBe('number');
     });
 
     it('returns latest project files parsed as JSON', async () => {
@@ -310,24 +332,25 @@ describe('Groups API', () => {
       db.prepare(`INSERT INTO projects (id, user_id, name, is_public, files, assets, current_file, created_at, updated_at)
                   VALUES (?, ?, ?, 0, ?, '{}', 'main.py', ?, ?)`)
         .run(uuidv4(), student1.id, 'New', JSON.stringify({ 'main.py': 'print(2)' }), now, now);
-      const res = await request(app).get(`/api/groups/${groupId}/snapshot`).set(auth(teacher.api_token));
+      const token = await mintToken();
+      const res = await request(app).get(`/api/groups/${groupId}/snapshot?token=${token}`).set(auth(teacher.api_token));
       expect(res.status).toBe(200);
       const alice = res.body.members.find((m: { student_id: string }) => m.student_id === student1.id);
       expect(alice.project_name).toBe('New');
       expect(alice.files['main.py']).toBe('print(2)');
     });
 
-    it('rejects a different teacher (authz)', async () => {
+    it('rejects a different teacher (authz on group ownership)', async () => {
       const teacher2 = { id: uuidv4(), name: 'T2', api_token: uuidv4().replace(/-/g, '') + uuidv4().replace(/-/g, '') };
       const now = Date.now();
       db.prepare('INSERT INTO users (id, api_token, name, role, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)')
         .run(teacher2.id, teacher2.api_token, teacher2.name, 'teacher', now, now);
-      const res = await request(app).get(`/api/groups/${groupId}/snapshot`).set(auth(teacher2.api_token));
+      const res = await request(app).get(`/api/groups/${groupId}/snapshot?token=whatever`).set(auth(teacher2.api_token));
       expect(res.status).toBe(404);
     });
 
     it('rejects students', async () => {
-      const res = await request(app).get(`/api/groups/${groupId}/snapshot`).set(auth(student1.api_token));
+      const res = await request(app).get(`/api/groups/${groupId}/snapshot?token=x`).set(auth(student1.api_token));
       expect(res.status).toBe(403);
     });
   });

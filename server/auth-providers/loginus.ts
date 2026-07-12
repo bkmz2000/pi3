@@ -36,11 +36,11 @@ export const loginusAdapter: AuthAdapter = {
       throw new AuthProviderError('userinfo', 'Missing or invalid id');
     }
 
-    const teacherRole = process.env.LOGINUS_TEACHER_ROLE || 'teacher';
-    const globalRoles = Array.isArray(payload.globalRoles) ? payload.globalRoles : [];
-    const isTeacher = globalRoles.some((r: unknown) =>
-      typeof r === 'object' && r !== null && (r as Record<string, unknown>).name === teacherRole
-    );
+    // Safety & Privacy Design Principle #1: no persistent roles. Provider
+    // teacher claims are ignored — every SSO account is created as a
+    // `student` here. Live oversight is done via ephemeral sessions
+    // (see server/sessions/tokens.ts), not via a durable badge.
+    // LOGINUS_TEACHER_ROLE is no longer read.
 
     const preferred_username = typeof payload.preferred_username === 'string' ? payload.preferred_username : '';
     const firstName = typeof payload.firstName === 'string' ? payload.firstName : '';
@@ -59,7 +59,7 @@ export const loginusAdapter: AuthAdapter = {
       providerId: payload.id as string,
       email: email || undefined,
       name,
-      role: isTeacher ? 'teacher' : 'student',
+      role: 'student',
     };
   },
 };

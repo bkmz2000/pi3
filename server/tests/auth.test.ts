@@ -54,14 +54,15 @@ describe('session cookie on login', () => {
   it('POST /api/users/outsider/login returns Set-Cookie header', async () => {
     db = createTestDb();
 
-    // Create the user first
-    await request(app)
+    // Create the user first — no `name` collected; capture the auto-assigned handle.
+    const reg = await request(app)
       .post('/api/users/outsider')
-      .send({ name: 'SessionTest', password: 'pass1234' });
+      .send({ password: 'pass1234' });
+    const handle = reg.body.handle as string;
 
     const res = await request(app)
       .post('/api/users/outsider/login')
-      .send({ name: 'SessionTest', password: 'pass1234' });
+      .send({ handle, password: 'pass1234' });
 
     expect(res.status).toBe(200);
     const cookie = res.headers['set-cookie'];
@@ -76,15 +77,16 @@ describe('session regeneration on login', () => {
   it('connect.sid changes value after logging in', async () => {
     db = createTestDb();
 
-    // Create account
-    await request(app)
+    // Create account whose credentials we'll log in with
+    const reg = await request(app)
       .post('/api/users/outsider')
-      .send({ name: 'RegenTest', password: 'pass1234' });
+      .send({ password: 'pass1234' });
+    const handle = reg.body.handle as string;
 
-    // Establish a pre-login session via the signup endpoint
+    // Establish a pre-login session via a second signup call
     const signupRes = await request(app)
       .post('/api/users/outsider')
-      .send({ name: 'RegenTest2', password: 'pass1234' });
+      .send({ password: 'pass1234' });
     const preSid = (signupRes.headers['set-cookie'] as string[] | string | undefined);
     const preSidStr = Array.isArray(preSid) ? preSid[0] : String(preSid ?? '');
     const preMatch = preSidStr.match(/connect\.sid=([^;]+)/);
@@ -95,7 +97,7 @@ describe('session regeneration on login', () => {
     const loginRes = await request(app)
       .post('/api/users/outsider/login')
       .set('Cookie', `connect.sid=${preSidValue}`)
-      .send({ name: 'RegenTest', password: 'pass1234' });
+      .send({ handle, password: 'pass1234' });
 
     expect(loginRes.status).toBe(200);
     const postSid = loginRes.headers['set-cookie'] as string[] | string | undefined;
@@ -202,29 +204,18 @@ describe('Session-gated logout (CSRF defense)', () => {
   });
 });
 
-describe('POST /api/users/me/upgrade-teacher', () => {
-  it('upgrades a student to teacher role', async () => {
+describe('POST /api/users/me/upgrade-teacher (removed under P#1)', () => {
+  it('returns 410 Gone; does not mutate the user row', async () => {
     const { id, api_token } = makeUser();
     const res = await request(app)
       .post('/api/users/me/upgrade-teacher')
       .set('Authorization', `Bearer ${api_token}`);
-    expect(res.status).toBe(200);
-    expect(res.body.role).toBe('teacher');
+    expect(res.status).toBe(410);
     const row = db.prepare('SELECT role FROM users WHERE id = ?').get(id) as { role: string };
-    expect(row.role).toBe('teacher');
+    expect(row.role).toBe('student');
   });
 
-  it('is idempotent on an already-teacher account', async () => {
-    const { api_token } = makeUser();
-    await request(app).post('/api/users/me/upgrade-teacher').set('Authorization', `Bearer ${api_token}`);
-    const res = await request(app)
-      .post('/api/users/me/upgrade-teacher')
-      .set('Authorization', `Bearer ${api_token}`);
-    expect(res.status).toBe(200);
-    expect(res.body.role).toBe('teacher');
-  });
-
-  it('requires auth', async () => {
+  it('requires auth (still authed check before the 410 body)', async () => {
     db = createTestDb();
     const res = await request(app).post('/api/users/me/upgrade-teacher');
     expect(res.status).toBe(401);

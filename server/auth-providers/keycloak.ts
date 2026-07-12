@@ -11,10 +11,6 @@ function realmBase(): string {
   return `${url}/realms/${realm}/protocol/openid-connect`;
 }
 
-function isTeacherRole(roles: string[], teacherRole: string): boolean {
-  return roles.includes(teacherRole);
-}
-
 export const keycloakAdapter: AuthAdapter = {
   name: 'keycloak',
   get clientId()     { return process.env.KEYCLOAK_CLIENT_ID     || ''; },
@@ -59,23 +55,16 @@ export const keycloakAdapter: AuthAdapter = {
     // Roles can live in realm_access.roles (standard Keycloak JWT claim propagated
     // to userinfo via mapper) or as a top-level `roles` array if the realm is
     // configured with a "User Realm Role" userinfo mapper.
-    let roles: string[] = [];
-    if (Array.isArray(payload.roles)) {
-      roles = payload.roles.filter((r: unknown) => typeof r === 'string');
-    } else if (
-      typeof payload.realm_access === 'object' &&
-      payload.realm_access !== null &&
-      Array.isArray(payload.realm_access.roles)
-    ) {
-      roles = payload.realm_access.roles.filter((r: unknown) => typeof r === 'string');
-    }
-
-    const teacherRole = process.env.KEYCLOAK_TEACHER_ROLE || 'teacher';
+    // Safety & Privacy Design Principle #1: no persistent roles. Keycloak
+    // realm roles are ignored — every SSO account is created as a
+    // `student` here. Live oversight uses ephemeral sessions
+    // (see server/sessions/tokens.ts), not a durable badge.
+    // KEYCLOAK_TEACHER_ROLE is no longer read.
     return {
       providerId: payload.sub as string,
       email: email || undefined,
       name,
-      role: isTeacherRole(roles, teacherRole) ? 'teacher' : 'student',
+      role: 'student',
     };
   },
 };

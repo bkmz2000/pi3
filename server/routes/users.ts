@@ -12,7 +12,7 @@ export function createUsersRouter(allowPasswordAuth: boolean = false) {
 interface User {
   id: string;
   api_token: string;
-  name: string;
+  name: string | null;
   role: string;
   password_hash: string | null;
   handle: string | null;
@@ -21,37 +21,32 @@ interface User {
 }
 
 // POST /api/users/outsider — create outsider account + start session
+//
+// Per Safety & Privacy Design Principle #2, no PII is collected from
+// students. The account has a *password only*; identity is the
+// auto-generated handle. The endpoint no longer accepts a `name` in the
+// request body — any `name` sent is silently ignored to preserve
+// backwards compatibility with old clients, but the value is not stored.
 router.post('/outsider', async (req: Request, res: Response): Promise<void> => {
   if (!allowPasswordAuth) {
     res.status(403).json({ error: 'Forbidden', message: 'Password authentication is not enabled' });
     return;
   }
 
-  const { name, password } = req.body;
+  const { password } = req.body;
 
-  if (!name || typeof name !== 'string' || name.trim().length === 0) {
-    res.status(400).json({ error: 'Bad Request', message: 'Name is required' });
-    return;
-  }
   if (!password || typeof password !== 'string' || password.length < 4) {
     res.status(400).json({ error: 'Bad Request', message: 'Password must be at least 4 characters' });
     return;
   }
 
   const client = getClient();
-
-  const existing = (await client.execute('SELECT id FROM users WHERE name = ?', [name.trim()])).rows[0];
-  if (existing) {
-    res.status(409).json({ error: 'Conflict', message: 'Username already taken' });
-    return;
-  }
-
   const password_hash = await bcrypt.hash(password, 10);
   const now = Date.now();
   const user: User = {
     id: uuidv4(),
     api_token: uuidv4().replace(/-/g, '') + uuidv4().replace(/-/g, ''),
-    name: name.trim(),
+    name: null,
     role: 'student',
     password_hash,
     handle: null,
@@ -64,7 +59,7 @@ router.post('/outsider', async (req: Request, res: Response): Promise<void> => {
     await client.execute(
       `INSERT INTO users (id, api_token, name, role, password_hash, handle, handle_seq, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [user.id, user.api_token, user.name, user.role, user.password_hash, handle, seq, user.created_at, user.updated_at],
+      [user.id, user.api_token, null, user.role, user.password_hash, handle, seq, user.created_at, user.updated_at],
     );
 
     await regenerateSession(req);
@@ -72,7 +67,6 @@ router.post('/outsider', async (req: Request, res: Response): Promise<void> => {
 
     res.status(201).json({
       id: user.id,
-      name: user.name,
       handle,
       role: user.role,
       created_at: user.created_at,
@@ -90,10 +84,17 @@ router.post('/outsider/login', async (req: Request, res: Response): Promise<void
     return;
   }
 
-  const { name, password } = req.body;
+  // Accepts either `handle` (new, canonical) or `name` (legacy, for
+  // grandfathered accounts that still have a stored `name`). New accounts
+  // never carry a `name` — they log in by handle only.
+  const { handle, name, password } = req.body;
+  const loginId: string | undefined =
+    typeof handle === 'string' && handle.trim().length > 0 ? handle.trim().replace(/^@+/, '') :
+    typeof name === 'string' && name.trim().length > 0 ? name.trim() :
+    undefined;
 
-  if (!name || typeof name !== 'string') {
-    res.status(400).json({ error: 'Bad Request', message: 'Name is required' });
+  if (!loginId) {
+    res.status(400).json({ error: 'Bad Request', message: 'handle is required' });
     return;
   }
   if (!password || typeof password !== 'string') {
@@ -102,16 +103,19 @@ router.post('/outsider/login', async (req: Request, res: Response): Promise<void
   }
 
   const client = getClient();
-  const user = first<User>(await client.execute('SELECT * FROM users WHERE name = ?', [name.trim()]));
+  const user = first<User>(await client.execute(
+    'SELECT * FROM users WHERE LOWER(handle) = LOWER(?) OR name = ? LIMIT 1',
+    [loginId, loginId],
+  ));
 
   if (!user || !user.password_hash) {
-    res.status(401).json({ error: 'Unauthorized', message: 'Invalid username or password' });
+    res.status(401).json({ error: 'Unauthorized', message: 'Invalid handle or password' });
     return;
   }
 
   const valid = await bcrypt.compare(password, user.password_hash as string);
   if (!valid) {
-    res.status(401).json({ error: 'Unauthorized', message: 'Invalid username or password' });
+    res.status(401).json({ error: 'Unauthorized', message: 'Invalid handle or password' });
     return;
   }
 
@@ -120,7 +124,6 @@ router.post('/outsider/login', async (req: Request, res: Response): Promise<void
     req.session.userId = user.id as string;
     res.json({
       id: user.id,
-      name: user.name,
       handle: user.handle,
       role: user.role,
       created_at: user.created_at,
@@ -131,61 +134,36 @@ router.post('/outsider/login', async (req: Request, res: Response): Promise<void
   }
 });
 
-// GET /api/users/search?q=… — used by share dialog and teacher invite
-router.get('/search', authMiddleware, async (req: Request, res: Response): Promise<void> => {
-  const q = typeof req.query.q === 'string' ? req.query.q.trim() : '';
-  if (q.length < 2) {
-    res.json([]);
-    return;
-  }
-  const client = getClient();
-  const needle = q.replace(/^@+/, '').toLowerCase();
-  const like = `%${needle}%`;
-  const result = await client.execute(
-    `SELECT id, name, handle, role
-     FROM users
-     WHERE id != ?
-       AND (LOWER(name) LIKE ? OR LOWER(handle) LIKE ?)
-     ORDER BY
-       CASE WHEN LOWER(handle) = ? THEN 0
-            WHEN LOWER(name) = ? THEN 1
-            WHEN LOWER(handle) LIKE ? THEN 2
-            ELSE 3 END,
-       name ASC
-     LIMIT 8`,
-    [req.user!.id, like, like, needle, needle, `${needle}%`],
-  );
-  res.json(result.rows);
+// GET /api/users/search — removed under Safety & Privacy Design Principle #3
+// (no first-contact between strangers). Cross-user handle lookup is a direct
+// tripwire violation. Any legitimate need for it is served by the ephemeral
+// session invite flow (POST /api/sessions/start).
+router.get('/search', (_req: Request, res: Response): void => {
+  res.status(410).json({
+    error: 'Gone',
+    message: 'User search has been removed. Use a session invite link instead.',
+  });
 });
 
-// POST /api/users/me/upgrade-teacher — self-serve teacher upgrade (free forever, no approval)
-router.post('/me/upgrade-teacher', authMiddleware, async (req: Request, res: Response): Promise<void> => {
-  const client = getClient();
-  const now = Date.now();
-  await client.execute(
-    "UPDATE users SET role = 'teacher', updated_at = ? WHERE id = ?",
-    [now, req.user!.id],
-  );
-  const result = await client.execute(
-    'SELECT id, name, handle, role, created_at FROM users WHERE id = ?',
-    [req.user!.id],
-  );
-  const user = first<Pick<User, 'id' | 'name' | 'handle' | 'role' | 'created_at'>>(result);
-  if (!user) {
-    res.status(404).json({ error: 'Not Found', message: 'User not found' });
-    return;
-  }
-  res.json(user);
+// POST /api/users/me/upgrade-teacher — removed under Safety & Privacy Design
+// Principle #1 (no persistent roles). Self-service promotion to a durable
+// teacher badge with standing visibility into other accounts is the exact
+// pattern the doctrine forbids. Ephemeral sessions replace it.
+router.post('/me/upgrade-teacher', authMiddleware, (_req: Request, res: Response): void => {
+  res.status(410).json({
+    error: 'Gone',
+    message: 'Self-service teacher upgrade has been removed. Live oversight uses ephemeral sessions.',
+  });
 });
 
 // GET /api/users/me
 router.get('/me', authMiddleware, async (req: Request, res: Response): Promise<void> => {
   const client = getClient();
   const result = await client.execute(
-    'SELECT id, name, handle, role, created_at FROM users WHERE id = ?',
+    'SELECT id, handle, role, created_at FROM users WHERE id = ?',
     [req.user!.id],
   );
-  const user = first<Pick<User, 'id' | 'name' | 'handle' | 'role' | 'created_at'>>(result);
+  const user = first<Pick<User, 'id' | 'handle' | 'role' | 'created_at'>>(result);
 
   if (!user) {
     res.status(404).json({ error: 'Not Found', message: 'User not found' });

@@ -11,7 +11,7 @@ export function createTestDb(): Database.Database {
     CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY,
       api_token TEXT UNIQUE NOT NULL,
-      name TEXT NOT NULL,
+      name TEXT,
       role TEXT NOT NULL DEFAULT 'student' CHECK (role IN ('student', 'teacher')),
       password_hash TEXT,
       handle TEXT,

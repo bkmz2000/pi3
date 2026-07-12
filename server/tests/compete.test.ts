@@ -488,7 +488,9 @@ describe('GET /api/teacher/problems/:slug/submissions', () => {
     const res = await request(app).get('/api/teacher/problems/sum-two/submissions').set(auth(teacher.api_token));
     expect(res.status).toBe(200);
     expect(res.body).toHaveLength(1);
-    expect(res.body[0].user_name).toBe('Alice');
+    // Handle-only — no `user_name`, no PII (Safety & Privacy Principle #2).
+    expect(res.body[0]).not.toHaveProperty('user_name');
+    expect(res.body[0].user_handle === null || typeof res.body[0].user_handle === 'string').toBe(true);
   });
 
   it('does not leak submissions to a teacher who does not own the student\'s group (cross-teacher isolation)', async () => {

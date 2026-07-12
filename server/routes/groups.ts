@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { randomBytes } from 'crypto';
 import { getClient } from '../db/index.js';
 import { authMiddleware } from '../middleware/auth.js';
+import { issueSessionToken, verifySessionToken } from '../sessions/tokens.js';
 
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 const CODE_LEN = 6;
@@ -306,7 +307,40 @@ export function createGroupsRouter(): Router {
     res.json({ ...group, members });
   });
 
-  // GET /api/groups/:id/snapshot — teacher: latest code per member (Phase D)
+  // POST /api/groups/:id/session/start — mint a session token bound to this
+  // group. Only the group's owner (teacher) can start it. The token grants
+  // read access to the group snapshot for its TTL (~2h), and only for that
+  // window — enforced by verifySessionToken's exp check on every read.
+  //
+  // This is the *time-boxing* mechanism: without a live token, the snapshot
+  // endpoint is unreachable. See Safety & Privacy Design Principle #1.
+  router.post('/:id/session/start', async (req: Request, res: Response): Promise<void> => {
+    if (!requireTeacher(req, res)) return;
+    const groupId = req.params['id'] as string;
+    const group = await checkGroupOwnership(groupId, req.user!.id);
+    if (!group) {
+      res.status(404).json({ error: 'Not Found', message: 'Group not found' });
+      return;
+    }
+    const { token, payload } = issueSessionToken(req.user!.id, Date.now(), { groupId });
+    res.status(201).json({
+      token,
+      session_id: payload.sid,
+      group_id: groupId,
+      expires_at: payload.exp,
+    });
+  });
+
+  // GET /api/groups/:id/snapshot — latest code per member.
+  //
+  // *Time-boxed*: requires a session token (?token=...) whose payload is
+  // bound to this exact group and hasn't expired. Without the token — or
+  // once it's expired — the endpoint is unreachable. This replaces the
+  // previous behavior where a teacher-role account could poll this endpoint
+  // at any time, indefinitely, without any bounded window.
+  //
+  // Student `name` field is NOT returned — handle-only, per Safety &
+  // Privacy Design Principle #2.
   router.get('/:id/snapshot', async (req: Request, res: Response): Promise<void> => {
     if (!requireTeacher(req, res)) return;
     const groupId = req.params['id'] as string;
@@ -315,9 +349,25 @@ export function createGroupsRouter(): Router {
       res.status(404).json({ error: 'Not Found', message: 'Group not found' });
       return;
     }
+
+    const rawToken = typeof req.query['token'] === 'string' ? req.query['token'] : '';
+    if (!rawToken) {
+      res.status(401).json({ error: 'Unauthorized', message: 'session token required (?token=...)' });
+      return;
+    }
+    const verified = verifySessionToken(rawToken, req.user!.id);
+    if (!verified) {
+      res.status(401).json({ error: 'Unauthorized', message: 'Invalid or expired session token' });
+      return;
+    }
+    if (verified.groupId !== groupId) {
+      res.status(403).json({ error: 'Forbidden', message: 'token is not bound to this group' });
+      return;
+    }
+
     const client = getClient();
     const rows = (await client.execute(
-      `SELECT gm.student_id, u.name AS student_name, u.handle AS student_handle,
+      `SELECT gm.student_id, u.handle AS student_handle,
               p.id AS project_id, p.name AS project_name, p.updated_at, p.current_file, p.files
        FROM group_members gm
        JOIN users u ON u.id = gm.student_id
@@ -329,13 +379,12 @@ export function createGroupsRouter(): Router {
        ORDER BY gm.joined_at ASC`,
       [groupId],
     )).rows as unknown as Array<{
-      student_id: string; student_name: string; student_handle: string | null;
+      student_id: string; student_handle: string | null;
       project_id: string | null; project_name: string | null;
       updated_at: number | null; current_file: string | null; files: string | null;
     }>;
     const members = rows.map((r) => ({
       student_id: r.student_id,
-      student_name: r.student_name,
       student_handle: r.student_handle,
       project_id: r.project_id,
       project_name: r.project_name,
@@ -343,7 +392,12 @@ export function createGroupsRouter(): Router {
       current_file: r.current_file,
       files: r.files ? JSON.parse(r.files) : null,
     }));
-    res.json({ group_id: groupId, generated_at: Date.now(), members });
+    res.json({
+      group_id: groupId,
+      generated_at: Date.now(),
+      session_expires_at: verified.exp,
+      members,
+    });
   });
 
   // DELETE /api/groups/:id — teacher: delete group

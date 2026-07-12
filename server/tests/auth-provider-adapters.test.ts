@@ -55,21 +55,21 @@ describe('loginusAdapter.parseUserinfo', () => {
     expect(user.email).toBe('student@example.com');
   });
 
-  it('maps a teacher userinfo to role=teacher', () => {
+  it('maps a userinfo with the provider teacher claim to role=student (P#1 no persistent roles)', () => {
     const user = loginusAdapter.parseUserinfo({
       id: 'user-2',
       globalRoles: [{ name: 'teacher' }],
     });
-    expect(user.role).toBe('teacher');
+    expect(user.role).toBe('student');
   });
 
-  it('respects LOGINUS_TEACHER_ROLE override', () => {
+  it('ignores LOGINUS_TEACHER_ROLE override — role is always student', () => {
     process.env.LOGINUS_TEACHER_ROLE = 'instructor';
     const user = loginusAdapter.parseUserinfo({
       id: 'user-3',
       globalRoles: [{ name: 'instructor' }],
     });
-    expect(user.role).toBe('teacher');
+    expect(user.role).toBe('student');
   });
 
   it('strips [П] / [Т] role prefixes from preferred_username', () => {
@@ -150,33 +150,33 @@ describe('keycloakAdapter.parseUserinfo', () => {
     expect(user.role).toBe('student');
   });
 
-  it('maps a teacher via realm_access.roles to role=teacher', () => {
+  it('maps a userinfo with realm_access teacher role to role=student (P#1 no persistent roles)', () => {
     const user = keycloakAdapter.parseUserinfo({
       sub: 'kc-user-2',
       given_name: 'Petr',
       family_name: 'Petrov',
       realm_access: { roles: ['teacher'] },
     });
-    expect(user.role).toBe('teacher');
+    expect(user.role).toBe('student');
   });
 
-  it('maps a teacher via top-level roles array to role=teacher', () => {
+  it('maps a userinfo with top-level teacher role to role=student', () => {
     const user = keycloakAdapter.parseUserinfo({
       sub: 'kc-user-3',
       preferred_username: 'prof',
       roles: ['teacher'],
     });
-    expect(user.role).toBe('teacher');
+    expect(user.role).toBe('student');
     expect(user.name).toBe('prof');
   });
 
-  it('respects KEYCLOAK_TEACHER_ROLE override', () => {
+  it('ignores KEYCLOAK_TEACHER_ROLE override — role is always student', () => {
     process.env.KEYCLOAK_TEACHER_ROLE = 'instructor';
     const user = keycloakAdapter.parseUserinfo({
       sub: 'kc-user-4',
       roles: ['instructor'],
     });
-    expect(user.role).toBe('teacher');
+    expect(user.role).toBe('student');
   });
 
   it('falls back to preferred_username when given/family name absent', () => {

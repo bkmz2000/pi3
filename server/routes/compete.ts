@@ -544,8 +544,11 @@ export function createCompeteRouter(): Router {
     const limit = Math.min(Number(req.query.limit) || 50, 200);
     // Scope to submissions from students in groups owned by the requesting teacher.
     // Without this, any teacher could read any student's submissions platform-wide.
+    //
+    // Only user_handle is returned — never u.name (Safety & Privacy Design
+    // Principle #2: no PII from students, ever). Handle is the sole identifier.
     const result = await client.execute(
-      `SELECT DISTINCT s.*, u.name as user_name, u.handle as user_handle
+      `SELECT DISTINCT s.*, u.handle as user_handle
        FROM submissions s
        JOIN users u ON u.id = s.user_id
        JOIN group_members gm ON gm.student_id = s.user_id

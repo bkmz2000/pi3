@@ -467,14 +467,18 @@ export function createCompeteRouter(): Router {
       return;
     }
     const limit = Math.min(Number(req.query.limit) || 50, 200);
+    // Scope to submissions from students in groups owned by the requesting teacher.
+    // Without this, any teacher could read any student's submissions platform-wide.
     const result = await client.execute(
-      `SELECT s.*, u.name as user_name, u.handle as user_handle
+      `SELECT DISTINCT s.*, u.name as user_name, u.handle as user_handle
        FROM submissions s
        JOIN users u ON u.id = s.user_id
+       JOIN group_members gm ON gm.student_id = s.user_id
+       JOIN groups g ON g.id = gm.group_id AND g.teacher_id = ?
        WHERE s.problem_id = ?
        ORDER BY s.ts DESC
        LIMIT ?`,
-      [problem.id, limit],
+      [req.user!.id, problem.id, limit],
     );
     res.json(result.rows);
   });

@@ -467,6 +467,15 @@ describe('POST /api/teacher/problems/:slug/archive', () => {
 });
 
 describe('GET /api/teacher/problems/:slug/submissions', () => {
+  function addToGroup(teacherId: string, studentId: string): void {
+    const groupId = uuidv4();
+    const now = Date.now();
+    db.prepare('INSERT INTO groups (id, teacher_id, name, created_at) VALUES (?, ?, ?, ?)')
+      .run(groupId, teacherId, 'Class', now);
+    db.prepare('INSERT INTO group_members (id, group_id, student_id, joined_at) VALUES (?, ?, ?, ?)')
+      .run(uuidv4(), groupId, studentId, now);
+  }
+
   beforeEach(async () => {
     const res = await request(app).post('/api/teacher/problems').set(auth(teacher.api_token)).send(PROBLEM_BODY);
     const problemId = res.body.id;
@@ -474,11 +483,29 @@ describe('GET /api/teacher/problems/:slug/submissions', () => {
       .run(student.id, problemId, 'code', 2, 'wa');
   });
 
-  it('returns submissions for teacher', async () => {
+  it('returns submissions from students in the requesting teacher\'s groups', async () => {
+    addToGroup(teacher.id, student.id);
     const res = await request(app).get('/api/teacher/problems/sum-two/submissions').set(auth(teacher.api_token));
     expect(res.status).toBe(200);
     expect(res.body).toHaveLength(1);
     expect(res.body[0].user_name).toBe('Alice');
+  });
+
+  it('does not leak submissions to a teacher who does not own the student\'s group (cross-teacher isolation)', async () => {
+    addToGroup(teacher.id, student.id);
+    const now = Date.now();
+    const otherTeacher = { id: uuidv4(), api_token: uuidv4() };
+    db.prepare('INSERT INTO users (id, api_token, name, role, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)')
+      .run(otherTeacher.id, otherTeacher.api_token, 'Carol', 'teacher', now, now);
+    const res = await request(app).get('/api/teacher/problems/sum-two/submissions').set(auth(otherTeacher.api_token));
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(0);
+  });
+
+  it('returns empty for a teacher with no groups', async () => {
+    const res = await request(app).get('/api/teacher/problems/sum-two/submissions').set(auth(teacher.api_token));
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(0);
   });
 
   it('403 for student', async () => {

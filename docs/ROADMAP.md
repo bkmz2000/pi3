@@ -39,6 +39,7 @@
 | HTML export | Single-file standalone export |
 | Noise | `noise(x, y, scale, seed)` — value noise |
 | Sound API | `Sound` class; `assets.sounds.name.play/loop/pause/stop/set_volume` |
+| Compete mode | Problem authoring + student view + submission scoring; frontend at `/compete/:slug`, `/teacher/problems*`; backend at `server/routes/compete.ts` |
 
 ---
 

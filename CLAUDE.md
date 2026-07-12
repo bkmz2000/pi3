@@ -167,7 +167,13 @@ In dev, Vite proxies `/api` to `:3001`. The `Cross-Origin-Opener-Policy` / `Cros
 | `/` | `AppInner` | Main IDE (no project) |
 | `/ide/:projectId` | `AppInner` | IDE loading a specific project |
 | `/projects` | `ProjectsPage` | User project list |
-| `/teacher` | `TeacherDashboard` | Teacher dashboard (placeholder) |
+| `/teacher` | `TeacherDashboard` | Teacher dashboard |
+| `/teacher/projects/:projectId` | `TeacherProjectView` | Teacher view of a student project |
+| `/teacher/problems` | `TeacherProblemList` | Compete-mode problem management |
+| `/teacher/problems/new` | `TeacherProblemForm` | Create a compete-mode problem |
+| `/teacher/problems/:slug/edit` | `TeacherProblemForm` | Edit a compete-mode problem |
+| `/compete/:slug` | `CompetePage` | Student-facing compete-mode problem view |
+| `/welcome` | `WelcomePage` | Teacher-facing welcome / landing page |
 
 ### State Management (src/state/)
 - **`useTheme`** — Theme (Studio / Midnight / Daylight), font size. All UI uses `theme.xxx` inline style tokens. ~80 tokens in `src/state/useTheme.ts`.

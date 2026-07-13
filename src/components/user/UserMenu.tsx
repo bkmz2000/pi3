@@ -94,7 +94,7 @@ function IdentityBlock({ user }: { user: { name: string; handle?: string | null;
 export function UserMenu() {
   const { t } = useTranslation();
   const theme = useThemeStore((s) => s.theme);
-  const { user, logout, upgradeToTeacher } = useUser();
+  const { user, logout } = useUser();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -159,22 +159,9 @@ export function UserMenu() {
           comingSoon: true,
           onClick: () => {},
         },
-        {
-          icon: <Icon name="sparkle" size={14} color={theme.runBg} />,
-          label: t('teacher.upgradeToTeacher'),
-          highlighted: true,
-          comingSoon: false,
-          onClick: async () => {
-            if (!window.confirm(t('teacher.upgradeConfirm'))) return;
-            try {
-              await upgradeToTeacher();
-              setOpen(false);
-              navigate('/teacher');
-            } catch {
-              window.alert(t('teacher.upgradeFailed'));
-            }
-          },
-        },
+        // SPP-1: "Become teacher" menu item removed. Self-service promotion
+        // to a durable teacher badge with standing visibility is exactly
+        // what the doctrine forbids; the backing endpoint returns 410 Gone.
       ];
 
   const highlightBg = isTeacher ? `${theme.runBg}18` : `${theme.accent}18`;

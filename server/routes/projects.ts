@@ -130,11 +130,12 @@ export function createProjectsRouter(): Router {
       res.status(403).json({ error: 'Forbidden', message: 'Only owner can view share status' });
       return;
     }
-    // SPP-2: handle-only projection.
+    // SPP-1 (C): role gate removed — "teachers" here means any account the
+    // owner has shared the project with. SPP-2: handle-only.
     const teachers = (await client.execute(
       `SELECT u.id, u.handle FROM project_shares ps
        JOIN users u ON u.id = ps.user_id
-       WHERE ps.project_id = ? AND u.role = 'teacher'`,
+       WHERE ps.project_id = ?`,
       [id],
     )).rows as { id: string; handle: string | null }[];
     const helpRequest = (await client.execute(
@@ -159,13 +160,14 @@ export function createProjectsRouter(): Router {
       res.status(403).json({ error: 'Forbidden', message: 'Only project owner can request help' });
       return;
     }
+    // SPP-1 (C): role gate removed. Precondition is now purely: the project
+    // is shared with a user who owns a group the caller is a member of.
     const hasTeacher = (await client.execute(
       `SELECT ps.id FROM project_shares ps
-       JOIN users u ON u.id = ps.user_id
        JOIN group_members gm ON gm.student_id = ? AND gm.group_id IN (
          SELECT id FROM groups WHERE teacher_id = ps.user_id
        )
-       WHERE ps.project_id = ? AND u.role = 'teacher' LIMIT 1`,
+       WHERE ps.project_id = ? LIMIT 1`,
       [req.user!.id, id],
     )).rows[0];
     if (!hasTeacher) {

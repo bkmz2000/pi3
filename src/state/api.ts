@@ -154,10 +154,6 @@ export async function getMe(): Promise<User> {
   return api.get<User>('/api/users/me');
 }
 
-export async function upgradeToTeacher(): Promise<User> {
-  return api.post<User>('/api/users/me/upgrade-teacher');
-}
-
 export async function outsiderSignup(name: string, password: string, role: 'student' | 'teacher' = 'student'): Promise<User> {
   return api.post<User>('/api/users/outsider', { name, password, role });
 }

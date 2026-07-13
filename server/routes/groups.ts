@@ -434,10 +434,8 @@ export function createGroupsRouter(): Router {
       res.status(400).json({ error: 'Bad Request', message: 'Cannot add yourself' });
       return;
     }
-    if (target.role !== 'student') {
-      res.status(400).json({ error: 'Bad Request', message: 'Only students can be added to groups' });
-      return;
-    }
+    // SPP-1 (C): role gate removed. Any account can be added; group
+    // membership is a symmetric relationship, not a persistent role.
     const existing = (await client.execute(
       'SELECT id FROM group_members WHERE group_id = ? AND student_id = ?',
       [req.params['id'] as string, target.id],

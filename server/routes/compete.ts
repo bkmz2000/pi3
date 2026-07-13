@@ -482,10 +482,24 @@ export function createCompeteRouter(): Router {
           continue;
         }
 
+        // SPP-6 (E): scanner runs on every import path, same shape as the
+        // POST/PUT authoring endpoints. Without this, importer-authored
+        // problems reached the public listing with `scan_status='pending'`
+        // and never went through the review pipeline.
+        const scan = scanProblemPayload({
+          title: title.trim(),
+          statement,
+          starter_code: '',
+          generator_py: null,
+          reference_solution_py: null,
+          checker_py: null,
+          tests,
+        });
+
         if (existing) {
           await client.execute(
-            `UPDATE problems SET title = ?, statement = ?, updated_at = datetime('now') WHERE id = ?`,
-            [title.trim(), statement, existing.id],
+            `UPDATE problems SET title = ?, statement = ?, scan_status = ?, scan_findings = ?, updated_at = datetime('now') WHERE id = ?`,
+            [title.trim(), statement, scan.status, scan.findings_json, existing.id],
           );
           await client.execute('DELETE FROM problem_tests WHERE problem_id = ?', [existing.id]);
           const normalized = normalizeTests(tests);
@@ -496,9 +510,9 @@ export function createCompeteRouter(): Router {
           })));
         } else {
           const ins = await client.execute(
-            `INSERT INTO problems (slug, title, statement, starter_code, order_index, created_by)
-             VALUES (?, ?, ?, ?, ?, ?)`,
-            [slug, title.trim(), statement, '', nextOrder++, (req.user as AuthUser).id],
+            `INSERT INTO problems (slug, title, statement, starter_code, order_index, created_by, scan_status, scan_findings)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            [slug, title.trim(), statement, '', nextOrder++, (req.user as AuthUser).id, scan.status, scan.findings_json],
           );
           const problemId = ins.lastInsertRowid;
           const normalized = normalizeTests(tests);

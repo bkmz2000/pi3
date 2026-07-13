@@ -643,6 +643,41 @@ describe('Phase 9: content scanner runs at author boundaries', () => {
     expect(res.status).toBe(201);
     expect(res.body.scan_status).toBe('clean');
   });
+
+  // SPP-6 (E): importer path was previously bypassing the scanner. Every
+  // imported problem now runs through scanProblemPayload, same shape as
+  // the POST/PUT authoring endpoints.
+  it('runs the scanner on POST /teacher/problems/import (flagged path)', async () => {
+    const res = await request(app).post('/api/teacher/problems/import').set(auth(teacher.api_token)).send({
+      problems: [{
+        id: 'imported-leak',
+        title_en: 'Contact',
+        statement_tex: 'Email me at imports@example.com if stuck.',
+        tests: [{ tier: 1, input: '1', answer: '2' }],
+      }],
+      lang: 'en',
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.imported).toBe(1);
+    const row = db.prepare('SELECT scan_status FROM problems WHERE slug = ?').get('imported-leak') as { scan_status: string };
+    expect(row.scan_status).toBe('flagged');
+  });
+
+  it('runs the scanner on POST /teacher/problems/import (clean path)', async () => {
+    const res = await request(app).post('/api/teacher/problems/import').set(auth(teacher.api_token)).send({
+      problems: [{
+        id: 'imported-clean',
+        title_en: 'Sum',
+        statement_tex: 'Print the sum of two integers.',
+        tests: [{ tier: 1, input: '1 2', answer: '3' }],
+      }],
+      lang: 'en',
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.imported).toBe(1);
+    const row = db.prepare('SELECT scan_status FROM problems WHERE slug = ?').get('imported-clean') as { scan_status: string };
+    expect(row.scan_status).toBe('clean');
+  });
 });
 
 describe('GET /api/problems/:slug/solve-count (Phase 9 aggregate-only)', () => {

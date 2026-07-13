@@ -91,7 +91,9 @@ export function createTestDb(): Database.Database {
       anchor_text TEXT NOT NULL DEFAULT '',
       text TEXT NOT NULL,
       author_id TEXT NOT NULL REFERENCES users(id),
-      created_at INTEGER NOT NULL
+      created_at INTEGER NOT NULL,
+      scan_status TEXT NOT NULL DEFAULT 'pending' CHECK (scan_status IN ('pending', 'clean', 'flagged')),
+      scan_findings TEXT
     );
     CREATE INDEX IF NOT EXISTS idx_comments_project_file ON comments(project_id, file_path);
 

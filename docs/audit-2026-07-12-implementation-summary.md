@@ -149,7 +149,7 @@ re-fetching the snapshot returns the frozen values, not the new ones.
 Same commit as Phase 5 (`19b1a0b`).
 **New file:** `server/snapshots/scanner.ts`.
 
-Scans **full raw text** (P#6 — no carve-outs) of title, every file,
+Scans **full raw text** (SPP-6 — no carve-outs) of title, every file,
 and the assets JSON blob. Patterns:
 - Email: standard `[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}`
 - Phone: 7-15 digits with common separators
@@ -157,7 +157,7 @@ and the assets JSON blob. Patterns:
 - Disclosure phrases: "DM me", "my telegram", etc. — both English
   and Russian.
 
-Layered posture (P#8): flagged snapshots are *stored*, not blocked, in
+Layered posture (SPP-8): flagged snapshots are *stored*, not blocked, in
 `scan_status='flagged'` — held for human review. False positives are
 acceptable, false negatives are handled by the takedown/report flow.
 

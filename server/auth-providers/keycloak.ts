@@ -55,7 +55,7 @@ export const keycloakAdapter: AuthAdapter = {
     // Roles can live in realm_access.roles (standard Keycloak JWT claim propagated
     // to userinfo via mapper) or as a top-level `roles` array if the realm is
     // configured with a "User Realm Role" userinfo mapper.
-    // Safety & Privacy Design Principle #1: no persistent roles. Keycloak
+    // SPP-1: no persistent roles. Keycloak
     // realm roles are ignored — every SSO account is created as a
     // `student` here. Live oversight uses ephemeral sessions
     // (see server/sessions/tokens.ts), not a durable badge.

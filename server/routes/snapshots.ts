@@ -31,9 +31,9 @@ function newShareLink(): string {
   return randomBytes(16).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
-// The public projection strips owner_id and any internal state, per P#7.
+// The public projection strips owner_id and any internal state, per SPP-7.
 // Fork count is an *aggregate* — no endpoint enumerates the forks — so it is
-// safe to expose (P#3 aggregate-stats-only clause).
+// safe to expose (SPP-3 aggregate-stats-only clause).
 function projectPublic(row: SnapshotRow) {
   return {
     share_link: row.share_link,

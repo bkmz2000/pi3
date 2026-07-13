@@ -22,7 +22,7 @@ interface User {
 
 // POST /api/users/outsider — create outsider account + start session
 //
-// Per Safety & Privacy Design Principle #2, no PII is collected from
+// Per SPP-2, no PII is collected from
 // students. The account has a *password only*; identity is the
 // auto-generated handle. The endpoint no longer accepts a `name` in the
 // request body — any `name` sent is silently ignored to preserve
@@ -134,7 +134,7 @@ router.post('/outsider/login', async (req: Request, res: Response): Promise<void
   }
 });
 
-// GET /api/users/search — removed under Safety & Privacy Design Principle #3
+// GET /api/users/search — removed under SPP-3
 // (no first-contact between strangers). Cross-user handle lookup is a direct
 // tripwire violation. Any legitimate need for it is served by the ephemeral
 // session invite flow (POST /api/sessions/start).
@@ -146,7 +146,7 @@ router.get('/search', (_req: Request, res: Response): void => {
 });
 
 // POST /api/users/me/upgrade-teacher — removed under Safety & Privacy Design
-// Principle #1 (no persistent roles). Self-service promotion to a durable
+// SPP-1 (no persistent roles). Self-service promotion to a durable
 // teacher badge with standing visibility into other accounts is the exact
 // pattern the doctrine forbids. Ephemeral sessions replace it.
 router.post('/me/upgrade-teacher', authMiddleware, (_req: Request, res: Response): void => {

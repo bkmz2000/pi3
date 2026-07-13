@@ -75,7 +75,7 @@ interface GroupMember {
 }
 
 // Group ownership check: the caller must be the account that created this
-// group. The role concept is gone (per Safety & Privacy Design Principle #1);
+// group. The role concept is gone (per SPP-1);
 // "who can act on this group" is now purely a question of ownership.
 // The column is still called `teacher_id` — that name is cosmetic legacy and
 // intentionally not renamed as part of this fix.
@@ -306,7 +306,7 @@ export function createGroupsRouter(): Router {
   // window — enforced by verifySessionToken's exp check on every read.
   //
   // This is the *time-boxing* mechanism: without a live token, the snapshot
-  // endpoint is unreachable. See Safety & Privacy Design Principle #1.
+  // endpoint is unreachable. See SPP-1.
   router.post('/:id/session/start', async (req: Request, res: Response): Promise<void> => {
     const groupId = req.params['id'] as string;
     const group = await checkGroupOwnership(groupId, req.user!.id);
@@ -332,7 +332,7 @@ export function createGroupsRouter(): Router {
   // at any time, indefinitely, without any bounded window.
   //
   // Student `name` field is NOT returned — handle-only, per Safety &
-  // Privacy Design Principle #2.
+  // Privacy SPP-2.
   router.get('/:id/snapshot', async (req: Request, res: Response): Promise<void> => {
     const groupId = req.params['id'] as string;
     const group = await checkGroupOwnership(groupId, req.user!.id);

@@ -1,7 +1,7 @@
 import { createHmac, timingSafeEqual, randomBytes } from 'crypto';
 
 // Ephemeral, symmetric multiplayer sessions per Safety & Privacy Design
-// Principle #1: no persistent role, no DB row. The signed token IS the session.
+// SPP-1: no persistent role, no DB row. The signed token IS the session.
 // Whoever holds a valid, unexpired token is a member.
 
 export const SESSION_TTL_MS = 2 * 60 * 60 * 1000; // 2 hours

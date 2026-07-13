@@ -134,7 +134,7 @@ describe('POST /api/snapshots/projects/:projectId/snapshot', () => {
 });
 
 describe('GET /api/snapshots/s/:shareLink', () => {
-  it('never returns owner_id in the public response (P#7)', async () => {
+  it('never returns owner_id in the public response (SPP-7)', async () => {
     const projectId = await seedProject(owner.id);
     const snap = await request(app).post(`/api/snapshots/projects/${projectId}/snapshot`).set(auth(owner.api_token));
     const res = await request(app).get(`/api/snapshots/s/${snap.body.share_link}`);

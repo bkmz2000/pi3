@@ -8,9 +8,9 @@ comment-writing to any account with editor/viewer share access. That
 prompted two adjacent questions worth explicit examination:
 
 1. How is `project_shares` access granted? Is there a pre-existing
-   relationship guarantee, matching the tripwire principle (P#3)?
+   relationship guarantee, matching the tripwire principle (SPP-3)?
 2. Does the project-comment channel need the same emoji-only,
-   structural-prevention treatment as session comments (P#4)?
+   structural-prevention treatment as session comments (SPP-4)?
 
 Both are examined against the 8 Safety & Privacy Design Principles in
 `CLAUDE.md` / `AGENTS.md`. Answers below.
@@ -32,7 +32,7 @@ Both are examined against the 8 Safety & Privacy Design Principles in
   opaque `id` or legacy `name` they happen to know. The recipient sees
   a new "shared with me" entry appear without ever agreeing.
 
-### Does this route around the tripwire principle (P#3)?
+### Does this route around the tripwire principle (SPP-3)?
 
 **Partially — the front door was closed in the earlier fix, but a
 side door remains.**
@@ -55,9 +55,9 @@ side door remains.**
   caller could opportunistically collect ids from responses they're
   already authorized to see.
 
-### Delta from P#3 in strict reading
+### Delta from SPP-3 in strict reading
 
-P#3 says: *pi3 never facilitates first contact between strangers.
+SPP-3 says: *pi3 never facilitates first contact between strangers.
 Every relationship that uses pi3 (a class, a study pair) must
 pre-exist it.* A unilateral share-push where the target had no
 existing relationship with the owner is a first-contact facilitation:
@@ -72,11 +72,11 @@ attach subsequent free-text comments to (see Q2).
 | S1 | MED | Share grant by legacy `name` still works for grandfathered accounts | Remove the `WHERE name = ?` branch at `shares.ts:53`; require `user_id` only. Consistent with the Blocker #1 direction (handle is the identifier, name is legacy). |
 | S2 | MED | No relationship precondition on share grant | Require target to have a pre-existing link — same group, or accepted a session invite from the owner within N days. Enforce at INSERT time. |
 | S3 | LOW | Owner-side share list still projects `u.name as user_name` (`shares.ts:146`) | Drop `u.name` from the projection; return `user_handle` only. Same shape as the compete-mode fix in Phase 1. |
-| S4 | LOW | No target-side "accept share" gate | Optional but P#3-aligned: shares land in a pending state; the target sees them but the owner cannot comment / see live code until the target confirms. |
+| S4 | LOW | No target-side "accept share" gate | Optional but SPP-3-aligned: shares land in a pending state; the target sees them but the owner cannot comment / see live code until the target confirms. |
 
 ---
 
-## Q2 — Does the project-comment channel need P#4 treatment?
+## Q2 — Does the project-comment channel need SPP-4 treatment?
 
 ### Current shape (POST /api/projects/:id/comments — `comments.ts:63`)
 
@@ -90,9 +90,9 @@ attach subsequent free-text comments to (see Q2).
   per-comment writes.
 - No rate limit. No character-class filter.
 
-### Comparison to P#4
+### Comparison to SPP-4
 
-P#4 as written: *In-session communication is emoji-only, from a fixed
+SPP-4 as written: *In-session communication is emoji-only, from a fixed
 small set, never free text — structural prevention of disclosure, not
 a filter.*
 
@@ -101,7 +101,7 @@ mechanism is `server/sessions/comments.ts`, keyed off ephemeral
 session tokens. Project comments are async, not session-scoped, and
 predate the doctrine (migration 002).
 
-**But the risk shape is the same.** The point of P#4 is not "sessions
+**But the risk shape is the same.** The point of SPP-4 is not "sessions
 are special" — it's "any cross-user text channel is a disclosure
 surface, and structural prevention is the design posture." A
 free-text comment thread between two users who happen to share a
@@ -119,7 +119,7 @@ than resolving it inline.
 
 | # | Severity | Finding | Suggested action |
 |---|----------|---------|------------------|
-| C1 | HIGH (if scope of P#4 is broadened to cover project comments) | Comment `text` is free-form, no whitelist, no scanner | Option A: switch to emoji-whitelist, same shape as session comments — mirrors doctrine, breaks the teaching-comment UX. Option B: keep free text but run `scanSnapshot` on every POST and hold flagged comments for review — mirrors the Phase 6 snapshot pipeline. Option C: cap length (~200 chars), rate-limit per author-project, and scan. |
+| C1 | HIGH (if scope of SPP-4 is broadened to cover project comments) | Comment `text` is free-form, no whitelist, no scanner | Option A: switch to emoji-whitelist, same shape as session comments — mirrors doctrine, breaks the teaching-comment UX. Option B: keep free text but run `scanSnapshot` on every POST and hold flagged comments for review — mirrors the Phase 6 snapshot pipeline. Option C: cap length (~200 chars), rate-limit per author-project, and scan. |
 | C2 | MED | GET response projects `u.name as author_name` (`comments.ts:45, 53, 93`) | Drop `u.name`; return `author_handle` only. Same shape as S3 and the Blocker #1 direction. |
 | C3 | LOW | No character cap on `text` | Even without a scanner, a 10-char cap would materially reduce the disclosure bandwidth without changing the teaching-signal use case. |
 | C4 | LOW | Comment `anchor_text` is also free-form and is passed through unchanged | Included in any scan/cap if C1 lands. |
@@ -128,7 +128,7 @@ than resolving it inline.
 
 ## Recommendation
 
-- Findings S1 and S2 are the concrete P#3 alignment gaps and are
+- Findings S1 and S2 are the concrete SPP-3 alignment gaps and are
   small, scoped fixes suitable for a dedicated follow-up PR.
 - Findings C1 through C4 need a product decision *before* the
   engineering change: is the project-comment channel a teaching tool

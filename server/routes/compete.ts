@@ -13,7 +13,7 @@ const PROBLEM_PUBLIC_COLUMNS = `
 `;
 
 // Runs the pre-share content scanner over the full raw text of a problem
-// authoring payload (P#6: no carve-outs). Returns scan_status + JSON of
+// authoring payload (SPP-6: no carve-outs). Returns scan_status + JSON of
 // findings, both safe to persist into `problems.scan_status` /
 // `problems.scan_findings`.
 function scanProblemPayload(payload: {
@@ -113,7 +113,7 @@ function mapImportTests(tests: ImportTestRow[]): TestInput[] {
 }
 
 // Any authenticated account. Problem authoring is open under the redesigned
-// model (Safety & Privacy Design Principle #1: no persistent roles) — safety
+// model (SPP-1: no persistent roles) — safety
 // is enforced by the pre-share content scanner (Phase 6, server/snapshots/
 // scanner.ts, wired into POST/PUT problem endpoints in this file) and the
 // human review gate, not by role. Write endpoints below add their own
@@ -540,7 +540,7 @@ export function createCompeteRouter(): Router {
 
   // Aggregate solve count per problem — public. Returns *only* the number of
   // distinct users who have earned any stars for the problem. No solver list,
-  // no leaderboard, no identity, per Phase 9 P#3 aggregate-only clause.
+  // no leaderboard, no identity, per Phase 9 SPP-3 aggregate-only clause.
   router.get('/problems/:slug/solve-count', async (req: Request, res: Response): Promise<void> => {
     const client = getClient();
     const problem = (await client.execute(
@@ -573,7 +573,7 @@ export function createCompeteRouter(): Router {
     // Without this, any teacher could read any student's submissions platform-wide.
     //
     // Only user_handle is returned — never u.name (Safety & Privacy Design
-    // Principle #2: no PII from students, ever). Handle is the sole identifier.
+    // SPP-2: no PII from students, ever). Handle is the sole identifier.
     const result = await client.execute(
       `SELECT DISTINCT s.*, u.handle as user_handle
        FROM submissions s

@@ -72,7 +72,8 @@ describe('Comments — create', () => {
     const res = await addComment();
     expect(res.status).toBe(201);
     expect(res.body.text).toBe('Nice work!');
-    expect(res.body.author_name).toBe(teacher.name);
+    // C2: handle-only projection — no author_name.
+    expect(res.body).not.toHaveProperty('author_name');
     expect(res.body.file_path).toBe('main.py');
     expect(res.body.line_number).toBe(1);
   });
@@ -85,7 +86,7 @@ describe('Comments — create', () => {
     expect(res.status).toBe(403);
   });
 
-  it('any account with viewer share can add a comment (role gate removed under P#1)', async () => {
+  it('any account with viewer share can add a comment (role gate removed under SPP-1)', async () => {
     const now = Date.now();
     const viewerId = uuidv4();
     const viewerToken = uuidv4().replace(/-/g, '') + uuidv4().replace(/-/g, '');
@@ -198,5 +199,67 @@ describe('Comments — delete', () => {
       .delete(`/api/projects/${projectId}/comments/${uuidv4()}`)
       .set(auth(teacher.api_token));
     expect(res.status).toBe(404);
+  });
+});
+
+// ── C1 / C2 / C3 follow-up (audit 2026-07-13) ───────────────────────────────
+
+describe('Comments — SPP-6 content scanner (C1 Option B)', () => {
+  it('accepts a clean comment and marks scan_status=clean', async () => {
+    const res = await addComment({ text: 'Nice loop!' });
+    expect(res.status).toBe(201);
+    expect(res.body.scan_status).toBe('clean');
+  });
+
+  it('stores (does not block) a comment whose text contains an email — held for review with scan_status=flagged', async () => {
+    const res = await addComment({ text: 'ping me at leak@example.com' });
+    expect(res.status).toBe(201);
+    expect(res.body.scan_status).toBe('flagged');
+  });
+
+  it('flags disclosure phrase in anchor_text (both fields scanned)', async () => {
+    const res = await addComment({ anchor_text: 'DM me on telegram', text: 'ok' });
+    expect(res.status).toBe(201);
+    expect(res.body.scan_status).toBe('flagged');
+  });
+});
+
+describe('Comments — C3 length cap', () => {
+  it('rejects text longer than 200 chars', async () => {
+    const res = await addComment({ text: 'a'.repeat(201) });
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/200/);
+  });
+
+  it('accepts exactly 200 chars', async () => {
+    const res = await addComment({ text: 'a'.repeat(200) });
+    expect(res.status).toBe(201);
+  });
+
+  it('rejects anchor_text longer than 200 chars', async () => {
+    const res = await addComment({ anchor_text: 'a'.repeat(201) });
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/anchor_text/);
+  });
+});
+
+describe('Comments — C2 handle-only projection', () => {
+  it('POST response omits author_name', async () => {
+    const res = await addComment();
+    expect(res.status).toBe(201);
+    expect(res.body).not.toHaveProperty('author_name');
+    expect(typeof res.body.author_handle === 'string' || res.body.author_handle === null).toBe(true);
+  });
+
+  it('GET response omits author_name across the list', async () => {
+    await addComment({ text: 'A' });
+    await addComment({ text: 'B' });
+    const res = await request(app)
+      .get(`/api/projects/${projectId}/comments`)
+      .set(auth(student.api_token));
+    expect(res.status).toBe(200);
+    for (const row of res.body) {
+      expect(row).not.toHaveProperty('author_name');
+    }
   });
 });

@@ -204,7 +204,7 @@ describe('Session-gated logout (CSRF defense)', () => {
   });
 });
 
-describe('POST /api/users/me/upgrade-teacher (removed under P#1)', () => {
+describe('POST /api/users/me/upgrade-teacher (removed under SPP-1)', () => {
   it('returns 410 Gone; does not mutate the user row', async () => {
     const { id, api_token } = makeUser();
     const res = await request(app)

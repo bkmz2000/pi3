@@ -1,5 +1,5 @@
 // Emoji-only comments inside an ephemeral session, per Safety & Privacy
-// Design Principle #4: in-session communication is structural, not filtered —
+// SPP-4: in-session communication is structural, not filtered —
 // a fixed whitelist, no free-text path.
 //
 // Storage is in-memory and per-process. Sessions expire after ~2h anyway

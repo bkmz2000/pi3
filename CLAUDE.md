@@ -110,45 +110,54 @@ These are durable doctrine, not per-PR notes. Every new feature must be
 checked against them before implementation. If a proposed feature conflicts
 with any principle below, flag it in the plan — do not build it silently.
 
-1. **No persistent roles.** No standing "teacher" (or equivalent) badge
-   grants one account ongoing visibility into another's activity. Any
-   live/collaborative session is ephemeral (short expiry, ~2 hours) and
-   symmetric — anyone can start one. The current persistent group/teacher-role
-   system predates this decision and is scheduled for migration/removal.
+**Shorthand.** Each principle is labeled `SPP-N` (Safety & Privacy
+Principle N) — use that exact shorthand in commit messages, comments,
+and docs. **Do not use `P#N`**: it collides with the product name "pi3"
+in speech ("P three" vs "pi three") and in a grep of the codebase.
 
-2. **No PII collected from students, ever.** Auto-generated login, only the
-   password is user-editable. No name, email, or other identifier requested
-   anywhere in the student path.
+- **SPP-1: No persistent roles.** No standing "teacher" (or equivalent)
+   badge grants one account ongoing visibility into another's activity.
+   Any live/collaborative session is ephemeral (short expiry, ~2 hours)
+   and symmetric — anyone can start one. The current persistent
+   group/teacher-role system predates this decision and is scheduled
+   for migration/removal.
 
-3. **Tripwire principle: pi3 never facilitates first contact between
-   strangers.** Every relationship that uses pi3 (a class, a study pair) must
-   pre-exist it. Any proposed feature involving persistent handles, public
-   profiles, follow/DM mechanics, or open leaderboards with cross-user
-   interaction must be explicitly evaluated against this principle before
-   being built.
+- **SPP-2: No PII collected from students, ever.** Auto-generated login,
+   only the password is user-editable. No name, email, or other
+   identifier requested anywhere in the student path.
 
-4. **In-session communication is emoji-only**, from a fixed small set, never
-   free text — structural prevention of disclosure, not a filter.
+- **SPP-3: Tripwire — pi3 never facilitates first contact between
+   strangers.** Every relationship that uses pi3 (a class, a study
+   pair) must pre-exist it. Any proposed feature involving persistent
+   handles, public profiles, follow/DM mechanics, or open leaderboards
+   with cross-user interaction must be explicitly evaluated against
+   this principle before being built.
 
-5. **Publishing anything (project, README, problem set) is a snapshot.**
-   Private originals stay account-linked and editable; a share/publish action
-   stamps an immutable, author-unlinked copy. New edits require a new
-   snapshot.
+- **SPP-4: In-session communication is emoji-only**, from a fixed small
+   set, never free text — structural prevention of disclosure, not a
+   filter.
 
-6. **Content scanning scope is the full raw text of a submission** — code,
-   comments, docstrings, string literals, identifiers, titles, README — not
-   just a labeled description field. No exceptions carved out for "it's just
-   code."
+- **SPP-5: Publishing anything (project, README, problem set) is a
+   snapshot.** Private originals stay account-linked and editable; a
+   share/publish action stamps an immutable, author-unlinked copy. New
+   edits require a new snapshot.
 
-7. **Author-project linkage is internal-only, never publicly exposed.** A
-   private mapping (account → shares) exists solely for (a) letting an author
-   manage/revoke their own shares, (b) catching repeat abuse. It must never
-   be reachable by any other user or public endpoint.
+- **SPP-6: Content scanning scope is the full raw text of a submission**
+   — code, comments, docstrings, string literals, identifiers, titles,
+   README — not just a labeled description field. No exceptions carved
+   out for "it's just code."
 
-8. **Moderation is layered, not airtight**, and documented as such:
-   automated pattern scan for the accidental/lazy cases, a visible report
-   mechanism, and a defined fast-takedown target — optimize for
-   time-to-removal, not an unreachable zero-incidence guarantee.
+- **SPP-7: Author-project linkage is internal-only, never publicly
+   exposed.** A private mapping (account → shares) exists solely for
+   (a) letting an author manage/revoke their own shares, (b) catching
+   repeat abuse. It must never be reachable by any other user or
+   public endpoint.
+
+- **SPP-8: Moderation is layered, not airtight**, and documented as
+   such: automated pattern scan for the accidental/lazy cases, a
+   visible report mechanism, and a defined fast-takedown target —
+   optimize for time-to-removal, not an unreachable zero-incidence
+   guarantee.
 
 ## Architecture
 

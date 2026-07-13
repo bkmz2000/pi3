@@ -1,11 +1,10 @@
-// Pre-share PII pattern scanner, per Safety & Privacy Design Principle #6
-// and #8.
+// Pre-share PII pattern scanner, per SPP-6 and SPP-8.
 //
-// Principle #6: scanning scope is the *full raw text* of a submission —
+// SPP-6: scanning scope is the *full raw text* of a submission —
 // code, comments, docstrings, string literals, identifiers, titles, README.
 // No exceptions carved out for "it's just code."
 //
-// Principle #8: this is layered, not airtight. Catches the accidental /
+// SPP-8: this is layered, not airtight. Catches the accidental /
 // lazy cases (someone pasting their email into a comment) — it does not
 // claim to catch adversarial or paraphrased disclosure. Flagged content
 // is *held for human review*, not silently blocked or silently allowed.
@@ -81,7 +80,7 @@ export function scanSnapshot(input: {
   if (input.assets) {
     // Assets may contain user-editable labels or embedded strings; scan the
     // whole JSON blob as raw text. Data-URL binary blobs will produce noisy
-    // hits, but keeping the sweep coarse-grained is intentional (P#6).
+    // hits, but keeping the sweep coarse-grained is intentional (SPP-6).
     try {
       collect(JSON.stringify(input.assets), 'assets', findings);
     } catch {

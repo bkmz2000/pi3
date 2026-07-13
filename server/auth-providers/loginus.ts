@@ -36,7 +36,7 @@ export const loginusAdapter: AuthAdapter = {
       throw new AuthProviderError('userinfo', 'Missing or invalid id');
     }
 
-    // Safety & Privacy Design Principle #1: no persistent roles. Provider
+    // SPP-1: no persistent roles. Provider
     // teacher claims are ignored — every SSO account is created as a
     // `student` here. Live oversight is done via ephemeral sessions
     // (see server/sessions/tokens.ts), not via a durable badge.

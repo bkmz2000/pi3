@@ -93,6 +93,28 @@ describe('project access matrix', () => {
     return { projectId, headers: actor === 'stranger' ? auth(other.api_token) : auth(other.api_token) };
   }
 
+  // Variant of `setup` that also returns the acting user so tests needing
+  // to seed the SPP-3 same-group precondition can look up the ownership row.
+  function setupWithActorUser(actor: Actor): { projectId: string; headers: Record<string, string>; actorUser: TestUser } {
+    const owner = mkUser('owner-' + uuidv4().slice(0, 8));
+    const projectId = mkProject(owner.id);
+    if (actor === 'owner') return { projectId, headers: auth(owner.api_token), actorUser: owner };
+    if (actor === 'unauth') return { projectId, headers: {}, actorUser: owner };
+    const other = mkUser('other-' + uuidv4().slice(0, 8));
+    if (actor === 'editor') share(projectId, other.id, 'editor');
+    if (actor === 'viewer') share(projectId, other.id, 'viewer');
+    return { projectId, headers: auth(other.api_token), actorUser: other };
+  }
+
+  function seedCommonGroup(userA: string, userB: string): void {
+    const now = Date.now();
+    const groupId = uuidv4();
+    db.prepare('INSERT INTO groups (id, teacher_id, name, created_at) VALUES (?, ?, ?, ?)')
+      .run(groupId, userA, 'Class', now);
+    db.prepare('INSERT INTO group_members (id, group_id, student_id, joined_at) VALUES (?, ?, ?, ?)')
+      .run(uuidv4(), groupId, userB, now);
+  }
+
   const readCases: Array<[Actor, number]> = [
     ['owner', 200], ['editor', 200], ['viewer', 200], ['stranger', 403], ['unauth', 401],
   ];
@@ -137,14 +159,20 @@ describe('project access matrix', () => {
     });
   }
 
+  // Non-owner actors are rejected by the owner check before the body is
+  // ever inspected; owner needs both a handle-lookup target AND a
+  // pre-existing group relationship with the target under the S2 tripwire.
   const shareCases: Array<[Actor, number]> = [
     ['editor', 403], ['viewer', 403], ['stranger', 403], ['owner', 201],
   ];
   for (const [actor, expected] of shareCases) {
     it(`POST /:id/share — ${actor} -> ${expected}`, async () => {
-      const { projectId, headers } = setup(actor);
+      const { projectId, headers, actorUser } = setupWithActorUser(actor);
       const target = mkUser('share-target-' + uuidv4().slice(0, 8));
-      const res = await request(app).post(`/api/projects/${projectId}/share`).set(headers).send({ username: target.name, role: 'viewer' });
+      const targetHandle = 't_' + uuidv4().slice(0, 8);
+      db.prepare('UPDATE users SET handle = ? WHERE id = ?').run(targetHandle, target.id);
+      if (actor === 'owner') seedCommonGroup(actorUser.id, target.id);
+      const res = await request(app).post(`/api/projects/${projectId}/share`).set(headers).send({ handle: targetHandle, role: 'viewer' });
       expect(res.status).toBe(expected);
     });
   }

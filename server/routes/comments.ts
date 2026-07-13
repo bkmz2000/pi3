@@ -4,6 +4,14 @@ import { getClient } from '../db/index.js';
 import { first } from '../db/client.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { getProjectAccess, hasRole } from '../middleware/projectAuth.js';
+import { scanSnapshot } from '../snapshots/scanner.js';
+
+// Comment length cap. SPP-6 / SPP-8 supplementary control (finding C3 from
+// docs/audit-2026-07-13-project-shares-and-comments.md): even before the
+// scanner runs, a 200-char cap materially reduces the disclosure bandwidth
+// of the channel without hurting the code-review teaching use case ("check
+// line 12, you're mutating the list while iterating it" fits comfortably).
+const COMMENT_MAX_LEN = 200;
 
 interface CommentRow {
   id: string;
@@ -16,7 +24,7 @@ interface CommentRow {
   created_at: number;
 }
 
-// `isTeacher` helper removed under Safety & Privacy Design Principle #1
+// `isTeacher` helper removed under SPP-1
 // (no persistent roles). Comment-write authorization is now purely a
 // share-access check — anyone with editor/viewer access on a project can
 // leave a comment on it. See the POST handler below.
@@ -39,10 +47,11 @@ export function createProjectCommentsRouter(): Router {
     }
     const { file } = req.query;
     const client = getClient();
+    // C2 / SPP-2: handle-only projection. `u.name` dropped.
     let result;
     if (file && typeof file === 'string') {
       result = await client.execute(
-        `SELECT c.*, u.name as author_name, u.handle as author_handle
+        `SELECT c.*, u.handle as author_handle
          FROM comments c JOIN users u ON u.id = c.author_id
          WHERE c.project_id = ? AND c.file_path = ?
          ORDER BY c.line_number ASC, c.created_at ASC`,
@@ -50,7 +59,7 @@ export function createProjectCommentsRouter(): Router {
       );
     } else {
       result = await client.execute(
-        `SELECT c.*, u.name as author_name, u.handle as author_handle
+        `SELECT c.*, u.handle as author_handle
          FROM comments c JOIN users u ON u.id = c.author_id
          WHERE c.project_id = ?
          ORDER BY c.file_path ASC, c.line_number ASC, c.created_at ASC`,
@@ -81,16 +90,41 @@ export function createProjectCommentsRouter(): Router {
       res.status(400).json({ error: 'Bad Request', message: 'text is required' });
       return;
     }
+    // C3 length cap on both `text` and `anchor_text`.
+    const trimmedText = text.trim();
+    const anchor = typeof anchor_text === 'string' ? anchor_text : '';
+    if (trimmedText.length > COMMENT_MAX_LEN) {
+      res.status(400).json({ error: 'Bad Request', message: `text must be at most ${COMMENT_MAX_LEN} characters` });
+      return;
+    }
+    if (anchor.length > COMMENT_MAX_LEN) {
+      res.status(400).json({ error: 'Bad Request', message: `anchor_text must be at most ${COMMENT_MAX_LEN} characters` });
+      return;
+    }
+    // Option B (C1): run the same content scanner used by project snapshots
+    // (SPP-6). anchor_text and text are both scanned. If flagged, the
+    // comment is *stored*, not blocked (SPP-8 layered moderation) — client
+    // receives 201 with scan_status='flagged' so the UI can hold display
+    // behind a review marker if it chooses.
+    const scan = scanSnapshot({
+      title: '',
+      files: {
+        'comment.txt': trimmedText,
+        'anchor.txt': anchor,
+      },
+    });
     const client = getClient();
     const now = Date.now();
     const id = uuidv4();
     await client.execute(
-      `INSERT INTO comments (id, project_id, file_path, line_number, anchor_text, text, author_id, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [id, projectId, file_path, line_number, anchor_text ?? '', text.trim(), req.user!.id, now],
+      `INSERT INTO comments (id, project_id, file_path, line_number, anchor_text, text,
+                             author_id, created_at, scan_status, scan_findings)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [id, projectId, file_path, line_number, anchor, trimmedText, req.user!.id, now,
+       scan.status, JSON.stringify(scan.findings)],
     );
     const row = (await client.execute(
-      `SELECT c.*, u.name as author_name, u.handle as author_handle
+      `SELECT c.*, u.handle as author_handle
        FROM comments c JOIN users u ON u.id = c.author_id WHERE c.id = ?`,
       [id],
     )).rows[0];

@@ -1,5 +1,5 @@
 -- 011_snapshot_forks.sql
--- Phase 8 fork/remix model. Per Safety & Privacy Design Principle #3
+-- Phase 8 fork/remix model. Per SPP-3
 -- (tripwire — no first-contact between strangers), the original snapshot
 -- only ever exposes an aggregate fork_count; there is no endpoint that
 -- enumerates or links to individual forks or their owners.

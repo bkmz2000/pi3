@@ -1,10 +1,10 @@
 -- 010_project_snapshots.sql
 -- Immutable snapshots produced by the private→share boundary.
--- Per Safety & Privacy Design Principle #5, publishing anything is a snapshot;
+-- Per SPP-5, publishing anything is a snapshot;
 -- private originals stay account-linked and editable; a share/publish action
 -- stamps an immutable, author-unlinked copy. New edits require a new snapshot.
 --
--- Per Principle #7, owner_id is *internal-only*. It exists solely for
+-- Per SPP-7, owner_id is *internal-only*. It exists solely for
 -- (a) letting the author manage/revoke their own shares and (b) catching
 -- repeat abuse. No public endpoint may expose it.
 

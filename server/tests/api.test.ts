@@ -289,11 +289,27 @@ describe('Save Content API', () => {
 });
 
 describe('Sharing API', () => {
-  it('POST /api/projects/:id/share shares project', async () => {
+  // Put both users into the same group so the S2 precondition
+  // (SPP-3 tripwire: no first contact between strangers) is satisfied.
+  // Also assign each a handle so the S1 lookup path has something to match.
+  function seedGroupMembership(): void {
+    const now = Date.now();
+    const groupId = uuidv4();
+    db.prepare('UPDATE users SET handle = ? WHERE id = ?').run('alice_h', testUser1.id);
+    db.prepare('UPDATE users SET handle = ? WHERE id = ?').run('bob_h', testUser2.id);
+    // testUser1 owns the group; testUser2 is a member.
+    db.prepare('INSERT INTO groups (id, teacher_id, name, created_at) VALUES (?, ?, ?, ?)')
+      .run(groupId, testUser1.id, 'Class', now);
+    db.prepare('INSERT INTO group_members (id, group_id, student_id, joined_at) VALUES (?, ?, ?, ?)')
+      .run(uuidv4(), groupId, testUser2.id, now);
+  }
+
+  it('POST /api/projects/:id/share shares project (handle + same-group precondition)', async () => {
+    seedGroupMembership();
     const res = await request(app)
       .post(`/api/projects/${testProject.id}/share`)
       .set(authHeader(testUser1.api_token))
-      .send({ username: testUser2.name, role: 'editor' });
+      .send({ handle: 'bob_h', role: 'editor' });
 
     expect(res.status).toBe(201);
     expect(res.body.role).toBe('editor');
@@ -331,20 +347,82 @@ describe('Sharing API', () => {
   });
 
   it('non-owner cannot share project', async () => {
+    seedGroupMembership();
     const res = await request(app)
       .post(`/api/projects/${testProject.id}/share`)
       .set(authHeader(testUser2.api_token))
-      .send({ username: testUser2.name, role: 'viewer' });
+      .send({ handle: 'bob_h', role: 'viewer' });
 
     expect(res.status).toBe(403);
   });
 
   it('cannot share with role owner', async () => {
+    seedGroupMembership();
     const res = await request(app)
       .post(`/api/projects/${testProject.id}/share`)
       .set(authHeader(testUser1.api_token))
-      .send({ username: testUser2.name, role: 'owner' });
+      .send({ handle: 'bob_h', role: 'owner' });
     expect(res.status).toBe(400);
+  });
+
+  // S1 — legacy `username` (u.name lookup) is removed.
+  it('S1: rejects the legacy `username` field (name lookup removed)', async () => {
+    seedGroupMembership();
+    const res = await request(app)
+      .post(`/api/projects/${testProject.id}/share`)
+      .set(authHeader(testUser1.api_token))
+      .send({ username: testUser2.name, role: 'viewer' });
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/user_id or handle/i);
+  });
+
+  // S2 — SPP-3 tripwire precondition.
+  it('S2: 403 when owner and target do not share a common group', async () => {
+    // Assign a handle to testUser2 but do NOT put both in a common group.
+    db.prepare('UPDATE users SET handle = ? WHERE id = ?').run('bob_h', testUser2.id);
+    const res = await request(app)
+      .post(`/api/projects/${testProject.id}/share`)
+      .set(authHeader(testUser1.api_token))
+      .send({ handle: 'bob_h', role: 'viewer' });
+    expect(res.status).toBe(403);
+    expect(res.body.message).toMatch(/same group/i);
+  });
+
+  it('S2: same-group precondition is symmetric — peer-in-same-class works', async () => {
+    // A third-party account creates a group with both users as members.
+    // Neither testUser1 nor testUser2 is the creator; they are peers.
+    const teacherId = uuidv4();
+    const now = Date.now();
+    db.prepare('INSERT INTO users (id, api_token, name, role, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)')
+      .run(teacherId, 'tk', null, 'student', now, now);
+    const groupId = uuidv4();
+    db.prepare('INSERT INTO groups (id, teacher_id, name, created_at) VALUES (?, ?, ?, ?)')
+      .run(groupId, teacherId, 'Class', now);
+    db.prepare('INSERT INTO group_members (id, group_id, student_id, joined_at) VALUES (?, ?, ?, ?)')
+      .run(uuidv4(), groupId, testUser1.id, now);
+    db.prepare('INSERT INTO group_members (id, group_id, student_id, joined_at) VALUES (?, ?, ?, ?)')
+      .run(uuidv4(), groupId, testUser2.id, now);
+    db.prepare('UPDATE users SET handle = ? WHERE id = ?').run('bob_h', testUser2.id);
+    const res = await request(app)
+      .post(`/api/projects/${testProject.id}/share`)
+      .set(authHeader(testUser1.api_token))
+      .send({ handle: 'bob_h', role: 'viewer' });
+    expect(res.status).toBe(201);
+  });
+
+  // S3 — u.name dropped from share list projection.
+  it('S3: share list does not include `user_name`', async () => {
+    seedGroupMembership();
+    await request(app)
+      .post(`/api/projects/${testProject.id}/share`)
+      .set(authHeader(testUser1.api_token))
+      .send({ handle: 'bob_h', role: 'viewer' });
+    const res = await request(app)
+      .get(`/api/projects/${testProject.id}/share`)
+      .set(authHeader(testUser1.api_token));
+    expect(res.status).toBe(200);
+    expect(res.body[0]).not.toHaveProperty('user_name');
+    expect(typeof res.body[0].user_handle).toBe('string');
   });
 });
 
@@ -448,7 +526,7 @@ describe('Thumbnail API', () => {
   });
 });
 
-describe('User Search API (removed under P#3 tripwire)', () => {
+describe('User Search API (removed under SPP-3 tripwire)', () => {
   it('GET /api/users/search returns 410 Gone', async () => {
     const res = await request(app)
       .get('/api/users/search?q=char')

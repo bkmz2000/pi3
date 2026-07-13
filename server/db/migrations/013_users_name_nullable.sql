@@ -1,5 +1,5 @@
 -- 013_users_name_nullable.sql
--- Safety & Privacy Design Principle #2: no PII collected from students, ever.
+-- SPP-2: no PII collected from students, ever.
 -- Auto-generated handle is the sole identifier; `name` is legacy-only,
 -- retained for existing rows and never written for new student accounts.
 --

@@ -55,7 +55,7 @@ describe('loginusAdapter.parseUserinfo', () => {
     expect(user.email).toBe('student@example.com');
   });
 
-  it('maps a userinfo with the provider teacher claim to role=student (P#1 no persistent roles)', () => {
+  it('maps a userinfo with the provider teacher claim to role=student (SPP-1 no persistent roles)', () => {
     const user = loginusAdapter.parseUserinfo({
       id: 'user-2',
       globalRoles: [{ name: 'teacher' }],
@@ -150,7 +150,7 @@ describe('keycloakAdapter.parseUserinfo', () => {
     expect(user.role).toBe('student');
   });
 
-  it('maps a userinfo with realm_access teacher role to role=student (P#1 no persistent roles)', () => {
+  it('maps a userinfo with realm_access teacher role to role=student (SPP-1 no persistent roles)', () => {
     const user = keycloakAdapter.parseUserinfo({
       sub: 'kc-user-2',
       given_name: 'Petr',

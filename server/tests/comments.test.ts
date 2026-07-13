@@ -263,3 +263,60 @@ describe('Comments — C2 handle-only projection', () => {
     }
   });
 });
+
+// ── Structural review gate for flagged comments ─────────────────────────────
+
+describe('Comments — flagged comments are structurally held from other viewers', () => {
+  it('author sees their own flagged comment; other share-holders do not; a clean-flip releases it', async () => {
+    // Author (teacher) posts a comment that gets flagged.
+    const post = await addComment({ text: 'ping me at leak@example.com' });
+    expect(post.status).toBe(201);
+    expect(post.body.scan_status).toBe('flagged');
+    const commentId = post.body.id as string;
+
+    // Owner (student) — a different share-holder — must NOT see it.
+    const other = await request(app)
+      .get(`/api/projects/${projectId}/comments`)
+      .set(auth(student.api_token));
+    expect(other.status).toBe(200);
+    expect(other.body.some((c: { id: string }) => c.id === commentId)).toBe(false);
+
+    // Author (teacher) sees their own pending row — otherwise the write
+    // silently disappears from their view, which is worse UX than the leak.
+    const author = await request(app)
+      .get(`/api/projects/${projectId}/comments`)
+      .set(auth(teacher.api_token));
+    expect(author.status).toBe(200);
+    expect(author.body.some((c: { id: string }) => c.id === commentId)).toBe(true);
+
+    // Moderator flip: scan_status -> clean. Now the other viewer sees it.
+    db.prepare("UPDATE comments SET scan_status = 'clean' WHERE id = ?").run(commentId);
+    const afterFlip = await request(app)
+      .get(`/api/projects/${projectId}/comments`)
+      .set(auth(student.api_token));
+    expect(afterFlip.status).toBe(200);
+    expect(afterFlip.body.some((c: { id: string }) => c.id === commentId)).toBe(true);
+  });
+
+  it('same rule applies when the ?file= filter is used', async () => {
+    const post = await addComment({ text: 'email me at hi@ex.com', file_path: 'main.py' });
+    expect(post.body.scan_status).toBe('flagged');
+    const commentId = post.body.id as string;
+
+    const other = await request(app)
+      .get(`/api/projects/${projectId}/comments?file=main.py`)
+      .set(auth(student.api_token));
+    expect(other.body.some((c: { id: string }) => c.id === commentId)).toBe(false);
+  });
+
+  it('clean comments are visible to all share-holders (regression — filter must not over-apply)', async () => {
+    const post = await addComment({ text: 'just fine, no issue' });
+    expect(post.body.scan_status).toBe('clean');
+    const commentId = post.body.id as string;
+
+    const other = await request(app)
+      .get(`/api/projects/${projectId}/comments`)
+      .set(auth(student.api_token));
+    expect(other.body.some((c: { id: string }) => c.id === commentId)).toBe(true);
+  });
+});

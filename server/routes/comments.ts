@@ -48,22 +48,35 @@ export function createProjectCommentsRouter(): Router {
     const { file } = req.query;
     const client = getClient();
     // C2 / SPP-2: handle-only projection. `u.name` dropped.
+    //
+    // Structural review gate: a flagged comment is NOT returned to anyone
+    // except its own author until a human moderator clears it to `clean`.
+    // The author sees their own pending/flagged comments so they know the
+    // write went through and can edit/delete it; other share-holders do
+    // not, so a disclosure can't reach the reader before review. This
+    // matches the snapshot-pipeline pattern where unapproved content is
+    // structurally unreachable, per SPP-8 layered moderation. Without this
+    // filter, `scan_status` was purely advisory-after-the-fact — a log,
+    // not a gate.
+    const viewerId = req.user!.id;
     let result;
     if (file && typeof file === 'string') {
       result = await client.execute(
         `SELECT c.*, u.handle as author_handle
          FROM comments c JOIN users u ON u.id = c.author_id
          WHERE c.project_id = ? AND c.file_path = ?
+           AND (c.scan_status != 'flagged' OR c.author_id = ?)
          ORDER BY c.line_number ASC, c.created_at ASC`,
-        [projectId, file],
+        [projectId, file, viewerId],
       );
     } else {
       result = await client.execute(
         `SELECT c.*, u.handle as author_handle
          FROM comments c JOIN users u ON u.id = c.author_id
          WHERE c.project_id = ?
+           AND (c.scan_status != 'flagged' OR c.author_id = ?)
          ORDER BY c.file_path ASC, c.line_number ASC, c.created_at ASC`,
-        [projectId],
+        [projectId, viewerId],
       );
     }
     res.json(result.rows);

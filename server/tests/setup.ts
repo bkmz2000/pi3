@@ -175,6 +175,19 @@ export function createTestDb(): Database.Database {
     CREATE INDEX IF NOT EXISTS idx_project_snapshots_owner ON project_snapshots(owner_id, created_at DESC);
     CREATE UNIQUE INDEX IF NOT EXISTS idx_project_snapshots_share_link ON project_snapshots(share_link);
 
+    CREATE TABLE IF NOT EXISTS content_reports (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      target_type TEXT NOT NULL,
+      target_id TEXT NOT NULL,
+      reporter_id TEXT REFERENCES users(id),
+      reason TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      handled_at INTEGER,
+      handled_by TEXT REFERENCES users(id),
+      handled_note TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_content_reports_target ON content_reports(target_type, target_id);
+
     CREATE TABLE IF NOT EXISTS snapshot_views (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       snapshot_id TEXT NOT NULL REFERENCES project_snapshots(id) ON DELETE CASCADE,

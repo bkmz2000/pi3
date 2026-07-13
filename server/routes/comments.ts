@@ -3,8 +3,13 @@ import { v4 as uuidv4 } from 'uuid';
 import { getClient } from '../db/index.js';
 import { first } from '../db/client.js';
 import { authMiddleware } from '../middleware/auth.js';
+import { rateLimit } from '../middleware/rateLimit.js';
 import { getProjectAccess, hasRole } from '../middleware/projectAuth.js';
 import { scanSnapshot } from '../snapshots/scanner.js';
+
+// SPP-8: 60 comment writes per hour per account. Comments are a low-
+// bandwidth teaching channel; a legitimate reviewer will not exceed this.
+const commentWriteLimit = rateLimit({ name: 'project-comment', windowMs: 3600_000, max: 60 });
 
 // Comment length cap. SPP-6 / SPP-8 supplementary control (finding C3 from
 // docs/audit-2026-07-13-project-shares-and-comments.md): even before the
@@ -82,7 +87,7 @@ export function createProjectCommentsRouter(): Router {
     res.json(result.rows);
   });
 
-  router.post('/', async (req: Request, res: Response): Promise<void> => {
+  router.post('/', commentWriteLimit, async (req: Request, res: Response): Promise<void> => {
     const projectId = req.params['id'] as string;
     const access = await getProjectAccess(projectId, req.user!.id);
     const hasShare = access.role === 'editor' || access.role === 'viewer';

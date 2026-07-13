@@ -2,7 +2,11 @@ import { Router, Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { getClient } from '../db/index.js';
 import { authMiddleware } from '../middleware/auth.js';
+import { rateLimit } from '../middleware/rateLimit.js';
 import { getProjectAccess } from '../middleware/projectAuth.js';
+
+// SPP-8: 30 share-grants per hour per account.
+const shareGrantLimit = rateLimit({ name: 'project-share', windowMs: 3600_000, max: 30 });
 
 // SPP-3 (tripwire) precondition. Two accounts may only enter a project-share
 // relationship if they already share at least one group — i.e. both appear
@@ -60,7 +64,7 @@ export function createSharesRouter(): Router {
   const router = Router({ mergeParams: true });
   router.use(authMiddleware);
 
-  router.post('/', async (req: Request, res: Response): Promise<void> => {
+  router.post('/', shareGrantLimit, async (req: Request, res: Response): Promise<void> => {
     const projectId = req.params.id as string;
     // S1: legacy `username` (which resolved via u.name) is removed. Handle
     // is the identifier, or the opaque uuid via `user_id`. Any callers still

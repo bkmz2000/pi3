@@ -1,0 +1,13 @@
+# SPP-7 / SPP-8: unlisted-by-default posture. Any snapshot / share / compete
+# problem lives behind an unguessable link and must not be indexed until it
+# has been explicitly approved for public listing by a human reviewer.
+# The per-response `X-Robots-Tag: noindex, nofollow` header on
+# /api/snapshots/s/:shareLink is the authoritative signal; this file is a
+# site-wide belt-and-braces complement for well-behaved crawlers.
+
+User-agent: *
+Disallow: /api/
+Disallow: /ide/
+Disallow: /projects
+Disallow: /teacher
+Disallow: /compete/

@@ -1,7 +1,12 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { getClient } from '../db/index.js';
 import { authMiddleware, AuthUser } from '../middleware/auth.js';
+import { rateLimit } from '../middleware/rateLimit.js';
 import { scanSnapshot } from '../snapshots/scanner.js';
+
+// SPP-8: 30 problem writes per hour per account (author + edit + import
+// share the same bucket).
+const problemWriteLimit = rateLimit({ name: 'problem-write', windowMs: 3600_000, max: 30 });
 
 // Column list for problems that intentionally omits `created_by`, per
 // Phase 9 doctrine: author-project linkage is internal-only and must never
@@ -329,7 +334,7 @@ export function createCompeteRouter(): Router {
     res.json({ ...problem, tests });
   });
 
-  router.post('/teacher/problems', authedOnly, async (req: Request, res: Response): Promise<void> => {
+  router.post('/teacher/problems', authedOnly, problemWriteLimit, async (req: Request, res: Response): Promise<void> => {
     const validationError = validateProblemBody(req.body);
     if (validationError) {
       res.status(400).json({ error: 'Bad Request', message: validationError });
@@ -375,7 +380,7 @@ export function createCompeteRouter(): Router {
     res.status(201).json(problem);
   });
 
-  router.put('/teacher/problems/:slug', authedOnly, async (req: Request, res: Response): Promise<void> => {
+  router.put('/teacher/problems/:slug', authedOnly, problemWriteLimit, async (req: Request, res: Response): Promise<void> => {
     const validationError = validateProblemBody({ ...req.body, slug: req.params.slug });
     if (validationError) {
       res.status(400).json({ error: 'Bad Request', message: validationError });
@@ -427,7 +432,7 @@ export function createCompeteRouter(): Router {
     res.json(updated);
   });
 
-  router.post('/teacher/problems/import', authedOnly, async (req: Request, res: Response): Promise<void> => {
+  router.post('/teacher/problems/import', authedOnly, problemWriteLimit, async (req: Request, res: Response): Promise<void> => {
     const { problems: rawProblems, lang = 'ru', overwrite = false } = req.body as {
       problems: ImportProblem[];
       lang?: 'ru' | 'en';

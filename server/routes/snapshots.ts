@@ -3,7 +3,12 @@ import { v4 as uuidv4 } from 'uuid';
 import { randomBytes } from 'crypto';
 import { getClient } from '../db/index.js';
 import { authMiddleware, optionalAuthMiddleware } from '../middleware/auth.js';
+import { rateLimit } from '../middleware/rateLimit.js';
 import { scanSnapshot } from '../snapshots/scanner.js';
+
+// SPP-8: 20 snapshot publishes per hour per account. Blunt cap.
+const snapshotPublishLimit = rateLimit({ name: 'snapshot-publish', windowMs: 3600_000, max: 20 });
+const forkLimit = rateLimit({ name: 'snapshot-fork', windowMs: 3600_000, max: 20 });
 
 // Threshold of distinct account views before an author can request to make a
 // snapshot publicly discoverable. Phase 7 doctrine. Tunable.
@@ -71,7 +76,7 @@ export function createSnapshotsRouter(): Router {
   // Create a snapshot of a project the caller owns. Runs the pre-share
   // content scanner (Phase 6). If flagged, the snapshot is still stored but
   // held in scan_status='flagged' until a human reviewer clears it.
-  router.post('/projects/:projectId/snapshot', authMiddleware, async (req: Request, res: Response): Promise<void> => {
+  router.post('/projects/:projectId/snapshot', authMiddleware, snapshotPublishLimit, async (req: Request, res: Response): Promise<void> => {
     if (!req.user) {
       res.status(401).json({ error: 'Unauthorized' });
       return;
@@ -242,7 +247,7 @@ export function createSnapshotsRouter(): Router {
   // The parent snapshot's fork_count is incremented as an aggregate stat;
   // NO endpoint returns the list of forks or their owners for a given
   // snapshot (verified in the test suite by omission).
-  router.post('/s/:shareLink/fork', authMiddleware, async (req: Request, res: Response): Promise<void> => {
+  router.post('/s/:shareLink/fork', authMiddleware, forkLimit, async (req: Request, res: Response): Promise<void> => {
     if (!req.user) {
       res.status(401).json({ error: 'Unauthorized' });
       return;

@@ -11,8 +11,8 @@ import { createHelpRequestsRouter } from '../routes/help-requests.js';
 let app: express.Application;
 let db: Database.Database;
 
-let teacher: { id: string; api_token: string; name: string };
-let student: { id: string; api_token: string; name: string };
+let teacher: { id: string; api_token: string; name: string; handle: string };
+let student: { id: string; api_token: string; name: string; handle: string };
 let projectId: string;
 let groupId: string;
 
@@ -32,13 +32,13 @@ beforeEach(() => {
   db = createTestDb();
   const now = Date.now();
 
-  teacher = { id: uuidv4(), api_token: uuidv4().replace(/-/g, '') + uuidv4().replace(/-/g, ''), name: 'Teacher' };
-  student = { id: uuidv4(), api_token: uuidv4().replace(/-/g, '') + uuidv4().replace(/-/g, ''), name: 'Alice' };
+  teacher = { id: uuidv4(), api_token: uuidv4().replace(/-/g, '') + uuidv4().replace(/-/g, ''), name: 'Teacher', handle: 'teach1' };
+  student = { id: uuidv4(), api_token: uuidv4().replace(/-/g, '') + uuidv4().replace(/-/g, ''), name: 'Alice', handle: 'alice1' };
 
-  db.prepare('INSERT INTO users (id, api_token, name, role, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)')
-    .run(teacher.id, teacher.api_token, teacher.name, 'teacher', now, now);
-  db.prepare('INSERT INTO users (id, api_token, name, role, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)')
-    .run(student.id, student.api_token, student.name, 'student', now, now);
+  db.prepare('INSERT INTO users (id, api_token, name, role, handle, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+    .run(teacher.id, teacher.api_token, teacher.name, 'teacher', teacher.handle, now, now);
+  db.prepare('INSERT INTO users (id, api_token, name, role, handle, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+    .run(student.id, student.api_token, student.name, 'student', student.handle, now, now);
 
   projectId = uuidv4();
   db.prepare('INSERT INTO projects (id, user_id, name, is_public, files, assets, current_file, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
@@ -82,7 +82,8 @@ describe('Teacher Share Status', () => {
     expect(res.status).toBe(200);
     expect(res.body.shared).toBe(true);
     expect(res.body.teachers).toHaveLength(1);
-    expect(res.body.teachers[0].name).toBe(teacher.name);
+    expect(res.body.teachers[0]).not.toHaveProperty('name');
+    expect(res.body.teachers[0].handle).toBe(teacher.handle);
   });
 
   it('teacher cannot get teacher-share status (not owner)', async () => {
@@ -132,7 +133,8 @@ describe('Help Requests', () => {
       .set(auth(teacher.api_token));
     expect(res.status).toBe(200);
     expect(res.body).toHaveLength(1);
-    expect(res.body[0].student_name).toBe(student.name);
+    expect(res.body[0]).not.toHaveProperty('student_name');
+    expect(res.body[0].student_handle).toBe(student.handle);
     expect(res.body[0].project_name).toBe('My Project');
   });
 
@@ -171,7 +173,8 @@ describe('Help Requests', () => {
       .set(auth(teacher.api_token));
     expect(res.status).toBe(200);
     expect(res.body).toHaveLength(1);
-    expect(res.body[0].student_name).toBe(student.name);
+    expect(res.body[0]).not.toHaveProperty('student_name');
+    expect(res.body[0].student_handle).toBe(student.handle);
     expect(res.body[0].group_name).toBe('Class A');
   });
 

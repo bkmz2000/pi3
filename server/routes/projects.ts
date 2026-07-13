@@ -101,7 +101,7 @@ export function createProjectsRouter(): Router {
     const result = await client.execute(
       `SELECT
         p.id, p.name, p.description, p.updated_at,
-        u.id as student_id, u.name as student_name, u.handle as student_handle,
+        u.id as student_id, u.handle as student_handle,
         hr.id as help_request_id, hr.status as help_request_status, hr.created_at as help_request_created_at,
         g.name as group_name
       FROM project_shares ps
@@ -130,12 +130,13 @@ export function createProjectsRouter(): Router {
       res.status(403).json({ error: 'Forbidden', message: 'Only owner can view share status' });
       return;
     }
+    // SPP-2: handle-only projection.
     const teachers = (await client.execute(
-      `SELECT u.id, u.name, u.handle FROM project_shares ps
+      `SELECT u.id, u.handle FROM project_shares ps
        JOIN users u ON u.id = ps.user_id
        WHERE ps.project_id = ? AND u.role = 'teacher'`,
       [id],
-    )).rows as { id: string; name: string; handle: string | null }[];
+    )).rows as { id: string; handle: string | null }[];
     const helpRequest = (await client.execute(
       `SELECT id, status FROM help_requests
        WHERE project_id = ? AND student_id = ? AND status = 'pending'

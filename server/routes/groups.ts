@@ -71,7 +71,6 @@ interface GroupMember {
   group_id: string;
   student_id: string;
   joined_at: number;
-  student_name?: string;
 }
 
 // Group ownership check: the caller must be the account that created this
@@ -155,7 +154,8 @@ export function createGroupsRouter(): Router {
   router.get('/my', async (req: Request, res: Response): Promise<void> => {
     const client = getClient();
     const result = await client.execute(
-      `SELECT g.id, g.name, g.created_at, u.name as teacher_name, u.handle as teacher_handle
+      // SPP-2: handle-only projection.
+      `SELECT g.id, g.name, g.created_at, u.handle as teacher_handle
        FROM group_members gm
        JOIN groups g ON g.id = gm.group_id
        JOIN users u ON u.id = g.teacher_id
@@ -289,8 +289,9 @@ export function createGroupsRouter(): Router {
       return;
     }
     const members = (await client.execute(
+      // SPP-2: handle-only projection.
       `SELECT gm.id, gm.student_id, gm.joined_at,
-              u.name as student_name, u.handle as student_handle
+              u.handle as student_handle
        FROM group_members gm
        JOIN users u ON u.id = gm.student_id
        WHERE gm.group_id = ?
@@ -468,7 +469,8 @@ export function createGroupsRouter(): Router {
       'INSERT INTO group_members (id, group_id, student_id, joined_at) VALUES (?, ?, ?, ?)',
       [member.id, member.group_id, member.student_id, member.joined_at],
     );
-    res.status(201).json({ ...member, student_name: target.name, student_handle: target.handle });
+    // SPP-2: handle-only.
+    res.status(201).json({ ...member, student_handle: target.handle });
   });
 
   // DELETE /api/groups/:id/members/:userId — teacher: remove member

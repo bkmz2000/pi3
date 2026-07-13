@@ -173,6 +173,24 @@ describe('Groups API', () => {
       expect(res.status).toBe(404);
     });
 
+    // SPP-3 (D): legacy `name`-based lookup removed. A grandfathered
+    // account with a stored real name is no longer discoverable through
+    // the invite endpoint — only the handle works.
+    it('rejects invite by legacy `name` (SPP-3 tripwire, D)', async () => {
+      // Directly seed a grandfathered account carrying only a `name`.
+      const legacyId = uuidv4();
+      const now = Date.now();
+      db.prepare(
+        'INSERT INTO users (id, api_token, name, role, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
+      ).run(legacyId, uuidv4().replace(/-/g, '') + uuidv4().replace(/-/g, ''), 'Alice Legacy', 'student', now, now);
+
+      const res = await request(app)
+        .post(`/api/groups/${groupId}/invite`)
+        .set(auth(teacher.api_token))
+        .send({ username: 'Alice Legacy' });
+      expect(res.status).toBe(404);
+    });
+
     it('returns 409 on duplicate invite', async () => {
       await request(app).post(`/api/groups/${groupId}/invite`).set(auth(teacher.api_token)).send({ username: student1.handle });
       const res = await request(app).post(`/api/groups/${groupId}/invite`).set(auth(teacher.api_token)).send({ username: student1.handle });

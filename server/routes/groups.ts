@@ -422,10 +422,13 @@ export function createGroupsRouter(): Router {
     }
     const client = getClient();
     const query = username.trim().replace(/^@/, '');
+    // SPP-3 (D): handle-only lookup. Legacy `name` branch removed —
+    // mirrors shares.ts:88-93. Grandfathered accounts are no longer
+    // discoverable via a known real name through this endpoint.
     const target = (await client.execute(
-      'SELECT id, name, handle, role FROM users WHERE lower(handle) = lower(?) OR name = ?',
-      [query, query],
-    )).rows[0] as { id: string; name: string; handle: string | null; role: string } | undefined;
+      'SELECT id, handle FROM users WHERE lower(handle) = lower(?)',
+      [query],
+    )).rows[0] as { id: string; handle: string | null } | undefined;
     if (!target) {
       res.status(404).json({ error: 'Not Found', message: 'User not found' });
       return;

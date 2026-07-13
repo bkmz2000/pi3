@@ -16,12 +16,10 @@ interface CommentRow {
   created_at: number;
 }
 
-async function isTeacher(userId: string): Promise<boolean> {
-  const client = getClient();
-  const result = await client.execute('SELECT role FROM users WHERE id = ?', [userId]);
-  const user = result.rows[0] as { role: string } | undefined;
-  return user?.role === 'teacher';
-}
+// `isTeacher` helper removed under Safety & Privacy Design Principle #1
+// (no persistent roles). Comment-write authorization is now purely a
+// share-access check — anyone with editor/viewer access on a project can
+// leave a comment on it. See the POST handler below.
 
 // Router for /api/projects/:id/comments
 export function createProjectCommentsRouter(): Router {
@@ -66,8 +64,8 @@ export function createProjectCommentsRouter(): Router {
     const projectId = req.params['id'] as string;
     const access = await getProjectAccess(projectId, req.user!.id);
     const hasShare = access.role === 'editor' || access.role === 'viewer';
-    if (!hasShare || !await isTeacher(req.user!.id)) {
-      res.status(403).json({ error: 'Forbidden', message: 'Only teachers with share access can add comments' });
+    if (!hasShare) {
+      res.status(403).json({ error: 'Forbidden', message: 'Share access is required to add comments' });
       return;
     }
     const { file_path, line_number, anchor_text, text } = req.body;

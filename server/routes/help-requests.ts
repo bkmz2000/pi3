@@ -6,12 +6,11 @@ export function createHelpRequestsRouter(): Router {
   const router = Router();
   router.use(authMiddleware);
 
-  // Teacher: list help requests
+  // List help requests visible to the caller. Role gate removed; scoping is
+  // already provided by `g.teacher_id = ?` (the caller owns the group whose
+  // members submitted the requests). A caller who owns no such group gets
+  // an empty list, not a 403.
   router.get('/', async (req: Request, res: Response): Promise<void> => {
-    if (req.user!.role !== 'teacher') {
-      res.status(403).json({ error: 'Forbidden', message: 'Teachers only' });
-      return;
-    }
     const client = getClient();
     const groupId = req.query['group_id'] as string | undefined;
 
@@ -50,12 +49,10 @@ export function createHelpRequestsRouter(): Router {
     }
   });
 
-  // Teacher: update help request status
+  // Update help request status. Role gate removed; the query below scopes to
+  // help requests visible to the caller (via project_shares.user_id = ?), so
+  // an account with no visibility gets 404 by the existing lookup, not 403.
   router.patch('/:id', async (req: Request, res: Response): Promise<void> => {
-    if (req.user!.role !== 'teacher') {
-      res.status(403).json({ error: 'Forbidden', message: 'Teachers only' });
-      return;
-    }
     const hrId = req.params['id'] as string;
     const { status } = req.body as { status?: string };
     if (status !== undefined && status !== 'in_progress' && status !== 'addressed') {

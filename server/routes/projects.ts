@@ -91,12 +91,12 @@ export function createProjectsRouter(): Router {
     }
   });
 
-  // Teacher: list all projects shared with me, grouped by student group
+  // List all projects shared with the caller, grouped by group. The role
+  // check is gone (Phase 1-tail); scoping is now purely by group ownership
+  // via `g.teacher_id = ?` in the JOIN below, which was always the real
+  // authz — an account that doesn't own any group with matching members
+  // gets an empty list, not a 403.
   router.get('/shared-with-me', async (req: Request, res: Response): Promise<void> => {
-    if (req.user!.role !== 'teacher') {
-      res.status(403).json({ error: 'Forbidden', message: 'Teachers only' });
-      return;
-    }
     const client = getClient();
     const result = await client.execute(
       `SELECT

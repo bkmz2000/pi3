@@ -85,19 +85,19 @@ describe('Comments — create', () => {
     expect(res.status).toBe(403);
   });
 
-  it('student with viewer share cannot add a comment (not a teacher)', async () => {
+  it('any account with viewer share can add a comment (role gate removed under P#1)', async () => {
     const now = Date.now();
-    const studentViewerId = uuidv4();
-    const studentViewerToken = uuidv4().replace(/-/g, '') + uuidv4().replace(/-/g, '');
+    const viewerId = uuidv4();
+    const viewerToken = uuidv4().replace(/-/g, '') + uuidv4().replace(/-/g, '');
     db.prepare('INSERT INTO users (id, api_token, name, role, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)')
-      .run(studentViewerId, studentViewerToken, 'StudentViewer', 'student', now, now);
+      .run(viewerId, viewerToken, null, 'student', now, now);
     db.prepare('INSERT INTO project_shares (id, project_id, user_id, role, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)')
-      .run(uuidv4(), projectId, studentViewerId, 'viewer', now, now);
+      .run(uuidv4(), projectId, viewerId, 'viewer', now, now);
     const res = await request(app)
       .post(`/api/projects/${projectId}/comments`)
-      .set({ Authorization: `Bearer ${studentViewerToken}` })
+      .set({ Authorization: `Bearer ${viewerToken}` })
       .send({ file_path: 'main.py', line_number: 1, anchor_text: '', text: 'Peer review' });
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(201);
   });
 
   it('unauthenticated request is rejected', async () => {

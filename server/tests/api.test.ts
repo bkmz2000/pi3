@@ -145,6 +145,8 @@ describe('Projects API', () => {
     expect(res.status).toBe(200);
     expect(res.body).toHaveLength(1);
     expect(res.body[0].name).toBe('Test Project');
+    // SPP-7 (F): owner_id never in response bodies.
+    expect(res.body[0]).not.toHaveProperty('owner_id');
   });
 
   it('POST /api/projects creates a new project', async () => {

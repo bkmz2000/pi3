@@ -31,9 +31,11 @@ export function createProjectsRouter(): Router {
   router.get('/', async (req: Request, res: Response): Promise<void> => {
     const client = getClient();
     const result = await client.execute(
+      // SPP-7 (F): `owner_id` dropped from the projection. Author-project
+      // linkage is internal-only. Callers key off the `role` field to
+      // know their access ('owner' / 'editor' / 'viewer'), not the id.
       `SELECT DISTINCT p.id, p.name, p.description, p.is_public, p.created_at, p.updated_at,
              p.thumbnail_updated_at,
-             p.user_id as owner_id,
              CASE WHEN p.user_id = ? THEN 'owner'
                   WHEN ps.role IS NOT NULL THEN ps.role
                   ELSE NULL END as role

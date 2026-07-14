@@ -135,7 +135,17 @@ in speech ("P three" vs "pi three") and in a grep of the codebase.
 
 - **SPP-4: In-session communication is emoji-only**, from a fixed small
    set, never free text — structural prevention of disclosure, not a
-   filter.
+   filter. Scope of "in-session" is the *ephemeral session* channel
+   (`server/sessions/comments.ts`, `POST /api/sessions/:sid/comments`).
+   Project comments (`server/routes/comments.ts`,
+   `POST /api/projects/:id/comments`) are a deliberately different
+   channel: async, share-scoped, and covered by SPP-6 (scanner) plus
+   SPP-8 (length cap + rate limit + author-only visibility of flagged
+   rows), not SPP-4. This split is intentional — session chat is real-
+   time between two people looking at the same code, and any disclosure
+   there is unrecoverable, so it gets structural prevention; project
+   comments are the teaching-review channel where free text is the
+   point, so they get the scanner-plus-review posture.
 
 - **SPP-5: Publishing anything (project, README, problem set) is a
    snapshot.** Private originals stay account-linked and editable; a

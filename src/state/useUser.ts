@@ -10,7 +10,7 @@ interface UserStore {
 
   initiateOAuthLogin: () => void;
   outsiderLogin: (name: string, password: string) => Promise<void>;
-  outsiderSignup: (name: string, password: string, role: 'student' | 'teacher') => Promise<void>;
+  outsiderSignup: (password: string) => Promise<void>;
   logout: () => Promise<void>;
   checkSession: () => Promise<void>;
 }
@@ -35,10 +35,10 @@ export const useUser = create<UserStore>((set) => ({
     }
   },
 
-  outsiderSignup: async (name: string, password: string, role: 'student' | 'teacher') => {
+  outsiderSignup: async (password: string) => {
     set({ error: null });
     try {
-      const user = await outsiderSignup(name, password, role);
+      const user = await outsiderSignup(password);
       set({ authState: 'logged_in', user });
     } catch (error) {
       set({ error: error instanceof Error ? error.message : 'Signup failed' });

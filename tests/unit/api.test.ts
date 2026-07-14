@@ -330,10 +330,12 @@ describe('helper exports — exercise one per verb so each line runs', () => {
   });
 
   it('POST helpers hit the documented paths with the documented body shapes', async () => {
+    // SPP-2: signup only sends password. name/role removed from the client
+    // helper — backend auto-generates the handle and ignored those fields.
     mockFetchOnce(fakeResponse({ id: 'u' }));
-    await outsiderSignup('n', 'p', 'teacher');
+    await outsiderSignup('p');
     expect(JSON.parse((lastCalls.at(-1)!.init as RequestInit).body as string))
-      .toEqual({ name: 'n', password: 'p', role: 'teacher' });
+      .toEqual({ password: 'p' });
 
     mockFetchOnce(fakeResponse({ id: 'u' }));
     await outsiderLogin('n', 'p');

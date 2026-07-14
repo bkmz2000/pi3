@@ -154,8 +154,13 @@ export async function getMe(): Promise<User> {
   return api.get<User>('/api/users/me');
 }
 
-export async function outsiderSignup(name: string, password: string, role: 'student' | 'teacher' = 'student'): Promise<User> {
-  return api.post<User>('/api/users/outsider', { name, password, role });
+// SPP-2: outsider signup only sends `password`. The backend auto-generates
+// the handle (server/routes/users.ts:30-78) and ignores any name/role in
+// the body. Prior signature exposed a `role` argument the backend already
+// dropped under SPP-1 — removed here so the type doesn't misrepresent the
+// endpoint.
+export async function outsiderSignup(password: string): Promise<User> {
+  return api.post<User>('/api/users/outsider', { password });
 }
 
 export async function outsiderLogin(name: string, password: string): Promise<User> {

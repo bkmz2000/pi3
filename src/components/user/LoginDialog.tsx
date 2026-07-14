@@ -51,7 +51,10 @@ export function LoginDialog({ open, onClose }: LoginDialogProps) {
       if (tab === 'signin') {
         await outsiderLogin(name.trim(), password);
       } else {
-        await outsiderSignup(name.trim(), password, role);
+        // SPP-2: signup ignores name/role — backend auto-generates handle.
+        // The name/role UI is a pre-SPP-2 remnant to be removed with the
+        // student-signup flow rework.
+        await outsiderSignup(password);
       }
       onClose();
     } catch (err) {

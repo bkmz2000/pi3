@@ -190,14 +190,15 @@ export async function initDb(): Promise<void> {
     const cols = (await c.execute(`PRAGMA table_info(users)`)).rows as unknown as Array<{ name: string; notnull: number }>;
     const nameCol = cols.find((r) => r.name === 'name');
     if (nameCol && nameCol.notnull === 1) {
-      const hasPasswordHash = cols.some((r) => r.name === 'password_hash');
-      const hasHandle = cols.some((r) => r.name === 'handle');
-      const hasHandleSeq = cols.some((r) => r.name === 'handle_seq');
+      const has = (n: string) => cols.some((r) => r.name === n);
       const optCol = (n: string, present: boolean) => (present ? n : `NULL AS ${n}`);
       // FK are ON; child tables (projects.user_id) would block DROP TABLE.
-      // SQLite standard pattern: disable FK checks around a table rebuild,
-      // then re-enable. Data integrity preserved by copying every row into
-      // the new table before dropping the old.
+      // Standard SQLite recipe: disable FK checks around a table rebuild,
+      // then re-enable. Row-copy INSERT preserves all data before DROP.
+      //
+      // The new schema must preserve every optional column that any prior
+      // migration or code path may have added (oauth_provider_id, email).
+      // Missing any of them here means silently dropping user data.
       await c.execute(`PRAGMA foreign_keys = OFF`);
       await c.batch([
         { sql: `CREATE TABLE users_new (
@@ -208,20 +209,25 @@ export async function initDb(): Promise<void> {
           password_hash TEXT,
           handle TEXT,
           handle_seq INTEGER,
+          oauth_provider_id TEXT,
+          email TEXT,
           created_at INTEGER NOT NULL,
           updated_at INTEGER NOT NULL
         )` },
-        { sql: `INSERT INTO users_new (id, api_token, name, role, password_hash, handle, handle_seq, created_at, updated_at)
+        { sql: `INSERT INTO users_new (id, api_token, name, role, password_hash, handle, handle_seq, oauth_provider_id, email, created_at, updated_at)
           SELECT id, api_token, name, role,
-                 ${optCol('password_hash', hasPasswordHash)},
-                 ${optCol('handle', hasHandle)},
-                 ${optCol('handle_seq', hasHandleSeq)},
+                 ${optCol('password_hash', has('password_hash'))},
+                 ${optCol('handle', has('handle'))},
+                 ${optCol('handle_seq', has('handle_seq'))},
+                 ${optCol('oauth_provider_id', has('oauth_provider_id'))},
+                 ${optCol('email', has('email'))},
                  created_at, updated_at FROM users` },
         { sql: `DROP TABLE users` },
         { sql: `ALTER TABLE users_new RENAME TO users` },
         { sql: `CREATE INDEX IF NOT EXISTS idx_users_api_token ON users(api_token)` },
         { sql: `CREATE UNIQUE INDEX IF NOT EXISTS idx_users_handle_lower ON users(lower(handle)) WHERE handle IS NOT NULL` },
         { sql: `CREATE UNIQUE INDEX IF NOT EXISTS idx_users_handle_seq ON users(handle_seq) WHERE handle_seq IS NOT NULL` },
+        { sql: `CREATE UNIQUE INDEX IF NOT EXISTS idx_users_oauth_provider_id ON users(oauth_provider_id) WHERE oauth_provider_id IS NOT NULL` },
       ]);
       await c.execute(`PRAGMA foreign_keys = ON`);
     }

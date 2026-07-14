@@ -27,10 +27,11 @@ WORKDIR /app
 
 # Install toolchain, install runtime-only deps (--omit=dev drops puppeteer,
 # jest, eslint, testing-library, @types/*), then delete the toolchain — all
-# in one RUN so the intermediate 324MB apk layer does not persist. --unsafe-perm
-# lets npm run install scripts as the current user (root inside this RUN).
-COPY --chown=node:node package.json package-lock.json .npmrc ./
+# in one RUN so the intermediate 324MB apk layer does not persist. su-exec
+# is kept in the final image so the entrypoint can drop from root to node.
+COPY package.json package-lock.json .npmrc ./
 RUN apk add --no-cache --virtual .build-deps python3 build-base \
+ && apk add --no-cache su-exec \
  && npm ci --omit=dev --unsafe-perm \
  && apk del .build-deps \
  && chown -R node:node /app
@@ -39,11 +40,16 @@ COPY --chown=node:node --from=builder /app/dist ./dist
 COPY --chown=node:node --from=builder /app/dist-server ./dist-server
 
 # SQLite DB dir — backed by a named volume in docker-compose.yml
-# (pi3-db:/app/db). The mkdir is a safety net for host bind-mount usage.
+# (pi3-db:/app/db). The volume mounts with its host owner, so the entrypoint
+# re-chowns /app/db to node:node before dropping privileges.
 RUN mkdir -p /app/db && chown node:node /app/db
 
-USER node
+COPY --chown=root:root docker-entrypoint.sh /usr/local/bin/pi3-entrypoint
+RUN chmod +x /usr/local/bin/pi3-entrypoint
 
 EXPOSE 3001
 
+# Entrypoint starts as root, fixes /app/db ownership if needed, then execs
+# the CMD as the node user via su-exec.
+ENTRYPOINT ["/usr/local/bin/pi3-entrypoint"]
 CMD ["node", "dist-server/index.js"]

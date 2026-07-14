@@ -314,8 +314,8 @@ export function createCompeteRouter(): Router {
     }
     const client = getClient();
     const problem = (await client.execute(
-      'SELECT id FROM problems WHERE slug = ?',
-      [req.params.slug],
+      'SELECT id FROM problems WHERE slug = ? AND created_by = ?',
+      [req.params.slug, req.user!.id],
     )).rows[0] as { id: number } | undefined;
     if (!problem) {
       res.status(404).json({ error: 'Not Found' });
@@ -397,11 +397,15 @@ export function createCompeteRouter(): Router {
 
         const statement = p.statement_tex ?? '';
         const existing = (await client.execute(
-          'SELECT id FROM problems WHERE slug = ?', [slug],
-        )).rows[0] as { id: number } | undefined;
+          'SELECT id, created_by FROM problems WHERE slug = ?', [slug],
+        )).rows[0] as { id: number; created_by: string } | undefined;
 
         if (existing && !overwrite) {
           skipped.push(id);
+          continue;
+        }
+        if (existing && existing.created_by !== req.user!.id) {
+          errors.push({ id, reason: 'slug owned by another teacher' });
           continue;
         }
 
@@ -446,8 +450,8 @@ export function createCompeteRouter(): Router {
   router.post('/teacher/problems/:slug/archive', teacherOnly, async (req: Request, res: Response): Promise<void> => {
     const client = getClient();
     const result = await client.execute(
-      `UPDATE problems SET archived = 1, updated_at = datetime('now') WHERE slug = ?`,
-      [req.params.slug],
+      `UPDATE problems SET archived = 1, updated_at = datetime('now') WHERE slug = ? AND created_by = ?`,
+      [req.params.slug, req.user!.id],
     );
     if (result.rowsAffected === 0) {
       res.status(404).json({ error: 'Not Found' });
@@ -468,13 +472,15 @@ export function createCompeteRouter(): Router {
     }
     const limit = Math.min(Number(req.query.limit) || 50, 200);
     const result = await client.execute(
-      `SELECT s.*, u.name as user_name, u.handle as user_handle
+      `SELECT DISTINCT s.*, u.name as user_name, u.handle as user_handle
        FROM submissions s
        JOIN users u ON u.id = s.user_id
+       JOIN group_members gm ON gm.student_id = s.user_id
+       JOIN groups g ON g.id = gm.group_id AND g.teacher_id = ?
        WHERE s.problem_id = ?
        ORDER BY s.ts DESC
        LIMIT ?`,
-      [problem.id, limit],
+      [req.user!.id, problem.id, limit],
     );
     res.json(result.rows);
   });

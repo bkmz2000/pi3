@@ -470,6 +470,13 @@ describe('GET /api/teacher/problems/:slug/submissions', () => {
   beforeEach(async () => {
     const res = await request(app).post('/api/teacher/problems').set(auth(teacher.api_token)).send(PROBLEM_BODY);
     const problemId = res.body.id;
+    // Student must be a member of a group owned by the requesting teacher for
+    // submissions to be visible (authz scope fix). Insert group + membership.
+    const groupId = uuidv4();
+    db.prepare('INSERT INTO groups (id, teacher_id, name, created_at) VALUES (?, ?, ?, ?)')
+      .run(groupId, teacher.id, 'G1', Date.now());
+    db.prepare('INSERT INTO group_members (id, group_id, student_id, joined_at) VALUES (?, ?, ?, ?)')
+      .run(uuidv4(), groupId, student.id, Date.now());
     db.prepare('INSERT INTO submissions (user_id, problem_id, code, stars, verdict) VALUES (?, ?, ?, ?, ?)')
       .run(student.id, problemId, 'code', 2, 'wa');
   });
@@ -484,5 +491,135 @@ describe('GET /api/teacher/problems/:slug/submissions', () => {
   it('403 for student', async () => {
     const res = await request(app).get('/api/teacher/problems/sum-two/submissions').set(auth(student.api_token));
     expect(res.status).toBe(403);
+  });
+});
+
+// ── Cross-teacher authorization ─────────────────────────────────────────────
+// Regression cover for the four `main`-branch bugs where any teacher could
+// mutate or read another teacher's compete resources. See
+// AUDIT_MAIN_CORE_INVARIANTS.md.
+
+describe('cross-teacher authorization on /api/compete/teacher/*', () => {
+  let teacherB: { id: string; api_token: string };
+
+  beforeEach(async () => {
+    teacherB = { id: uuidv4(), api_token: uuidv4() };
+    const now = Date.now();
+    db.prepare('INSERT INTO users (id, api_token, name, role, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)')
+      .run(teacherB.id, teacherB.api_token, 'Carol', 'teacher', now, now);
+    // teacher A (Bob) authors the problem.
+    await request(app).post('/api/teacher/problems').set(auth(teacher.api_token)).send(PROBLEM_BODY);
+  });
+
+  describe('PUT /teacher/problems/:slug', () => {
+    it('denies teacher B editing teacher A\'s problem (404)', async () => {
+      const res = await request(app)
+        .put('/api/teacher/problems/sum-two')
+        .set(auth(teacherB.api_token))
+        .send({ ...PROBLEM_BODY, title: 'Hijacked' });
+      expect(res.status).toBe(404);
+      const row = db.prepare('SELECT title FROM problems WHERE slug = ?').get('sum-two') as { title: string };
+      expect(row.title).toBe(PROBLEM_BODY.title);
+    });
+
+    it('allows teacher A (owner) to edit', async () => {
+      const res = await request(app)
+        .put('/api/teacher/problems/sum-two')
+        .set(auth(teacher.api_token))
+        .send({ ...PROBLEM_BODY, title: 'Updated by owner' });
+      expect(res.status).toBe(200);
+      const row = db.prepare('SELECT title FROM problems WHERE slug = ?').get('sum-two') as { title: string };
+      expect(row.title).toBe('Updated by owner');
+    });
+  });
+
+  describe('POST /teacher/problems/:slug/archive', () => {
+    it('denies teacher B archiving teacher A\'s problem (404)', async () => {
+      const res = await request(app)
+        .post('/api/teacher/problems/sum-two/archive')
+        .set(auth(teacherB.api_token));
+      expect(res.status).toBe(404);
+      const row = db.prepare('SELECT archived FROM problems WHERE slug = ?').get('sum-two') as { archived: number };
+      expect(row.archived).toBe(0);
+    });
+
+    it('allows teacher A (owner) to archive', async () => {
+      const res = await request(app)
+        .post('/api/teacher/problems/sum-two/archive')
+        .set(auth(teacher.api_token));
+      expect(res.status).toBe(204);
+      const row = db.prepare('SELECT archived FROM problems WHERE slug = ?').get('sum-two') as { archived: number };
+      expect(row.archived).toBe(1);
+    });
+  });
+
+  describe('POST /teacher/problems/import (overwrite=true)', () => {
+    const importPayload = {
+      problems: [{
+        id: 'sum-two',
+        title_ru: 'Overwritten',
+        statement_tex: 'clobbered',
+        tests: [{ tier: 1, subtask: 'examples', input: '9\n', answer: '9\n' }],
+      }],
+      lang: 'ru' as const,
+      overwrite: true,
+    };
+
+    it('teacher B cannot overwrite teacher A\'s problem — reported in errors', async () => {
+      const res = await request(app)
+        .post('/api/teacher/problems/import')
+        .set(auth(teacherB.api_token))
+        .send(importPayload);
+      expect(res.status).toBe(200);
+      expect(res.body.imported).toBe(0);
+      expect(res.body.errors).toEqual([{ id: 'sum-two', reason: 'slug owned by another teacher' }]);
+      const row = db.prepare('SELECT title, statement FROM problems WHERE slug = ?').get('sum-two') as { title: string; statement: string };
+      expect(row.title).toBe(PROBLEM_BODY.title);
+      expect(row.statement).toBe(PROBLEM_BODY.statement);
+    });
+
+    it('teacher A (owner) can overwrite own problem', async () => {
+      const res = await request(app)
+        .post('/api/teacher/problems/import')
+        .set(auth(teacher.api_token))
+        .send(importPayload);
+      expect(res.status).toBe(200);
+      expect(res.body.imported).toBe(1);
+      expect(res.body.errors).toEqual([]);
+      const row = db.prepare('SELECT title FROM problems WHERE slug = ?').get('sum-two') as { title: string };
+      expect(row.title).toBe('Overwritten');
+    });
+  });
+
+  describe('GET /teacher/problems/:slug/submissions', () => {
+    beforeEach(() => {
+      const problemId = (db.prepare('SELECT id FROM problems WHERE slug = ?').get('sum-two') as { id: number }).id;
+      // Student is in a group owned by teacher A. Teacher B owns no group
+      // containing this student.
+      const groupA = uuidv4();
+      db.prepare('INSERT INTO groups (id, teacher_id, name, created_at) VALUES (?, ?, ?, ?)')
+        .run(groupA, teacher.id, 'A-Class', Date.now());
+      db.prepare('INSERT INTO group_members (id, group_id, student_id, joined_at) VALUES (?, ?, ?, ?)')
+        .run(uuidv4(), groupA, student.id, Date.now());
+      db.prepare('INSERT INTO submissions (user_id, problem_id, code, stars, verdict) VALUES (?, ?, ?, ?, ?)')
+        .run(student.id, problemId, 'code', 2, 'wa');
+    });
+
+    it('teacher B sees no submissions from teacher A\'s students', async () => {
+      const res = await request(app)
+        .get('/api/teacher/problems/sum-two/submissions')
+        .set(auth(teacherB.api_token));
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual([]);
+    });
+
+    it('teacher A sees own group\'s student submissions', async () => {
+      const res = await request(app)
+        .get('/api/teacher/problems/sum-two/submissions')
+        .set(auth(teacher.api_token));
+      expect(res.status).toBe(200);
+      expect(res.body).toHaveLength(1);
+      expect(res.body[0].user_handle).toBeDefined();
+    });
   });
 });

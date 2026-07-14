@@ -1,6 +1,32 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { getClient } from '../db/index.js';
 import { authMiddleware, AuthUser } from '../middleware/auth.js';
+import { scanSnapshot, ScanResult } from '../snapshots/scanner.js';
+
+function scanProblemBody(body: {
+  title?: string; statement?: string; starter_code?: string;
+  generator_py?: string | null; reference_solution_py?: string | null; checker_py?: string | null;
+}): ScanResult {
+  return scanSnapshot({
+    title: body.title ?? '',
+    files: {
+      'statement.md': body.statement ?? '',
+      'starter.py': body.starter_code ?? '',
+      'generator.py': body.generator_py ?? '',
+      'reference.py': body.reference_solution_py ?? '',
+      'checker.py': body.checker_py ?? '',
+    },
+  });
+}
+
+function respondFlagged(res: Response, scan: ScanResult): void {
+  res.status(422).json({
+    error: 'Unprocessable Entity',
+    code: 'content_flagged',
+    message: 'Content flagged for review. Remove personal contact info and try again.',
+    findings: scan.findings.map((f) => ({ kind: f.kind, where: f.where })),
+  });
+}
 
 interface Problem {
   id: number;
@@ -281,6 +307,8 @@ export function createCompeteRouter(): Router {
       starter_code?: string; order_index?: number; tests: TestInput[];
       generator_py?: string | null; reference_solution_py?: string | null; checker_py?: string | null;
     };
+    const scan = scanProblemBody({ title, statement, starter_code, generator_py, reference_solution_py, checker_py });
+    if (scan.status === 'flagged') { respondFlagged(res, scan); return; }
     const client = getClient();
     const existing = (await client.execute('SELECT id FROM problems WHERE slug = ?', [slug])).rows[0];
     if (existing) {
@@ -325,6 +353,8 @@ export function createCompeteRouter(): Router {
       title: string; statement: string; starter_code?: string; order_index?: number; tests: TestInput[];
       generator_py?: string | null; reference_solution_py?: string | null; checker_py?: string | null;
     };
+    const scanPut = scanProblemBody({ title, statement, starter_code, generator_py, reference_solution_py, checker_py });
+    if (scanPut.status === 'flagged') { respondFlagged(res, scanPut); return; }
     await client.execute(
       `UPDATE problems SET title = ?, statement = ?, starter_code = ?, order_index = ?,
          generator_py = ?, reference_solution_py = ?, checker_py = ?,
@@ -396,6 +426,11 @@ export function createCompeteRouter(): Router {
         }
 
         const statement = p.statement_tex ?? '';
+        const scanImport = scanProblemBody({ title, statement });
+        if (scanImport.status === 'flagged') {
+          errors.push({ id, reason: `content flagged: ${scanImport.findings.map((f) => f.kind).join(',')}` });
+          continue;
+        }
         const existing = (await client.execute(
           'SELECT id, created_by FROM problems WHERE slug = ?', [slug],
         )).rows[0] as { id: number; created_by: string } | undefined;
@@ -445,6 +480,96 @@ export function createCompeteRouter(): Router {
     }
 
     res.json({ imported: imported.length, skipped: skipped.length, errors });
+  });
+
+  // Freeze the current problem state into published_json and move
+  // public_status back to unlisted (the request/review cycle re-runs on
+  // every republish). Any prior approval is invalidated.
+  router.post('/teacher/problems/:slug/publish', teacherOnly, async (req: Request, res: Response): Promise<void> => {
+    const client = getClient();
+    const row = (await client.execute(
+      'SELECT id, title, statement, starter_code, created_by, scan_status FROM problems WHERE slug = ? AND archived = 0',
+      [req.params.slug],
+    )).rows[0] as { id: number; title: string; statement: string; starter_code: string; created_by: string; scan_status: string } | undefined;
+    if (!row) { res.status(404).json({ error: 'Not Found' }); return; }
+    if (row.created_by !== req.user!.id) {
+      res.status(403).json({ error: 'Forbidden' });
+      return;
+    }
+    if (row.scan_status === 'flagged') {
+      res.status(409).json({ error: 'Conflict', message: 'Problem has open scanner findings; resolve before publishing.' });
+      return;
+    }
+    const frozen = { title: row.title, statement: row.statement, starter_code: row.starter_code };
+    const now = Date.now();
+    await client.execute(
+      `UPDATE problems
+         SET published_json = ?,
+             first_published_at = COALESCE(first_published_at, ?),
+             last_published_at = ?,
+             public_status = 'unlisted'
+       WHERE id = ?`,
+      [JSON.stringify(frozen), now, now, row.id],
+    );
+    res.status(204).end();
+  });
+
+  // Author asks for a published problem to be listed on the public
+  // sidebar. Same gate as project snapshots: scan clean + distinct-viewer
+  // threshold. Reviewer approves via /api/moderation/... (once wired).
+  router.post('/teacher/problems/:slug/request-public', teacherOnly, async (req: Request, res: Response): Promise<void> => {
+    const client = getClient();
+    const row = (await client.execute(
+      `SELECT id, created_by, scan_status, public_status, published_json, distinct_view_count
+         FROM problems WHERE slug = ? AND archived = 0`,
+      [req.params.slug],
+    )).rows[0] as { id: number; created_by: string; scan_status: string; public_status: string; published_json: string | null; distinct_view_count: number } | undefined;
+    if (!row) { res.status(404).json({ error: 'Not Found' }); return; }
+    if (row.created_by !== req.user!.id) {
+      res.status(403).json({ error: 'Forbidden' });
+      return;
+    }
+    if (!row.published_json) {
+      res.status(409).json({ error: 'Conflict', message: 'Publish a frozen copy first.' });
+      return;
+    }
+    if (row.scan_status !== 'clean') {
+      res.status(409).json({ error: 'Conflict', message: 'Problem has open scanner findings' });
+      return;
+    }
+    if (row.public_status !== 'unlisted') {
+      res.status(409).json({ error: 'Conflict', message: `Cannot request from status '${row.public_status}'` });
+      return;
+    }
+    const PROBLEM_REQUEST_VIEW_THRESHOLD = 5;
+    if (row.distinct_view_count < PROBLEM_REQUEST_VIEW_THRESHOLD) {
+      res.status(409).json({
+        error: 'Conflict',
+        message: `Need at least ${PROBLEM_REQUEST_VIEW_THRESHOLD} distinct viewers before requesting public listing (currently ${row.distinct_view_count}).`,
+      });
+      return;
+    }
+    await client.execute(
+      "UPDATE problems SET public_status = 'pending_review' WHERE id = ?",
+      [row.id],
+    );
+    res.status(204).end();
+  });
+
+  // Aggregate stat only — no enumeration of which users solved.
+  router.get('/problems/:slug/solve-count', async (req: Request, res: Response): Promise<void> => {
+    const client = getClient();
+    const problem = (await client.execute(
+      'SELECT id FROM problems WHERE slug = ?',
+      [req.params.slug],
+    )).rows[0] as { id: number } | undefined;
+    if (!problem) { res.status(404).json({ error: 'Not Found' }); return; }
+    const row = (await client.execute(
+      `SELECT COUNT(DISTINCT user_id) as n FROM submissions
+         WHERE problem_id = ? AND verdict = 'accepted'`,
+      [problem.id],
+    )).rows[0] as { n: number };
+    res.json({ slug: req.params.slug, solve_count: row.n });
   });
 
   router.post('/teacher/problems/:slug/archive', teacherOnly, async (req: Request, res: Response): Promise<void> => {

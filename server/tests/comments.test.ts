@@ -199,4 +199,11 @@ describe('Comments — delete', () => {
       .set(auth(teacher.api_token));
     expect(res.status).toBe(404);
   });
+
+  it('rejects comment with email as flagged (422)', async () => {
+    const res = await addComment({ text: 'ping me at hello@example.com' });
+    expect(res.status).toBe(422);
+    expect(res.body.code).toBe('content_flagged');
+    expect(res.body.findings.some((f: { kind: string }) => f.kind === 'email')).toBe(true);
+  });
 });

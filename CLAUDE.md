@@ -71,10 +71,19 @@ hook is the sole test gate. The VPS deploy is manual via `make deploy`.
 
 ## Testing & CI Gates
 
-The four gates run in `make test` (containerized via `Dockerfile.test`):
-`lint`, `typecheck`, `test:ci` (frontend, coverage-gated), and
-`test:server:ci` (server, coverage-gated). `docker-e2e` (Puppeteer) is
+The gates run in `make test` (containerized via `Dockerfile.test`):
+`lint`, `typecheck`, `test:ci` (frontend, coverage-gated),
+`test:server:ci` (server, coverage-gated, institutional profile), and
+`test:server:public` (server suite re-run under `DEPLOYMENT_PROFILE=public`
+without coverage — same tests, other profile). `docker-e2e` (Puppeteer) is
 run manually; it is not part of the automated gate.
+
+**Profile matrix.** Two files pin `process.env.DEPLOYMENT_PROFILE = 'institutional'`
+at the top because they exercise institutional-flavor behavior (teacher
+directory, author-attached snapshots): `server/tests/api.test.ts`,
+`server/tests/snapshots.test.ts`. Cross-profile coverage lives in
+`server/tests/profileMatrix.test.ts` (both profiles verified inside one
+suite). All other suites are profile-neutral and pass under either value.
 
 **The coverage ratchet.** Thresholds in `jest.config.cjs` and
 `server/tests/jest.server.config.js` are seeded at *real measured actuals*, not
@@ -103,6 +112,15 @@ unit tests.
 The phased test backlog (foundation regression net → state/runner units → E2E
 for big features) is in the strategy plan
 `~/.claude/plans/have-a-look-bright-honey.md`.
+
+## Doctrine
+
+Safety & Privacy doctrine — split into Core (universal), Profile:institutional,
+Profile:public — lives in `docs/doctrine.md`. Deployment profile is selected
+via `DEPLOYMENT_PROFILE` env var (`institutional` | `public`, default:
+institutional). Profile resolver: `server/profile.ts`. Any feature that
+touches identity, publishing, comments, or user directory must be checked
+against this doctrine before landing.
 
 ## Architecture
 

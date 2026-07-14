@@ -11,7 +11,7 @@ export function createTestDb(): Database.Database {
     CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY,
       api_token TEXT UNIQUE NOT NULL,
-      name TEXT NOT NULL,
+      name TEXT,
       role TEXT NOT NULL DEFAULT 'student' CHECK (role IN ('student', 'teacher')),
       password_hash TEXT,
       handle TEXT,
@@ -39,6 +39,7 @@ export function createTestDb(): Database.Database {
       thumbnail BLOB,
       thumbnail_updated_at INTEGER,
       version INTEGER NOT NULL DEFAULT 1,
+      forked_from_snapshot_id TEXT,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL,
       FOREIGN KEY (user_id) REFERENCES users(id)
@@ -119,8 +120,24 @@ export function createTestDb(): Database.Database {
       updated_at TEXT NOT NULL DEFAULT (datetime('now')),
       generator_py TEXT NULL,
       reference_solution_py TEXT NULL,
-      checker_py TEXT NULL
+      checker_py TEXT NULL,
+      source TEXT,
+      scan_status TEXT NOT NULL DEFAULT 'pending' CHECK (scan_status IN ('pending', 'clean', 'flagged')),
+      scan_findings TEXT,
+      public_status TEXT NOT NULL DEFAULT 'unlisted' CHECK (public_status IN ('unlisted', 'pending_review', 'approved', 'rejected')),
+      published_json TEXT,
+      first_published_at INTEGER,
+      last_published_at INTEGER,
+      distinct_view_count INTEGER NOT NULL DEFAULT 0
     );
+    CREATE TABLE IF NOT EXISTS problem_views (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      problem_id INTEGER NOT NULL REFERENCES problems(id) ON DELETE CASCADE,
+      viewer_id TEXT NOT NULL REFERENCES users(id),
+      first_viewed_at INTEGER NOT NULL,
+      UNIQUE(problem_id, viewer_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_problem_views_problem ON problem_views(problem_id);
     CREATE INDEX IF NOT EXISTS idx_problems_archived_order ON problems(archived, order_index);
 
     CREATE TABLE IF NOT EXISTS problem_tests (
@@ -149,6 +166,48 @@ export function createTestDb(): Database.Database {
     );
     CREATE INDEX IF NOT EXISTS idx_submissions_user_problem ON submissions(user_id, problem_id, ts DESC);
     CREATE INDEX IF NOT EXISTS idx_submissions_problem ON submissions(problem_id, ts DESC);
+
+    CREATE TABLE IF NOT EXISTS content_reports (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      target_type TEXT NOT NULL,
+      target_id TEXT NOT NULL,
+      reporter_id TEXT NOT NULL,
+      reason TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      handled_at INTEGER,
+      handled_by TEXT,
+      handled_note TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_content_reports_open ON content_reports (handled_at, created_at);
+    CREATE INDEX IF NOT EXISTS idx_content_reports_target ON content_reports (target_type, target_id);
+
+    CREATE TABLE IF NOT EXISTS project_snapshots (
+      id TEXT PRIMARY KEY,
+      share_link TEXT UNIQUE NOT NULL,
+      owner_id TEXT NOT NULL REFERENCES users(id),
+      original_project_id TEXT,
+      title TEXT NOT NULL,
+      files_json TEXT NOT NULL,
+      assets_json TEXT NOT NULL DEFAULT '{}',
+      created_at INTEGER NOT NULL,
+      revoked_at INTEGER,
+      scan_status TEXT NOT NULL DEFAULT 'pending' CHECK (scan_status IN ('pending', 'clean', 'flagged')),
+      scan_findings TEXT,
+      view_count INTEGER NOT NULL DEFAULT 0,
+      fork_count INTEGER NOT NULL DEFAULT 0,
+      public_status TEXT NOT NULL DEFAULT 'unlisted' CHECK (public_status IN ('unlisted', 'requested', 'approved', 'rejected'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_project_snapshots_owner ON project_snapshots(owner_id, created_at DESC);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_project_snapshots_share_link ON project_snapshots(share_link);
+
+    CREATE TABLE IF NOT EXISTS snapshot_views (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      snapshot_id TEXT NOT NULL REFERENCES project_snapshots(id) ON DELETE CASCADE,
+      viewer_id TEXT NOT NULL REFERENCES users(id),
+      first_viewed_at INTEGER NOT NULL,
+      UNIQUE(snapshot_id, viewer_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_snapshot_views_snapshot ON snapshot_views(snapshot_id);
   `);
 
   const client = createSqliteClient(db);

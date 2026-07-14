@@ -4,6 +4,7 @@ import { randomBytes } from 'crypto';
 import { getClient } from '../db/index.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { sanitizeText, InputTooLongError } from '../utils/sanitize.js';
+import { issueSessionToken, verifySessionToken } from '../sessions/tokens.js';
 
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 const CODE_LEN = 6;
@@ -265,6 +266,86 @@ export function createGroupsRouter(): Router {
       [req.params['id'] as string],
     )).rows as unknown as GroupMember[];
     res.json({ ...group, members });
+  });
+
+  // POST /api/groups/:id/session/start — group owner mints a time-boxed
+  // session token bound to this group. Snapshot polling below requires
+  // this token in ?token=... and rejects it after expiry. Time-boxing is
+  // the mechanism that turns previously standing-teacher visibility into
+  // a defined-window view.
+  router.post('/:id/session/start', async (req: Request, res: Response): Promise<void> => {
+    const groupId = req.params['id'] as string;
+    const group = await checkGroupOwnership(groupId, req.user!.id);
+    if (!group) {
+      res.status(404).json({ error: 'Not Found', message: 'Group not found' });
+      return;
+    }
+    const { token, payload } = issueSessionToken(req.user!.id, Date.now(), { groupId });
+    res.status(201).json({
+      token,
+      session_id: payload.sid,
+      group_id: groupId,
+      expires_at: payload.exp,
+    });
+  });
+
+  // GET /api/groups/:id/snapshot — latest project per member.
+  // Requires a valid session token (?token=...) whose payload is bound to
+  // this exact group. Handle-only student projection (name is omitted).
+  router.get('/:id/snapshot', async (req: Request, res: Response): Promise<void> => {
+    const groupId = req.params['id'] as string;
+    const group = await checkGroupOwnership(groupId, req.user!.id);
+    if (!group) {
+      res.status(404).json({ error: 'Not Found', message: 'Group not found' });
+      return;
+    }
+    const rawToken = typeof req.query['token'] === 'string' ? req.query['token'] : '';
+    if (!rawToken) {
+      res.status(401).json({ error: 'Unauthorized', message: 'session token required (?token=...)' });
+      return;
+    }
+    const verified = verifySessionToken(rawToken, req.user!.id);
+    if (!verified) {
+      res.status(401).json({ error: 'Unauthorized', message: 'Invalid or expired session token' });
+      return;
+    }
+    if (verified.groupId !== groupId) {
+      res.status(403).json({ error: 'Forbidden', message: 'token is not bound to this group' });
+      return;
+    }
+    const client = getClient();
+    const rows = (await client.execute(
+      `SELECT gm.student_id, u.handle AS student_handle,
+              p.id AS project_id, p.name AS project_name, p.updated_at, p.current_file, p.files
+       FROM group_members gm
+       JOIN users u ON u.id = gm.student_id
+       LEFT JOIN projects p ON p.id = (
+         SELECT id FROM projects WHERE user_id = gm.student_id
+         ORDER BY updated_at DESC LIMIT 1
+       )
+       WHERE gm.group_id = ?
+       ORDER BY gm.joined_at ASC`,
+      [groupId],
+    )).rows as unknown as Array<{
+      student_id: string; student_handle: string | null;
+      project_id: string | null; project_name: string | null;
+      updated_at: number | null; current_file: string | null; files: string | null;
+    }>;
+    const members = rows.map((r) => ({
+      student_id: r.student_id,
+      student_handle: r.student_handle,
+      project_id: r.project_id,
+      project_name: r.project_name,
+      updated_at: r.updated_at,
+      current_file: r.current_file,
+      files: r.files ? JSON.parse(r.files) : null,
+    }));
+    res.json({
+      group_id: groupId,
+      generated_at: Date.now(),
+      session_expires_at: verified.exp,
+      members,
+    });
   });
 
   // DELETE /api/groups/:id — teacher: delete group

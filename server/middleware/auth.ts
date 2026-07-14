@@ -74,6 +74,20 @@ export async function authMiddleware(req: Request, res: Response, next: NextFunc
   next();
 }
 
+// Attaches req.user when a session or Bearer token identifies a user, but
+// never rejects. Used by public-read endpoints that also want to count
+// authenticated views distinctly.
+export async function optionalAuthMiddleware(req: Request, _res: Response, next: NextFunction): Promise<void> {
+  if (process.env.SKIP_AUTH === 'true') {
+    req.user = { id: 'test-user', name: 'Test User', role: 'student' };
+    next();
+    return;
+  }
+  const user = await resolveUser(req);
+  if (user) req.user = user;
+  next();
+}
+
 // CSRF header check for cookie-based state-changing requests.
 // Bearer-authenticated requests and safe methods (GET/HEAD/OPTIONS) are allowed through.
 // Certain paths used by browser redirects or health checks are skipped.

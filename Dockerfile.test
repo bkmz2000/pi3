@@ -11,10 +11,14 @@ RUN npm ci
 
 COPY . .
 
-# Four CI gates. Container exits non-zero on any failure.
+# Five CI gates. Container exits non-zero on any failure.
+# The server matrix runs the whole suite twice (institutional + public
+# DEPLOYMENT_PROFILE) — the coverage-gated run stays on institutional so
+# the ratchet compares against a single baseline.
 CMD ["sh", "-c", "\
     npm run lint && \
     npm run typecheck && \
     npm run test:ci && \
-    npm run test:server:ci \
+    npm run test:server:ci && \
+    npm run test:server:public \
 "]

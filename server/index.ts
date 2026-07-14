@@ -14,6 +14,9 @@ import authRouter from './routes/auth.js';
 import { createGroupsRouter } from './routes/groups.js';
 import { createHelpRequestsRouter } from './routes/help-requests.js';
 import { createCompeteRouter } from './routes/compete.js';
+import { createModerationRouter } from './routes/moderation.js';
+import { createSnapshotsRouter } from './routes/snapshots.js';
+import { createSessionsRouter } from './routes/sessions.js';
 import { decompressRequest } from './middleware/decompress.js';
 import { requireCsrfHeader } from './middleware/auth.js';
 
@@ -144,6 +147,9 @@ app.use('/api/projects', projectsRouter);
 app.use('/api/groups', createGroupsRouter());
 app.use('/api/help-requests', createHelpRequestsRouter());
 app.use('/api', createCompeteRouter());
+app.use('/api/moderation', createModerationRouter());
+app.use('/api/snapshots', createSnapshotsRouter());
+app.use('/api/sessions', createSessionsRouter());
 
 app.use((req, res, next) => {
   if (!req.path.startsWith('/api/')) {

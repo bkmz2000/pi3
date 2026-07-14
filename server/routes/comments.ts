@@ -5,6 +5,7 @@ import { first } from '../db/client.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { getProjectAccess, hasRole } from '../middleware/projectAuth.js';
 import { sanitizeText, InputTooLongError } from '../utils/sanitize.js';
+import { scanSnapshot } from '../snapshots/scanner.js';
 
 interface CommentRow {
   id: string;
@@ -102,6 +103,17 @@ export function createProjectCommentsRouter(): Router {
     }
     if (!safeText) {
       res.status(400).json({ error: 'Bad Request', message: 'text is required' });
+      return;
+    }
+
+    const scan = scanSnapshot({ title: '', files: { 'comment.txt': safeText } });
+    if (scan.status === 'flagged') {
+      res.status(422).json({
+        error: 'Unprocessable Entity',
+        code: 'content_flagged',
+        message: 'Comment flagged for review. Remove personal contact info and try again.',
+        findings: scan.findings.map((f) => ({ kind: f.kind, where: f.where })),
+      });
       return;
     }
 

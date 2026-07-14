@@ -6,6 +6,7 @@ import { getProjectAccess, getProjectWithAccess, hasRole } from '../middleware/p
 import { createSharesRouter } from './shares.js';
 import { createProjectCommentsRouter } from './comments.js';
 import { sanitizeText, InputTooLongError } from '../utils/sanitize.js';
+import { scanSnapshot } from '../snapshots/scanner.js';
 
 interface Project {
   id: string;
@@ -307,6 +308,26 @@ export function createProjectsRouter(): Router {
       values.push(safeDesc);
     }
     if (is_public !== undefined && project.role === 'owner') {
+      if (is_public) {
+        let files: Record<string, string> = {};
+        let assets: Record<string, unknown> | undefined;
+        try { files = JSON.parse(project.files || '{}'); } catch { /* keep empty */ }
+        try { assets = JSON.parse(project.assets || 'null') ?? undefined; } catch { /* keep undefined */ }
+        const scan = scanSnapshot({
+          title: (name ?? project.name) as string,
+          files,
+          assets,
+        });
+        if (scan.status === 'flagged') {
+          res.status(422).json({
+            error: 'Unprocessable Entity',
+            code: 'content_flagged',
+            message: 'Publish blocked: content flagged for review. Remove personal contact info and try again.',
+            findings: scan.findings.map((f) => ({ kind: f.kind, where: f.where })),
+          });
+          return;
+        }
+      }
       updates.push('is_public = ?');
       values.push(is_public ? 1 : 0);
     }

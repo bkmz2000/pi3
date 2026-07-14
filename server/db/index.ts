@@ -151,6 +151,24 @@ export async function initDb(): Promise<void> {
     `ALTER TABLE problems ADD COLUMN reference_solution_py TEXT NULL`,
     `ALTER TABLE problems ADD COLUMN checker_py TEXT NULL`,
     `ALTER TABLE problem_tests ADD COLUMN fields_json TEXT NULL`,
+    // Problem publish pipeline: bring compete under the same shape as
+    // project snapshots (scanner + immutable published copy + review gate).
+    `ALTER TABLE problems ADD COLUMN source TEXT`,
+    `ALTER TABLE problems ADD COLUMN scan_status TEXT NOT NULL DEFAULT 'pending' CHECK (scan_status IN ('pending', 'clean', 'flagged'))`,
+    `ALTER TABLE problems ADD COLUMN scan_findings TEXT`,
+    `ALTER TABLE problems ADD COLUMN public_status TEXT NOT NULL DEFAULT 'unlisted' CHECK (public_status IN ('unlisted', 'pending_review', 'approved', 'rejected'))`,
+    `ALTER TABLE problems ADD COLUMN published_json TEXT`,
+    `ALTER TABLE problems ADD COLUMN first_published_at INTEGER`,
+    `ALTER TABLE problems ADD COLUMN last_published_at INTEGER`,
+    `ALTER TABLE problems ADD COLUMN distinct_view_count INTEGER NOT NULL DEFAULT 0`,
+    `CREATE TABLE IF NOT EXISTS problem_views (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      problem_id INTEGER NOT NULL REFERENCES problems(id) ON DELETE CASCADE,
+      viewer_id TEXT NOT NULL REFERENCES users(id),
+      first_viewed_at INTEGER NOT NULL,
+      UNIQUE(problem_id, viewer_id)
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_problem_views_problem ON problem_views(problem_id)`,
   ];
 
   for (const stmt of inlineMigrations) {
@@ -164,6 +182,45 @@ export async function initDb(): Promise<void> {
         throw err;
       }
     }
+  }
+
+  // Make users.name nullable. SQLite has no DROP NOT NULL — rebuild the
+  // table. Idempotent: skips if the current column is already nullable.
+  try {
+    const cols = (await c.execute(`PRAGMA table_info(users)`)).rows as unknown as Array<{ name: string; notnull: number }>;
+    const nameCol = cols.find((r) => r.name === 'name');
+    if (nameCol && nameCol.notnull === 1) {
+      const hasPasswordHash = cols.some((r) => r.name === 'password_hash');
+      const hasHandle = cols.some((r) => r.name === 'handle');
+      const hasHandleSeq = cols.some((r) => r.name === 'handle_seq');
+      const optCol = (n: string, present: boolean) => (present ? n : `NULL AS ${n}`);
+      await c.batch([
+        { sql: `CREATE TABLE users_new (
+          id TEXT PRIMARY KEY,
+          api_token TEXT UNIQUE NOT NULL,
+          name TEXT,
+          role TEXT NOT NULL DEFAULT 'student' CHECK (role IN ('student', 'teacher')),
+          password_hash TEXT,
+          handle TEXT,
+          handle_seq INTEGER,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL
+        )` },
+        { sql: `INSERT INTO users_new (id, api_token, name, role, password_hash, handle, handle_seq, created_at, updated_at)
+          SELECT id, api_token, name, role,
+                 ${optCol('password_hash', hasPasswordHash)},
+                 ${optCol('handle', hasHandle)},
+                 ${optCol('handle_seq', hasHandleSeq)},
+                 created_at, updated_at FROM users` },
+        { sql: `DROP TABLE users` },
+        { sql: `ALTER TABLE users_new RENAME TO users` },
+        { sql: `CREATE INDEX IF NOT EXISTS idx_users_api_token ON users(api_token)` },
+        { sql: `CREATE UNIQUE INDEX IF NOT EXISTS idx_users_handle_lower ON users(lower(handle)) WHERE handle IS NOT NULL` },
+        { sql: `CREATE UNIQUE INDEX IF NOT EXISTS idx_users_handle_seq ON users(handle_seq) WHERE handle_seq IS NOT NULL` },
+      ]);
+    }
+  } catch (err) {
+    console.error('users.name nullable rebuild failed:', err);
   }
 
   try {

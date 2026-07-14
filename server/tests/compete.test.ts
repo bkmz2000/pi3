@@ -623,3 +623,81 @@ describe('cross-teacher authorization on /api/compete/teacher/*', () => {
     });
   });
 });
+
+// ── Publish pipeline (Phase 3) ─────────────────────────────────────────────
+
+describe('publish pipeline', () => {
+  async function createProblem() {
+    await request(app).post('/api/teacher/problems').set(auth(teacher.api_token)).send(PROBLEM_BODY);
+    // author's create path leaves scan_status='pending' (existing suite covers
+    // the scanner block on flagged); the publish path further requires clean.
+    db.prepare("UPDATE problems SET scan_status = 'clean' WHERE slug = ?").run(PROBLEM_BODY.slug);
+  }
+
+  it('POST /teacher/problems/:slug/publish freezes published_json', async () => {
+    await createProblem();
+    const res = await request(app).post(`/api/teacher/problems/${PROBLEM_BODY.slug}/publish`).set(auth(teacher.api_token)).send({});
+    expect(res.status).toBe(204);
+    const row = db.prepare('SELECT published_json, first_published_at, last_published_at, public_status FROM problems WHERE slug = ?').get(PROBLEM_BODY.slug) as { published_json: string; first_published_at: number; last_published_at: number; public_status: string };
+    expect(row.published_json).toBeTruthy();
+    const frozen = JSON.parse(row.published_json);
+    expect(frozen.title).toBe(PROBLEM_BODY.title);
+    expect(row.first_published_at).toBeGreaterThan(0);
+    expect(row.public_status).toBe('unlisted');
+  });
+
+  it('publish blocked when scan_status flagged', async () => {
+    await createProblem();
+    db.prepare("UPDATE problems SET scan_status = 'flagged' WHERE slug = ?").run(PROBLEM_BODY.slug);
+    const res = await request(app).post(`/api/teacher/problems/${PROBLEM_BODY.slug}/publish`).set(auth(teacher.api_token)).send({});
+    expect(res.status).toBe(409);
+  });
+
+  it('non-author cannot publish', async () => {
+    await createProblem();
+    const other = { id: uuidv4(), api_token: uuidv4() };
+    const now = Date.now();
+    db.prepare('INSERT INTO users (id, api_token, name, role, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)')
+      .run(other.id, other.api_token, 'Other', 'teacher', now, now);
+    const res = await request(app).post(`/api/teacher/problems/${PROBLEM_BODY.slug}/publish`).set(auth(other.api_token)).send({});
+    expect(res.status).toBe(403);
+  });
+
+  it('request-public blocked without publish first', async () => {
+    await createProblem();
+    const res = await request(app).post(`/api/teacher/problems/${PROBLEM_BODY.slug}/request-public`).set(auth(teacher.api_token)).send({});
+    expect(res.status).toBe(409);
+    expect(res.body.message).toMatch(/frozen copy/);
+  });
+
+  it('request-public blocked below distinct-view threshold', async () => {
+    await createProblem();
+    await request(app).post(`/api/teacher/problems/${PROBLEM_BODY.slug}/publish`).set(auth(teacher.api_token)).send({});
+    const res = await request(app).post(`/api/teacher/problems/${PROBLEM_BODY.slug}/request-public`).set(auth(teacher.api_token)).send({});
+    expect(res.status).toBe(409);
+    expect(res.body.message).toMatch(/distinct viewers/);
+  });
+
+  it('request-public accepted when gates pass', async () => {
+    await createProblem();
+    await request(app).post(`/api/teacher/problems/${PROBLEM_BODY.slug}/publish`).set(auth(teacher.api_token)).send({});
+    db.prepare("UPDATE problems SET distinct_view_count = 10 WHERE slug = ?").run(PROBLEM_BODY.slug);
+    const res = await request(app).post(`/api/teacher/problems/${PROBLEM_BODY.slug}/request-public`).set(auth(teacher.api_token)).send({});
+    expect(res.status).toBe(204);
+    const row = db.prepare('SELECT public_status FROM problems WHERE slug = ?').get(PROBLEM_BODY.slug) as { public_status: string };
+    expect(row.public_status).toBe('pending_review');
+  });
+
+  it('GET /problems/:slug/solve-count returns aggregate', async () => {
+    await createProblem();
+    const problem = db.prepare('SELECT id FROM problems WHERE slug = ?').get(PROBLEM_BODY.slug) as { id: number };
+    const now = new Date().toISOString();
+    db.prepare('INSERT INTO submissions (user_id, problem_id, code, stars, verdict, ts) VALUES (?, ?, ?, ?, ?, ?)')
+      .run(student.id, problem.id, 'x', 3, 'accepted', now);
+    db.prepare('INSERT INTO submissions (user_id, problem_id, code, stars, verdict, ts) VALUES (?, ?, ?, ?, ?, ?)')
+      .run(student.id, problem.id, 'x', 3, 'accepted', now); // dup user
+    const res = await request(app).get(`/api/problems/${PROBLEM_BODY.slug}/solve-count`).set(auth(student.api_token));
+    expect(res.status).toBe(200);
+    expect(res.body.solve_count).toBe(1);
+  });
+});

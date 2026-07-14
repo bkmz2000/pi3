@@ -1,3 +1,8 @@
+// Pin institutional profile — this file tests institutional-flavor behavior
+// (teacher directory, author-attached snapshots). Cross-profile coverage
+// lives in profileMatrix.test.ts.
+process.env.DEPLOYMENT_PROFILE = 'institutional';
+
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from '@jest/globals';
 import express from 'express';
 import cors from 'cors';
@@ -463,26 +468,34 @@ describe('User Search API', () => {
     expect(res.body).toEqual([]);
   });
 
-  it('GET /api/users/search finds users by name', async () => {
+  it('GET /api/users/search finds teachers by name, excludes students', async () => {
     const res = await request(app)
       .get('/api/users/search?q=char')
       .set(authHeader(testUser1.api_token));
 
     expect(res.status).toBe(200);
-    expect(res.body.length).toBeGreaterThanOrEqual(2);
     const names = res.body.map((u: { name: string }) => u.name);
-    expect(names).toContain('Charlie');
     expect(names).toContain('Charlotte');
+    expect(names).not.toContain('Charlie');
   });
 
-  it('GET /api/users/search finds users by handle with @ prefix', async () => {
+  it('GET /api/users/search finds teacher by handle with @ prefix', async () => {
     const res = await request(app)
-      .get('/api/users/search?q=@charlie')
+      .get('/api/users/search?q=@lotte')
       .set(authHeader(testUser1.api_token));
 
     expect(res.status).toBe(200);
     expect(res.body.length).toBeGreaterThanOrEqual(1);
-    expect(res.body[0].name).toBe('Charlie');
+    expect(res.body[0].name).toBe('Charlotte');
+  });
+
+  it('GET /api/users/search does not return student rows', async () => {
+    const res = await request(app)
+      .get('/api/users/search?q=charlie')
+      .set(authHeader(testUser1.api_token));
+    expect(res.status).toBe(200);
+    const roles = res.body.map((u: { role: string }) => u.role);
+    expect(roles).not.toContain('student');
   });
 
   it('GET /api/users/search excludes self', async () => {

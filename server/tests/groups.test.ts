@@ -209,4 +209,51 @@ describe('Groups API', () => {
       expect(del.status).toBe(403);
     });
   });
+
+  describe('POST /:id/session/start + GET /:id/snapshot', () => {
+    it('owner mints token, then snapshot returns member projections', async () => {
+      const gres = await request(app).post('/api/groups').set(auth(teacher.api_token)).send({ name: 'G1' });
+      const groupId = gres.body.id;
+      const code = gres.body.invite_code;
+      await request(app).post('/api/groups/join').set(auth(student1.api_token)).send({ code });
+
+      // Give the member a project so snapshot has something to project
+      const now = Date.now();
+      db.prepare('INSERT INTO projects (id, user_id, name, is_public, files, assets, current_file, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
+        .run(uuidv4(), student1.id, 'ProjA', 0, '{"main.py": "print(1)"}', '{}', 'main.py', now, now);
+
+      const startRes = await request(app).post(`/api/groups/${groupId}/session/start`).set(auth(teacher.api_token)).send({});
+      expect(startRes.status).toBe(201);
+      const token = startRes.body.token;
+
+      const snap = await request(app).get(`/api/groups/${groupId}/snapshot?token=${encodeURIComponent(token)}`).set(auth(teacher.api_token));
+      expect(snap.status).toBe(200);
+      expect(snap.body.group_id).toBe(groupId);
+      expect(snap.body.members.length).toBe(1);
+      expect(snap.body.members[0].project_name).toBe('ProjA');
+      expect(snap.body.members[0].files['main.py']).toContain('print');
+      // handle-only projection; no student_name field
+      expect(snap.body.members[0].student_name).toBeUndefined();
+    });
+
+    it('non-owner cannot start a session', async () => {
+      const gres = await request(app).post('/api/groups').set(auth(teacher.api_token)).send({ name: 'G1' });
+      const res = await request(app).post(`/api/groups/${gres.body.id}/session/start`).set(auth(student1.api_token)).send({});
+      expect(res.status).toBe(404);
+    });
+
+    it('snapshot without token returns 401', async () => {
+      const gres = await request(app).post('/api/groups').set(auth(teacher.api_token)).send({ name: 'G1' });
+      const res = await request(app).get(`/api/groups/${gres.body.id}/snapshot`).set(auth(teacher.api_token));
+      expect(res.status).toBe(401);
+    });
+
+    it('snapshot rejects token bound to a different group', async () => {
+      const g1 = await request(app).post('/api/groups').set(auth(teacher.api_token)).send({ name: 'G1' });
+      const g2 = await request(app).post('/api/groups').set(auth(teacher.api_token)).send({ name: 'G2' });
+      const start = await request(app).post(`/api/groups/${g1.body.id}/session/start`).set(auth(teacher.api_token)).send({});
+      const res = await request(app).get(`/api/groups/${g2.body.id}/snapshot?token=${encodeURIComponent(start.body.token)}`).set(auth(teacher.api_token));
+      expect(res.status).toBe(403);
+    });
+  });
 });

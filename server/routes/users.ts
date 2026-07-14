@@ -7,6 +7,7 @@ import { assignHandle } from '../db/handle.js';
 import { authMiddleware, regenerateSession } from '../middleware/auth.js';
 import { outsiderSignupLimiter, outsiderLoginLimiter } from '../middleware/rateLimit.js';
 import { sanitizeText, InputTooLongError } from '../utils/sanitize.js';
+import { getProfile } from '../profile.js';
 
 export function createUsersRouter(allowPasswordAuth: boolean = false) {
   const router = Router();
@@ -163,11 +164,22 @@ router.post('/outsider/login', outsiderLoginLimiter, async (req: Request, res: R
 
 // GET /api/users/search?q=… — used by share dialog and teacher invite
 router.get('/search', authMiddleware, async (req: Request, res: Response): Promise<void> => {
+  const cfg = getProfile();
+  if (cfg.userSearch.mode === 'disabled_gone') {
+    res.status(410).json({
+      error: 'Gone',
+      message: 'User search has been removed. Use a session invite link instead.',
+    });
+    return;
+  }
   const q = typeof req.query.q === 'string' ? req.query.q.trim() : '';
   if (q.length < 2) {
     res.json([]);
     return;
   }
+  // teacher_directory mode: results are restricted to teacher rows.
+  // Any authenticated user can query. Student→student directory enumeration
+  // is not a supported product use case in this profile.
   const client = getClient();
   const needle = q.replace(/^@+/, '').toLowerCase();
   const like = `%${needle}%`;
@@ -175,6 +187,7 @@ router.get('/search', authMiddleware, async (req: Request, res: Response): Promi
     `SELECT id, name, handle, role
      FROM users
      WHERE id != ?
+       AND role = 'teacher'
        AND (LOWER(name) LIKE ? OR LOWER(handle) LIKE ?)
      ORDER BY
        CASE WHEN LOWER(handle) = ? THEN 0

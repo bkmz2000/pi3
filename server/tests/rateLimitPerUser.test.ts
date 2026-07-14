@@ -67,12 +67,12 @@ describe('rateLimitPerUser', () => {
   });
 
   it('resets window after windowMs elapsed', async () => {
-    const app = buildApp('t.d', 1, 10, 'user-a');
+    const app = buildApp('t.d', 1, 50, 'user-a');
     const first = await request(app).post('/write');
     expect(first.status).toBe(200);
     const blocked = await request(app).post('/write');
     expect(blocked.status).toBe(429);
-    await new Promise((r) => setTimeout(r, 20));
+    await new Promise((r) => setTimeout(r, 120));
     const afterWindow = await request(app).post('/write');
     expect(afterWindow.status).toBe(200);
   });

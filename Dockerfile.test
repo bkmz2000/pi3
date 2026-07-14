@@ -6,10 +6,17 @@ WORKDIR /app
 # better-sqlite3 native build.
 RUN apk add --no-cache python3 build-base
 
+# Dependency layer first — `COPY . .` after this can NOT clobber node_modules
+# because .dockerignore excludes it. Verify that if you edit .dockerignore.
 COPY package.json package-lock.json .npmrc ./
 RUN npm ci
 
 COPY . .
+
+# Non-root runtime. Jest writes coverage into /app/coverage on --coverage runs;
+# chown the whole workspace so the node user can create output dirs.
+RUN chown -R node:node /app
+USER node
 
 # Five CI gates. Container exits non-zero on any failure.
 # The server matrix runs the whole suite twice (institutional + public

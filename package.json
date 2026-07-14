@@ -28,6 +28,7 @@
     "dev": "vite",
     "dev:all": "concurrently -n fe,api -c cyan,green \"vite\" \"node --env-file=.env --import tsx server/index.ts\"",
     "build": "tsc -b && vite build",
+    "build:server": "tsc -p tsconfig.server.build.json && mkdir -p dist-server/db/migrations && cp server/db/migrations/*.sql dist-server/db/migrations/",
     "typecheck": "tsc -p tsconfig.app.json --noEmit && tsc -p tsconfig.server.json --noEmit",
     "lint": "eslint .",
     "preview": "vite preview",

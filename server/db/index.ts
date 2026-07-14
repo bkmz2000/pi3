@@ -194,6 +194,11 @@ export async function initDb(): Promise<void> {
       const hasHandle = cols.some((r) => r.name === 'handle');
       const hasHandleSeq = cols.some((r) => r.name === 'handle_seq');
       const optCol = (n: string, present: boolean) => (present ? n : `NULL AS ${n}`);
+      // FK are ON; child tables (projects.user_id) would block DROP TABLE.
+      // SQLite standard pattern: disable FK checks around a table rebuild,
+      // then re-enable. Data integrity preserved by copying every row into
+      // the new table before dropping the old.
+      await c.execute(`PRAGMA foreign_keys = OFF`);
       await c.batch([
         { sql: `CREATE TABLE users_new (
           id TEXT PRIMARY KEY,
@@ -218,9 +223,11 @@ export async function initDb(): Promise<void> {
         { sql: `CREATE UNIQUE INDEX IF NOT EXISTS idx_users_handle_lower ON users(lower(handle)) WHERE handle IS NOT NULL` },
         { sql: `CREATE UNIQUE INDEX IF NOT EXISTS idx_users_handle_seq ON users(handle_seq) WHERE handle_seq IS NOT NULL` },
       ]);
+      await c.execute(`PRAGMA foreign_keys = ON`);
     }
   } catch (err) {
     console.error('users.name nullable rebuild failed:', err);
+    try { await c.execute(`PRAGMA foreign_keys = ON`); } catch { /* best-effort re-enable */ }
   }
 
   try {

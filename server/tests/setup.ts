@@ -125,9 +125,23 @@ export function createTestDb(): Database.Database {
       checker_py TEXT NULL,
       source TEXT,
       scan_status TEXT NOT NULL DEFAULT 'pending' CHECK (scan_status IN ('pending', 'clean', 'flagged')),
-      scan_findings TEXT
+      scan_findings TEXT,
+      public_status TEXT NOT NULL DEFAULT 'unlisted' CHECK (public_status IN ('unlisted', 'pending_review', 'approved', 'rejected')),
+      published_json TEXT,
+      first_published_at INTEGER,
+      last_published_at INTEGER,
+      distinct_view_count INTEGER NOT NULL DEFAULT 0
     );
     CREATE INDEX IF NOT EXISTS idx_problems_archived_order ON problems(archived, order_index);
+
+    CREATE TABLE IF NOT EXISTS problem_views (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      problem_id INTEGER NOT NULL REFERENCES problems(id) ON DELETE CASCADE,
+      viewer_id TEXT NOT NULL REFERENCES users(id),
+      first_viewed_at INTEGER NOT NULL,
+      UNIQUE(problem_id, viewer_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_problem_views_problem ON problem_views(problem_id);
 
     CREATE TABLE IF NOT EXISTS problem_tests (
       id INTEGER PRIMARY KEY AUTOINCREMENT,

@@ -14,8 +14,35 @@ const problemWriteLimit = rateLimit({ name: 'problem-write', windowMs: 3600_000,
 const PROBLEM_PUBLIC_COLUMNS = `
   id, slug, title, statement, order_index, starter_code, archived,
   created_at, updated_at, generator_py, reference_solution_py, checker_py,
-  source, scan_status, scan_findings
+  source, scan_status, scan_findings,
+  public_status, published_json, first_published_at, last_published_at, distinct_view_count
 `;
+
+// SPP-5 (B): distinct-viewer gate for request-public. Same threshold as
+// snapshots.ts:10.
+const PROBLEM_PUBLIC_REQUEST_VIEW_THRESHOLD = 5;
+
+interface PublishedSnapshot {
+  title: string;
+  statement: string;
+  starter_code: string;
+  checker_py: string | null;
+  tests: { ordinal: number; tier: number; is_visible: number; input: string; expected: string; fields_json: string | null }[];
+}
+
+async function freezeProblemSnapshot(client: ReturnType<typeof getClient>, problemId: number): Promise<PublishedSnapshot> {
+  const row = (await client.execute(
+    'SELECT title, statement, starter_code, checker_py FROM problems WHERE id = ?',
+    [problemId],
+  )).rows[0] as { title: string; statement: string; starter_code: string; checker_py: string | null } | undefined;
+  if (!row) throw new Error(`problem ${problemId} not found during snapshot freeze`);
+  const tests = (await client.execute(
+    `SELECT ordinal, tier, is_visible, input, expected, fields_json
+     FROM problem_tests WHERE problem_id = ? ORDER BY ordinal ASC`,
+    [problemId],
+  )).rows as unknown as PublishedSnapshot['tests'];
+  return { title: row.title, statement: row.statement, starter_code: row.starter_code, checker_py: row.checker_py, tests };
+}
 
 // Runs the pre-share content scanner over the full raw text of a problem
 // authoring payload (SPP-6: no carve-outs). Returns scan_status + JSON of
@@ -204,66 +231,122 @@ export function createCompeteRouter(): Router {
 
   router.use(authMiddleware);
 
-  // Sidebar list
+  // SPP-5 (B): every public read below serves the frozen `published_json`
+  // (not the mutable draft row) and requires `public_status='approved'`.
+  // The owner can preview an unapproved draft with `?preview=1`.
+  //
+  // The sidebar list only shows problems that have an approved publication.
   router.get('/problems', async (_req: Request, res: Response): Promise<void> => {
     const client = getClient();
     const result = await client.execute(
       `SELECT id, slug, title, order_index
        FROM problems
-       WHERE archived = 0
+       WHERE archived = 0 AND public_status = 'approved' AND published_json IS NOT NULL
        ORDER BY order_index ASC, id ASC`,
     );
     res.json(result.rows);
   });
 
-  // Full problem — visible tests only
+  // Full problem — visible tests only. Served from the immutable snapshot,
+  // not the draft row. Distinct viewers are counted for the view gate.
   router.get('/problems/:slug', async (req: Request, res: Response): Promise<void> => {
     const client = getClient();
-    const problem = (await client.execute(
-      `SELECT id, slug, title, statement, starter_code, order_index, checker_py
+    const row = (await client.execute(
+      `SELECT id, slug, order_index, public_status, published_json, created_by
        FROM problems WHERE slug = ? AND archived = 0`,
       [req.params.slug],
-    )).rows[0] as unknown as Problem | undefined;
-    if (!problem) {
+    )).rows[0] as { id: number; slug: string; order_index: number; public_status: string; published_json: string | null; created_by: string } | undefined;
+    if (!row) {
       res.status(404).json({ error: 'Not Found' });
       return;
     }
-    const tests = (await client.execute(
-      `SELECT id, ordinal, tier, input, expected
-       FROM problem_tests
-       WHERE problem_id = ? AND is_visible = 1
-       ORDER BY ordinal ASC`,
-      [problem.id],
-    )).rows;
-    res.json({ ...problem, visibleTests: tests });
+    const isPreview = req.query.preview === '1';
+    const isOwnerPreview = isPreview && req.user!.id === row.created_by;
+    if (row.public_status !== 'approved' || !row.published_json) {
+      if (!isOwnerPreview) {
+        res.status(404).json({ error: 'Not Found' });
+        return;
+      }
+    }
+    const source: PublishedSnapshot | null = row.published_json
+      ? JSON.parse(row.published_json) as PublishedSnapshot
+      : null;
+    // Owner preview of a draft that has never been published falls through
+    // to reading the mutable row.
+    const problem = source
+      ? {
+          id: row.id, slug: row.slug, order_index: row.order_index,
+          title: source.title, statement: source.statement,
+          starter_code: source.starter_code, checker_py: source.checker_py,
+        }
+      : await (async () => {
+          const draft = (await client.execute(
+            'SELECT id, slug, title, statement, starter_code, order_index, checker_py FROM problems WHERE id = ?',
+            [row.id],
+          )).rows[0] as unknown as Problem;
+          return draft;
+        })();
+    const visibleTests = source
+      ? source.tests.filter(t => t.is_visible === 1).map(({ ordinal, tier, input, expected }) => ({ ordinal, tier, input, expected }))
+      : (await client.execute(
+          `SELECT id, ordinal, tier, input, expected FROM problem_tests
+           WHERE problem_id = ? AND is_visible = 1 ORDER BY ordinal ASC`,
+          [row.id],
+        )).rows;
+    // SPP-5 distinct-view counter: don't count the owner's own preview.
+    if (!isOwnerPreview && row.public_status === 'approved') {
+      const insertResult = await client.execute(
+        `INSERT OR IGNORE INTO problem_views (problem_id, viewer_id, first_viewed_at) VALUES (?, ?, ?)`,
+        [row.id, req.user!.id, Date.now()],
+      );
+      if (insertResult.rowsAffected > 0) {
+        await client.execute(
+          'UPDATE problems SET distinct_view_count = distinct_view_count + 1 WHERE id = ?',
+          [row.id],
+        );
+      }
+    }
+    res.json({ ...problem, visibleTests });
   });
 
-  // All tests for submit runner
+  // All tests for submit runner — served from immutable snapshot.
   router.get('/problems/:slug/tests-for-submit', async (req: Request, res: Response): Promise<void> => {
     const client = getClient();
-    const problem = (await client.execute(
-      'SELECT id FROM problems WHERE slug = ? AND archived = 0',
+    const row = (await client.execute(
+      'SELECT id, public_status, published_json, created_by FROM problems WHERE slug = ? AND archived = 0',
       [req.params.slug],
-    )).rows[0] as { id: number } | undefined;
-    if (!problem) {
+    )).rows[0] as { id: number; public_status: string; published_json: string | null; created_by: string } | undefined;
+    if (!row) {
       res.status(404).json({ error: 'Not Found' });
       return;
     }
+    const isPreview = req.query.preview === '1' && req.user!.id === row.created_by;
+    if (row.public_status !== 'approved' && !isPreview) {
+      res.status(404).json({ error: 'Not Found' });
+      return;
+    }
+    if (row.published_json) {
+      const snap = JSON.parse(row.published_json) as PublishedSnapshot;
+      res.json(snap.tests.map(({ ordinal, tier, is_visible, input, expected, fields_json }) => ({
+        ordinal, tier, is_visible, input, expected, fields_json,
+      })));
+      return;
+    }
+    // Owner previewing a draft.
     const tests = (await client.execute(
       `SELECT id, ordinal, tier, is_visible, input, expected, fields_json
-       FROM problem_tests
-       WHERE problem_id = ?
-       ORDER BY tier ASC, ordinal ASC`,
-      [problem.id],
+       FROM problem_tests WHERE problem_id = ? ORDER BY tier ASC, ordinal ASC`,
+      [row.id],
     )).rows;
     res.json(tests);
   });
 
-  // Store a submission
+  // Store a submission. Only works against approved problems.
   router.post('/problems/:slug/submit', async (req: Request, res: Response): Promise<void> => {
     const client = getClient();
     const problem = (await client.execute(
-      'SELECT id FROM problems WHERE slug = ? AND archived = 0',
+      `SELECT id FROM problems WHERE slug = ? AND archived = 0
+         AND public_status = 'approved' AND published_json IS NOT NULL`,
       [req.params.slug],
     )).rows[0] as { id: number } | undefined;
     if (!problem) {
@@ -404,10 +487,16 @@ export function createCompeteRouter(): Router {
     const scan = scanProblemPayload({
       title, statement, starter_code, generator_py, reference_solution_py, checker_py, tests,
     });
+    // SPP-5 (B): editing the draft invalidates any prior approval — the
+    // frozen `published_json` is cleared and public_status resets to
+    // 'unlisted'. Mirrors project snapshots, where a new snapshot always
+    // needs a new share link. To re-publish, owner calls the publish
+    // endpoint again and goes through review.
     await client.execute(
       `UPDATE problems SET title = ?, statement = ?, starter_code = ?, order_index = ?,
          generator_py = ?, reference_solution_py = ?, checker_py = ?,
          source = ?, scan_status = ?, scan_findings = ?,
+         public_status = 'unlisted', published_json = NULL,
          updated_at = datetime('now')
        WHERE id = ?`,
       [title.trim(), statement.trim(), starter_code ?? '', order_index ?? 0,
@@ -537,6 +626,86 @@ export function createCompeteRouter(): Router {
     }
 
     res.json({ imported: imported.length, skipped: skipped.length, errors });
+  });
+
+  // SPP-5 (B): publish freezes the current draft into `published_json`,
+  // re-runs the scanner, and sets public_status='unlisted'. Approval to
+  // 'approved' happens via the moderation queue.
+  router.post('/teacher/problems/:slug/publish', authedOnly, problemWriteLimit, async (req: Request, res: Response): Promise<void> => {
+    const client = getClient();
+    const row = (await client.execute(
+      'SELECT id FROM problems WHERE slug = ? AND archived = 0',
+      [req.params.slug],
+    )).rows[0] as { id: number } | undefined;
+    if (!row) {
+      res.status(404).json({ error: 'Not Found' });
+      return;
+    }
+    if (!(await requireProblemOwnership(req, res, row.id))) return;
+    const snap = await freezeProblemSnapshot(client, row.id);
+    // Re-scan the frozen payload, mirroring project snapshots which are
+    // scanned at publish time even if the draft was scanned earlier.
+    const scan = scanProblemPayload({
+      title: snap.title, statement: snap.statement, starter_code: snap.starter_code,
+      generator_py: null, reference_solution_py: null, checker_py: snap.checker_py,
+      tests: snap.tests.map(t => ({ input: t.input, expected: t.expected })),
+    });
+    const now = Date.now();
+    await client.execute(
+      `UPDATE problems SET published_json = ?, public_status = 'unlisted',
+         first_published_at = COALESCE(first_published_at, ?),
+         last_published_at = ?,
+         scan_status = ?, scan_findings = ?,
+         updated_at = datetime('now')
+       WHERE id = ?`,
+      [JSON.stringify(snap), now, now, scan.status, scan.findings_json, row.id],
+    );
+    const updated = (await client.execute(
+      `SELECT ${PROBLEM_PUBLIC_COLUMNS} FROM problems WHERE id = ?`,
+      [row.id],
+    )).rows[0];
+    res.status(201).json(updated);
+  });
+
+  // SPP-5 (B): owner requests promotion from 'unlisted' to 'pending_review'
+  // once (a) scanner is clean and (b) distinct-view count clears the
+  // threshold. Same shape as snapshots.ts:159-201.
+  router.post('/teacher/problems/:slug/request-public', authedOnly, async (req: Request, res: Response): Promise<void> => {
+    const client = getClient();
+    const row = (await client.execute(
+      `SELECT id, public_status, scan_status, distinct_view_count, published_json
+       FROM problems WHERE slug = ? AND archived = 0`,
+      [req.params.slug],
+    )).rows[0] as { id: number; public_status: string; scan_status: string; distinct_view_count: number; published_json: string | null } | undefined;
+    if (!row) {
+      res.status(404).json({ error: 'Not Found' });
+      return;
+    }
+    if (!(await requireProblemOwnership(req, res, row.id))) return;
+    if (!row.published_json) {
+      res.status(409).json({ error: 'Conflict', message: 'Publish the problem first' });
+      return;
+    }
+    if (row.public_status !== 'unlisted') {
+      res.status(409).json({ error: 'Conflict', message: `Cannot request from status '${row.public_status}'` });
+      return;
+    }
+    if (row.scan_status !== 'clean') {
+      res.status(409).json({ error: 'Conflict', message: 'Snapshot has open scanner findings' });
+      return;
+    }
+    if (row.distinct_view_count < PROBLEM_PUBLIC_REQUEST_VIEW_THRESHOLD) {
+      res.status(409).json({
+        error: 'Conflict',
+        message: `Need at least ${PROBLEM_PUBLIC_REQUEST_VIEW_THRESHOLD} distinct viewers before requesting public listing (currently ${row.distinct_view_count}).`,
+      });
+      return;
+    }
+    await client.execute(
+      "UPDATE problems SET public_status = 'pending_review' WHERE id = ?",
+      [row.id],
+    );
+    res.status(204).end();
   });
 
   router.post('/teacher/problems/:slug/archive', authedOnly, async (req: Request, res: Response): Promise<void> => {

@@ -82,6 +82,46 @@ export function createModerationRouter(): Router {
     res.json({ snapshots, problems, comments, reports });
   });
 
+  // SPP-5 (B) + SPP-8: reviewer transitions a problem from 'pending_review'
+  // to 'approved' or 'rejected'. Only pending_review rows are decidable —
+  // once approved, subsequent draft edits invalidate approval (see
+  // compete.ts PUT handler).
+  router.post('/problems/:slug/decision', requireReviewer, async (req: Request, res: Response): Promise<void> => {
+    const { decision, note } = req.body ?? {};
+    if (decision !== 'approved' && decision !== 'rejected') {
+      res.status(400).json({ error: 'Bad Request', message: "decision must be 'approved' or 'rejected'" });
+      return;
+    }
+    const client = getClient();
+    const row = (await client.execute(
+      'SELECT id, public_status FROM problems WHERE slug = ? AND archived = 0',
+      [req.params.slug],
+    )).rows[0] as { id: number; public_status: string } | undefined;
+    if (!row) {
+      res.status(404).json({ error: 'Not Found' });
+      return;
+    }
+    if (row.public_status !== 'pending_review') {
+      res.status(409).json({
+        error: 'Conflict',
+        message: `Cannot decide from status '${row.public_status}' — only pending_review rows are decidable.`,
+      });
+      return;
+    }
+    await client.execute(
+      "UPDATE problems SET public_status = ? WHERE id = ?",
+      [decision, row.id],
+    );
+    if (typeof note === 'string' && note.trim().length > 0) {
+      await client.execute(
+        `INSERT INTO content_reports (target_type, target_id, reporter_id, reason, created_at, handled_at, handled_by, handled_note)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        ['problem', String(row.id), req.user!.id, `moderator decision: ${decision}`, Date.now(), Date.now(), req.user!.id, note.trim().slice(0, 500)],
+      );
+    }
+    res.status(204).end();
+  });
+
   router.post('/report', reportLimit, async (req: Request, res: Response): Promise<void> => {
     const { target_type, target_id, reason } = req.body ?? {};
     if (typeof target_type !== 'string' || !VALID_TARGET_TYPES.has(target_type)) {

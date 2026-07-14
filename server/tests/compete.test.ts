@@ -49,6 +49,36 @@ async function signup(): Promise<{ id: string; api_token: string; handle: string
   return { id, api_token: row.api_token, handle };
 }
 
+// SPP-5 (B): every test suite in this file that exercises a *public* read
+// (GET /problems, /problems/:slug, submit, ...) now needs the problem to be
+// in `public_status='approved'` with a frozen `published_json` blob. This
+// helper freezes the current draft state and flips the row to approved,
+// mirroring what publish + moderator-approve would do end-to-end. Tests
+// that specifically exercise the pipeline transitions live in
+// `compete-publish-pipeline.test.ts`, not here — this file keeps its
+// pre-Phase-B focus on schema/CRUD/auth.
+function forceApproveProblem(slug: string): void {
+  const row = db.prepare('SELECT id, title, statement, starter_code, checker_py FROM problems WHERE slug = ?').get(slug) as
+    | { id: number; title: string; statement: string; starter_code: string; checker_py: string | null }
+    | undefined;
+  if (!row) return;
+  const tests = db.prepare(
+    'SELECT ordinal, tier, is_visible, input, expected, fields_json FROM problem_tests WHERE problem_id = ? ORDER BY ordinal ASC',
+  ).all(row.id);
+  const snap = {
+    title: row.title, statement: row.statement, starter_code: row.starter_code,
+    checker_py: row.checker_py, tests,
+  };
+  const now = Date.now();
+  db.prepare(
+    "UPDATE problems SET public_status = 'approved', published_json = ?, first_published_at = ?, last_published_at = ? WHERE id = ?",
+  ).run(JSON.stringify(snap), now, now, row.id);
+}
+function approveAll(): void {
+  const rows = db.prepare('SELECT slug FROM problems WHERE archived = 0').all() as { slug: string }[];
+  for (const r of rows) forceApproveProblem(r.slug);
+}
+
 beforeEach(() => {
   db = createTestDb();
   const now = Date.now();
@@ -128,6 +158,7 @@ describe('GET /api/problems', () => {
       .run('beta', 'Beta', 'stmt', 5, teacher.id);
     db.prepare('INSERT INTO problems (slug, title, statement, order_index, archived, created_by) VALUES (?, ?, ?, ?, ?, ?)')
       .run('gamma', 'Gamma', 'stmt', 1, 1, teacher.id);
+    approveAll();
   });
 
   it('returns non-archived problems ordered by order_index', async () => {
@@ -161,6 +192,7 @@ describe('GET /api/problems/:slug', () => {
       .run(problemId, 1, 1, 1, 'a\n', 'b\n');
     db.prepare('INSERT INTO problem_tests (problem_id, tier, is_visible, ordinal, input, expected) VALUES (?, ?, ?, ?, ?, ?)')
       .run(problemId, 1, 0, 2, 'c\n', 'd\n');
+    approveAll();
   });
 
   it('returns problem with visible tests only', async () => {
@@ -178,6 +210,8 @@ describe('GET /api/problems/:slug', () => {
 
   it('returns checker_py when set', async () => {
     db.prepare('UPDATE problems SET checker_py = ? WHERE id = ?').run('def check(): pass', problemId);
+    // Re-freeze snapshot after mutation, matching real publish flow.
+    forceApproveProblem('sum-two');
     const res = await request(app).get('/api/problems/sum-two').set(auth(student.api_token));
     expect(res.status).toBe(200);
     expect(res.body.checker_py).toBe('def check(): pass');
@@ -203,6 +237,7 @@ describe('GET /api/problems/:slug/tests-for-submit', () => {
       .run(problemId, 1, 1, 1, 'visible\n', 'v_out\n');
     db.prepare('INSERT INTO problem_tests (problem_id, tier, is_visible, ordinal, input, expected) VALUES (?, ?, ?, ?, ?, ?)')
       .run(problemId, 2, 0, 2, 'hidden\n', 'h_out\n');
+    approveAll();
   });
 
   it('401 for anonymous', async () => {
@@ -222,6 +257,7 @@ describe('GET /api/problems/:slug/tests-for-submit', () => {
   it('returns fields_json for tests that have it', async () => {
     db.prepare('UPDATE problem_tests SET fields_json = ? WHERE problem_id = ? AND ordinal = ?')
       .run('{"n":5}', problemId, 1);
+    forceApproveProblem('sum-two');
     const res = await request(app).get('/api/problems/sum-two/tests-for-submit').set(auth(student.api_token));
     expect(res.status).toBe(200);
     const t1 = res.body.find((t: { ordinal: number }) => t.ordinal === 1);
@@ -243,6 +279,7 @@ describe('POST /api/problems/:slug/submit', () => {
   beforeEach(() => {
     db.prepare('INSERT INTO problems (slug, title, statement, created_by) VALUES (?, ?, ?, ?)')
       .run('sum-two', 'Sum Two', 'stmt', teacher.id);
+    approveAll();
   });
 
   it('stores a submission row', async () => {
@@ -537,6 +574,9 @@ describe('GET /api/teacher/problems/:slug/submissions', () => {
 describe('Phase 9: created_by never in any compete-mode response body', () => {
   beforeEach(async () => {
     await request(app).post('/api/teacher/problems').set(auth(teacher.api_token)).send(PROBLEM_BODY);
+    // SPP-5 (B): publish + approve so public reads exercised below hit the
+    // approved code path rather than the 404 gate.
+    approveAll();
   });
 
   function assertNoCreatedBy(body: unknown, path = ''): void {

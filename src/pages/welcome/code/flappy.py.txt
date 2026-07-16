@@ -1,0 +1,68 @@
+from graphics import *
+import random
+
+size(320, 480)
+
+bird_y = 240
+bird_vy = 0
+GRAVITY = 0.5
+FLAP = -8
+
+pipes = []
+PIPE_W = 50
+GAP = 130
+score = 0
+game_over = False
+
+def spawn_pipe():
+    pipes.append({"x": width(), "gap_y": random.randint(80, height() - 80)})
+
+spawn_pipe()
+
+def draw():
+    global bird_y, bird_vy, score, game_over
+
+    background(135, 206, 235)
+
+    if not game_over:
+        if Keyboard.space.pressed:
+            bird_vy = FLAP
+        bird_vy += GRAVITY
+        bird_y += bird_vy
+
+        for p in pipes:
+            p["x"] -= 3
+        if pipes and pipes[0]["x"] < -PIPE_W:
+            pipes.pop(0)
+            score += 1
+        if pipes[-1]["x"] < width() - 180:
+            spawn_pipe()
+
+        for p in pipes:
+            if p["x"] < 72 < p["x"] + PIPE_W:
+                if bird_y - 12 < p["gap_y"] - GAP // 2 or bird_y + 12 > p["gap_y"] + GAP // 2:
+                    game_over = True
+        if bird_y > height() or bird_y < 0:
+            game_over = True
+
+    fill(50, 160, 50)
+    no_stroke()
+    for p in pipes:
+        rect(p["x"], 0, PIPE_W, p["gap_y"] - GAP // 2)
+        rect(p["x"], p["gap_y"] + GAP // 2, PIPE_W, height() - (p["gap_y"] + GAP // 2))
+
+    fill(255, 220, 0)
+    circle(60, bird_y, 12)
+
+    fill(255, 255, 255)
+    text(f"Score: {score}", 10, 10)
+
+    if game_over:
+        say("Game over — press R", "center")
+        if Keyboard.r.pressed:
+            game_over = False
+            bird_y, bird_vy, score = 240, 0, 0
+            pipes.clear()
+            spawn_pipe()
+
+run(draw)

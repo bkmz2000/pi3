@@ -1234,5 +1234,11 @@
     "paintTool": "Paint — Shift+drag for straight lines",
     "eraseTool": "Erase — Shift+drag for straight lines",
     "fillTool": "Fill"
+  },
+  "welcome": {
+    "language": {
+      "en": "English",
+      "ru": "Русский"
+    }
   }
 }

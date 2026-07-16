@@ -1,0 +1,17 @@
+from pi3 import debug
+
+def binary_search(arr, target):
+    lo, hi = 0, len(arr) - 1
+    while lo <= hi:
+        mid = (lo + hi) // 2
+        debug.array(arr, red=debug.range(lo, hi), green=mid)
+        debug.show()
+        if arr[mid] == target:
+            return mid
+        elif arr[mid] < target:
+            lo = mid + 1
+        else:
+            hi = mid - 1
+    return -1
+
+binary_search([4, 17, 34, 50, 60, 61, 67, 95, 121, 122, 139, 140, 141, 142, 149, 152, 155, 156, 161, 184], 142)

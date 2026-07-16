@@ -1,0 +1,37 @@
+from graphics import *
+import numpy as np
+
+size(400, 400)
+
+vertices = np.array([
+    [-1,-1,-1], [1,-1,-1], [1,1,-1], [-1,1,-1],
+    [-1,-1, 1], [1,-1, 1], [1,1, 1], [-1,1, 1],
+]) * 60
+
+edges = [
+    (0,1),(1,2),(2,3),(3,0),
+    (4,5),(5,6),(6,7),(7,4),
+    (0,4),(1,5),(2,6),(3,7),
+]
+
+angle = 0
+
+def rotate(v, ax, ay):
+    rx = np.array([[1,0,0],[0,np.cos(ax),-np.sin(ax)],[0,np.sin(ax),np.cos(ax)]])
+    ry = np.array([[np.cos(ay),0,np.sin(ay)],[0,1,0],[-np.sin(ay),0,np.cos(ay)]])
+    return v @ rx.T @ ry.T
+
+def draw():
+    global angle
+    background(10, 15, 20)
+    stroke(246, 165, 96)
+    stroke_width(2)
+    rotated = rotate(vertices, angle, angle * 0.7)
+    projected = rotated[:, :2] + 200
+    for a, b in edges:
+        x1, y1 = projected[a]
+        x2, y2 = projected[b]
+        line(x1, y1, x2, y2)
+    angle += 0.02
+
+run(draw)

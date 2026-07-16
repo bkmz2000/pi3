@@ -1,0 +1,11 @@
+import matplotlib.pyplot as plt
+import numpy as np
+
+x = np.linspace(0, 4 * np.pi, 200)
+y = np.sin(x) * np.exp(-x / 8)
+
+plt.plot(x, y)
+plt.title("Damped oscillation")
+plt.xlabel("time")
+plt.ylabel("amplitude")
+plt.show()

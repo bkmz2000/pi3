@@ -1,0 +1,61 @@
+from graphics import *
+import random
+
+size(400, 400)
+GRID = 20
+CELL = 20
+
+def make_sprite(rows, fg):
+    s = create_sprite(CELL, CELL)
+    scale = CELL // len(rows)
+    for ry, row in enumerate(rows):
+        for rx, ch in enumerate(row):
+            if ch == "1":
+                for dx in range(scale):
+                    for dy in range(scale):
+                        set_pixel(s, rx * scale + dx, ry * scale + dy, fg)
+    return s
+
+HEAD = make_sprite(["01111110","11111111","11011011","11111111",
+                     "11111111","11100111","11111111","01111110"], Colors.lime)
+BODY = make_sprite(["01111110","11111111","11111111","11111111",
+                     "11111111","11111111","11111111","01111110"], Colors.green)
+TAIL = make_sprite(["00011000","00111100","01111110","01111110",
+                     "01111110","00111100","00011000","00000000"], Colors.green)
+FOOD = make_sprite(["00011000","00111100","11111111","11111111",
+                     "11111111","11111111","01111110","00011000"], Colors.red)
+
+snake = [(10, 10), (9, 10), (8, 10)]
+direction = (1, 0)
+next_direction = (1, 0)
+food = (random.randint(0, GRID - 1), random.randint(0, GRID - 1))
+
+def draw():
+    global direction, next_direction, food
+
+    if Keyboard.arrow_up.pressed and direction != (0, 1):
+        next_direction = (0, -1)
+    elif Keyboard.arrow_down.pressed and direction != (0, -1):
+        next_direction = (0, 1)
+    elif Keyboard.arrow_left.pressed and direction != (1, 0):
+        next_direction = (-1, 0)
+    elif Keyboard.arrow_right.pressed and direction != (-1, 0):
+        next_direction = (1, 0)
+    direction = next_direction
+
+    hx, hy = snake[0]
+    new_head = ((hx + direction[0]) % GRID, (hy + direction[1]) % GRID)
+    snake.insert(0, new_head)
+
+    if new_head == food:
+        food = (random.randint(0, GRID - 1), random.randint(0, GRID - 1))
+    else:
+        snake.pop()
+
+    background(10, 20, 10)
+    image(FOOD, food[0] * CELL, food[1] * CELL)
+    for i, (x, y) in enumerate(snake):
+        sprite = HEAD if i == 0 else (TAIL if i == len(snake) - 1 else BODY)
+        image(sprite, x * CELL, y * CELL)
+
+run(draw, fps=8)

@@ -9,6 +9,27 @@ import { issueSessionToken, verifySessionToken } from '../sessions/tokens.js';
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 const CODE_LEN = 6;
 
+// Free-tier caps. Numbers baked into the landing copy ("3 groups × 10 students").
+// Env overrides let paid tenants raise them without a code change.
+const MAX_GROUPS_PER_TEACHER = Number(process.env['MAX_GROUPS_PER_TEACHER'] ?? 3);
+const MAX_MEMBERS_PER_GROUP = Number(process.env['MAX_MEMBERS_PER_GROUP'] ?? 10);
+
+async function countActiveGroups(teacherId: string): Promise<number> {
+  const row = (await getClient().execute(
+    'SELECT COUNT(*) AS n FROM groups WHERE teacher_id = ? AND archived_at IS NULL',
+    [teacherId],
+  )).rows[0] as { n: number } | undefined;
+  return Number(row?.n ?? 0);
+}
+
+async function countGroupMembers(groupId: string): Promise<number> {
+  const row = (await getClient().execute(
+    'SELECT COUNT(*) AS n FROM group_members WHERE group_id = ?',
+    [groupId],
+  )).rows[0] as { n: number } | undefined;
+  return Number(row?.n ?? 0);
+}
+
 function generateInviteCode(): string {
   const buf = randomBytes(CODE_LEN);
   let out = '';
@@ -97,6 +118,16 @@ export function createGroupsRouter(): Router {
       res.status(200).json({ id: group.id, name: group.name, already_member: true });
       return;
     }
+    const memberCount = await countGroupMembers(group.id);
+    if (memberCount >= MAX_MEMBERS_PER_GROUP) {
+      res.status(402).json({
+        error: 'Payment Required',
+        message: `This group is full (${MAX_MEMBERS_PER_GROUP} students). Ask your teacher.`,
+        code: 'member_cap',
+        limit: MAX_MEMBERS_PER_GROUP,
+      });
+      return;
+    }
     await client.execute(
       'INSERT INTO group_members (id, group_id, student_id, joined_at) VALUES (?, ?, ?, ?)',
       [uuidv4(), group.id, req.user!.id, Date.now()],
@@ -157,6 +188,17 @@ export function createGroupsRouter(): Router {
     }
     if (!safeName) {
       res.status(400).json({ error: 'Bad Request', message: 'Group name is required' });
+      return;
+    }
+    // Enforce free-tier group cap. Archived groups don't count.
+    const active = await countActiveGroups(req.user!.id);
+    if (active >= MAX_GROUPS_PER_TEACHER) {
+      res.status(402).json({
+        error: 'Payment Required',
+        message: `Free plan limit: ${MAX_GROUPS_PER_TEACHER} active groups. Archive one, or contact us to raise the cap.`,
+        code: 'group_cap',
+        limit: MAX_GROUPS_PER_TEACHER,
+      });
       return;
     }
     const client = getClient();
@@ -402,6 +444,16 @@ export function createGroupsRouter(): Router {
     )).rows[0];
     if (existing) {
       res.status(409).json({ error: 'Conflict', message: 'User is already in this group' });
+      return;
+    }
+    const memberCount = await countGroupMembers(req.params['id'] as string);
+    if (memberCount >= MAX_MEMBERS_PER_GROUP) {
+      res.status(402).json({
+        error: 'Payment Required',
+        message: `Free plan limit: ${MAX_MEMBERS_PER_GROUP} students per group.`,
+        code: 'member_cap',
+        limit: MAX_MEMBERS_PER_GROUP,
+      });
       return;
     }
     const member: GroupMember = {

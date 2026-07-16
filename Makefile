@@ -8,6 +8,10 @@ SHA         := $(shell git rev-parse --short HEAD)
 # Auto-detect: TURSO_DATABASE_URL set → vercel, else → vps
 DEPLOY_TARGET ?= $(if $(TURSO_DATABASE_URL),vercel,vps)
 
+# Deployment profile baked into the client bundle: institutional | public.
+# VPS defaults to institutional (skips landing); Vercel defaults to public.
+DEPLOYMENT_PROFILE ?= $(if $(filter vercel,$(DEPLOY_TARGET)),public,institutional)
+
 .PHONY: deploy vps vercel build push remote-deploy test install-hooks rollback
 
 test:
@@ -34,7 +38,10 @@ vps vercel: ;@:
 _do-vps: test build push remote-deploy
 
 build:
-	docker build -t $(IMAGE):$(SHA) -t $(IMAGE):latest .
+	@echo "→ Building with DEPLOYMENT_PROFILE=$(DEPLOYMENT_PROFILE)"
+	docker build \
+		--build-arg DEPLOYMENT_PROFILE=$(DEPLOYMENT_PROFILE) \
+		-t $(IMAGE):$(SHA) -t $(IMAGE):latest .
 
 push:
 	@echo "→ Logging in to GHCR..."
@@ -61,7 +68,7 @@ rollback:
 
 # ── Vercel path ───────────────────────────────────────────────────────
 _do-vercel: test
-	vercel --prod
+	VITE_DEPLOYMENT_PROFILE=$(DEPLOYMENT_PROFILE) vercel --prod
 
 install-hooks:
 	cp scripts/pre-push .git/hooks/pre-push

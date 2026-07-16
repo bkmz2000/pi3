@@ -1,6 +1,9 @@
 # ── Builder stage ─────────────────────────────────────────────────────────
 FROM node:22-alpine AS builder
 
+ARG DEPLOYMENT_PROFILE=public
+ENV VITE_DEPLOYMENT_PROFILE=$DEPLOYMENT_PROFILE
+
 WORKDIR /app
 
 # better-sqlite3 native build.

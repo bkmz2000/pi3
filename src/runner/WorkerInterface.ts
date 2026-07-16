@@ -27,7 +27,7 @@ export type SheetRunPayload = {
 };
 
 export type WorkerCommand =
-  | { cmd: "init"; graphicsInit: string; graphicsActors: string; graphicsAnimation: string; graphicsManifest: string; graphicsErrors: string; graphicsState: string; graphicsStateInternal: string; graphicsColor: string; graphicsVec: string; graphicsSheet: string; graphicsUtils: string; graphicsLightingHelpers: string; graphicsSprites: string; linter: string; errorHook: string; inputTransform: string; watchTransform: string; syntaxHints: string; pi3Init: string; pi3Debug: string; debugTransform: string; pi3Testing: string }
+  | { cmd: "init"; graphicsInit: string; graphicsActors: string; graphicsAnimation: string; graphicsManifest: string; graphicsErrors: string; graphicsState: string; graphicsStateInternal: string; graphicsColor: string; graphicsVec: string; graphicsSheet: string; graphicsUtils: string; graphicsLightingHelpers: string; graphicsSprites: string; turtle: string; linter: string; errorHook: string; inputTransform: string; watchTransform: string; syntaxHints: string; pi3Init: string; pi3Debug: string; debugTransform: string; pi3Testing: string }
   | { cmd: "runGenerator"; generatorPy: string; slug: string; reqId: number }
   | { cmd: "runReference"; referencePy: string; fieldsJson: string; reqId: number }
   | { cmd: "runChecker"; checkerPy: string; fieldsJson: string | null; studentOutput: string; expectedOutput: string; reqId: number }

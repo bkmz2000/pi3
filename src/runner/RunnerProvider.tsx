@@ -15,6 +15,7 @@ import GraphicsSheet from "../assets/python/graphics/_sheet.py?raw";
 import GraphicsUtils from "../assets/python/graphics/_utils.py?raw";
 import GraphicsLightingHelpers from "../assets/python/graphics/_lighting_helpers.py?raw";
 import GraphicsSprites from "../assets/python/graphics/_sprites.py?raw";
+import Turtle from "../assets/python/turtle.py?raw";
 import Linter from "../assets/python/linter.py?raw";
 import ErrorHook from "../assets/python/error_hook.py?raw";
 import InputTransform from "../assets/python/input_transform.py?raw";
@@ -548,6 +549,7 @@ export function getWorker(): Worker {
     graphicsUtils: GraphicsUtils,
     graphicsLightingHelpers: GraphicsLightingHelpers,
     graphicsSprites: GraphicsSprites,
+    turtle: Turtle,
     linter: Linter,
     errorHook: ErrorHook,
     inputTransform: InputTransform,

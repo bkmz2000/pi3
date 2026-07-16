@@ -104,6 +104,7 @@ async function initPyodide(
   graphicsUtils: string,
   graphicsLightingHelpers: string,
   graphicsSprites: string,
+  turtle: string,
   linter: string,
   errorHook: string,
   inputTransform: string,
@@ -139,6 +140,7 @@ async function initPyodide(
   p.FS.writeFile("/graphics/_utils.py", graphicsUtils);
   p.FS.writeFile("/graphics/_lighting_helpers.py", graphicsLightingHelpers);
   p.FS.writeFile("/graphics/_sprites.py", graphicsSprites);
+  p.FS.writeFile("/turtle.py", turtle);
   p.FS.writeFile("/linter.py", linter);
   p.FS.writeFile("/error_hook.py", errorHook);
   p.FS.writeFile("/input_transform.py", inputTransform);
@@ -343,7 +345,7 @@ function prepareFiles(p: PyodideInterface, files: Record<string, string>) {
 }
 
 function usesNewGraphics(code: string): boolean {
-  return /^[^#'"]*\b(import graphics|from graphics)\b/m.test(code);
+  return /^[^#'"]*\b(import graphics|from graphics|import turtle|from turtle)\b/m.test(code);
 }
 
 // ── Error handling: attempt structured classification, fall back to raw ──
@@ -829,7 +831,7 @@ self.onmessage = async (e: MessageEvent<WorkerCommand>) => {
       const p = await ensurePyodide();
       console.log("Worker: Pyodide loaded, initializing modules...");
       const errorHookSrc = msg.errorHook;
-      await initPyodide(p, msg.graphicsInit, msg.graphicsActors, msg.graphicsAnimation, msg.graphicsManifest, msg.graphicsErrors, msg.graphicsState, msg.graphicsStateInternal, msg.graphicsColor, msg.graphicsVec, msg.graphicsSheet, msg.graphicsUtils, msg.graphicsLightingHelpers, msg.graphicsSprites, msg.linter, errorHookSrc, msg.inputTransform, msg.watchTransform, msg.syntaxHints, msg.pi3Init, msg.pi3Debug, msg.debugTransform, msg.pi3Testing);
+      await initPyodide(p, msg.graphicsInit, msg.graphicsActors, msg.graphicsAnimation, msg.graphicsManifest, msg.graphicsErrors, msg.graphicsState, msg.graphicsStateInternal, msg.graphicsColor, msg.graphicsVec, msg.graphicsSheet, msg.graphicsUtils, msg.graphicsLightingHelpers, msg.graphicsSprites, msg.turtle, msg.linter, errorHookSrc, msg.inputTransform, msg.watchTransform, msg.syntaxHints, msg.pi3Init, msg.pi3Debug, msg.debugTransform, msg.pi3Testing);
       console.log("Worker: Initialization complete, posting ready");
       post({ type: "ready" });
     } catch (err: unknown) {

@@ -14,6 +14,8 @@ function makeCtx() {
     rect: jest.fn(),
     moveTo: jest.fn(),
     lineTo: jest.fn(),
+    closePath: jest.fn(),
+    bezierCurveTo: jest.fn(),
     fill: jest.fn(),
     stroke: jest.fn(),
     fillRect: jest.fn(),
@@ -289,5 +291,56 @@ describe('executeDrawCommands', () => {
     expect((ctx as unknown as { font: string }).font).toBe('24px sans-serif');
     expect((ctx as unknown as { textAlign: string }).textAlign).toBe('center');
     expect(ctx.fillText).toHaveBeenCalledWith('hi', 50, 50);
+  });
+
+  it('polyline strokes a connected path through 2+ points', () => {
+    const ctx = makeCtx();
+    executeDrawCommands(ctx, [['polyline', [[0, 0, 10, 10, 20, 5]]]], {}, 100, 80);
+    expect(ctx.beginPath).toHaveBeenCalled();
+    expect(ctx.moveTo).toHaveBeenCalledWith(0, 0);
+    expect(ctx.lineTo).toHaveBeenCalledWith(10, 10);
+    expect(ctx.lineTo).toHaveBeenCalledWith(20, 5);
+    expect(ctx.stroke).toHaveBeenCalled();
+  });
+
+  it('polyline is a no-op when fewer than 2 points are provided', () => {
+    const ctx = makeCtx();
+    executeDrawCommands(ctx, [['polyline', [[0, 0]]]], {}, 10, 10);
+    expect(ctx.moveTo).not.toHaveBeenCalled();
+    expect(ctx.stroke).not.toHaveBeenCalled();
+  });
+
+  it('polygon closes the path and both fills and strokes', () => {
+    const ctx = makeCtx();
+    executeDrawCommands(ctx, [['polygon', [[0, 0, 10, 0, 5, 10]]]], {}, 20, 20);
+    expect(ctx.moveTo).toHaveBeenCalledWith(0, 0);
+    expect(ctx.lineTo).toHaveBeenCalledWith(10, 0);
+    expect(ctx.lineTo).toHaveBeenCalledWith(5, 10);
+    expect((ctx as unknown as { closePath: jest.Mock }).closePath).toHaveBeenCalled();
+    expect(ctx.fill).toHaveBeenCalled();
+    expect(ctx.stroke).toHaveBeenCalled();
+  });
+
+  it('polygon is a no-op when fewer than 3 points are provided', () => {
+    const ctx = makeCtx();
+    executeDrawCommands(ctx, [['polygon', [[0, 0, 10, 10]]]], {}, 20, 20);
+    expect(ctx.fill).not.toHaveBeenCalled();
+  });
+
+  it('spline with 2 points falls back to a straight lineTo', () => {
+    const ctx = makeCtx();
+    executeDrawCommands(ctx, [['spline', [[0, 0, 20, 20], 0.5]]], {}, 100, 100);
+    expect(ctx.moveTo).toHaveBeenCalledWith(0, 0);
+    expect(ctx.lineTo).toHaveBeenCalledWith(20, 20);
+    expect(ctx.stroke).toHaveBeenCalled();
+  });
+
+  it('spline with 3+ points emits bezierCurveTo per segment', () => {
+    const ctx = makeCtx();
+    executeDrawCommands(ctx, [['spline', [[0, 0, 10, 20, 20, 0, 30, 20], 0.5]]], {}, 100, 100);
+    expect(ctx.moveTo).toHaveBeenCalledWith(0, 0);
+    // 4 points → 3 segments
+    expect((ctx as unknown as { bezierCurveTo: jest.Mock }).bezierCurveTo).toHaveBeenCalledTimes(3);
+    expect(ctx.stroke).toHaveBeenCalled();
   });
 });

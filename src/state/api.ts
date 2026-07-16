@@ -247,6 +247,37 @@ export async function getSharedProjects(): Promise<SharedProject[]> {
   return api.get<SharedProject[]>('/api/projects/shared-with-me');
 }
 
+// ── Live presence (teacher dashboard roster) ─────────────────────────────
+
+export interface LivePresenceMember {
+  student_id: string;
+  student_name: string;
+  student_handle: string | null;
+  project_id: string | null;
+  project_name: string | null;
+  file: string | null;
+  cursor_line: number | null;
+  updated_at: number | null;
+  idle: boolean;
+}
+
+export interface LivePresenceResponse {
+  members: LivePresenceMember[];
+  server_now: number;
+}
+
+export async function postLivePresence(projectId: string, file: string, cursorLine: number): Promise<void> {
+  await api.post<void>('/api/live/presence', {
+    project_id: projectId,
+    file,
+    cursor_line: cursorLine,
+  });
+}
+
+export async function getLiveGroup(groupId: string): Promise<LivePresenceResponse> {
+  return api.get<LivePresenceResponse>(`/api/live/group/${encodeURIComponent(groupId)}`);
+}
+
 export async function getHelpRequests(): Promise<HelpRequest[]> {
   return api.get<HelpRequest[]>('/api/help-requests');
 }

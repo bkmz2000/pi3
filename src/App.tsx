@@ -27,6 +27,7 @@ import CompetePage from "./compete/CompetePage";
 import { WelcomePage } from "./pages/WelcomePage";
 import { isInstitutional } from "./state/deploymentProfile";
 import { useUser } from "./state/useUser";
+import { usePresencePinger } from "./state/usePresencePinger";
 import { useTranslation } from "react-i18next";
 import ForkDialog from "./components/dialogs/ForkDialog";
 import { useThemeStore } from "./state/useTheme";
@@ -228,6 +229,16 @@ function AppInner() {
   const [anchorY, setAnchorY] = useState<number | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
   const editorRef = useRef<ReactCodeMirrorRef>(null);
+
+  // Feed the teacher live-roster: pings project id + file + cursor line every
+  // few seconds while the user is actively editing.
+  const authStateLive = useUser((s) => s.authState);
+  usePresencePinger({
+    projectId: currentProjectId,
+    currentFile,
+    editorRef,
+    loggedIn: authStateLive === 'logged_in',
+  });
 
   useEffect(() => {
     const handler = (e: BeforeUnloadEvent) => {

@@ -10,6 +10,7 @@ import { asyncAction } from '../../state/asyncAction';
 import { Icon } from '../Icons';
 import { ThemedDialog } from '../ThemedDialog';
 import { GroupQueueView } from './GroupQueueView';
+import { LiveRoster } from './LiveRoster';
 import { inputStyle, btnPrimary, btnSecondary } from './styles';
 import { userLabel } from '../../utils/userDisplay';
 
@@ -322,6 +323,15 @@ export function GroupsSection() {
                     ) : (
                       <div style={{ fontSize: 12, color: theme.panelTxtMute }}>{t('sideMenu.loading')}</div>
                     )}
+
+                    {/* Live activity: current file + cursor line per student,
+                        polled from the server every few seconds. */}
+                    <div style={{ marginTop: 12 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: theme.panelTxtMute, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 6 }}>
+                        {t('teacher.liveRoster')}
+                      </div>
+                      <LiveRoster groupId={g.id} />
+                    </div>
                   </div>
                 )}
               </div>

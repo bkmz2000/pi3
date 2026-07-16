@@ -111,6 +111,11 @@ export interface User {
   handle: string | null;
   role: 'student' | 'teacher';
   created_at: number;
+  freeze_updates?: boolean;
+}
+
+export async function setFreezeUpdates(freeze: boolean): Promise<{ freeze_updates: boolean }> {
+  return api.patch<{ freeze_updates: boolean }>('/api/users/me/freeze', { freeze });
 }
 
 export interface Project {

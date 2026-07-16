@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useThemeStore } from '../../state/useTheme';
+import { useUser } from '../../state/useUser';
 import {
   getGroups, createGroup, getGroup, deleteGroup, inviteToGroup, removeFromGroup,
   updateGroup, regenerateInviteCode,
@@ -153,6 +154,10 @@ export function GroupsSection() {
     void navigator.clipboard?.writeText(text);
   }
 
+  const user = useUser((s) => s.user);
+  const toggleFreezeUpdates = useUser((s) => s.toggleFreezeUpdates);
+  const [freezeBusy, setFreezeBusy] = useState(false);
+
   if (queueGroupId) {
     const group = groups.find((g) => g.id === queueGroupId);
     return <GroupQueueView groupId={queueGroupId} groupName={group?.name ?? ''} onBack={() => setQueueGroupId(null)} />;
@@ -162,6 +167,21 @@ export function GroupsSection() {
     <div style={{ flex: 1, overflow: 'auto', padding: 28 }}>
       <div style={{ display: 'flex', alignItems: 'center', marginBottom: 16, gap: 10 }}>
         <span style={{ flex: 1, fontWeight: 700, fontSize: 15, color: theme.panelTxt }}>{t('teacher.groups')}</span>
+        <label
+          title={t('teacher.freezeUpdatesHint')}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: theme.panelTxtMute, cursor: freezeBusy ? 'wait' : 'pointer' }}
+        >
+          <input
+            type="checkbox"
+            disabled={freezeBusy}
+            checked={!!user?.freeze_updates}
+            onChange={async (e) => {
+              setFreezeBusy(true);
+              try { await toggleFreezeUpdates(e.target.checked); } finally { setFreezeBusy(false); }
+            }}
+          />
+          {t('teacher.freezeUpdates')}
+        </label>
         <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: theme.panelTxtMute, cursor: 'pointer' }}>
           <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} />
           {t('teacher.showArchived')}

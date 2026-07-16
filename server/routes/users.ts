@@ -205,17 +205,38 @@ router.get('/search', authMiddleware, async (req: Request, res: Response): Promi
 router.get('/me', authMiddleware, async (req: Request, res: Response): Promise<void> => {
   const client = getClient();
   const result = await client.execute(
-    'SELECT id, name, handle, role, created_at FROM users WHERE id = ?',
+    'SELECT id, name, handle, role, created_at, freeze_updates FROM users WHERE id = ?',
     [req.user!.id],
   );
-  const user = first<Pick<User, 'id' | 'name' | 'handle' | 'role' | 'created_at'>>(result);
+  const user = first<Pick<User, 'id' | 'name' | 'handle' | 'role' | 'created_at'> & { freeze_updates?: number }>(result);
 
   if (!user) {
     res.status(404).json({ error: 'Not Found', message: 'User not found' });
     return;
   }
 
-  res.json(user);
+  res.json({ ...user, freeze_updates: !!user.freeze_updates });
+});
+
+// PATCH /api/users/me/freeze — teacher toggles the freeze flag. When on, the
+// service worker on every device signed into this account (or in one of this
+// teacher's groups, once we join on group membership) will skip installing
+// new bundles until the flag flips back.
+router.patch('/me/freeze', authMiddleware, async (req: Request, res: Response): Promise<void> => {
+  const { freeze } = req.body as { freeze?: boolean };
+  if (typeof freeze !== 'boolean') {
+    res.status(400).json({ error: 'Bad Request', message: 'freeze (boolean) required' });
+    return;
+  }
+  if (req.user!.role !== 'teacher') {
+    res.status(403).json({ error: 'Forbidden', message: 'Teachers only' });
+    return;
+  }
+  await getClient().execute(
+    'UPDATE users SET freeze_updates = ? WHERE id = ?',
+    [freeze ? 1 : 0, req.user!.id],
+  );
+  res.json({ freeze_updates: freeze });
 });
 
   return router;

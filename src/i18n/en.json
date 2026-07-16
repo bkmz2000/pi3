@@ -852,6 +852,8 @@
     "ago": "ago",
     "notActive": "not active",
     "liveRoster": "Live activity",
+    "freezeUpdates": "Freeze updates",
+    "freezeUpdatesHint": "Lock the running version. New releases won't install until you unfreeze — keeps a lesson plan stable through the year.",
     "inviteStudent": "Invite Student",
     "inviteEmail": "Username",
     "inviteEmailPlaceholder": "Enter student username",

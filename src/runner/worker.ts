@@ -2,12 +2,13 @@ import type { PyodideInterface } from "pyodide";
 import { WorkerCommand, WorkerEvent, LintDiagnostic, SheetRunPayload, RuntimeError } from "./WorkerInterface";
 import { PYODIDE_CDN } from "./pyodideVersion";
 import { executeDrawCommands } from "./canvasRenderer";
+import { blitPngToCanvas, PendingMatplotlibBuffer } from "./matplotlibBlit";
 
 let pyodide: PyodideInterface | null = null;
 let offscreen: OffscreenCanvas | null = null;
 // Buffer matplotlib PNGs that arrive before the canvas is attached; drained
 // as soon as attach_canvas lands.
-let pendingMatplotlibFigures: Uint8Array[] = [];
+const pendingMatplotlibFigures = new PendingMatplotlibBuffer();
 let activePaths: string[] = [];
 let pendingInterruptBuffer: Uint8Array | null = null;
 let pendingOffscreen: OffscreenCanvas | null = null;
@@ -69,37 +70,13 @@ self.addEventListener("unhandledrejection", (e) =>
 );
 
 async function drawMatplotlibFigure(pngBytes: Uint8Array): Promise<void> {
-  if (!offscreen) return;
-  try {
-    // Copy into a fresh ArrayBuffer so Blob can type-check (Uint8Array
-    // over SharedArrayBuffer is not a valid BlobPart under strict TS).
-    const buf = new ArrayBuffer(pngBytes.byteLength);
-    new Uint8Array(buf).set(pngBytes);
-    const blob = new Blob([buf], { type: "image/png" });
-    const bmp = await createImageBitmap(blob);
-    const ctx = offscreen.getContext("2d");
-    if (!ctx) return;
-    const cw = offscreen.width;
-    const ch = offscreen.height;
-    ctx.fillStyle = "#0a1414";
-    ctx.fillRect(0, 0, cw, ch);
-    const scale = Math.min(cw / bmp.width, ch / bmp.height);
-    const dw = bmp.width * scale;
-    const dh = bmp.height * scale;
-    const dx = (cw - dw) / 2;
-    const dy = (ch - dh) / 2;
-    ctx.drawImage(bmp, dx, dy, dw, dh);
-    bmp.close();
-  } catch (err) {
-    console.warn("matplotlib blit failed:", err);
-  }
+  const res = await blitPngToCanvas(pngBytes, offscreen, { createBitmap: createImageBitmap });
+  if (!res.ok) console.warn("matplotlib blit failed:", res.reason);
 }
 
 function drainPendingMatplotlib() {
-  if (!offscreen || pendingMatplotlibFigures.length === 0) return;
-  const batch = pendingMatplotlibFigures;
-  pendingMatplotlibFigures = [];
-  for (const bytes of batch) {
+  if (!offscreen || pendingMatplotlibFigures.size() === 0) return;
+  for (const bytes of pendingMatplotlibFigures.drain()) {
     void drawMatplotlibFigure(bytes);
   }
 }

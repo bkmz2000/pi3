@@ -187,6 +187,72 @@ describe('Groups API', () => {
     });
   });
 
+  describe('free-tier caps', () => {
+    it('POST / returns 402 with structured cap payload after 3 active groups', async () => {
+      for (let i = 0; i < 3; i++) {
+        const r = await request(app).post('/api/groups').set(auth(teacher.api_token)).send({ name: `G${i}` });
+        expect(r.status).toBe(201);
+      }
+      const res = await request(app).post('/api/groups').set(auth(teacher.api_token)).send({ name: 'G4' });
+      expect(res.status).toBe(402);
+      expect(res.body.code).toBe('group_cap');
+      expect(res.body.limit).toBe(3);
+      expect(res.body.messageKey).toBe('teacher.billing.groupCap');
+      expect(res.body.messageArgs).toEqual({ limit: 3 });
+    });
+
+    it('POST / — archived groups do not count toward the cap', async () => {
+      const created: string[] = [];
+      for (let i = 0; i < 3; i++) {
+        const r = await request(app).post('/api/groups').set(auth(teacher.api_token)).send({ name: `G${i}` });
+        created.push(r.body.id);
+      }
+      // Archive one → creating a 4th should now succeed.
+      await request(app).patch(`/api/groups/${created[0]}`).set(auth(teacher.api_token)).send({ archived: true });
+      const res = await request(app).post('/api/groups').set(auth(teacher.api_token)).send({ name: 'G-new' });
+      expect(res.status).toBe(201);
+    });
+
+    it('POST /:id/invite returns 402 (member_cap) once the group is full', async () => {
+      const g = await request(app).post('/api/groups').set(auth(teacher.api_token)).send({ name: 'G' });
+      const groupId = g.body.id;
+      // seed 10 members directly via db
+      const now = Date.now();
+      for (let i = 0; i < 10; i++) {
+        const uid = uuidv4();
+        db.prepare('INSERT INTO users (id, api_token, name, role, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)')
+          .run(uid, uuidv4().replace(/-/g, '') + uuidv4().replace(/-/g, ''), `S${i}`, 'student', now, now);
+        db.prepare('INSERT INTO group_members (id, group_id, student_id, joined_at) VALUES (?, ?, ?, ?)')
+          .run(uuidv4(), groupId, uid, now);
+      }
+      const res = await request(app).post(`/api/groups/${groupId}/invite`).set(auth(teacher.api_token)).send({ username: student1.name });
+      expect(res.status).toBe(402);
+      expect(res.body.code).toBe('member_cap');
+      expect(res.body.limit).toBe(10);
+      expect(res.body.messageKey).toBe('teacher.billing.memberCapTeacher');
+    });
+
+    it('POST /join returns 402 (member_cap) when student joins a full group', async () => {
+      const g = await request(app).post('/api/groups').set(auth(teacher.api_token)).send({ name: 'G' });
+      const groupId = g.body.id;
+      const code = g.body.invite_code;
+      const now = Date.now();
+      for (let i = 0; i < 10; i++) {
+        const uid = uuidv4();
+        db.prepare('INSERT INTO users (id, api_token, name, role, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)')
+          .run(uid, uuidv4().replace(/-/g, '') + uuidv4().replace(/-/g, ''), `S${i}`, 'student', now, now);
+        db.prepare('INSERT INTO group_members (id, group_id, student_id, joined_at) VALUES (?, ?, ?, ?)')
+          .run(uuidv4(), groupId, uid, now);
+      }
+      const res = await request(app).post('/api/groups/join').set(auth(student1.api_token)).send({ code });
+      expect(res.status).toBe(402);
+      expect(res.body.code).toBe('member_cap');
+      expect(res.body.limit).toBe(10);
+      expect(res.body.messageKey).toBe('teacher.billing.memberCap');
+      expect(res.body.messageArgs).toEqual({ limit: 10 });
+    });
+  });
+
   describe('DELETE /api/groups/:id', () => {
     it('teacher can delete their group', async () => {
       const res = await request(app).post('/api/groups').set(auth(teacher.api_token)).send({ name: 'G1' });

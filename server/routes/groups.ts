@@ -123,6 +123,8 @@ export function createGroupsRouter(): Router {
       res.status(402).json({
         error: 'Payment Required',
         message: `This group is full (${MAX_MEMBERS_PER_GROUP} students). Ask your teacher.`,
+        messageKey: 'teacher.billing.memberCap',
+        messageArgs: { limit: MAX_MEMBERS_PER_GROUP },
         code: 'member_cap',
         limit: MAX_MEMBERS_PER_GROUP,
       });
@@ -196,6 +198,8 @@ export function createGroupsRouter(): Router {
       res.status(402).json({
         error: 'Payment Required',
         message: `Free plan limit: ${MAX_GROUPS_PER_TEACHER} active groups. Archive one, or contact us to raise the cap.`,
+        messageKey: 'teacher.billing.groupCap',
+        messageArgs: { limit: MAX_GROUPS_PER_TEACHER },
         code: 'group_cap',
         limit: MAX_GROUPS_PER_TEACHER,
       });
@@ -451,6 +455,8 @@ export function createGroupsRouter(): Router {
       res.status(402).json({
         error: 'Payment Required',
         message: `Free plan limit: ${MAX_MEMBERS_PER_GROUP} students per group.`,
+        messageKey: 'teacher.billing.memberCapTeacher',
+        messageArgs: { limit: MAX_MEMBERS_PER_GROUP },
         code: 'member_cap',
         limit: MAX_MEMBERS_PER_GROUP,
       });

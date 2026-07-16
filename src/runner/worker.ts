@@ -5,6 +5,9 @@ import { executeDrawCommands } from "./canvasRenderer";
 
 let pyodide: PyodideInterface | null = null;
 let offscreen: OffscreenCanvas | null = null;
+// Buffer matplotlib PNGs that arrive before the canvas is attached; drained
+// as soon as attach_canvas lands.
+let pendingMatplotlibFigures: Uint8Array[] = [];
 let activePaths: string[] = [];
 let pendingInterruptBuffer: Uint8Array | null = null;
 let pendingOffscreen: OffscreenCanvas | null = null;
@@ -64,6 +67,42 @@ self.addEventListener("error", (e) =>
 self.addEventListener("unhandledrejection", (e) =>
   console.error("Worker unhandled rejection:", e.reason),
 );
+
+async function drawMatplotlibFigure(pngBytes: Uint8Array): Promise<void> {
+  if (!offscreen) return;
+  try {
+    // Copy into a fresh ArrayBuffer so Blob can type-check (Uint8Array
+    // over SharedArrayBuffer is not a valid BlobPart under strict TS).
+    const buf = new ArrayBuffer(pngBytes.byteLength);
+    new Uint8Array(buf).set(pngBytes);
+    const blob = new Blob([buf], { type: "image/png" });
+    const bmp = await createImageBitmap(blob);
+    const ctx = offscreen.getContext("2d");
+    if (!ctx) return;
+    const cw = offscreen.width;
+    const ch = offscreen.height;
+    ctx.fillStyle = "#0a1414";
+    ctx.fillRect(0, 0, cw, ch);
+    const scale = Math.min(cw / bmp.width, ch / bmp.height);
+    const dw = bmp.width * scale;
+    const dh = bmp.height * scale;
+    const dx = (cw - dw) / 2;
+    const dy = (ch - dh) / 2;
+    ctx.drawImage(bmp, dx, dy, dw, dh);
+    bmp.close();
+  } catch (err) {
+    console.warn("matplotlib blit failed:", err);
+  }
+}
+
+function drainPendingMatplotlib() {
+  if (!offscreen || pendingMatplotlibFigures.length === 0) return;
+  const batch = pendingMatplotlibFigures;
+  pendingMatplotlibFigures = [];
+  for (const bytes of batch) {
+    void drawMatplotlibFigure(bytes);
+  }
+}
 
 async function ensurePyodide(): Promise<PyodideInterface> {
   if (pyodide) return pyodide;
@@ -236,6 +275,20 @@ async function initPyodide(
     if (frameNum >= 0) maybeCaptureRewindFrame(frameNum);
   });
 
+  // _ide_matplotlib_figure: called from the plt.show() shim with a PNG byte
+  // array. Fit-to-canvas blit onto the IDE canvas, letterboxed on the darker
+  // background so aspect ratio is preserved.
+  p.globals.set("_ide_matplotlib_figure", (pngBytes: Uint8Array) => {
+    // Copy off Pyodide's memory into a JS-owned buffer; the source view is
+    // invalidated the moment we await.
+    const owned = new Uint8Array(pngBytes);
+    if (!offscreen) {
+      pendingMatplotlibFigures.push(owned);
+      return;
+    }
+    void drawMatplotlibFigure(owned);
+  });
+
   // Expose all callbacks on the js module and inline stdout/input setup
   await p.runPythonAsync(`
 import sys
@@ -248,6 +301,7 @@ js._ide_post_input_request = _ide_post_input_request
 js._ide_canvas_resize = _ide_canvas_resize
 js._ide_resolve_input = _ide_resolve_input
 js._ide_flush_draw_commands = _ide_flush_draw_commands
+js._ide_matplotlib_figure = _ide_matplotlib_figure
 js._ide_post_sound = _ide_post_sound
 js._ide_post_runtime_error = _ide_post_runtime_error
 js._ide_notify_loop_ended = _ide_notify_loop_ended
@@ -697,6 +751,50 @@ except Exception:
   }
 }
 
+async function loadUserPackages(p: PyodideInterface, files: Record<string, string>) {
+  // Scan every user file for top-level imports and pull matching Pyodide
+  // packages (numpy, matplotlib, pandas, scipy, sympy, etc.) from the lock.
+  // Best-effort: a missing package must not abort the run — user gets a
+  // normal ModuleNotFoundError at import time via the friendly error hook.
+  const combined = Object.values(files).join("\n\n");
+  try {
+    await p.loadPackagesFromImports(combined, {
+      messageCallback: () => {},
+      errorCallback: (msg: string) => console.warn("loadPackagesFromImports:", msg),
+    });
+  } catch (err) {
+    console.warn("loadPackagesFromImports failed:", err);
+  }
+
+  // If matplotlib is now available, install a headless Agg backend and
+  // redirect plt.show() to render each open figure to the IDE canvas via
+  // _ide_matplotlib_figure. Safe to run every time — idempotent.
+  if (/\bmatplotlib\b/.test(combined)) {
+    try {
+      await p.runPythonAsync(`
+import matplotlib
+matplotlib.use("Agg", force=True)
+import matplotlib.pyplot as _plt
+import io as _io, js as _js
+
+if not getattr(_plt, "_pi3_show_installed", False):
+    _orig_show = _plt.show
+    def _pi3_show(*_a, **_kw):
+        for _num in _plt.get_fignums():
+            _fig = _plt.figure(_num)
+            _buf = _io.BytesIO()
+            _fig.savefig(_buf, format="png", dpi=100, bbox_inches="tight")
+            _js._ide_matplotlib_figure(_buf.getvalue())
+        _plt.close("all")
+    _plt.show = _pi3_show
+    _plt._pi3_show_installed = True
+`);
+    } catch (err) {
+      console.warn("matplotlib shim install failed:", err);
+    }
+  }
+}
+
 async function runScript(
   p: PyodideInterface,
   files: Record<string, string>,
@@ -712,10 +810,17 @@ async function runScript(
 
   p.globals.set("_using_graphics", false);
 
+  await loadUserPackages(p, files);
+
   if (usesNewGraphics(code)) {
     await runGraphicsScript(p, files, assets, tilemaps, soundNames, sheet, entry, showHitboxes, showActorInfo);
     return;
   }
+
+  // Plain script that imports matplotlib: needs the IDE canvas panel visible
+  // so plt.show() has somewhere to blit. Detect before start.
+  const combined = Object.values(files).join("\n\n");
+  const wantsMatplotlibCanvas = /^[^#'"]*\b(?:import\s+matplotlib|from\s+matplotlib)\b/m.test(combined);
 
   // Register known symbols for the error hook
   await registerKnownSymbols(p);
@@ -783,7 +888,7 @@ _gs._debug_frames.clear()
 _gs._debug_fresh_slots.clear()
 `);
 
-  post({ type: "start", canvasActive: false });
+  post({ type: "start", canvasActive: wantsMatplotlibCanvas });
   await p.runPythonAsync(asyncCode);
 
   // Check for structured error
@@ -842,6 +947,7 @@ self.onmessage = async (e: MessageEvent<WorkerCommand>) => {
   } else if (msg.cmd === "attach_canvas") {
     offscreen = msg.canvas;
     if (!pyodide) pendingOffscreen = msg.canvas;
+    drainPendingMatplotlib();
   } else if (msg.cmd === "run") {
     try {
       const p = await ensurePyodide();

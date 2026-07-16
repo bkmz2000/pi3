@@ -16,6 +16,7 @@ export function createTestDb(): Database.Database {
       password_hash TEXT,
       handle TEXT,
       handle_seq INTEGER,
+      freeze_updates INTEGER NOT NULL DEFAULT 0,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
     );
@@ -208,6 +209,16 @@ export function createTestDb(): Database.Database {
       UNIQUE(snapshot_id, viewer_id)
     );
     CREATE INDEX IF NOT EXISTS idx_snapshot_views_snapshot ON snapshot_views(snapshot_id);
+
+    CREATE TABLE IF NOT EXISTS live_presence (
+      student_id   TEXT NOT NULL,
+      project_id   TEXT NOT NULL,
+      file         TEXT NOT NULL,
+      cursor_line  INTEGER NOT NULL,
+      updated_at   INTEGER NOT NULL,
+      PRIMARY KEY (student_id, project_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_live_presence_updated ON live_presence (updated_at);
   `);
 
   const client = createSqliteClient(db);

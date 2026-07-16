@@ -211,16 +211,18 @@ export async function initDb(): Promise<void> {
           handle_seq INTEGER,
           oauth_provider_id TEXT,
           email TEXT,
+          freeze_updates INTEGER NOT NULL DEFAULT 0,
           created_at INTEGER NOT NULL,
           updated_at INTEGER NOT NULL
         )` },
-        { sql: `INSERT INTO users_new (id, api_token, name, role, password_hash, handle, handle_seq, oauth_provider_id, email, created_at, updated_at)
+        { sql: `INSERT INTO users_new (id, api_token, name, role, password_hash, handle, handle_seq, oauth_provider_id, email, freeze_updates, created_at, updated_at)
           SELECT id, api_token, name, role,
                  ${optCol('password_hash', has('password_hash'))},
                  ${optCol('handle', has('handle'))},
                  ${optCol('handle_seq', has('handle_seq'))},
                  ${optCol('oauth_provider_id', has('oauth_provider_id'))},
                  ${optCol('email', has('email'))},
+                 ${has('freeze_updates') ? 'freeze_updates' : '0 AS freeze_updates'},
                  created_at, updated_at FROM users` },
         { sql: `DROP TABLE users` },
         { sql: `ALTER TABLE users_new RENAME TO users` },

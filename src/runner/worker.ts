@@ -11,6 +11,10 @@ let offscreen: OffscreenCanvas | null = null;
 const pendingMatplotlibFigures = new PendingMatplotlibBuffer();
 let activePaths: string[] = [];
 let pendingInterruptBuffer: Uint8Array | null = null;
+// Live reference to the interrupt buffer so the `interrupt` handler can clear
+// the pending SIGINT before running its own cleanup Python (otherwise that
+// cleanup itself raises KeyboardInterrupt and never finishes).
+let activeInterruptBuffer: Uint8Array | null = null;
 let pendingOffscreen: OffscreenCanvas | null = null;
 
 // JS-side asset stores — ImageBitmaps never enter Pyodide
@@ -332,6 +336,7 @@ import error_hook
 
   if (pendingInterruptBuffer) {
     p.setInterruptBuffer(pendingInterruptBuffer);
+    activeInterruptBuffer = pendingInterruptBuffer;
     pendingInterruptBuffer = null;
   }
   if (pendingOffscreen) {
@@ -817,8 +822,13 @@ async function runScript(
   // JS without ever reaching classify_error. Running compile() here first catches it
   // and routes it through the friendly classifier (e.g. grammar.missingColon).
   await p.runPythonAsync(`import error_hook as _eh
+import ast as _ast
 try:
-    compile(${JSON.stringify(transformed)}, ${JSON.stringify(filename)}, 'exec')
+    # PyCF_ALLOW_TOP_LEVEL_AWAIT: the input() rewrite turns input(...) into a
+    # top-level 'await _async_input(...)'. Without this flag compile() would
+    # raise "'await' outside function" and misclassify every input() program
+    # as a student SyntaxError.
+    compile(${JSON.stringify(transformed)}, ${JSON.stringify(filename)}, 'exec', flags=_ast.PyCF_ALLOW_TOP_LEVEL_AWAIT)
 except SyntaxError as _se:
     _last_structured_error = _eh.classify_error(_se, ${JSON.stringify(code)}, ${JSON.stringify(filename)})`);
   {
@@ -958,6 +968,11 @@ self.onmessage = async (e: MessageEvent<WorkerCommand>) => {
     }
   } else if (msg.cmd === "interrupt") {
     if (!pyodide) return;
+    // Clear the pending SIGINT first: the graphics stop/clear (and the stdout
+    // drain below) run Python, and a still-armed interrupt buffer would raise
+    // KeyboardInterrupt at their first bytecode — aborting cleanup so the frame
+    // loop's pending setTimeout is never cancelled and printing continues.
+    if (activeInterruptBuffer) activeInterruptBuffer[0] = 0;
     try {
       const usingGraphics = pyodide.globals.get("_using_graphics");
       if (usingGraphics) {
@@ -992,8 +1007,13 @@ self.onmessage = async (e: MessageEvent<WorkerCommand>) => {
     if (!pyodide) return;
     pyodide.globals.get("_ide_resolve_input")?.(msg.value);
   } else if (msg.cmd === "set_interrupt_buffer") {
-    if (pyodide) pyodide.setInterruptBuffer(new Uint8Array(msg.buffer));
-    else pendingInterruptBuffer = new Uint8Array(msg.buffer);
+    if (pyodide) {
+      const buf = new Uint8Array(msg.buffer);
+      pyodide.setInterruptBuffer(buf);
+      activeInterruptBuffer = buf;
+    } else {
+      pendingInterruptBuffer = new Uint8Array(msg.buffer);
+    }
   } else if (msg.cmd === "lint") {
     const { reqId } = msg;
     if (!pyodide) {

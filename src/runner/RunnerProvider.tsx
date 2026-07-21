@@ -32,6 +32,10 @@ type OutputLine = {
   kind: "stdout" | "stderr";
   text: string;
 } | {
+  kind: "input";
+  prompt: string;
+  value: string;
+} | {
   kind: "error_card";
   error: RuntimeError;
 };
@@ -336,7 +340,14 @@ export const useRunnerStore = create<RunnerState>((set) => ({
   },
 
   respondToInput: (value) => {
-    set({ inputPrompt: null });
+    // Echo the prompt + typed answer into the transcript so it survives after
+    // the live input row is torn down (otherwise the prompt line vanishes on
+    // Enter and the console jumps straight to the next print()).
+    const prompt = useRunnerStore.getState().inputPrompt ?? "";
+    set((s) => ({
+      inputPrompt: null,
+      output: [...s.output, { kind: "input", prompt, value }],
+    }));
     getWorker().postMessage({
       cmd: "input_response",
       value,
@@ -432,10 +443,14 @@ function flushNow() {
   outputQueue = [];
 
   const store = useRunnerStore.getState();
+  // Each chunk already carries its own newline(s) — concatenate the stream
+  // verbatim (joining with "\n" would inject a blank line between chunks).
+  // Each batch renders as its own block <div>, so a single trailing newline
+  // is redundant and would show as a blank line between batches.
   if (stdoutLines.length)
-    store._appendOutput("stdout", stdoutLines.join("\n"));
+    store._appendOutput("stdout", stdoutLines.join("").replace(/\n$/, ""));
   if (stderrLines.length)
-    store._appendOutput("stderr", stderrLines.join("\n"));
+    store._appendOutput("stderr", stderrLines.join("").replace(/\n$/, ""));
 }
 
 function scheduleFlush() {
@@ -467,10 +482,11 @@ function scheduleFlush() {
     outputQueue = [];
 
     const store = useRunnerStore.getState();
+    // See flushNow: join verbatim, drop the redundant trailing newline.
     if (stdoutLines.length)
-      store._appendOutput("stdout", stdoutLines.join("\n"));
+      store._appendOutput("stdout", stdoutLines.join("").replace(/\n$/, ""));
     if (stderrLines.length)
-      store._appendOutput("stderr", stderrLines.join("\n"));
+      store._appendOutput("stderr", stderrLines.join("").replace(/\n$/, ""));
   });
 }
 

@@ -415,6 +415,7 @@ export default function ConsolePanel({ onRight = false }: { onRight?: boolean })
     const text = output
       .map((l) => {
         if (l.kind === "error_card") return `[${l.error.title ?? l.error.titleKey}] ${l.error.message ?? l.error.messageKey ?? ""}`;
+        if (l.kind === "input") return l.prompt + l.value;
         return l.text;
       })
       .join("\n");
@@ -596,6 +597,16 @@ export default function ConsolePanel({ onRight = false }: { onRight?: boolean })
           if (line.kind === "error_card") {
             return <ErrorCard key={i} error={line.error} />;
           }
+          if (line.kind === "input") {
+            return (
+              <div key={i} style={{ color: theme.consoleTxt, display: "flex", gap: 10 }}>
+                <span style={{ whiteSpace: "pre-wrap" }}>
+                  {line.prompt}
+                  <span style={{ color: theme.consoleInfo }}>{line.value}</span>
+                </span>
+              </div>
+            );
+          }
           return (
             <div
               key={i}
@@ -617,10 +628,12 @@ export default function ConsolePanel({ onRight = false }: { onRight?: boolean })
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") submit(); }}
+              // Small by default; grow with what's typed (capped by the row).
+              size={Math.max(inputValue.length + 1, 4)}
               style={{
                 all: "unset",
-                flex: 1,
                 minWidth: 0,
+                maxWidth: "100%",
                 fontFamily: theme.fontMono,
                 fontSize: 12.5,
                 color: theme.consoleTxt,

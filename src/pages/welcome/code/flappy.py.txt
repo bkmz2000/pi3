@@ -58,7 +58,7 @@ def draw():
     text(f"Score: {score}", 10, 10)
 
     if game_over:
-        say("Game over — press R", "center")
+        say("Game over — press R", Window.center)
         if Keyboard.r.pressed:
             game_over = False
             bird_y, bird_vy, score = 240, 0, 0

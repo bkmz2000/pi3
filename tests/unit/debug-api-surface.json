@@ -6,10 +6,12 @@
     "cell",
     "grid",
     "label",
+    "named",
     "queue",
     "range",
     "set",
     "show",
+    "singles",
     "stack",
     "text"
   ]

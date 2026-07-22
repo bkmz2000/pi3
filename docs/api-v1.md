@@ -47,6 +47,10 @@
 | `pick(seq)` | Function | Random item from a sequence |
 | `Mouse.pos` | Property | Mouse position as a `Vector2` |
 | `Timer` | Class | Now in `__all__` (previously existed but was undocumented) |
+| `push()` | Function | Save the current transform (matrix stack). Now in `__all__` (existed + rendered, but wasn't exported) |
+| `pop()` | Function | Restore the last saved transform |
+| `translate(x, y)` | Function | Shift the origin of following draws by (x, y) |
+| `rotate(angle)` | Function | Rotate following draws by `angle` radians around the origin |
 
 ## Pattern-based error hints (Phase E)
 

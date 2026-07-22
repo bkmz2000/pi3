@@ -73,15 +73,28 @@ self.addEventListener("unhandledrejection", (e) =>
   console.error("Worker unhandled rejection:", e.reason),
 );
 
+let matplotlibFiguresDrawn = 0;
+const matplotlibBlitInflight: Promise<void>[] = [];
+
 async function drawMatplotlibFigure(pngBytes: Uint8Array): Promise<void> {
-  const res = await blitPngToCanvas(pngBytes, offscreen, { createBitmap: createImageBitmap });
+  const res = await blitPngToCanvas(pngBytes, offscreen, { createBitmap: (b) => createImageBitmap(b) });
   if (!res.ok) console.warn("matplotlib blit failed:", res.reason);
+}
+
+function scheduleMatplotlibBlit(bytes: Uint8Array): void {
+  matplotlibFiguresDrawn++;
+  const p = drawMatplotlibFigure(bytes);
+  matplotlibBlitInflight.push(p);
+  void p.finally(() => {
+    const i = matplotlibBlitInflight.indexOf(p);
+    if (i >= 0) matplotlibBlitInflight.splice(i, 1);
+  });
 }
 
 function drainPendingMatplotlib() {
   if (!offscreen || pendingMatplotlibFigures.size() === 0) return;
   for (const bytes of pendingMatplotlibFigures.drain()) {
-    void drawMatplotlibFigure(bytes);
+    scheduleMatplotlibBlit(bytes);
   }
 }
 
@@ -267,7 +280,7 @@ async function initPyodide(
       pendingMatplotlibFigures.push(owned);
       return;
     }
-    void drawMatplotlibFigure(owned);
+    scheduleMatplotlibBlit(owned);
   });
 
   // Expose all callbacks on the js module and inline stdout/input setup
@@ -663,12 +676,10 @@ graphics._reset_run_state()
   clearRewindBuf();
   lastWatchValues = [];
 
-  // Apply watch auto-label transform (watch(x) → watch('x', x))
+  // Apply watch auto-label transform (watch(x) → watch('x', x)).
+  // Returns a compiled code object so line numbers stay aligned with source.
   p.globals.set("_transform_source", code);
-  const watchTransformed: string = await p.runPythonAsync(
-    `import watch_transform; watch_transform.transform(_transform_source)`
-  );
-  p.globals.delete("_transform_source");
+  p.globals.set("_transform_filename", filename);
 
   post({ type: "start", canvasActive: true });
 
@@ -678,19 +689,23 @@ graphics._reset_run_state()
   // to reject, and by the time the outer catch block called handleExecutionError,
   // p.globals access could fail silently.
   await p.runPythonAsync(`
-import error_hook
+import watch_transform, error_hook
 import json as _json
 
+_watch_code = watch_transform.transform(_transform_source, _transform_filename)
 _errored = False
 try:
-    exec(${JSON.stringify(watchTransformed)}, globals())
+    exec(_watch_code, globals())
 except KeyboardInterrupt:
     pass  # stop signal — no error output, no traceback
 except BaseException as _err:
     _errored = True
-    _structured = error_hook.classify_error(_err, ${JSON.stringify(code)}, ${JSON.stringify(filename)})
+    _structured = error_hook.classify_error(_err, _transform_source, _transform_filename)
     _last_structured_error = _structured
+del _watch_code
   `);
+  p.globals.delete("_transform_source");
+  p.globals.delete("_transform_filename");
 
   // Check for structured error first
   const structuredJs = p.globals.get("_last_structured_error");
@@ -733,19 +748,72 @@ except Exception:
   }
 }
 
+type CdnLock = {
+  packages: Record<string, { file_name: string; imports: string[]; depends: string[] }>;
+};
+
+let cdnLockPromise: Promise<CdnLock | null> | null = null;
+
+function fetchCdnLock(): Promise<CdnLock | null> {
+  if (!cdnLockPromise) {
+    cdnLockPromise = fetch(new URL("pyodide-lock.json", PYODIDE_CDN).toString())
+      .then((r) => (r.ok ? (r.json() as Promise<CdnLock>) : null))
+      .catch(() => null);
+  }
+  return cdnLockPromise;
+}
+
 async function loadUserPackages(p: PyodideInterface, files: Record<string, string>) {
-  // Scan every user file for top-level imports and pull matching Pyodide
-  // packages (numpy, matplotlib, pandas, scipy, sympy, etc.) from the lock.
-  // Best-effort: a missing package must not abort the run — user gets a
-  // normal ModuleNotFoundError at import time via the friendly error hook.
+  // The local /pyodide/ bundle ships only core runtime files (no wheels).
+  // loadPackagesFromImports would resolve against indexURL (local) and 404
+  // on every .whl (SRI mismatch on Vite's SPA fallback HTML). Skip it and
+  // load packages directly from CDN via full-URL loadPackage (which bypasses
+  // the lock-integrity check).
   const combined = Object.values(files).join("\n\n");
-  try {
-    await p.loadPackagesFromImports(combined, {
-      messageCallback: () => {},
-      errorCallback: (msg: string) => console.warn("loadPackagesFromImports:", msg),
-    });
-  } catch (err) {
-    console.warn("loadPackagesFromImports failed:", err);
+  const lock = await fetchCdnLock();
+  if (!lock) {
+    console.warn("Pyodide lock unavailable — packages will not load");
+    return;
+  }
+
+  const importToPkg = new Map<string, string>();
+  for (const [pkgName, meta] of Object.entries(lock.packages)) {
+    for (const imp of meta.imports || []) importToPkg.set(imp, pkgName);
+  }
+
+  const wanted = await p.runPythonAsync(`
+import re
+_src = ${JSON.stringify(combined)}
+_names = set()
+for m in re.finditer(r'^\\s*(?:import|from)\\s+([\\w\\.]+)', _src, re.M):
+    _names.add(m.group(1).split('.')[0])
+list(_names)
+`);
+  const wantedList: string[] = wanted.toJs ? wanted.toJs() : Array.from(wanted as Iterable<string>);
+  if (wanted.destroy) wanted.destroy();
+
+  const needed = new Set<string>();
+  const addPkg = (pkg: string) => {
+    if (needed.has(pkg) || !lock.packages[pkg]) return;
+    needed.add(pkg);
+    for (const dep of lock.packages[pkg].depends || []) addPkg(dep);
+  };
+  for (const mod of wantedList) {
+    const pkg = importToPkg.get(mod);
+    if (pkg) addPkg(pkg);
+  }
+
+  if (needed.size > 0) {
+    const urls = Array.from(needed).map((n) => `${PYODIDE_CDN}${lock.packages[n].file_name}`);
+    console.log("Loading packages from CDN:", Array.from(needed).join(", "));
+    try {
+      await p.loadPackage(urls, {
+        messageCallback: () => {},
+        errorCallback: (msg: string) => console.warn("CDN loadPackage:", msg),
+      });
+    } catch (err) {
+      console.warn("CDN loadPackage failed:", err);
+    }
   }
 
   // If matplotlib is now available, install a headless Agg backend and
@@ -791,6 +859,7 @@ async function runScript(
   const code = files[entry] ?? "";
 
   p.globals.set("_using_graphics", false);
+  matplotlibFiguresDrawn = 0;
 
   await loadUserPackages(p, files);
 
@@ -911,7 +980,12 @@ except Exception:
 
   // A3: drain trailing stdout/stderr.
   try { p.runPython("import sys; sys.stdout.flush(); sys.stderr.flush()"); } catch { /* ignore */ }
-  post({ type: "result" });
+  // Wait for any pending matplotlib blits so the canvas holds the figure
+  // before the runner marks the run complete.
+  if (matplotlibBlitInflight.length > 0) {
+    await Promise.allSettled([...matplotlibBlitInflight]);
+  }
+  post({ type: "result", keepCanvas: matplotlibFiguresDrawn > 0 });
 }
 
 self.onmessage = async (e: MessageEvent<WorkerCommand>) => {

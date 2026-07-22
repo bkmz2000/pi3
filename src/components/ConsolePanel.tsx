@@ -414,7 +414,13 @@ export default function ConsolePanel({ onRight = false }: { onRight?: boolean })
   const handleCopyConsole = () => {
     const text = output
       .map((l) => {
-        if (l.kind === "error_card") return `[${l.error.title ?? l.error.titleKey}] ${l.error.message ?? l.error.messageKey ?? ""}`;
+        if (l.kind === "error_card") {
+          const title = l.error.titleKey ? t(l.error.titleKey) : (l.error.title ?? "");
+          const message = l.error.messageKey
+            ? t(l.error.messageKey, l.error.messageArgs)
+            : (l.error.message ?? "");
+          return `[${title}] ${message}`;
+        }
         if (l.kind === "input") return l.prompt + l.value;
         return l.text;
       })

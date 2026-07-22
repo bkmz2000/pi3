@@ -152,7 +152,11 @@ export const useRunnerStore = create<RunnerState>((set) => ({
       }
       case "result": {
         stopAllSounds();
-        set({ running: false, inputPrompt: null, canvasActive: false });
+        set({
+          running: false,
+          inputPrompt: null,
+          canvasActive: msg.keepCanvas === true ? useRunnerStore.getState().canvasActive : false,
+        });
         break;
       }
       case "interrupt_ack": {

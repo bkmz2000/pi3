@@ -354,9 +354,18 @@ export default function Rail() {
         <div style={{ position: "relative", marginTop: 4, marginBottom: 4 }}>
           <button
             type="button"
-            onClick={() => {
+            onClick={(e) => {
               if (running) setTransitioning(true);
               handleRunToggle();
+              // Drop focus so a game that uses Space/Enter as a control doesn't
+              // re-trigger this button (native button keyboard activation) and
+              // kill its own run.
+              e.currentTarget.blur();
+            }}
+            onKeyDown={(e) => {
+              // Belt-and-suspenders: if the button still has focus, don't let
+              // Space/Enter activate it — those are common in-game keys.
+              if (e.key === ' ' || e.key === 'Enter') e.preventDefault();
             }}
             aria-label={isRunning ? t('sideMenu.stop') : t('sideMenu.run')}
             title={isRunning ? t('sideMenu.stop') : t('sideMenu.run')}

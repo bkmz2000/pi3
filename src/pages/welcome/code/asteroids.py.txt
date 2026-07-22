@@ -73,7 +73,7 @@ def draw():
 
     push()
     translate(ship_x, ship_y)
-    rotate(math.radians(ship_angle))
+    rotate(ship_angle)
     image(SHIP, -8, -8)
     pop()
 

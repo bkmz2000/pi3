@@ -1,6 +1,7 @@
 import { renderHook } from '@testing-library/react';
 import { act } from 'react';
 import { usePresencePinger } from '../../src/state/usePresencePinger';
+import { useLiveSession } from '../../src/state/useLiveSession';
 
 jest.mock('../../src/state/api', () => ({
   postLivePresence: jest.fn().mockResolvedValue(undefined),
@@ -9,13 +10,13 @@ jest.mock('../../src/state/api', () => ({
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { postLivePresence } = require('../../src/state/api') as { postLivePresence: jest.Mock };
 
-function fakeEditorRef(line = 5) {
+function fakeEditorRef(line = 5, text = 'print(1)') {
   return {
     current: {
       view: {
         state: {
           selection: { main: { head: 0 } },
-          doc: { lineAt: () => ({ number: line }) },
+          doc: { lineAt: () => ({ number: line }), lines: line, toString: () => text },
         },
       },
     },
@@ -26,6 +27,7 @@ describe('usePresencePinger', () => {
   beforeEach(() => {
     jest.useFakeTimers();
     postLivePresence.mockClear();
+    useLiveSession.setState({ token: null, sid: null, role: null, expiresAt: null });
   });
   afterEach(() => {
     jest.useRealTimers();
@@ -37,7 +39,7 @@ describe('usePresencePinger', () => {
     expect(postLivePresence).not.toHaveBeenCalled();
   });
 
-  it('does nothing for example sessions', () => {
+  it('does nothing for example sessions (with no live session active)', () => {
     renderHook(() => usePresencePinger({
       projectId: '__example_session_flappy',
       currentFile: 'main.py',
@@ -48,7 +50,7 @@ describe('usePresencePinger', () => {
     expect(postLivePresence).not.toHaveBeenCalled();
   });
 
-  it('does nothing when projectId is null', () => {
+  it('does nothing when projectId is null and no session is active', () => {
     renderHook(() => usePresencePinger({
       projectId: null,
       currentFile: 'main.py',
@@ -59,20 +61,49 @@ describe('usePresencePinger', () => {
     expect(postLivePresence).not.toHaveBeenCalled();
   });
 
-  it('pings immediately and again on interval for a real project', () => {
+  it('pings immediately with content + null session, then again on interval', () => {
     renderHook(() => usePresencePinger({
       projectId: 'proj-42',
       currentFile: 'game.py',
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      editorRef: fakeEditorRef(7) as any,
+      editorRef: fakeEditorRef(7, 'x = 1') as any,
       loggedIn: true,
     }));
-    // immediate tick
-    expect(postLivePresence).toHaveBeenCalledWith('proj-42', 'game.py', 7);
-    act(() => {
-      jest.advanceTimersByTime(3000);
-    });
+    expect(postLivePresence).toHaveBeenCalledWith('proj-42', 'game.py', 7, expect.objectContaining({
+      content: 'x = 1',
+      sessionId: null,
+    }));
+    act(() => { jest.advanceTimersByTime(3000); });
     expect(postLivePresence).toHaveBeenCalledTimes(2);
+  });
+
+  it('omits content on the second ping when the buffer is unchanged (skip-unchanged)', () => {
+    renderHook(() => usePresencePinger({
+      projectId: 'proj-42',
+      currentFile: 'game.py',
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      editorRef: fakeEditorRef(7, 'stable') as any,
+      loggedIn: true,
+    }));
+    // First ping carries content.
+    expect(postLivePresence.mock.calls[0][3]).toHaveProperty('content', 'stable');
+    act(() => { jest.advanceTimersByTime(3000); });
+    // Second ping (unchanged) omits content entirely.
+    expect(postLivePresence.mock.calls[1][3]).not.toHaveProperty('content');
+  });
+
+  it('stamps the active session id and pings even without a real project', () => {
+    useLiveSession.setState({ token: 'tok', sid: 'sess-xyz', role: 'starter', expiresAt: Date.now() + 1000 });
+    renderHook(() => usePresencePinger({
+      projectId: null,
+      currentFile: 'main.py',
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      editorRef: fakeEditorRef(2, 'code') as any,
+      loggedIn: true,
+    }));
+    expect(postLivePresence).toHaveBeenCalledWith('session:sess-xyz', 'main.py', 2, expect.objectContaining({
+      sessionId: 'sess-xyz',
+    }));
   });
 
   it('cleans up the interval on unmount', () => {
@@ -85,9 +116,7 @@ describe('usePresencePinger', () => {
     }));
     postLivePresence.mockClear();
     unmount();
-    act(() => {
-      jest.advanceTimersByTime(10000);
-    });
+    act(() => { jest.advanceTimersByTime(10000); });
     expect(postLivePresence).not.toHaveBeenCalled();
   });
 
@@ -99,7 +128,7 @@ describe('usePresencePinger', () => {
       editorRef: fakeEditorRef(3) as any,
       loggedIn: true,
     }));
-    expect(postLivePresence).toHaveBeenCalledWith('proj-1', 'main.py', 3);
+    expect(postLivePresence).toHaveBeenCalledWith('proj-1', 'main.py', 3, expect.anything());
   });
 
   it('swallows postLivePresence rejections', async () => {
@@ -111,7 +140,6 @@ describe('usePresencePinger', () => {
       editorRef: fakeEditorRef() as any,
       loggedIn: true,
     }));
-    // Give the microtask queue a spin so the rejection surfaces.
     await act(async () => { await Promise.resolve(); });
     expect(postLivePresence).toHaveBeenCalled();
   });

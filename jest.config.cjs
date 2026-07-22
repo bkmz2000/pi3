@@ -54,11 +54,13 @@ const config = {
       lines: 27,
       statements: 27,
     },
+    // Bumped after the live-code / live-session tier (useLiveSession 100%,
+    // usePresencePinger content+session paths).
     './src/state/': {
       branches: 48,
-      functions: 45,
-      lines: 50,
-      statements: 50,
+      functions: 47,
+      lines: 52,
+      statements: 52,
     },
     './src/utils/': {
       branches: 50,
@@ -66,11 +68,14 @@ const config = {
       lines: 70,
       statements: 70,
     },
+    // Bumped after the live-code runner tier (RunnerProvider message-handler
+    // branches: result.keepCanvas, start/canvas_resize/input_request, error +
+    // runtime_error channels, sound routing, store actions).
     './src/runner/': {
-      branches: 24,
-      functions: 15,
-      lines: 31,
-      statements: 29,
+      branches: 35,
+      functions: 31,
+      lines: 38,
+      statements: 37,
     },
   },
 };

@@ -833,6 +833,19 @@
       "recipe_scatter_randomly_intro": "Pick random numbers and colors; scatter tiles across a TileGroup."
     }
   },
+  "session": {
+    "start": "Start live session",
+    "starting": "Starting…",
+    "hosting": "Hosting session",
+    "joined": "In session",
+    "copyLink": "Copy join link",
+    "copied": "Link copied",
+    "groupView": "Group view",
+    "leave": "Leave",
+    "empty": "No one here yet — share the join link.",
+    "selectMember": "Select someone to see their code.",
+    "react": "React"
+  },
   "teacher": {
     "dashboard": "Teacher Dashboard",
     "navLabel": "Teacher",
@@ -852,6 +865,9 @@
     "ago": "ago",
     "notActive": "not active",
     "liveRoster": "Live activity",
+    "line": "line",
+    "close": "Close",
+    "noLiveCode": "No live code yet — waiting for the first edit.",
     "freezeUpdates": "Freeze updates",
     "freezeUpdatesHint": "Lock the running version. New releases won't install until you unfreeze — keeps a lesson plan stable through the year.",
     "billing": {
@@ -1114,6 +1130,7 @@
       "undefinedWithCandidate": "The name '{{name}}' isn't recognized. Did you mean '{{candidate}}'?",
       "undefinedWithCandidates": "The name '{{name}}' isn't recognized. Did you mean one of: {{candidates}}?",
       "noAttribute": "'{{object}}' has no '{{attr}}'.",
+      "noAttributeWithCandidate": "'{{object}}' has no '{{attr}}'. Did you mean '{{candidate}}'?",
       "unknownKey": "Unknown key '{{name}}'. Try Keyboard.arrow_left, Keyboard.space, Keyboard.a, or Keyboard.key_1.",
       "badColor": "Unknown color '{{color}}'. Use a name like Colors.red or Colors.blue, or a hex like '#ff0000'.",
       "noAnimation": "Sprite '{{sprite}}' has no animation '{{name}}'. Available: {{available}}.",

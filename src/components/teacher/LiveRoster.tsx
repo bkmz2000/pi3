@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useThemeStore } from '../../state/useTheme';
-import { getLiveGroup, type LivePresenceMember } from '../../state/api';
+import { getLiveGroup, getLiveMember, type LivePresenceMember, type LiveMemberBuffer } from '../../state/api';
 import { userLabel } from '../../utils/userDisplay';
+import { ReadOnlyCode } from '../ReadOnlyCode';
 
 const POLL_MS = 4000;
+const CODE_POLL_MS = 3000;
 
 /**
  * Live per-student activity for one group. Polls the server every few seconds
@@ -19,6 +21,8 @@ export function LiveRoster({ groupId }: { groupId: string }) {
   const [members, setMembers] = useState<LivePresenceMember[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [serverNow, setServerNow] = useState<number>(0);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [buffer, setBuffer] = useState<LiveMemberBuffer | null>(null);
   const cancelled = useRef(false);
 
   useEffect(() => {
@@ -49,6 +53,25 @@ export function LiveRoster({ groupId }: { groupId: string }) {
     };
   }, [groupId]);
 
+  // Master-detail: while a member is selected, poll only their buffer.
+  useEffect(() => {
+    if (!selectedId) { setBuffer(null); return; }
+    let stop = false;
+    let timer: number | null = null;
+    const tick = async () => {
+      try {
+        const b = await getLiveMember(groupId, selectedId);
+        if (!stop) setBuffer(b);
+      } catch {
+        /* best-effort; keep last buffer */
+      } finally {
+        if (!stop) timer = window.setTimeout(tick, CODE_POLL_MS);
+      }
+    };
+    void tick();
+    return () => { stop = true; if (timer) window.clearTimeout(timer); };
+  }, [selectedId, groupId]);
+
   if (members == null && !error) {
     return <div style={{ color: theme.panelTxtMute, fontSize: 13 }}>{t('sideMenu.loading')}</div>;
   }
@@ -62,6 +85,7 @@ export function LiveRoster({ groupId }: { groupId: string }) {
   // `server_now` from the last poll; avoids clock drift between teacher and
   // student devices. Ago-label refreshes on every poll (every POLL_MS).
   const now = serverNow || 0;
+  const selectedMember = selectedId ? members.find((m) => m.student_id === selectedId) ?? null : null;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -70,19 +94,28 @@ export function LiveRoster({ groupId }: { groupId: string }) {
         const ago = secs == null
           ? t('teacher.notActive')
           : secs <= 2 ? t('teacher.justNow') : `${secs}s ${t('teacher.ago')}`;
+        const selected = selectedId === m.student_id;
         return (
           <div
             key={m.student_id}
+            role="button"
+            tabIndex={0}
+            aria-pressed={selected}
+            onClick={() => setSelectedId(selected ? null : m.student_id)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedId(selected ? null : m.student_id); }
+            }}
             style={{
               display: 'flex',
               alignItems: 'center',
               gap: 10,
               padding: '8px 10px',
               borderRadius: 6,
-              background: theme.surfacePanel,
-              border: `1px solid ${theme.panelBorder}`,
+              cursor: 'pointer',
+              background: selected ? theme.chip : theme.surfacePanel,
+              border: `1px solid ${selected ? theme.accent : theme.panelBorder}`,
               opacity: m.idle ? 0.55 : 1,
-              transition: 'opacity 200ms',
+              transition: 'opacity 200ms, border-color 120ms',
             }}
           >
             <span
@@ -106,6 +139,32 @@ export function LiveRoster({ groupId }: { groupId: string }) {
           </div>
         );
       })}
+      {selectedMember && (
+        <div style={{ marginTop: 4, border: `1px solid ${theme.panelBorder}`, borderRadius: 6, overflow: 'hidden' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', background: theme.chip }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: theme.panelTxt }}>
+              {userLabel(selectedMember.student_name, selectedMember.student_handle)}
+            </span>
+            <span style={{ fontSize: 11, color: theme.panelTxtMute, fontFamily: theme.fontMono, flex: 1, minWidth: 0 }}>
+              {buffer?.file ?? selectedMember.file ?? '—'}
+              {buffer?.cursor_line != null && <> · {t('teacher.line')} {buffer.cursor_line}</>}
+            </span>
+            <button
+              type="button"
+              onClick={() => setSelectedId(null)}
+              title={t('teacher.close')}
+              style={{ all: 'unset', cursor: 'pointer', color: theme.panelTxtMute, padding: '0 4px' }}
+            >
+              ✕
+            </button>
+          </div>
+          <div style={{ height: 260, background: theme.surfacePanel }}>
+            {buffer?.content != null && buffer.content !== ''
+              ? <ReadOnlyCode content={buffer.content} cursorLine={buffer.cursor_line} height="260px" />
+              : <div style={{ padding: 12, fontSize: 12, color: theme.panelTxtMute }}>{t('teacher.noLiveCode')}</div>}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

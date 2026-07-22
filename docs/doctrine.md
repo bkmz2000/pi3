@@ -54,6 +54,18 @@ These principles are enforced in shared code that runs regardless of profile.
   (b) a per-account distinct-view count is met; a reviewer then approves
   or rejects.
 
+- **CORE-8: Live editor buffers are ephemeral telemetry, not snapshots.**
+  The live-code view (teacher dashboard + session group view) streams the
+  current file buffer via presence pings. It is a *single overwritten row per
+  student* (no history), size-capped, never scanned, never published, and never
+  attributed in a public projection — it is categorically distinct from a CORE-2
+  snapshot. A buffer is only ever readable inside a boundary that *already* grants
+  activity visibility: an owned group (institutional teacher) or a session the
+  reader holds a valid token for. Visibility inside a session is decided by the
+  token, not the profile — a `groupId`-bound (classroom) token is asymmetric
+  (only the starter reads peers); an unbound token is symmetric.
+  Implementation: `server/routes/live.ts`, migration `012_live_code.sql`.
+
 ---
 
 ## Profile: institutional (default) — persistent identity, teacher-directory
@@ -122,6 +134,15 @@ reconciliation plan.
   feature involving persistent handles, public profiles, follow/DM
   mechanics, or open cross-user leaderboards must be evaluated against
   this before being built.
+
+- **PUB-7: Session join is by signed link/token only — no short join codes.**
+  A live session (CORE-8) is joined by opening a link carrying the signed
+  session token (in the URL fragment, never the query). A *short, memorable*
+  join code was evaluated against PUB-6 and **rejected**: its only purpose is
+  casual shareability, which is exactly the broadcast-to-strangers vector PUB-6
+  guards. A signed link stays something you deliberately hand to a known person,
+  and adds no discovery surface (no directory, no enumeration). Revisit only via
+  an explicit PUB-6 amendment. Implementation: `server/routes/sessions.ts`.
 
 ---
 

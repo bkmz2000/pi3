@@ -28,6 +28,7 @@ import { WelcomePage } from "./pages/WelcomePage";
 import { isInstitutional } from "./state/deploymentProfile";
 import { useUser } from "./state/useUser";
 import { usePresencePinger } from "./state/usePresencePinger";
+import { SessionOverlay } from "./components/session/SessionOverlay";
 import { useTranslation } from "react-i18next";
 import ForkDialog from "./components/dialogs/ForkDialog";
 import { useThemeStore } from "./state/useTheme";
@@ -418,7 +419,7 @@ function AppInner() {
               canvas on the right regardless of where the console sits. */}
           <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "row" }}>
           <div
-            style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: consoleOnRight ? "row" : "column" }}
+            style={{ flex: 1, minWidth: 0, minHeight: 0, display: "flex", flexDirection: consoleOnRight ? "row" : "column" }}
             onClick={e => {
               const target = e.target as HTMLElement;
               if (!target.closest('.cm-comment-gutter') && !target.closest('[data-comment-popover]')) {
@@ -429,7 +430,7 @@ function AppInner() {
           >
             {/* Editor */}
             <div style={{
-              flex: 1, minWidth: 0, display: "flex", flexDirection: "column",
+              flex: 1, minWidth: 0, minHeight: 0, display: "flex", flexDirection: "column",
               background: theme.editorBg,
               position: "relative",
             }}>
@@ -513,6 +514,7 @@ function AppInner() {
           onSave={handleForkSave}
         />
       )}
+      {authStateLive === 'logged_in' && <SessionOverlay />}
     </div>
   );
 }

@@ -30,11 +30,21 @@ class _WatchLabeler(ast.NodeTransformer):
         return node
 
 
-def transform(source: str) -> str:
+def transform(source: str, filename: str = "<user>"):
+    # Return a compiled code object so line numbers stay aligned with the
+    # student's source. Earlier ast.unparse round-trip stripped blank lines
+    # and shifted every traceback location.
     try:
-        tree = ast.parse(source)
+        tree = ast.parse(source, filename=filename)
     except SyntaxError:
-        return source
-    new_tree = _WatchLabeler().visit(tree)
-    ast.fix_missing_locations(new_tree)
-    return ast.unparse(new_tree)
+        # Let exec raise the SyntaxError with correct location.
+        return compile(source, filename, "exec")
+    if any(
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "watch"
+        for node in ast.walk(tree)
+    ):
+        tree = _WatchLabeler().visit(tree)
+        ast.fix_missing_locations(tree)
+    return compile(tree, filename, "exec")

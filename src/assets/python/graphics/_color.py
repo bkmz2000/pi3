@@ -47,6 +47,18 @@ class _Colors:
     gray   = COLOR_NAMES["gray"]
     slate  = COLOR_NAMES["slate"]
 
+    def random(self, seed=None, exclude=None):
+        """Pick a palette color. Pass seed for deterministic choice; exclude to skip colors."""
+        import random as _random
+        palette = list(COLOR_NAMES.values())
+        if exclude:
+            excl = {_to_rgb(c) for c in exclude}
+            palette = [c for c in palette if c not in excl]
+        if not palette:
+            return (0, 0, 0)
+        rng = _random.Random(seed) if seed is not None else _random
+        return rng.choice(palette)
+
 
 Colors = _Colors()
 

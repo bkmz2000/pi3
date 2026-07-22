@@ -150,6 +150,9 @@ export type SlotSnapshot = {
   kind: "array" | "grid" | "text" | "stack" | "queue" | "set";
   data: unknown;
   highlights: Record<string, DebugSelectionAtom[]>;
+  strokes?: Record<string, DebugSelectionAtom[]>;
+  strokeWidth?: number;
+  legend?: Record<string, string>;
   labels: Record<string, string>;
   filename: string;
   line: number;
@@ -168,7 +171,7 @@ export type WorkerEvent =
   | { type: "start"; canvasActive: boolean }
   | { type: "stdout"; text: string }
   | { type: "stderr"; text: string }
-  | { type: "result" }
+  | { type: "result"; keepCanvas?: boolean }
   | { type: "error"; payload: { message: string; stack?: string; phase?: "init" | "exec" | "worker" } }
   | { type: "runtime_error"; error: RuntimeError }
   | { type: "input_request"; prompt: string }

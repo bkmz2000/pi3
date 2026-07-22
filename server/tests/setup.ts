@@ -216,9 +216,13 @@ export function createTestDb(): Database.Database {
       file         TEXT NOT NULL,
       cursor_line  INTEGER NOT NULL,
       updated_at   INTEGER NOT NULL,
+      content      TEXT,
+      content_hash TEXT,
+      session_id   TEXT,
       PRIMARY KEY (student_id, project_id)
     );
     CREATE INDEX IF NOT EXISTS idx_live_presence_updated ON live_presence (updated_at);
+    CREATE INDEX IF NOT EXISTS idx_live_presence_session ON live_presence (session_id);
   `);
 
   const client = createSqliteClient(db);

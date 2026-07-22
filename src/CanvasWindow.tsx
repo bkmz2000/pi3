@@ -63,60 +63,11 @@ export default function CanvasWindow() {
   };
   const ref = useRef<HTMLCanvasElement | null>(null);
   const windowRef = useRef<HTMLDivElement | null>(null);
-  const [pos, setPos] = useState({ x: 0, y: 0 });
-  const dragState = useRef<{
-    startX: number;
-    startY: number;
-    baseX: number;
-    baseY: number;
-  } | null>(null);
 
   useEffect(() => {
     attachCanvas(ref.current);
     return () => attachCanvas(null);
   }, [attachCanvas]);
-
-  // Clamp so the title bar never ends up outside the viewport (canvas resize or window resize)
-  useEffect(() => {
-    const clamp = () => {
-      if (!windowRef.current) return;
-      const rect = windowRef.current.getBoundingClientRect();
-      const dy = rect.top < 0 ? -rect.top : 0;
-      const dx = rect.left < 0 ? -rect.left : 0;
-      if (dx !== 0 || dy !== 0) setPos(p => ({ x: p.x + dx, y: p.y + dy }));
-    };
-    clamp();
-    window.addEventListener('resize', clamp);
-    return () => window.removeEventListener('resize', clamp);
-  }, [canvasWidth, canvasHeight]);
-
-  const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    dragState.current = {
-      startX: e.clientX,
-      startY: e.clientY,
-      baseX: pos.x,
-      baseY: pos.y,
-    };
-    (e.target as HTMLElement).setPointerCapture(e.pointerId);
-  };
-
-  const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!dragState.current) return;
-    const newX = dragState.current.baseX + e.clientX - dragState.current.startX;
-    let newY = dragState.current.baseY + e.clientY - dragState.current.startY;
-
-    if (windowRef.current) {
-      const rect = windowRef.current.getBoundingClientRect();
-      const projectedTop = rect.top + (newY - pos.y);
-      if (projectedTop < 0) newY -= projectedTop;
-    }
-
-    setPos({ x: newX, y: newY });
-  };
-
-  const onPointerUp = () => {
-    dragState.current = null;
-  };
 
   const w = canvasWidth > 0 ? canvasWidth : 300;
   const h = canvasHeight > 0 ? canvasHeight : 300;
@@ -124,8 +75,10 @@ export default function CanvasWindow() {
   useEffect(() => {
     const compute = () => {
       if (!canvasActive) { setVisualScale(1); return; }
-      const maxW = window.innerWidth * 0.85;
-      const maxH = (window.innerHeight - 60) * 0.85; // subtract approx title bar + console
+      // In-flow right column: keep the canvas from crowding out the editor.
+      // Cap to ~45% of the viewport width and the full height minus chrome.
+      const maxW = window.innerWidth * 0.45;
+      const maxH = window.innerHeight - 96; // title bar + filebar headroom
       const ws = w > maxW ? maxW / w : 1;
       const hs = h > maxH ? maxH / h : 1;
       setVisualScale(Math.min(ws, hs, 1));
@@ -163,9 +116,13 @@ export default function CanvasWindow() {
     <div
       ref={windowRef}
       style={{
-        position: "fixed",
-        right: 24,
-        bottom: 156,
+        // Docked as an in-flow right column so it reserves its own space and
+        // never floats over the editor/console. Collapses to zero width when
+        // there's nothing running, giving the editor the full width.
+        display: canvasActive ? "flex" : "none",
+        alignSelf: "center",
+        flex: "none",
+        margin: "12px 16px",
         width: `${visualW}px`,
         height: `${visualH + 30}px`, // +30 for title bar
         background: theme.canvasFrame,
@@ -174,19 +131,12 @@ export default function CanvasWindow() {
           "0 14px 40px rgba(0,0,0,0.28), 0 2px 6px rgba(0,0,0,0.12)",
         border: `1px solid ${theme.canvasBorder}`,
         overflow: "hidden",
-        display: "flex",
         flexDirection: "column",
-        zIndex: 20,
         transition: "opacity 0.3s",
         opacity: canvasActive ? 1 : 0,
-        pointerEvents: canvasActive ? "auto" : "none",
-        transform: `translate(${pos.x}px, ${pos.y}px)`,
       }}
     >
       <div
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
         style={{
           height: 30,
           padding: "0 10px 0 14px",
@@ -199,7 +149,6 @@ export default function CanvasWindow() {
           fontFamily: theme.fontUI,
           fontWeight: theme.weightUI + 100,
           fontSize: 12.5,
-          cursor: "grab",
           userSelect: "none",
         }}
       >

@@ -833,6 +833,19 @@
       "recipe_scatter_randomly_intro": "Получай случайные числа и цвета; разбрасывай тайлы по TileGroup."
     }
   },
+  "session": {
+    "start": "Начать сессию",
+    "starting": "Запуск…",
+    "hosting": "Ведёте сессию",
+    "joined": "В сессии",
+    "copyLink": "Скопировать ссылку",
+    "copied": "Ссылка скопирована",
+    "groupView": "Общий вид",
+    "leave": "Выйти",
+    "empty": "Пока никого — поделитесь ссылкой.",
+    "selectMember": "Выберите участника, чтобы увидеть код.",
+    "react": "Реакция"
+  },
   "teacher": {
     "dashboard": "Панель учителя",
     "navLabel": "Учитель",
@@ -852,6 +865,9 @@
     "ago": "назад",
     "notActive": "не активен",
     "liveRoster": "Активность",
+    "line": "строка",
+    "close": "Закрыть",
+    "noLiveCode": "Пока нет кода — ждём первого изменения.",
     "freezeUpdates": "Заморозить обновления",
     "freezeUpdatesHint": "Зафиксировать текущую версию. Новые релизы не установятся до разморозки — план урока стабилен весь год.",
     "billing": {
@@ -1113,7 +1129,8 @@
       "undefined": "Имя '{{name}}' не распознано.",
       "undefinedWithCandidate": "Имя '{{name}}' не распознано. Ты имеешь в виду '{{candidate}}'?",
       "undefinedWithCandidates": "Имя '{{name}}' не распознано. Ты имеешь в виду один из: {{candidates}}?",
-      "noAttribute": "'{{object}}' не имеет '{{attr}}'.",
+      "noAttribute": "У '{{object}}' нет '{{attr}}'.",
+      "noAttributeWithCandidate": "У '{{object}}' нет '{{attr}}'. Ты имеешь в виду '{{candidate}}'?",
       "unknownKey": "Неизвестная клавиша '{{name}}'. Попробуй Keyboard.arrow_left, Keyboard.space, Keyboard.a или Keyboard.key_1.",
       "badColor": "Неизвестный цвет '{{color}}'. Используй название вроде Colors.red или Colors.blue, или hex-код '#ff0000'.",
       "noAnimation": "У спрайта '{{sprite}}' нет анимации '{{name}}'. Доступные: {{available}}.",

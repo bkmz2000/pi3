@@ -77,6 +77,8 @@ ALL_MESSAGE_KEYS = [
     "friendlyError.naming.undefined",
     "friendlyError.naming.undefinedWithCandidate",
     "friendlyError.naming.undefinedWithCandidates",
+    "friendlyError.naming.noAttribute",
+    "friendlyError.naming.noAttributeWithCandidate",
     "friendlyError.naming.unknownKey",
     "friendlyError.naming.badColor",
     "friendlyError.naming.noAnimation",

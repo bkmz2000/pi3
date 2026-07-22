@@ -177,6 +177,20 @@ def _build_error_keys(
     msg = str(exc)
 
     if category == "naming":
+        # AttributeError: use noAttribute key so the object is named explicitly
+        # instead of falsely claiming the attribute is an undefined name.
+        if isinstance(exc, AttributeError):
+            m = re.search(r"'([^']+)' object has no attribute '([^']+)'", msg)
+            if m:
+                obj = m.group(1).lstrip("_")
+                attr = m.group(2)
+                nargs: dict = {"object": obj, "attr": attr}
+                if suggestions and suggestions[0].get("candidates"):
+                    cands = suggestions[0]["candidates"]
+                    if len(cands) == 1:
+                        nargs["candidate"] = cands[0]
+                        return ("friendlyError.naming.noAttributeWithCandidate", nargs)
+                return ("friendlyError.naming.noAttribute", nargs)
         # A5: fall back to raw name extraction when tokenization failed,
         # otherwise the error card renders empty (only a title).
         if not token:

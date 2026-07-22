@@ -271,16 +271,122 @@ export interface LivePresenceResponse {
   server_now: number;
 }
 
-export async function postLivePresence(projectId: string, file: string, cursorLine: number): Promise<void> {
+// One member's live editor buffer, fetched on selection (master-detail).
+export interface LiveMemberBuffer {
+  file: string | null;
+  cursor_line: number | null;
+  content: string | null;
+  updated_at: number | null;
+  idle: boolean;
+}
+
+// Lighter member row for a session roster (no project fields).
+export interface LiveSessionMember {
+  student_id: string;
+  student_name: string | null;
+  student_handle: string | null;
+  file: string | null;
+  cursor_line: number | null;
+  updated_at: number | null;
+  idle: boolean;
+}
+
+export interface LiveSessionRosterResponse {
+  members: LiveSessionMember[];
+  server_now: number;
+  role: 'starter' | 'joiner';
+}
+
+export interface PresencePayload {
+  content?: string;
+  contentHash?: string;
+  sessionId?: string | null;
+}
+
+export async function postLivePresence(
+  projectId: string,
+  file: string,
+  cursorLine: number,
+  extra: PresencePayload = {},
+): Promise<void> {
   await api.post<void>('/api/live/presence', {
     project_id: projectId,
     file,
     cursor_line: cursorLine,
+    // Omit content when unchanged so the server keeps the last buffer.
+    ...(extra.content != null ? { content: extra.content, content_hash: extra.contentHash } : {}),
+    session_id: extra.sessionId ?? null,
   });
 }
 
 export async function getLiveGroup(groupId: string): Promise<LivePresenceResponse> {
   return api.get<LivePresenceResponse>(`/api/live/group/${encodeURIComponent(groupId)}`);
+}
+
+export async function getLiveMember(groupId: string, studentId: string): Promise<LiveMemberBuffer> {
+  return api.get<LiveMemberBuffer>(
+    `/api/live/group/${encodeURIComponent(groupId)}/member/${encodeURIComponent(studentId)}`,
+  );
+}
+
+// ── Live sessions (public + institutional peer) ──────────────────────────
+
+export interface SessionStartResponse {
+  token: string;
+  session_id: string;
+  expires_at: number;
+  group_id?: string;
+}
+
+export interface SessionJoinResponse {
+  session_id: string;
+  starter_id: string;
+  role: 'starter' | 'joiner';
+  expires_at: number;
+}
+
+export async function startSession(): Promise<SessionStartResponse> {
+  return api.post<SessionStartResponse>('/api/sessions/start', {});
+}
+
+export async function joinSession(token: string): Promise<SessionJoinResponse> {
+  return api.post<SessionJoinResponse>('/api/sessions/join', { token });
+}
+
+export async function getSessionRoster(sid: string, token: string): Promise<LiveSessionRosterResponse> {
+  return api.get<LiveSessionRosterResponse>(
+    `/api/live/session/${encodeURIComponent(sid)}/roster?token=${encodeURIComponent(token)}`,
+  );
+}
+
+export async function getSessionMember(sid: string, studentId: string, token: string): Promise<LiveMemberBuffer> {
+  return api.get<LiveMemberBuffer>(
+    `/api/live/session/${encodeURIComponent(sid)}/member/${encodeURIComponent(studentId)}?token=${encodeURIComponent(token)}`,
+  );
+}
+
+// Emoji-only reactions inside a session. `target` is the student_id reacted to.
+export interface SessionComment {
+  id: string;
+  author_id: string;
+  emoji: string;
+  target?: string;
+  created_at: number;
+}
+
+export async function getAllowedEmoji(): Promise<string[]> {
+  const r = await api.get<{ allowed: string[] }>('/api/sessions/allowed-emoji');
+  return r.allowed;
+}
+
+export async function postSessionComment(
+  sid: string, token: string, emoji: string, target?: string,
+): Promise<SessionComment> {
+  return api.post<SessionComment>(`/api/sessions/${encodeURIComponent(sid)}/comments`, { token, emoji, target });
+}
+
+export async function listSessionComments(sid: string, token: string): Promise<SessionComment[]> {
+  return api.post<SessionComment[]>(`/api/sessions/${encodeURIComponent(sid)}/comments/list`, { token });
 }
 
 export async function getHelpRequests(): Promise<HelpRequest[]> {

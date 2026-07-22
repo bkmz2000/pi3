@@ -4,7 +4,10 @@ def binary_search(arr, target):
     lo, hi = 0, len(arr) - 1
     while lo <= hi:
         mid = (lo + hi) // 2
-        debug.array(arr, red=debug.range(lo, hi), green=mid)
+        debug.array(arr,
+            red=debug.range(lo, hi, name="search window"),
+            green=debug.named(mid, "mid"),
+            stroke_blue=debug.singles(lo, hi, name="lo, hi"))
         debug.show()
         if arr[mid] == target:
             return mid
@@ -14,4 +17,5 @@ def binary_search(arr, target):
             hi = mid - 1
     return -1
 
-binary_search([4, 17, 34, 50, 60, 61, 67, 95, 121, 122, 139, 140, 141, 142, 149, 152, 155, 156, 161, 184], 142)
+binary_search([4, 17, 34, 50, 60, 61, 67, 95, 121, 122, 139, 140,
+               141, 142, 149, 152, 155, 156, 161, 184], 142)

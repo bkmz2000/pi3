@@ -2,9 +2,21 @@ import { useEffect, useRef } from 'react';
 import type { ReactCodeMirrorRef } from '@uiw/react-codemirror';
 import { postLivePresence } from './api';
 import { isExampleSessionId } from './sessionId';
+import { useLiveSession } from './useLiveSession';
 
 const PING_INTERVAL_MS = 3000;
 const IDLE_AFTER_MS = 60_000; // stop pinging if no keyboard/mouse for 60s
+
+// Cheap, dependency-free string hash (FNV-1a). Only used to detect whether the
+// buffer changed since the last ping so we can skip re-sending unchanged code.
+function hashText(s: string): string {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return (h >>> 0).toString(36);
+}
 
 /**
  * Emits a live-presence ping (project id + current file + cursor line) to the
@@ -22,6 +34,7 @@ export function usePresencePinger(args: {
 }) {
   const { projectId, currentFile, editorRef, loggedIn } = args;
   const lastActivity = useRef(0);
+  const lastSentHash = useRef<string | null>(null);
 
   // Track user activity so we don't spam the server while a tab is idle.
   useEffect(() => {
@@ -37,8 +50,17 @@ export function usePresencePinger(args: {
     };
   }, []);
 
+  // Reactive session id so joining/leaving a session re-runs the effect (a
+  // session must broadcast even from an unsaved/example buffer).
+  const sid = useLiveSession((s) => s.sid);
+
   useEffect(() => {
-    if (!loggedIn || !projectId || isExampleSessionId(projectId)) return;
+    if (!loggedIn) return;
+    // Presence key: a real saved project id, or — while in a session — a
+    // synthetic per-session id so peers still see the buffer without a save.
+    const hasRealProject = !!projectId && !isExampleSessionId(projectId);
+    const presenceProjectId = hasRealProject ? projectId! : (sid ? `session:${sid}` : null);
+    if (!presenceProjectId) return;
 
     let cancelled = false;
     const tick = async () => {
@@ -53,8 +75,20 @@ export function usePresencePinger(args: {
       } catch {
         return;
       }
+      // Send the current buffer only when it changed since the last ping
+      // (skip-unchanged); the roster stays cheap and the server keeps the last
+      // known content via COALESCE. session_id is always sent (null clears it).
+      const text = view.state.doc.toString();
+      const hash = hashText(text);
+      const changed = hash !== lastSentHash.current;
+      // Mark as sent synchronously (before the await) so a fast follow-up tick
+      // sees the updated hash and doesn't re-send the same unchanged buffer.
+      lastSentHash.current = hash;
       try {
-        await postLivePresence(projectId, currentFile || 'main.py', line);
+        await postLivePresence(presenceProjectId, currentFile || 'main.py', line, {
+          ...(changed ? { content: text, contentHash: hash } : {}),
+          sessionId: sid,
+        });
       } catch {
         // best-effort; server may be offline or session expired
       }
@@ -64,5 +98,5 @@ export function usePresencePinger(args: {
     void tick();
     const id = window.setInterval(() => { void tick(); }, PING_INTERVAL_MS);
     return () => { cancelled = true; window.clearInterval(id); };
-  }, [projectId, currentFile, editorRef, loggedIn]);
+  }, [projectId, currentFile, editorRef, loggedIn, sid]);
 }

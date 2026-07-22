@@ -108,6 +108,7 @@ def _check_line_length(code: str, tree: ast.Module) -> list[dict]:
                     {"length": len(line), "limit": LINE_LENGTH},
                     i + 1,
                     LINE_LENGTH,
+                    severity="warning",
                 )
             )
     return diagnostics
@@ -195,12 +196,37 @@ class ScopeTracker(ast.NodeVisitor):
         return 1
 
     def visit_FunctionDef(self, node):
+        # Function name is visible in the enclosing scope (recursion, forward refs).
+        if len(self.scopes) > 0:
+            self.scopes[-1].add(node.name)
         self.push_scope()
+        # Register parameter names before visiting the body so F821 doesn't
+        # flag them. Covers positional, positional-only, keyword-only, *args, **kwargs.
+        args = node.args
+        for a in list(args.args) + list(getattr(args, "posonlyargs", []) or []) + list(args.kwonlyargs):
+            self.scopes[-1].add(a.arg)
+        if args.vararg:
+            self.scopes[-1].add(args.vararg.arg)
+        if args.kwarg:
+            self.scopes[-1].add(args.kwarg.arg)
+        # Function name also visible inside its own body (recursion).
+        self.scopes[-1].add(node.name)
         self.generic_visit(node)
         self.pop_scope()
 
     visit_AsyncFunctionDef = visit_FunctionDef
-    visit_Lambda = visit_FunctionDef
+
+    def visit_Lambda(self, node):
+        self.push_scope()
+        args = node.args
+        for a in list(args.args) + list(getattr(args, "posonlyargs", []) or []) + list(args.kwonlyargs):
+            self.scopes[-1].add(a.arg)
+        if args.vararg:
+            self.scopes[-1].add(args.vararg.arg)
+        if args.kwarg:
+            self.scopes[-1].add(args.kwarg.arg)
+        self.generic_visit(node)
+        self.pop_scope()
 
     def visit_ClassDef(self, node):
         self.push_scope()

@@ -15,9 +15,11 @@ Rebuild work is lazy — it happens the first time `segments`, `bounds`, or
 """
 
 import math
+import random as _random
 from collections import namedtuple
 
 from graphics._vec import Vector2
+from graphics._errors import FriendlyError
 from graphics import _state
 
 
@@ -139,6 +141,54 @@ class Shape:
         default = getattr(sprite, "_default_sprite", None)
         return default() if callable(default) else sprite
 
+    # --- membership & sampling ---
+
+    def __contains__(self, point):
+        """`point in shape` — same as shape.contains(point)."""
+        return self.contains(point)
+
+    def random(self, rect=None, n=1):
+        """Pick random point(s) inside the shape by reject-sampling.
+
+            spot = lake.random()          # one Vector2 inside the lake
+            trees = lake.random(n=10)      # a list of 10 points inside it
+
+        `rect` limits where to sample, as (min_x, min_y, max_x, max_y); the
+        default is the shape's own bounds. Raises a friendly error if it cannot
+        find enough points (for example a `rect` that misses the shape).
+        """
+        self._ensure_built()
+        bounds = self._bounds
+        region = bounds if rect is None else (
+            float(rect[0]), float(rect[1]), float(rect[2]), float(rect[3]))
+        if region is None:
+            raise FriendlyError("friendlyError.apiMisuse.shapeRandomFailed",
+                                {"requested": n, "found": 0})
+        minx, miny, maxx, maxy = region
+        # Cheap per-candidate reject: a point outside the shape's own bounding
+        # box cannot be inside, so skip the O(vertices) contains() ray cast.
+        bx0, by0, bx1, by1 = bounds if bounds is not None else region
+        # Fail fast (and clearly) when the sampling region can't overlap the shape.
+        if maxx < bx0 or minx > bx1 or maxy < by0 or miny > by1:
+            raise FriendlyError("friendlyError.apiMisuse.shapeRandomFailed",
+                                {"requested": n, "found": 0})
+        found = []
+        max_tries = max(30, n * 200)
+        tries = 0
+        while len(found) < n and tries < max_tries:
+            tries += 1
+            x = _random.uniform(minx, maxx)
+            y = _random.uniform(miny, maxy)
+            if x < bx0 or x > bx1 or y < by0 or y > by1:
+                continue
+            p = Vector2(x, y)
+            if self.contains(p):
+                found.append(p)
+        if len(found) < n:
+            raise FriendlyError("friendlyError.apiMisuse.shapeRandomFailed",
+                                {"requested": n, "found": len(found)})
+        return found[0] if n == 1 else found
+
     # --- shared geometry helpers (used by Polygon and Spline) ---
 
     @staticmethod
@@ -197,6 +247,22 @@ class Shape:
         if seg is None:
             return False
         return self._point_seg_dist_sq(p, seg.a, seg.b) <= tolerance * tolerance
+
+    def _distance_from(self, point):
+        """Distance from `point` to this shape's outline (its nearest segment).
+
+        The hook Vector2.distance_to uses so `ball.pos.distance_to(wall)` works.
+        """
+        self._ensure_built()
+        if not self._segments:
+            return float("inf")
+        p = Vector2(point)
+        best = None
+        for seg in self._segments:
+            d = self._point_seg_dist_sq(p, seg.a, seg.b)
+            if best is None or d < best:
+                best = d
+        return math.sqrt(best)
 
     def _rebuild_texture(self):
         """Lay tile placements along the outline. Reads _segments only; writes _texture_blits."""
@@ -311,6 +377,14 @@ class Line(Shape):
         a, b = self._a, self._b
         d = Vector2(b.x - a.x, b.y - a.y)
         return Vector2(-d.y, d.x).normalized()
+
+    def contains(self, point):
+        """True if `point` lies on the line (within half its thickness).
+
+        A line is never a filled region, so this is always a nearness test.
+        """
+        self._ensure_built()
+        return self._near_curve(Vector2(point), self._thickness / 2.0 + 1.0)
 
 
 class Polygon(Shape):

@@ -1177,7 +1177,8 @@
       "title": "API mistake",
       "fallback": "The API was used in a way that isn't supported.",
       "polylineNotIterable": "{{name}}() needs a list of points, but you passed a {{type}}.",
-      "polylineBadPoint": "{{name}}() point at index {{index}} is not an (x, y) pair — got {{value}}."
+      "polylineBadPoint": "{{name}}() point at index {{index}} is not an (x, y) pair — got {{value}}.",
+      "shapeRandomFailed": "Couldn't pick {{requested}} random point(s) inside this shape — only found {{found}}. If you passed an area, make sure it overlaps the shape."
     },
     "internal": {
       "title": "Something went wrong inside pi3",

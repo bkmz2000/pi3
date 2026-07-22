@@ -1303,6 +1303,57 @@ _clr._ensure_built()
 test("texture(None) clears the blits", _clr._texture_blits == [])
 
 
+# --- contains / random / `in` / distance_to(shape) ---
+
+print("\n=== Runtime: contains / random / __contains__ ===")
+
+from graphics._errors import FriendlyError
+
+_region = Polygon([(0, 0), (100, 0), (100, 100), (0, 100)])
+
+# random(): reject-sampling returns points that satisfy contains().
+_many = _region.random(n=10)
+test("random(n=10) returns a list of 10", isinstance(_many, list) and len(_many) == 10)
+test("random points are all Vector2", all(isinstance(p, Vector2) for p in _many))
+test("random points are all inside the shape", all(_region.contains(p) for p in _many))
+test("random() n=1 returns a single inside Vector2",
+     isinstance(_region.random(), Vector2) and _region.contains(_region.random()))
+
+
+def _random_rect_miss():
+    try:
+        _region.random(rect=(500, 500, 600, 600), n=5)
+        return False
+    except FriendlyError as e:
+        return e.message_key == "friendlyError.apiMisuse.shapeRandomFailed" \
+            and e.message_args.get("found") == 0
+test("random() raises FriendlyError when rect misses the shape", _random_rect_miss())
+
+# __contains__: `point in shape` mirrors shape.contains(point) for all three.
+test("`in` matches contains (Polygon inside)", ((50, 50) in _region) is True)
+test("`in` matches contains (Polygon outside)", ((200, 200) in _region) is False)
+_line_c = Line((0, 0), (100, 0))
+test("`in` matches contains (Line)", ((50, 0) in _line_c) == _line_c.contains((50, 0)))
+_loop_c = Spline([(0, 0), (100, 0), (100, 100), (0, 100)], closed=True)
+test("`in` matches contains (closed Spline)",
+     ((50, 50) in _loop_c) == _loop_c.contains((50, 50)))
+
+# Line.contains is a nearness test (a line is never a filled region).
+test("Line.contains on the line", Line((0, 0), (100, 0)).contains((50, 0)) is True)
+test("Line.contains off the line", Line((0, 0), (100, 0)).contains((50, 20)) is False)
+
+# Vector2.distance_to(shape): distance to the shape's outline.
+_wall = Line((0, 0), (100, 0))
+test("distance_to(Line) perpendicular", abs(Vector2(50, 10).distance_to(_wall) - 10.0) < 1e-9)
+test("distance_to(Line) past the end clamps to endpoint",
+     abs(Vector2(-10, 0).distance_to(_wall) - 10.0) < 1e-9)
+test("distance_to(Polygon) nearest edge",
+     abs(Vector2(50, -5).distance_to(_region) - 5.0) < 1e-9)
+# Existing point/tuple behavior is unchanged.
+test("distance_to still handles Vector2", Vector2(0, 0).distance_to(Vector2(3, 4)) == 5)
+test("distance_to still handles tuple", Vector2(0, 0).distance_to((3, 4)) == 5)
+
+
 # --- AnchorPoint is a Vector2 ---
 
 print("\n=== Runtime: AnchorPoint ⊂ Vector2 ===")

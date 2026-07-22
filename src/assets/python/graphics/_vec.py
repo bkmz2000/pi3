@@ -83,6 +83,11 @@ class Vector2:
         return self.x * self.x + self.y * self.y
 
     def distance_to(self, other):
+        # A Shape (Line/Polygon/Spline) reports the distance to its outline via
+        # _distance_from, so `ball.pos.distance_to(wall)` works like a point pair.
+        dist_from = getattr(other, "_distance_from", None)
+        if callable(dist_from):
+            return dist_from(self)
         ox, oy = _vec_pair(other)
         dx = self.x - ox
         dy = self.y - oy

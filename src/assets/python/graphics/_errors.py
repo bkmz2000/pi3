@@ -121,6 +121,7 @@ ALL_MESSAGE_KEYS = [
     "friendlyError.apiMisuse.fallback",
     "friendlyError.apiMisuse.polylineNotIterable",
     "friendlyError.apiMisuse.polylineBadPoint",
+    "friendlyError.apiMisuse.shapeRandomFailed",
     # Internal (classifier crashed)
     "friendlyError.internal.title",
     "friendlyError.internal.classifierFailed",

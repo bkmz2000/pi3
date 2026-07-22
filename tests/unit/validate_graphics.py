@@ -1230,6 +1230,79 @@ def _spline_thickness_readonly():
 test("Spline.thickness read-only", _spline_thickness_readonly())
 
 
+# --- Shape.texture (draw-only; decoupled from collision) ---
+
+print("\n=== Runtime: Shape.texture ===")
+
+_tex = g.create_sprite(10, 10, fill=(200, 100, 50))
+
+# Chaining: texture() returns the shape.
+_chain = Line((0, 0), (10, 0))
+test("texture() returns self", _chain.texture(_tex) is _chain)
+
+# Tiling counts: one tile every `spacing` px along the whole outline.
+_ln = Line((0, 0), (100, 0)).texture(_tex, spacing=10)
+_ln._ensure_built()
+test("texture tiles a line (len 100 / step 10 -> 10)", len(_ln._texture_blits) == 10)
+
+# spacing=None defaults to the sprite's own width (10), same 10 tiles.
+_ln2 = Line((0, 0), (100, 0)).texture(_tex)
+_ln2._ensure_built()
+test("texture spacing=None uses sprite width", len(_ln2._texture_blits) == 10)
+
+# Spacing carries continuously across a polygon's corners (perimeter 400 / 10 = 40).
+_sq = Polygon([(0, 0), (100, 0), (100, 100), (0, 100)]).texture(_tex, spacing=10)
+_sq._ensure_built()
+test("texture wraps around a polygon perimeter (40 tiles)", len(_sq._texture_blits) == 40)
+
+# Sheet entry / animation is resolved to its default frame via _default_sprite.
+class _FakeEntry:
+    def __init__(self, s):
+        self._s = s
+
+    def _default_sprite(self):
+        return self._s
+
+
+_lf = Line((0, 0), (50, 0)).texture(_FakeEntry(_tex), spacing=10)
+_lf._ensure_built()
+test("texture resolves _default_sprite", _lf._texture_sprite is _tex)
+test("resolved sprite tiles (len 50 / step 10 -> 5)", len(_lf._texture_blits) == 5)
+
+# Decoupling guarantee: collision results are identical with and without texture.
+_deco = Polygon([(0, 0), (100, 0), (100, 100), (0, 100)])
+_n_before = _deco.normal_at((50, 0))
+_c_before = _deco.contains((50, 50))
+_b_before = Vector2(0, -5).bounce_of(_deco, at=(50, 1))
+_deco.texture(_tex, spacing=10)
+_deco._ensure_built()
+test("texture leaves normal_at unchanged", _deco.normal_at((50, 0)) == _n_before)
+test("texture leaves contains unchanged", _deco.contains((50, 50)) == _c_before)
+test("texture leaves bounce_of unchanged",
+     _vclose(Vector2(0, -5).bounce_of(_deco, at=(50, 1)), _b_before.x, _b_before.y))
+
+# Textured draw emits rotated sprite blits; plain draw still strokes.
+_sd = g._state
+_sd._draw_commands.clear()
+Line((0, 0), (100, 0)).texture(_tex, spacing=50).draw()
+_cmds = [c[0] for c in _sd._draw_commands]
+test("textured draw emits sprite blits", _cmds.count("sprite") == 2)
+test("textured draw rotates each tile", "rotate" in _cmds and "push" in _cmds)
+test("textured draw emits no polyline", "polyline" not in _cmds)
+
+_sd._draw_commands.clear()
+Line((0, 0), (100, 0)).draw()
+test("plain draw still strokes a polyline", "polyline" in [c[0] for c in _sd._draw_commands])
+
+# texture(None) clears it and reverts to a plain stroke.
+_clr = Line((0, 0), (100, 0)).texture(_tex, spacing=10)
+_clr._ensure_built()
+test("texture applied before clear", len(_clr._texture_blits) == 10)
+_clr.texture(None)
+_clr._ensure_built()
+test("texture(None) clears the blits", _clr._texture_blits == [])
+
+
 # --- AnchorPoint is a Vector2 ---
 
 print("\n=== Runtime: AnchorPoint ⊂ Vector2 ===")

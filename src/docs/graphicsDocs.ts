@@ -803,6 +803,7 @@ export const DOCS: DocCategory[] = [
           { name: "wall.bounds", type: "tuple", en: "Bounding box (min_x, min_y, max_x, max_y).", ru: "Ограничивающий прямоугольник (min_x, min_y, max_x, max_y)." },
           { name: "wall.normal_at()", type: "Vector2", en: "Unit surface normal (a line has a single normal; the point argument is ignored).", ru: "Единичная нормаль (у прямой одна нормаль; аргумент-точка игнорируется)." },
           { name: "wall.draw()", type: "None", en: "Queue the line for drawing this frame using the current stroke color.", ru: "Ставит линию в очередь на отрисовку в этом кадре текущим цветом обводки." },
+          { name: "wall.texture(sprite, spacing=None)", type: "Shape", en: "Paint the outline with a repeating sprite instead of a stroke; tiles follow the line. Returns self.", ru: "Красит контур повторяющимся спрайтом вместо обводки; плитки следуют за линией. Возвращает self." },
         ],
         advanced: {
           en: "Geometry is rebuilt lazily — nothing is computed until segments, bounds, or draw() is first used. draw() wraps its own thickness in a push/pop so it never leaks into the global stroke_width() used by line()/rect()/etc. normal_at() ignores its point argument for a Line (a straight wall has one normal), and its sign is unspecified — bounce_of is invariant to which way it points, so you never have to reason about winding.",
@@ -822,6 +823,7 @@ export const DOCS: DocCategory[] = [
           { name: "level.contains(point)", type: "bool", en: "True if the point is inside. A point exactly on an edge counts as inside.", ru: "True, если точка внутри. Точка ровно на ребре считается внутренней." },
           { name: "level.normal_at(point)", type: "Vector2", en: "Unit normal of the edge nearest the point — pass the contact point so a bounce uses the side you actually hit.", ru: "Единичная нормаль ближайшего к точке ребра — передайте точку контакта, чтобы отскок использовал ту сторону, в которую попали." },
           { name: "level.segments / level.bounds", type: "list / tuple", en: "The edges as Segment(a, b), and the bounding box (min_x, min_y, max_x, max_y).", ru: "Рёбра как Segment(a, b) и ограничивающий прямоугольник (min_x, min_y, max_x, max_y)." },
+          { name: "level.texture(sprite, spacing=None)", type: "Shape", en: "Tile a repeating sprite around the perimeter instead of stroking it. Returns self.", ru: "Замостить периметр повторяющимся спрайтом вместо обводки. Возвращает self." },
         ],
         advanced: {
           en: "contains() uses an even-odd ray cast; a point within a tiny epsilon of any edge is treated as on the boundary and reported inside. normal_at(point) scans every edge to find the closest one (O(edges) per call) — fine for the handful-to-dozens of edges a level uses. Geometry rebuilds fully on construction and is cached until the shape changes; polygons are meant to be built once, not mutated every frame.",
@@ -842,6 +844,7 @@ export const DOCS: DocCategory[] = [
           { name: "curve.add(point)", type: "Spline", en: "Append a point in O(1) (open curves rebuild only the tail). Returns self.", ru: "Добавляет точку за O(1) (открытые кривые перестраивают только хвост). Возвращает self." },
           { name: "curve.contains(point)", type: "bool", en: "Open: within half the thickness of the curve. Closed: inside the loop.", ru: "Открытая: в пределах половины толщины от кривой. Замкнутая: внутри петли." },
           { name: "curve.normal_at(point)", type: "Vector2", en: "Unit normal of the flattened segment nearest the point — pass the contact point for a bounce.", ru: "Единичная нормаль ближайшего к точке сегмента — передайте точку контакта для отскока." },
+          { name: "curve.texture(sprite, spacing=None)", type: "Shape", en: "Tile a repeating sprite along the curve, each tile rotated to follow the slope. Returns self.", ru: "Замостить кривую повторяющимся спрайтом; каждая плитка повёрнута вдоль наклона. Возвращает self." },
         ],
         advanced: {
           en: "The curve is a cardinal spline (tension 0.5), the same shape the spline() drawing function makes, flattened into short line segments so the collision geometry is exactly what gets drawn. add() on an open curve only recomputes the last two spans (the previously-last span's far neighbor becomes the new point), so its cost does not grow with length; adding to a closed loop rebuilds fully, since loops are meant to be built once, not grown. An unset closed flag never behaves like a filled region — that is a deliberate guard so open trails are not accidentally treated as areas.",

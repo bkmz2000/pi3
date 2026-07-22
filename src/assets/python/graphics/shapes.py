@@ -14,6 +14,7 @@ Rebuild work is lazy — it happens the first time `segments`, `bounds`, or
 `draw()` is used after the shape changes, never on construction alone.
 """
 
+import math
 from collections import namedtuple
 
 from graphics._vec import Vector2
@@ -48,6 +49,12 @@ class Shape:
         self._draw_points = []
         self._bounds = None
         self._thickness = int(thickness)
+        # Texture state — only ever read by the draw path. Kept fully decoupled
+        # from collision: bounce_of / contains / normal_at must never touch these.
+        self._texture_sprite = None
+        self._texture_mode = "tile"
+        self._texture_spacing = None
+        self._texture_blits = []   # list of (x, y, angle_degrees) tile placements
 
     # --- lazy rebuild ---
 
@@ -59,6 +66,7 @@ class Shape:
         if self._dirty:
             self._rebuild()
             self._compute_bounds()
+            self._rebuild_texture()   # depends on the fresh _segments
             self._dirty = False
 
     def _compute_bounds(self):
@@ -102,6 +110,34 @@ class Shape:
         seg = self._segments[0] if point is None else self._closest_segment(Vector2(point))
         d = Vector2(seg.b.x - seg.a.x, seg.b.y - seg.a.y)
         return Vector2(-d.y, d.x).normalized()
+
+    # --- texture (draw-only; fully decoupled from collision) ---
+
+    def texture(self, sprite, mode="tile", spacing=None):
+        """Paint this shape's outline with a repeating sprite instead of a stroke.
+
+            Line((0, 400), (600, 400)).texture(sheet["brick"]).draw()
+
+        `sprite` is a Sprite (or a sheet entry / animation, resolved to its first
+        frame). Tiles are laid every `spacing` px along the outline and rotated to
+        follow it; `spacing=None` means tile edge-to-edge at the sprite's width.
+        Pass `sprite=None` to clear the texture and go back to a plain stroke.
+        Returns self so the call can chain. This changes only how the shape is
+        drawn — bounce_of / contains / normal_at are unaffected.
+        """
+        self._texture_sprite = self._resolve_sprite(sprite)
+        self._texture_mode = mode
+        self._texture_spacing = spacing
+        self._dirty = True   # rebuild so _rebuild_texture re-lays the tiles
+        return self
+
+    @staticmethod
+    def _resolve_sprite(sprite):
+        """Accept a Sprite directly, or a sheet entry/animation with a default frame."""
+        if sprite is None:
+            return None
+        default = getattr(sprite, "_default_sprite", None)
+        return default() if callable(default) else sprite
 
     # --- shared geometry helpers (used by Polygon and Spline) ---
 
@@ -162,11 +198,49 @@ class Shape:
             return False
         return self._point_seg_dist_sq(p, seg.a, seg.b) <= tolerance * tolerance
 
+    def _rebuild_texture(self):
+        """Lay tile placements along the outline. Reads _segments only; writes _texture_blits."""
+        self._texture_blits = []
+        sprite = self._texture_sprite
+        if sprite is None:
+            return
+        step = self._texture_spacing
+        if step is None:
+            step = sprite.width   # tile edge-to-edge by default
+        step = float(step)
+        if step <= 0.0:
+            return
+        # Walk the outline as one continuous arc so spacing carries across corners
+        # and curves; each tile is oriented along its local segment.
+        carry = 0.0   # distance into the current segment before the next tile
+        for seg in self._segments:
+            ax, ay = seg.a.x, seg.a.y
+            dx = seg.b.x - ax
+            dy = seg.b.y - ay
+            seg_len = math.hypot(dx, dy)
+            if seg_len == 0.0:
+                continue
+            ux = dx / seg_len
+            uy = dy / seg_len
+            angle = math.degrees(math.atan2(dy, dx))
+            d = carry
+            while d < seg_len:
+                self._texture_blits.append((ax + ux * d, ay + uy * d, angle))
+                d += step
+            carry = d - seg_len
+
     # --- rendering ---
 
     def draw(self):
-        """Queue this shape to be drawn this frame, using the current stroke color."""
+        """Queue this shape to be drawn this frame.
+
+        Draws a tiled texture if one was set via texture(); otherwise strokes the
+        outline with the current stroke color.
+        """
         self._ensure_built()
+        if self._texture_blits:
+            self._draw_textured()
+            return
         pts = self._draw_points
         if len(pts) < 4:
             return
@@ -176,6 +250,25 @@ class Shape:
         _state._draw_commands.append(("stroke_width", (self._thickness,), {}))
         _state._draw_commands.append((self._draw_cmd, (list(pts),), {}))
         _state._draw_commands.append(("pop", (), {}))
+
+    def _draw_textured(self):
+        """Blit the texture sprite at each placement, rotated to follow the outline."""
+        sprite = self._texture_sprite
+        if sprite is None:
+            return
+        px = bytes(sprite.pixels)
+        sw = int(sprite.width)
+        sh = int(sprite.height)
+        hw = sw / 2.0
+        hh = sh / 2.0
+        for (x, y, angle) in self._texture_blits:
+            # Center each tile on its point and rotate via the transform stack —
+            # the same push/translate/rotate path Actor.draw uses for sprites.
+            _state._draw_commands.append(("push", (), {}))
+            _state._draw_commands.append(("translate", (x, y), {}))
+            _state._draw_commands.append(("rotate", (angle,), {}))
+            _state._draw_commands.append(("sprite", (px, sw, sh, -hw, -hh, None, None), {}))
+            _state._draw_commands.append(("pop", (), {}))
 
 
 class Line(Shape):

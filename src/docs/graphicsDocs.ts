@@ -810,6 +810,25 @@ export const DOCS: DocCategory[] = [
         },
       },
       {
+        id: "polygon_shape",
+        name: "Polygon",
+        signature: "Polygon(points, thickness=2)",
+        en: "A closed region built from a ring of points — a lake, a platform, a level boundary. The last point joins back to the first, so you do not repeat it. Ask level.contains(point) to test if something is inside, and bounce off any edge with ball.vel.bounce_of(level, at=ball.pos). draw() fills it with the current fill color and outlines it with the current stroke.",
+        ru: "Замкнутая область из кольца точек — озеро, платформа, граница уровня. Последняя точка соединяется с первой, повторять её не нужно. level.contains(point) проверяет, внутри ли точка, а ball.vel.bounce_of(level, at=ball.pos) отражает от ближайшего ребра. draw() заливает область текущим цветом заливки и обводит текущим цветом обводки.",
+        example: "lake = Polygon([(100, 300), (250, 260), (400, 320), (300, 440), (140, 420)])\n\ndef main():\n    lake.draw()\n    if lake.contains(Mouse.pos):\n        say(\"splash!\", Mouse.pos)",
+        params: [
+          { name: "points", type: "list", en: "The corner points in order, as Vector2s or (x, y) tuples. At least 3.", ru: "Угловые точки по порядку, как Vector2 или пары (x, y). Минимум 3." },
+          { name: "thickness", type: "int", optional: true, default: "2", en: "Outline width in pixels. Fixed at construction — read-only afterwards.", ru: "Толщина обводки в пикселях. Задаётся при создании — потом только для чтения." },
+          { name: "level.contains(point)", type: "bool", en: "True if the point is inside. A point exactly on an edge counts as inside.", ru: "True, если точка внутри. Точка ровно на ребре считается внутренней." },
+          { name: "level.normal_at(point)", type: "Vector2", en: "Unit normal of the edge nearest the point — pass the contact point so a bounce uses the side you actually hit.", ru: "Единичная нормаль ближайшего к точке ребра — передайте точку контакта, чтобы отскок использовал ту сторону, в которую попали." },
+          { name: "level.segments / level.bounds", type: "list / tuple", en: "The edges as Segment(a, b), and the bounding box (min_x, min_y, max_x, max_y).", ru: "Рёбра как Segment(a, b) и ограничивающий прямоугольник (min_x, min_y, max_x, max_y)." },
+        ],
+        advanced: {
+          en: "contains() uses an even-odd ray cast; a point within a tiny epsilon of any edge is treated as on the boundary and reported inside. normal_at(point) scans every edge to find the closest one (O(edges) per call) — fine for the handful-to-dozens of edges a level uses. Geometry rebuilds fully on construction and is cached until the shape changes; polygons are meant to be built once, not mutated every frame.",
+          ru: "contains() использует чётно-нечётный луч; точка в пределах крошечного эпсилон от ребра считается на границе и внутренней. normal_at(point) перебирает все рёбра в поисках ближайшего (O(рёбер) за вызов) — нормально для десятков рёбер уровня. Геометрия полностью строится при создании и кэшируется до изменения фигуры; полигоны рассчитаны на разовое построение, а не на изменение каждый кадр.",
+        },
+      },
+      {
         id: "bounce_of",
         name: "Vector2.bounce_of",
         signature: "v.bounce_of(shape, at=None, restitution=1.0)",

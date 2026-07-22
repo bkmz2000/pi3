@@ -1013,7 +1013,7 @@ test("normalized zero stays zero", Vector2(0, 0).normalized() == Vector2(0, 0))
 
 print("\n=== Runtime: Line / Shape / bounce_of ===")
 
-from graphics.shapes import Line, Shape, Segment
+from graphics.shapes import Line, Polygon, Shape, Segment
 
 
 def _vclose(v, x, y, eps=1e-9):
@@ -1077,6 +1077,50 @@ test("bounce_of accepts at=", _vclose(Vector2(3, 5).bounce_of(_floor, at=(123, 4
 
 # normal_at returns a unit vector.
 test("Line.normal_at is unit", abs(_floor.normal_at().length - 1.0) < 1e-9)
+
+
+# --- Polygon (closed region) ---
+
+print("\n=== Runtime: Polygon ===")
+
+test("Polygon in __all__", "Polygon" in g.__all__)
+test("Polygon is a Shape", issubclass(Polygon, Shape))
+
+_square = Polygon([(0, 0), (100, 0), (100, 100), (0, 100)])
+test("Polygon.points are Vector2", all(isinstance(p, Vector2) for p in _square.points))
+
+# Closed loop: one segment per edge, last wraps back to the first point.
+test("Polygon has one segment per edge", len(_square.segments) == 4)
+test("Polygon last edge wraps to first",
+     _square.segments[-1].a == (0, 100) and _square.segments[-1].b == (0, 0))
+test("Polygon.bounds", _square.bounds == (0, 0, 100, 100))
+
+# normal_at picks the nearest edge; expected (per formula) normals of the square.
+test("Polygon.normal_at bottom edge", _vclose(_square.normal_at((50, 0)), 0, 1))
+test("Polygon.normal_at right edge", _vclose(_square.normal_at((100, 50)), -1, 0))
+test("Polygon.normal_at top edge", _vclose(_square.normal_at((50, 100)), 0, -1))
+test("Polygon.normal_at left edge", _vclose(_square.normal_at((0, 50)), 1, 0))
+test("Polygon.normal_at is unit", abs(_square.normal_at((50, 0)).length - 1.0) < 1e-9)
+
+# contains: inside / outside / on-edge / vertex (on boundary counts as inside).
+test("Polygon.contains inside", _square.contains((50, 50)) is True)
+test("Polygon.contains outside (right)", _square.contains((150, 50)) is False)
+test("Polygon.contains outside (left)", _square.contains((-10, 50)) is False)
+test("Polygon.contains on edge is inside", _square.contains((50, 0)) is True)
+test("Polygon.contains on vertex is inside", _square.contains((0, 0)) is True)
+test("Polygon.contains accepts Vector2", _square.contains(Vector2(50, 50)) is True)
+
+# Bounce off a polygon edge, using the contact point to pick the side.
+test("bounce_of polygon bottom edge",
+     _vclose(Vector2(0, -5).bounce_of(_square, at=(50, 1)), 0, 5))
+test("bounce_of polygon right edge",
+     _vclose(Vector2(5, 0).bounce_of(_square, at=(99, 50)), -5, 0))
+
+# A triangle exercises non-axis-aligned edges.
+_tri = Polygon([(0, 0), (100, 0), (50, 100)])
+test("Triangle contains inside", _tri.contains((50, 20)) is True)
+test("Triangle contains outside", _tri.contains((50, -5)) is False)
+test("Triangle normal_at base edge", _vclose(_tri.normal_at((50, 0)), 0, 1))
 
 
 # --- AnchorPoint is a Vector2 ---

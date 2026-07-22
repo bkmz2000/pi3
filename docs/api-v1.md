@@ -52,6 +52,7 @@
 | `translate(x, y)` | Function | Shift the origin of following draws by (x, y) |
 | `rotate(angle)` | Function | Rotate following draws by `angle` radians around the origin |
 | `Line(a, b, thickness=2)` | Class | Straight wall geometry: `segments`, `bounds`, `normal_at()`, `draw()`. First of the Shape family (Polygon/Spline follow) |
+| `Polygon(points, thickness=2)` | Class | Closed region geometry: `contains(point)`, closest-edge `normal_at(point)`, `segments`, `bounds`, filled `draw()` |
 | `Vector2.bounce_of(shape, at=None, restitution=1.0)` | Method | Reflect a velocity off a Shape's surface normal; `restitution` scales the bounced speed |
 
 ## Pattern-based error hints (Phase E)

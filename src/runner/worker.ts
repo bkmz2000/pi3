@@ -133,6 +133,7 @@ async function initPyodide(
   graphicsStateInternal: string,
   graphicsColor: string,
   graphicsVec: string,
+  graphicsShapes: string,
   graphicsSheet: string,
   graphicsUtils: string,
   graphicsLightingHelpers: string,
@@ -169,6 +170,7 @@ async function initPyodide(
   p.FS.writeFile("/graphics/_state.py", graphicsStateInternal);
   p.FS.writeFile("/graphics/_color.py", graphicsColor);
   p.FS.writeFile("/graphics/_vec.py", graphicsVec);
+  p.FS.writeFile("/graphics/shapes.py", graphicsShapes);
   p.FS.writeFile("/graphics/_sheet.py", graphicsSheet);
   p.FS.writeFile("/graphics/_utils.py", graphicsUtils);
   p.FS.writeFile("/graphics/_lighting_helpers.py", graphicsLightingHelpers);
@@ -997,7 +999,7 @@ self.onmessage = async (e: MessageEvent<WorkerCommand>) => {
       const p = await ensurePyodide();
       console.log("Worker: Pyodide loaded, initializing modules...");
       const errorHookSrc = msg.errorHook;
-      await initPyodide(p, msg.graphicsInit, msg.graphicsActors, msg.graphicsAnimation, msg.graphicsManifest, msg.graphicsErrors, msg.graphicsState, msg.graphicsStateInternal, msg.graphicsColor, msg.graphicsVec, msg.graphicsSheet, msg.graphicsUtils, msg.graphicsLightingHelpers, msg.graphicsSprites, msg.turtle, msg.linter, errorHookSrc, msg.inputTransform, msg.watchTransform, msg.syntaxHints, msg.pi3Init, msg.pi3Debug, msg.debugTransform, msg.pi3Testing);
+      await initPyodide(p, msg.graphicsInit, msg.graphicsActors, msg.graphicsAnimation, msg.graphicsManifest, msg.graphicsErrors, msg.graphicsState, msg.graphicsStateInternal, msg.graphicsColor, msg.graphicsVec, msg.graphicsShapes, msg.graphicsSheet, msg.graphicsUtils, msg.graphicsLightingHelpers, msg.graphicsSprites, msg.turtle, msg.linter, errorHookSrc, msg.inputTransform, msg.watchTransform, msg.syntaxHints, msg.pi3Init, msg.pi3Debug, msg.debugTransform, msg.pi3Testing);
       console.log("Worker: Initialization complete, posting ready");
       post({ type: "ready" });
     } catch (err: unknown) {

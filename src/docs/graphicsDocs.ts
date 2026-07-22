@@ -782,6 +782,54 @@ export const DOCS: DocCategory[] = [
     ],
   },
 
+  // ─── Shapes ────────────────────────────────────────────────────────────────
+  {
+    id: "shapes",
+    en: "Shapes",
+    ru: "Фигуры",
+    entries: [
+      {
+        id: "line_shape",
+        name: "Line",
+        signature: "Line(a, b, thickness=2)",
+        en: "A straight wall between two points that you can draw and bounce velocities off. Build it once from two points, then use wall.draw() to show it and ball.vel.bounce_of(wall) to reflect. Unlike the line() drawing function, a Line remembers its geometry: wall.segments, wall.bounds, and wall.normal_at() are all available. First of the Shape family (Polygon and Spline follow).",
+        ru: "Прямая стена между двумя точками, которую можно рисовать и от которой можно отражать скорости. Создайте её один раз из двух точек, затем wall.draw() рисует её, а ball.vel.bounce_of(wall) отражает. В отличие от функции line(), Line запоминает геометрию: доступны wall.segments, wall.bounds и wall.normal_at(). Первая из семейства Shape (дальше Polygon и Spline).",
+        example: "floor = Line((0, 400), (600, 400))\n\ndef main():\n    if ball.y > 380:\n        ball.vel = ball.vel.bounce_of(floor)\n    floor.draw()",
+        params: [
+          { name: "a", type: "Vector2 | (x, y)", en: "First endpoint.", ru: "Первая точка." },
+          { name: "b", type: "Vector2 | (x, y)", en: "Second endpoint.", ru: "Вторая точка." },
+          { name: "thickness", type: "int", optional: true, default: "2", en: "Stroke width in pixels. Fixed at construction — read-only afterwards.", ru: "Толщина линии в пикселях. Задаётся при создании — потом только для чтения." },
+          { name: "wall.segments", type: "list", en: "The Segment(a, b) pieces of the outline.", ru: "Отрезки Segment(a, b), из которых состоит контур." },
+          { name: "wall.bounds", type: "tuple", en: "Bounding box (min_x, min_y, max_x, max_y).", ru: "Ограничивающий прямоугольник (min_x, min_y, max_x, max_y)." },
+          { name: "wall.normal_at()", type: "Vector2", en: "Unit surface normal (a line has a single normal; the point argument is ignored).", ru: "Единичная нормаль (у прямой одна нормаль; аргумент-точка игнорируется)." },
+          { name: "wall.draw()", type: "None", en: "Queue the line for drawing this frame using the current stroke color.", ru: "Ставит линию в очередь на отрисовку в этом кадре текущим цветом обводки." },
+        ],
+        advanced: {
+          en: "Geometry is rebuilt lazily — nothing is computed until segments, bounds, or draw() is first used. draw() wraps its own thickness in a push/pop so it never leaks into the global stroke_width() used by line()/rect()/etc. normal_at() ignores its point argument for a Line (a straight wall has one normal), and its sign is unspecified — bounce_of is invariant to which way it points, so you never have to reason about winding.",
+          ru: "Геометрия перестраивается лениво — ничего не считается, пока не понадобятся segments, bounds или draw(). draw() оборачивает свою толщину в push/pop, поэтому она не влияет на глобальный stroke_width(), используемый line()/rect() и т.д. normal_at() у Line игнорирует аргумент-точку (у прямой стены одна нормаль), а её знак не определён — bounce_of инвариантен к направлению нормали, так что о порядке обхода думать не нужно.",
+        },
+      },
+      {
+        id: "bounce_of",
+        name: "Vector2.bounce_of",
+        signature: "v.bounce_of(shape, at=None, restitution=1.0)",
+        en: "Reflect a velocity off a shape's surface and return the new velocity. The classic bounce: read a ball's velocity, bounce it off a wall, assign it back. restitution controls bounciness — 1.0 keeps all the speed, 0.5 loses half, above 1.0 speeds up.",
+        ru: "Отражает скорость от поверхности фигуры и возвращает новую скорость. Классический отскок: берём скорость мяча, отражаем от стены, присваиваем обратно. restitution задаёт упругость — 1.0 сохраняет всю скорость, 0.5 теряет половину, больше 1.0 ускоряет.",
+        example: "ball.vel = ball.vel.bounce_of(wall)                    # perfect bounce\nball.vel = ball.vel.bounce_of(floor, restitution=0.8)  # loses energy",
+        params: [
+          { name: "shape", type: "Shape", en: "The Line/Polygon/Spline to reflect off.", ru: "Line/Polygon/Spline, от которой отражаемся." },
+          { name: "at", type: "Vector2 | (x, y)", optional: true, en: "Contact point, used to pick the surface normal on multi-segment shapes. Ignored for a Line.", ru: "Точка контакта — выбирает нормаль на фигурах из нескольких отрезков. Для Line игнорируется." },
+          { name: "restitution", type: "number", optional: true, default: "1.0", en: "Scales the bounced speed. 1.0 = keep, 0.5 = half, >1.0 = speed up.", ru: "Масштабирует скорость после отскока. 1.0 = сохранить, 0.5 = вдвое, >1.0 = ускорить." },
+        ],
+        returns: { type: "Vector2", en: "A new reflected velocity — assign it back to actor.vel.", ru: "Новая отражённая скорость — присвойте её обратно actor.vel." },
+        advanced: {
+          en: "Uses the mirror reflection v - 2(v·n)n, then scales by restitution. The result does not depend on the sign of the surface normal, so it works the same whether a wall was built clockwise or counter-clockwise. bounce_of returns a new Vector2 and never mutates in place — always assign the result back.",
+          ru: "Использует зеркальное отражение v - 2(v·n)n, затем умножает на restitution. Результат не зависит от знака нормали, поэтому работает одинаково, построена стена по часовой стрелке или против. bounce_of возвращает новый Vector2 и не меняет на месте — всегда присваивайте результат обратно.",
+        },
+      },
+    ],
+  },
+
   // ─── Animation ─────────────────────────────────────────────────────────────
   {
     id: "animation",

@@ -42,6 +42,7 @@ EXPORTED_NAMES = [
     "palette_swap", "flood_fill",
     "darken", "lighten", "saturate", "desaturate",
     "Vector2", "Point", "Polar",
+    "Line",
     "Mouse", "Keyboard", "Window",
     "Actor", "Rect", "Circle", "Group", "Collider",
     "Camera",

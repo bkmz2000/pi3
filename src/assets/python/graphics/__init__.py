@@ -19,6 +19,7 @@ from graphics._color import (
     _rgb_to_hsl, _hsl_to_rgb,
 )
 from graphics._vec import Vector2, _vec_pair, Point, Polar, AnchorPoint
+from graphics.shapes import Line
 from graphics._sheet import SheetAnimation, SpriteEntry, SheetNamespace, AnimationController
 from graphics._utils import clamp, randint, pick, Sound, Timer
 from graphics._sprites import PixelView, _TRANSPARENT
@@ -1787,6 +1788,7 @@ __all__ = [
     "palette_swap", "flood_fill",
     "darken", "lighten", "saturate", "desaturate",
     "Vector2", "Point", "Polar",
+    "Line",
     "Mouse", "Keyboard", "Window",
     "Actor", "Rect", "Circle", "Group", "Collider",
     "Camera",

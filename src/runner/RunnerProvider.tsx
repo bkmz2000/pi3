@@ -11,6 +11,7 @@ import GraphicsState from "../assets/python/graphics/_state_ns.py?raw";
 import GraphicsStateInternal from "../assets/python/graphics/_state.py?raw";
 import GraphicsColor from "../assets/python/graphics/_color.py?raw";
 import GraphicsVec from "../assets/python/graphics/_vec.py?raw";
+import GraphicsShapes from "../assets/python/graphics/shapes.py?raw";
 import GraphicsSheet from "../assets/python/graphics/_sheet.py?raw";
 import GraphicsUtils from "../assets/python/graphics/_utils.py?raw";
 import GraphicsLightingHelpers from "../assets/python/graphics/_lighting_helpers.py?raw";
@@ -565,6 +566,7 @@ export function getWorker(): Worker {
     graphicsStateInternal: GraphicsStateInternal,
     graphicsColor: GraphicsColor,
     graphicsVec: GraphicsVec,
+    graphicsShapes: GraphicsShapes,
     graphicsSheet: GraphicsSheet,
     graphicsUtils: GraphicsUtils,
     graphicsLightingHelpers: GraphicsLightingHelpers,

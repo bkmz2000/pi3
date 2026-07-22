@@ -98,6 +98,26 @@ class Vector2:
             return Vector2(0, 0)
         return Vector2(self.x / n, self.y / n)
 
+    def bounce_of(self, shape, at=None, restitution=1.0):
+        """Reflect this velocity off a shape's surface and return the new vector.
+
+        Mirrors the velocity across the shape's surface normal at the contact
+        point `at` (ignored for a straight Line, which has a single normal)::
+
+            ball.vel = ball.vel.bounce_of(wall)                    # perfect bounce
+            ball.vel = ball.vel.bounce_of(floor, restitution=0.8)  # loses energy
+
+        `restitution` scales the bounced speed: 1.0 keeps it, 0.5 halves it,
+        values above 1.0 speed it up. The result never depends on which way the
+        surface normal happens to point.
+        """
+        n = shape.normal_at(at)
+        d = self.x * n.x + self.y * n.y
+        rx = self.x - 2.0 * d * n.x
+        ry = self.y - 2.0 * d * n.y
+        r = float(restitution)
+        return Vector2(rx * r, ry * r)
+
 
 def _vec_pair(other):
     if isinstance(other, Vector2):

@@ -1009,6 +1009,76 @@ test("normalized length ~ 1", abs(Vector2(3, 4).normalized().length - 1.0) < 1e-
 test("normalized zero stays zero", Vector2(0, 0).normalized() == Vector2(0, 0))
 
 
+# --- Shape base + Line + Vector2.bounce_of ---
+
+print("\n=== Runtime: Line / Shape / bounce_of ===")
+
+from graphics.shapes import Line, Shape, Segment
+
+
+def _vclose(v, x, y, eps=1e-9):
+    return abs(v.x - x) < eps and abs(v.y - y) < eps
+
+
+test("Line in __all__", "Line" in g.__all__)
+test("Line is a Shape", issubclass(Line, Shape))
+
+# Endpoints accept tuples and become Vector2.
+_floor = Line((0, 400), (600, 400))
+test("Line.a is Vector2", isinstance(_floor.a, Vector2) and _floor.a == (0, 400))
+test("Line.b is Vector2", isinstance(_floor.b, Vector2) and _floor.b == (600, 400))
+
+# segments: exactly one Segment spanning the endpoints.
+_segs = _floor.segments
+test("Line has one segment", len(_segs) == 1 and isinstance(_segs[0], Segment))
+test("segment endpoints match", _segs[0].a == (0, 400) and _segs[0].b == (600, 400))
+
+# bounds is the axis-aligned box, order-independent of endpoint order.
+test("Line.bounds", Line((10, 20), (40, 80)).bounds == (10, 20, 40, 80))
+test("Line.bounds endpoint-order invariant",
+     Line((40, 80), (10, 20)).bounds == (10, 20, 40, 80))
+
+# thickness is constructor-only / read-only.
+test("Line.thickness default", Line((0, 0), (1, 0)).thickness == 2)
+test("Line.thickness from ctor", Line((0, 0), (1, 0), thickness=6).thickness == 6)
+
+
+def _thickness_is_readonly():
+    ln = Line((0, 0), (1, 0))
+    try:
+        ln.thickness = 9
+        return False
+    except AttributeError:
+        return True
+
+
+test("Line.thickness read-only", _thickness_is_readonly())
+
+# bounce_of a horizontal floor: x preserved, y reflected.
+_b1 = Vector2(3, 5).bounce_of(_floor)
+test("bounce_of horizontal floor", _vclose(_b1, 3, -5))
+
+# Normal-sign invariance: Line(a,b) and Line(b,a) give identical bounces.
+_fwd = Vector2(3, 5).bounce_of(Line((0, 400), (600, 400)))
+_rev = Vector2(3, 5).bounce_of(Line((600, 400), (0, 400)))
+test("bounce_of normal-sign invariant", _vclose(_rev, _fwd.x, _fwd.y))
+
+# Arbitrary-angle wall: (1,0) off a 45° "/" wall bounces straight up.
+_ramp = Line((0, 0), (10, 10))
+test("bounce_of 45deg wall", _vclose(Vector2(1, 0).bounce_of(_ramp), 0, 1))
+
+# restitution scales the whole reflected vector.
+test("restitution 1.0", _vclose(Vector2(0, 5).bounce_of(_floor, restitution=1.0), 0, -5))
+test("restitution 0.5", _vclose(Vector2(0, 5).bounce_of(_floor, restitution=0.5), 0, -2.5))
+test("restitution 1.5", _vclose(Vector2(0, 5).bounce_of(_floor, restitution=1.5), 0, -7.5))
+
+# `at` is accepted and ignored for a Line (single normal).
+test("bounce_of accepts at=", _vclose(Vector2(3, 5).bounce_of(_floor, at=(123, 400)), 3, -5))
+
+# normal_at returns a unit vector.
+test("Line.normal_at is unit", abs(_floor.normal_at().length - 1.0) < 1e-9)
+
+
 # --- AnchorPoint is a Vector2 ---
 
 print("\n=== Runtime: AnchorPoint ⊂ Vector2 ===")

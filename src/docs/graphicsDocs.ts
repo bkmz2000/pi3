@@ -829,6 +829,26 @@ export const DOCS: DocCategory[] = [
         },
       },
       {
+        id: "spline_shape",
+        name: "Spline",
+        signature: "Spline(points, closed=False, thickness=6)",
+        en: "A smooth curve that passes through its points — a ramp, a hill, a race track. add(point) grows it by one point in constant time, so you can trace a trail every frame without it getting slower as it lengthens. Open by default: contains(point) tests whether the point is ON the curve, not inside an area. closed=True makes a smooth loop that IS a region — contains() reports points inside it and draw() fills it.",
+        ru: "Гладкая кривая, проходящая через свои точки — рампа, холм, гоночная трасса. add(point) добавляет точку за постоянное время, так что можно рисовать след каждый кадр, и он не замедляется по мере роста. По умолчанию открыта: contains(point) проверяет, лежит ли точка НА кривой, а не внутри области. closed=True делает гладкую петлю — область: contains() сообщает о точках внутри, а draw() заливает её.",
+        example: "trail = Spline([])\n\ndef main():\n    trail.add(player.pos)   # O(1) per frame, however long it gets\n    trail.draw()",
+        params: [
+          { name: "points", type: "list", en: "The points the curve passes through, as Vector2s or (x, y) tuples. May be empty and grown with add().", ru: "Точки, через которые проходит кривая, как Vector2 или пары (x, y). Может быть пустым и наращиваться через add()." },
+          { name: "closed", type: "bool", optional: true, default: "False", en: "False = open curve (contains = nearness to the line). True = closed loop treated as a filled region.", ru: "False = открытая кривая (contains = близость к линии). True = замкнутая петля как заливаемая область." },
+          { name: "thickness", type: "int", optional: true, default: "6", en: "Stroke width in pixels. Fixed at construction — read-only afterwards.", ru: "Толщина линии в пикселях. Задаётся при создании — потом только для чтения." },
+          { name: "curve.add(point)", type: "Spline", en: "Append a point in O(1) (open curves rebuild only the tail). Returns self.", ru: "Добавляет точку за O(1) (открытые кривые перестраивают только хвост). Возвращает self." },
+          { name: "curve.contains(point)", type: "bool", en: "Open: within half the thickness of the curve. Closed: inside the loop.", ru: "Открытая: в пределах половины толщины от кривой. Замкнутая: внутри петли." },
+          { name: "curve.normal_at(point)", type: "Vector2", en: "Unit normal of the flattened segment nearest the point — pass the contact point for a bounce.", ru: "Единичная нормаль ближайшего к точке сегмента — передайте точку контакта для отскока." },
+        ],
+        advanced: {
+          en: "The curve is a cardinal spline (tension 0.5), the same shape the spline() drawing function makes, flattened into short line segments so the collision geometry is exactly what gets drawn. add() on an open curve only recomputes the last two spans (the previously-last span's far neighbor becomes the new point), so its cost does not grow with length; adding to a closed loop rebuilds fully, since loops are meant to be built once, not grown. An unset closed flag never behaves like a filled region — that is a deliberate guard so open trails are not accidentally treated as areas.",
+          ru: "Кривая — кардинальный сплайн (натяжение 0.5), та же форма, что делает функция spline(), разбитая на короткие отрезки, так что геометрия столкновений точно совпадает с нарисованной. add() на открытой кривой пересчитывает только два последних участка (дальний сосед бывшего последнего участка становится новой точкой), поэтому стоимость не растёт с длиной; добавление в замкнутую петлю перестраивает всё, ведь петли строятся один раз. Неустановленный флаг closed никогда не ведёт себя как заливаемая область — это намеренная защита, чтобы открытые следы случайно не считались областями.",
+        },
+      },
+      {
         id: "bounce_of",
         name: "Vector2.bounce_of",
         signature: "v.bounce_of(shape, at=None, restitution=1.0)",

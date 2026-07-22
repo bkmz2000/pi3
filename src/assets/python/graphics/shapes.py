@@ -90,10 +90,20 @@ class Shape:
         return self._bounds
 
     def normal_at(self, point=None):
-        """Unit surface normal used by Vector2.bounce_of. Subclass responsibility."""
-        raise NotImplementedError
+        """Unit normal of the segment nearest `point` (or the first, if point is None).
 
-    # --- shared geometry helpers (used by Polygon now; Spline in Phase 3) ---
+        The default for any multi-segment shape (Polygon, Spline). Line overrides
+        it with its single-normal form. The sign is unspecified; Vector2.bounce_of
+        is invariant to it.
+        """
+        self._ensure_built()
+        if not self._segments:
+            return Vector2(0, 0)
+        seg = self._segments[0] if point is None else self._closest_segment(Vector2(point))
+        d = Vector2(seg.b.x - seg.a.x, seg.b.y - seg.a.y)
+        return Vector2(-d.y, d.x).normalized()
+
+    # --- shared geometry helpers (used by Polygon and Spline) ---
 
     @staticmethod
     def _point_seg_dist_sq(p, a, b):
@@ -144,6 +154,13 @@ class Shape:
                 inside = not inside
             j = i
         return inside
+
+    def _near_curve(self, p, tolerance):
+        """True if `p` is within `tolerance` of the nearest segment (open-curve test)."""
+        seg = self._closest_segment(p)
+        if seg is None:
+            return False
+        return self._point_seg_dist_sq(p, seg.a, seg.b) <= tolerance * tolerance
 
     # --- rendering ---
 
@@ -260,3 +277,175 @@ class Polygon(Shape):
         """True if `point` is inside the polygon. A point on an edge counts as inside."""
         self._ensure_built()
         return self._point_in_polygon(Vector2(point), self._points)
+
+
+# --- Spline: cardinal (Catmull-Rom) curve through its control points ---
+#
+# Matches the renderer's spline() curve: a cardinal spline with tension 0.5,
+# sampled as a cubic Bezier per span, with clamped endpoints (open) or wrapped
+# neighbors (closed). Each span is flattened to _SPLINE_STEPS line points so the
+# collision geometry (segments) is exactly the curve that gets drawn.
+_SPLINE_STEPS = 8
+_SPLINE_TENSION = 0.5
+
+
+def _cardinal_point(p0, p1, p2, p3, t):
+    """Sample the cardinal-spline span p1->p2 (neighbors p0, p3) at parameter t."""
+    s = _SPLINE_TENSION
+    cp1x = p1.x + (p2.x - p0.x) * s / 6.0
+    cp1y = p1.y + (p2.y - p0.y) * s / 6.0
+    cp2x = p2.x - (p3.x - p1.x) * s / 6.0
+    cp2y = p2.y - (p3.y - p1.y) * s / 6.0
+    u = 1.0 - t
+    b0 = u * u * u
+    b1 = 3.0 * u * u * t
+    b2 = 3.0 * u * t * t
+    b3 = t * t * t
+    return Vector2(
+        b0 * p1.x + b1 * cp1x + b2 * cp2x + b3 * p2.x,
+        b0 * p1.y + b1 * cp1y + b2 * cp2y + b3 * p2.y,
+    )
+
+
+def _cardinal_span(p0, p1, p2, p3):
+    """Flatten one span into _SPLINE_STEPS points, t = 1/S .. 1.0 (ends exactly at p2)."""
+    s = _SPLINE_STEPS
+    return [_cardinal_point(p0, p1, p2, p3, k / s) for k in range(1, s + 1)]
+
+
+class Spline(Shape):
+    """A smooth curve through a series of points.
+
+        ramp = Spline([(0, 400), (200, 300), (400, 380)])   # an open ramp
+        ball.vel = ball.vel.bounce_of(ramp, at=ball.pos)
+        ramp.draw()
+
+        trail = Spline([])
+        def main():
+            trail.add(player.pos)      # grows one point per frame, O(1)
+            trail.draw()
+
+    `closed=False` (the default) is an open curve — `contains()` tests nearness
+    to the line, NOT whether a point is inside a filled region. `closed=True`
+    makes a smooth loop that IS a region: `contains()` reports points inside it
+    and `draw()` fills it. `thickness` is fixed at construction time.
+    """
+
+    def __init__(self, points, closed=False, thickness=6):
+        super().__init__(thickness=thickness)
+        self._closed = bool(closed)
+        self._control = [Vector2(p) for p in points]
+        # A closed loop draws as a filled region, like a Polygon; an open curve
+        # draws as a stroked polyline. (Instance attr shadows the class default.)
+        self._draw_cmd = "polygon" if self._closed else "polyline"
+        # _vertices is the flattened polyline, maintained eagerly so add() can
+        # splice its tail in O(1). The segments/draw_points/bounds caches are
+        # derived from it lazily via the base _dirty machinery.
+        self._vertices = self._full_vertices()
+
+    @property
+    def points(self):
+        """The control points (list of Vector2), in order."""
+        return self._control
+
+    @property
+    def closed(self):
+        """True if the curve is a closed loop (a filled region)."""
+        return self._closed
+
+    # --- flattening ---
+
+    def _full_vertices(self):
+        """Flatten the whole curve from scratch (used on construct + closed add)."""
+        c = self._control
+        m = len(c)
+        if m == 0:
+            return []
+        if m == 1:
+            return [c[0]]
+        verts = [c[0]]
+        if self._closed and m >= 3:
+            for j in range(m):
+                p0 = c[(j - 1) % m]
+                p1 = c[j]
+                p2 = c[(j + 1) % m]
+                p3 = c[(j + 2) % m]
+                verts.extend(_cardinal_span(p0, p1, p2, p3))
+        else:
+            for j in range(m - 1):
+                p0 = c[max(0, j - 1)]
+                p1 = c[j]
+                p2 = c[j + 1]
+                p3 = c[min(m - 1, j + 2)]
+                verts.extend(_cardinal_span(p0, p1, p2, p3))
+        return verts
+
+    def _open_span(self, j):
+        """Compute open-curve span j (between control j and j+1) with clamped neighbors."""
+        c = self._control
+        m = len(c)
+        p0 = c[max(0, j - 1)]
+        p1 = c[j]
+        p2 = c[j + 1]
+        p3 = c[min(m - 1, j + 2)]
+        return _cardinal_span(p0, p1, p2, p3)
+
+    def add(self, point):
+        """Append a control point. Open curves rebuild only the tail — O(1) amortized.
+
+        Returns self so calls can chain. Adding to a closed loop rebuilds fully
+        (loops are meant to be built once), which is why the O(1) guarantee is
+        for the common open/growing case.
+        """
+        v = Vector2(point)
+        c = self._control
+        s = _SPLINE_STEPS
+
+        if self._closed:
+            c.append(v)
+            self._vertices = self._full_vertices()
+            self._dirty = True
+            return self
+
+        m0 = len(c)
+        c.append(v)
+        if m0 <= 1:
+            # 0->1 (single point) or 1->2 (first span appears): cheap full build.
+            self._vertices = self._full_vertices()
+            self._dirty = True
+            return self
+
+        # m0 >= 2: the previously-last span (m0-2) had a phantom endpoint that is
+        # now the real new point, so recompute it; then append the new span
+        # (m0-1). Both live at the tail of _vertices, so this is O(_SPLINE_STEPS).
+        del self._vertices[-s:]                  # drop old span (m0-2)
+        self._vertices.extend(self._open_span(m0 - 2))   # recompute it, p3 now real
+        self._vertices.extend(self._open_span(m0 - 1))   # brand-new tail span
+        self._dirty = True
+        return self
+
+    def _rebuild(self):
+        # Derive segments/draw_points from the eagerly-maintained _vertices.
+        v = self._vertices
+        draw = []
+        for pt in v:
+            draw.append(pt.x)
+            draw.append(pt.y)
+        self._segments = [Segment(v[i], v[i + 1]) for i in range(len(v) - 1)]
+        self._draw_points = draw
+
+    def contains(self, point):
+        """Membership test — dispatches on `closed`.
+
+        Closed: point-in-region (even-odd ray cast; on the boundary counts as
+        inside). Open: nearness to the curve (within half the thickness), never a
+        filled-region test — an unset `closed` must not behave like a region.
+        """
+        self._ensure_built()
+        p = Vector2(point)
+        if self._closed:
+            # _vertices ends with a duplicate of the first point (the loop close);
+            # drop it so the ring has no zero-length seam edge.
+            ring = self._vertices[:-1] if len(self._vertices) > 1 else self._vertices
+            return self._point_in_polygon(p, ring)
+        return self._near_curve(p, self._thickness / 2.0 + 1.0)

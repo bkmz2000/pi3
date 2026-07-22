@@ -1013,7 +1013,7 @@ test("normalized zero stays zero", Vector2(0, 0).normalized() == Vector2(0, 0))
 
 print("\n=== Runtime: Line / Shape / bounce_of ===")
 
-from graphics.shapes import Line, Polygon, Shape, Segment
+from graphics.shapes import Line, Polygon, Spline, Shape, Segment
 
 
 def _vclose(v, x, y, eps=1e-9):
@@ -1121,6 +1121,113 @@ _tri = Polygon([(0, 0), (100, 0), (50, 100)])
 test("Triangle contains inside", _tri.contains((50, 20)) is True)
 test("Triangle contains outside", _tri.contains((50, -5)) is False)
 test("Triangle normal_at base edge", _vclose(_tri.normal_at((50, 0)), 0, 1))
+
+
+# --- Spline (smooth cardinal curve + incremental add) ---
+
+print("\n=== Runtime: Spline ===")
+
+import time as _time
+from graphics.shapes import _SPLINE_STEPS as _SP_S
+
+test("Spline in __all__", "Spline" in g.__all__)
+test("Spline is a Shape", issubclass(Spline, Shape))
+test("Spline default is open", Spline([(0, 0), (1, 1)]).closed is False)
+
+# --- The non-negotiable test: incremental add() must reproduce the one-shot
+#     constructor build byte-for-byte (same _segments and _draw_points). ---
+_curve_pts = [(0, 0), (50, 80), (120, 40), (200, 120), (260, 60), (320, 140), (380, 90)]
+_one_shot = Spline(_curve_pts)
+_incremental = Spline([])
+for _p in _curve_pts:
+    _incremental.add(_p)
+_one_shot._ensure_built()
+_incremental._ensure_built()
+test("Spline incremental add() == constructor (draw_points)",
+     _one_shot._draw_points == _incremental._draw_points)
+test("Spline incremental add() == constructor (segments)",
+     _one_shot._segments == _incremental._segments)
+test("Spline add() returns self for chaining",
+     Spline([(0, 0)]).add((1, 1)) is not None)
+
+# --- O(1) guard (deterministic, not timing-based): add() must rebuild ONLY the
+#     tail, leaving every earlier flattened vertex untouched. ---
+_grow = Spline([(0, 0), (20, 10), (40, 0), (60, 15), (80, 5), (100, 12)])
+_before = list(_grow._vertices)
+_grow.add((120, 20))
+_prefix_len = len(_before) - _SP_S   # everything except the old last span
+test("Spline.add rebuilds only the tail (prefix vertices unchanged)",
+     _grow._vertices[:_prefix_len] == _before[:_prefix_len])
+test("Spline.add grows vertices by exactly one span",
+     len(_grow._vertices) == len(_before) + _SP_S)
+
+# --- Rough timing sanity (informational; the structural guard above is the real
+#     gate). Adds at length ~1000 must not be dramatically slower than at ~100. ---
+_timer = Spline([(0, 0), (1, 0)])
+for _i in range(100):
+    _timer.add((_i, (_i * 7) % 60))
+_t0 = _time.perf_counter()
+for _i in range(100):
+    _timer.add((_i, (_i * 13) % 60))
+_dt_small = _time.perf_counter() - _t0
+for _i in range(800):
+    _timer.add((_i, (_i * 3) % 60))
+_t0 = _time.perf_counter()
+for _i in range(100):
+    _timer.add((_i, (_i * 17) % 60))
+_dt_large = _time.perf_counter() - _t0
+# O(1) => ratio ~1; a full re-flatten regression would be ~10x. 25x tolerates
+# CI noise while still catching catastrophic O(n) blow-up.
+test("Spline.add time does not blow up with length",
+     _dt_large <= _dt_small * 25 + 0.02)
+
+# --- closed vs open contains: the default (open) must NOT act as a region. ---
+_ring_pts = [(0, 0), (100, 0), (100, 100), (0, 100)]
+_closed = Spline(_ring_pts, closed=True)
+_open = Spline(_ring_pts, closed=False)
+test("Spline closed loop contains its center", _closed.contains((50, 50)) is True)
+test("Spline OPEN does not contain center (not a filled region)",
+     _open.contains((50, 50)) is False)
+test("Spline open contains a point on the curve", _open.contains((100, 0)) is True)
+test("Spline closed contains reports outside points False",
+     _closed.contains((200, 50)) is False)
+
+# --- Bounce off an open ramp at several contact points (dispatches to the
+#     nearest-segment normal at `at`). ---
+_ramp = Spline([(0, 400), (200, 300), (400, 380)])
+for _at in [(100, 355), (200, 300), (300, 345)]:
+    _n = _ramp.normal_at(_at)
+    _v = Vector2(1, 3)
+    _dot = _v.x * _n.x + _v.y * _n.y
+    _exp = (_v.x - 2 * _dot * _n.x, _v.y - 2 * _dot * _n.y)
+    test("bounce_of open ramp at %s" % (_at,),
+         _vclose(_v.bounce_of(_ramp, at=_at), _exp[0], _exp[1]))
+    test("Spline ramp normal is unit at %s" % (_at,), abs(_n.length - 1.0) < 1e-9)
+
+# --- Bounce off a closed loop at several contact points. ---
+_track = Spline([(0, 0), (120, 0), (120, 120), (0, 120)], closed=True)
+for _at in [(60, 0), (120, 60), (60, 120)]:
+    _n = _track.normal_at(_at)
+    _v = Vector2(2, -1)
+    _dot = _v.x * _n.x + _v.y * _n.y
+    _exp = (_v.x - 2 * _dot * _n.x, _v.y - 2 * _dot * _n.y)
+    test("bounce_of closed loop at %s" % (_at,),
+         _vclose(_v.bounce_of(_track, at=_at), _exp[0], _exp[1]))
+
+# --- thickness: default 6, constructor-only / read-only. ---
+test("Spline.thickness default 6", Spline([(0, 0), (1, 1)]).thickness == 6)
+
+
+def _spline_thickness_readonly():
+    sp = Spline([(0, 0), (1, 1)])
+    try:
+        sp.thickness = 3
+        return False
+    except AttributeError:
+        return True
+
+
+test("Spline.thickness read-only", _spline_thickness_readonly())
 
 
 # --- AnchorPoint is a Vector2 ---

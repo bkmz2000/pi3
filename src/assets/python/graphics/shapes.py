@@ -312,10 +312,10 @@ class Shape:
             return
         # Wrap in push/pop so this shape's own thickness restores afterward and
         # does not leak into the global stroke width used by line()/rect()/etc.
-        _state._draw_commands.append(("push", (), {}))
-        _state._draw_commands.append(("stroke_width", (self._thickness,), {}))
-        _state._draw_commands.append((self._draw_cmd, (list(pts),), {}))
-        _state._draw_commands.append(("pop", (), {}))
+        _state._draw_commands.append(("push", ()))
+        _state._draw_commands.append(("stroke_width", (self._thickness,)))
+        _state._draw_commands.append((self._draw_cmd, (list(pts),)))
+        _state._draw_commands.append(("pop", ()))
 
     def _draw_textured(self):
         """Blit the texture sprite at each placement, rotated to follow the outline."""
@@ -330,11 +330,11 @@ class Shape:
         for (x, y, angle) in self._texture_blits:
             # Center each tile on its point and rotate via the transform stack —
             # the same push/translate/rotate path Actor.draw uses for sprites.
-            _state._draw_commands.append(("push", (), {}))
-            _state._draw_commands.append(("translate", (x, y), {}))
-            _state._draw_commands.append(("rotate", (angle,), {}))
-            _state._draw_commands.append(("sprite", (px, sw, sh, -hw, -hh, None, None), {}))
-            _state._draw_commands.append(("pop", (), {}))
+            _state._draw_commands.append(("push", ()))
+            _state._draw_commands.append(("translate", (x, y)))
+            _state._draw_commands.append(("rotate", (angle,)))
+            _state._draw_commands.append(("sprite", (px, sw, sh, -hw, -hh, None, None)))
+            _state._draw_commands.append(("pop", ()))
 
 
 class Line(Shape):

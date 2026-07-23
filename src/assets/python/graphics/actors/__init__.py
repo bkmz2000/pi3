@@ -515,7 +515,6 @@ class Actor:
                         "sprite",
                         (bytes(sprite.pixels), int(sw), int(sh),
                          float(-sw / 2), float(-sh / 2), None, None),
-                        {},
                     ))
                 if ctrl is not None:
                     ctrl._ticked_this_frame = False
@@ -523,12 +522,12 @@ class Actor:
                 if "anim_name" in img:
                     anim_name = img["anim_name"]
                     frame_idx = img.get("frame_idx", 0)
-                    g._draw_commands.append(("animation_frame_centered", (anim_name, frame_idx, 0.0, 0.0, None, None), {}))
+                    g._draw_commands.append(("animation_frame_centered", (anim_name, frame_idx, 0.0, 0.0, None, None)))
                 elif "name" in img:
                     name = img["name"]
-                    g._draw_commands.append(("image_centered", (name, 0.0, 0.0, None, None), {}))
+                    g._draw_commands.append(("image_centered", (name, 0.0, 0.0, None, None)))
             else:
-                g._draw_commands.append(("image_centered", (str(img), 0.0, 0.0, None, None), {}))
+                g._draw_commands.append(("image_centered", (str(img), 0.0, 0.0, None, None)))
             g.pop()
             if g._show_hitboxes:
                 g.push()
@@ -545,9 +544,9 @@ class Actor:
                     g.rect(col.dx - col.width / 2, col.dy - col.height / 2, col.width, col.height)
                 g._state._current_fill, g._state._fill_color = sf, sfc
                 g._state._current_stroke, g._state._stroke_color, g._state._stroke_width = ss, ssc, ssw
-                g._state._draw_commands.append(("fill", sfc, {}) if sf else ("no_fill", (), {}))
-                g._state._draw_commands.append(("stroke", ssc, {}) if ss else ("no_stroke", (), {}))
-                g._state._draw_commands.append(("stroke_width", (ssw,), {}))
+                g._state._draw_commands.append(("fill", sfc) if sf else ("no_fill", ()))
+                g._state._draw_commands.append(("stroke", ssc) if ss else ("no_stroke", ()))
+                g._state._draw_commands.append(("stroke_width", (ssw,)))
                 g.pop()
 
     def reset(self):
@@ -743,9 +742,9 @@ class Rect(Actor):
                 g.circle(col.dx, col.dy, col.radius)
             g._state._current_fill, g._state._fill_color = sf, sfc
             g._state._current_stroke, g._state._stroke_color, g._state._stroke_width = ss, ssc, ssw
-            g._state._draw_commands.append(("fill", sfc, {}) if sf else ("no_fill", (), {}))
-            g._state._draw_commands.append(("stroke", ssc, {}) if ss else ("no_stroke", (), {}))
-            g._state._draw_commands.append(("stroke_width", (ssw,), {}))
+            g._state._draw_commands.append(("fill", sfc) if sf else ("no_fill", ()))
+            g._state._draw_commands.append(("stroke", ssc) if ss else ("no_stroke", ()))
+            g._state._draw_commands.append(("stroke_width", (ssw,)))
         g.pop()
 
 
@@ -788,9 +787,9 @@ class Circle(Actor):
                 g.rect(col.dx - col.width / 2, col.dy - col.height / 2, col.width, col.height)
             g._state._current_fill, g._state._fill_color = sf, sfc
             g._state._current_stroke, g._state._stroke_color, g._state._stroke_width = ss, ssc, ssw
-            g._state._draw_commands.append(("fill", sfc, {}) if sf else ("no_fill", (), {}))
-            g._state._draw_commands.append(("stroke", ssc, {}) if ss else ("no_stroke", (), {}))
-            g._state._draw_commands.append(("stroke_width", (ssw,), {}))
+            g._state._draw_commands.append(("fill", sfc) if sf else ("no_fill", ()))
+            g._state._draw_commands.append(("stroke", ssc) if ss else ("no_stroke", ()))
+            g._state._draw_commands.append(("stroke_width", (ssw,)))
         g.pop()
 
 
@@ -842,28 +841,28 @@ def _draw_actor_info_overlay():
             arrow_len = min(speed, 60.0)
             ex = x + (vx / speed) * arrow_len
             ey = y + (vy / speed) * arrow_len
-            cmds.append(("no_fill", (), {}))
-            cmds.append(("stroke", (255, 220, 0), {}))
-            cmds.append(("stroke_width", (2,), {}))
-            cmds.append(("line", (x, y, ex, ey), {}))
-            cmds.append(("fill", (255, 220, 0), {}))
-            cmds.append(("no_stroke", (), {}))
-            cmds.append(("circle", (ex, ey, 3.0), {}))
+            cmds.append(("no_fill", ()))
+            cmds.append(("stroke", (255, 220, 0)))
+            cmds.append(("stroke_width", (2,)))
+            cmds.append(("line", (x, y, ex, ey)))
+            cmds.append(("fill", (255, 220, 0)))
+            cmds.append(("no_stroke", ()))
+            cmds.append(("circle", (ex, ey, 3.0)))
 
         # facing tick: short cyan line along actor.angle
         angle_rad = _math.radians(actor._angle)
         fx = x + _math.cos(angle_rad) * 14.0
         fy = y + _math.sin(angle_rad) * 14.0
-        cmds.append(("no_fill", (), {}))
-        cmds.append(("stroke", (100, 200, 255), {}))
-        cmds.append(("stroke_width", (2,), {}))
-        cmds.append(("line", (x, y, fx, fy), {}))
+        cmds.append(("no_fill", ()))
+        cmds.append(("stroke", (100, 200, 255)))
+        cmds.append(("stroke_width", (2,)))
+        cmds.append(("line", (x, y, fx, fy)))
 
         # position label (capped at MAX_LABELS to avoid clutter)
         if i < MAX_LABELS:
             label = f"({x:.0f},{y:.0f})"
-            cmds.append(("fill", (255, 255, 255), {}))
-            cmds.append(("no_stroke", (), {}))
-            cmds.append(("text_size", (11,), {}))
-            cmds.append(("text_align", ("left", "bottom"), {}))
-            cmds.append(("text", (label, x + 4.0, y - 4.0), {}))
+            cmds.append(("fill", (255, 255, 255)))
+            cmds.append(("no_stroke", ()))
+            cmds.append(("text_size", (11,)))
+            cmds.append(("text_align", ("left", "bottom")))
+            cmds.append(("text", (label, x + 4.0, y - 4.0)))

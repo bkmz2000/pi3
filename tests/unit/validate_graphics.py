@@ -489,13 +489,13 @@ test("fill('blue') queues fill", cmd()[0] == "fill")
 test("fill('blue') value is blue rgb", cmd()[1] == g.Colors.blue)
 
 reset(); g.fill(100, 150, 200)
-test("fill(r,g,b) queues correct rgb", cmd() == ("fill", (100, 150, 200), {}))
+test("fill(r,g,b) queues correct rgb", cmd() == ("fill", (100, 150, 200)))
 
 reset(); g.fill(128)
-test("fill(gray) queues gray rgb", cmd() == ("fill", (128, 128, 128), {}))
+test("fill(gray) queues gray rgb", cmd() == ("fill", (128, 128, 128)))
 
 reset(); g.fill((255, 0, 128))
-test("fill(tuple) queues correct rgb", cmd() == ("fill", (255, 0, 128), {}))
+test("fill(tuple) queues correct rgb", cmd() == ("fill", (255, 0, 128)))
 
 reset(); g.stroke(None)
 test("stroke(None) queues no_stroke", cmd()[0] == "no_stroke")
@@ -504,62 +504,62 @@ reset(); g.no_stroke()
 test("no_stroke() queues no_stroke", cmd()[0] == "no_stroke")
 
 reset(); g.stroke(255, 0, 0)
-test("stroke(r,g,b) queues stroke", cmd() == ("stroke", (255, 0, 0), {}))
+test("stroke(r,g,b) queues stroke", cmd() == ("stroke", (255, 0, 0)))
 
 reset(); g.stroke("red")
 test("stroke('red') queues stroke", cmd()[0] == "stroke")
 test("stroke('red') value is red", cmd()[1] == g.Colors.red)
 
 reset(); g.stroke_width(3)
-test("stroke_width(3) queues correctly", cmd() == ("stroke_width", (3,), {}))
+test("stroke_width(3) queues correctly", cmd() == ("stroke_width", (3,)))
 
 
 # --- background ---
 
 reset(); g.background("black")
-test("background('black') queues Colors.black", cmd() == ("background", g.Colors.black, {}))
+test("background('black') queues Colors.black", cmd() == ("background", g.Colors.black))
 
 reset(); g.background(10, 20, 30)
-test("background(r,g,b) queues correctly", cmd() == ("background", (10, 20, 30), {}))
+test("background(r,g,b) queues correctly", cmd() == ("background", (10, 20, 30)))
 
 reset(); g.background(100)
-test("background(gray) queues gray", cmd() == ("background", (100, 100, 100), {}))
+test("background(gray) queues gray", cmd() == ("background", (100, 100, 100)))
 
 reset(); g.background((50, 60, 70))
-test("background(tuple) queues correctly", cmd() == ("background", (50, 60, 70), {}))
+test("background(tuple) queues correctly", cmd() == ("background", (50, 60, 70)))
 
 
 # --- drawing shapes ---
 
 reset(); g.circle(10, 20, 30)
-test("circle queues circle cmd", cmd() == ("circle", (10.0, 20.0, 30.0), {}))
+test("circle queues circle cmd", cmd() == ("circle", (10.0, 20.0, 30.0)))
 
 reset(); g.rect(1, 2, 3, 4)
-test("rect queues rect cmd", cmd() == ("rect", (1.0, 2.0, 3.0, 4.0), {}))
+test("rect queues rect cmd", cmd() == ("rect", (1.0, 2.0, 3.0, 4.0)))
 
 reset(); g.ellipse(5, 5, 20)
-test("ellipse with no h defaults to w", cmd() == ("ellipse", (5.0, 5.0, 20.0, 20.0), {}))
+test("ellipse with no h defaults to w", cmd() == ("ellipse", (5.0, 5.0, 20.0, 20.0)))
 
 reset(); g.ellipse(5, 5, 20, 10)
-test("ellipse(x,y,w,h) queues correctly", cmd() == ("ellipse", (5.0, 5.0, 20.0, 10.0), {}))
+test("ellipse(x,y,w,h) queues correctly", cmd() == ("ellipse", (5.0, 5.0, 20.0, 10.0)))
 
 reset(); g.line(0, 0, 10, 10)
-test("line queues line cmd", cmd() == ("line", (0.0, 0.0, 10.0, 10.0), {}))
+test("line queues line cmd", cmd() == ("line", (0.0, 0.0, 10.0, 10.0)))
 
 reset(); g.point(5, 7)
-test("point queues point cmd", cmd() == ("point", (5.0, 7.0), {}))
+test("point queues point cmd", cmd() == ("point", (5.0, 7.0)))
 
 reset(); g.text("hi", 5, 10)
-test("text(s,x,y) queues text cmd", cmd() == ("text", ("hi", 5.0, 10.0), {}))
+test("text(s,x,y) queues text cmd", cmd() == ("text", ("hi", 5.0, 10.0)))
 
 
 # --- text_size / text_align ---
 
 reset(); g.text_size(18)
-test("text_size(18) queues correctly", cmd() == ("text_size", (18,), {}))
+test("text_size(18) queues correctly", cmd() == ("text_size", (18,)))
 
 reset(); g.text_align("center", "middle")
-test("text_align queues correctly", cmd() == ("text_align", ("center", "middle"), {}))
+test("text_align queues correctly", cmd() == ("text_align", ("center", "middle")))
 
 reset(); g.text_align("right")
 test("text_align with one arg queues correctly", cmd()[0] == "text_align" and cmd()[1][0] == "right")
@@ -571,14 +571,14 @@ reset(); g.push(); g.translate(5, 10); g.rotate(45); g.pop()
 cs = cmds()
 test("push/translate/rotate/pop queued in order",
      [c[0] for c in cs] == ["push", "translate", "rotate", "pop"])
-test("translate args", cs[1] == ("translate", (5.0, 10.0), {}))
-test("rotate arg", cs[2] == ("rotate", (45.0,), {}))
+test("translate args", cs[1] == ("translate", (5.0, 10.0)))
+test("rotate arg", cs[2] == ("rotate", (45.0,)))
 
 reset(); g.scale(2)
-test("scale(2) queues (2.0, 2.0)", cmd() == ("scale", (2.0, 2.0), {}))
+test("scale(2) queues (2.0, 2.0)", cmd() == ("scale", (2.0, 2.0)))
 
 reset(); g.scale(2, 3)
-test("scale(x,y) queues correctly", cmd() == ("scale", (2.0, 3.0), {}))
+test("scale(x,y) queues correctly", cmd() == ("scale", (2.0, 3.0)))
 
 
 # --- text with AnchorPoint ---

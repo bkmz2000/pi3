@@ -50,7 +50,7 @@ def test_forward_emits_line():
     t.forward(100)
     lines = cmds_of(s, "line")
     test("forward(100) emits 1 line", len(lines) == 1)
-    (_, args, _) = lines[0]
+    (_, args) = lines[0]
     # origin center (200,200) → (300,200)
     test("forward line start=center", math.isclose(args[0], 200) and math.isclose(args[1], 200))
     test("forward line end=(300,200)", math.isclose(args[2], 300) and math.isclose(args[3], 200))
@@ -63,7 +63,7 @@ def test_left_turns_ccw():
     t.left(90)
     t.forward(50)
     lines = cmds_of(s, "line")
-    _, args, _ = lines[0]
+    _, args = lines[0]
     # heading=90 → moves +y → screen -y (up)
     test("left(90)+forward moves up on screen",
          math.isclose(args[2], 200) and math.isclose(args[3], 150))
@@ -73,7 +73,7 @@ def test_right_turns_cw():
     t, g, s = _reset()
     t.right(90)
     t.forward(50)
-    _, args, _ = cmds_of(s, "line")[0]
+    _, args = cmds_of(s, "line")[0]
     # heading=-90 → -y in turtle → +y on screen (down)
     test("right(90)+forward moves down on screen",
          math.isclose(args[2], 200) and math.isclose(args[3], 250))
@@ -82,7 +82,7 @@ def test_right_turns_cw():
 def test_backward():
     t, g, s = _reset()
     t.backward(50)
-    _, args, _ = cmds_of(s, "line")[0]
+    _, args = cmds_of(s, "line")[0]
     test("backward(50) moves opposite heading", math.isclose(args[2], 150))
 
 
@@ -100,7 +100,7 @@ def test_penup_prevents_line():
 def test_goto_absolute():
     t, g, s = _reset()
     t.goto(50, -25)
-    _, args, _ = cmds_of(s, "line")[0]
+    _, args = cmds_of(s, "line")[0]
     test("goto ends at (50,-25) turtle → (250,225) screen",
          math.isclose(args[2], 250) and math.isclose(args[3], 225))
     test("xcor after goto", math.isclose(t.xcor(), 50))
@@ -212,7 +212,7 @@ def test_dot():
     t.dot(10)
     circles = cmds_of(s, "circle")
     test("dot emits circle", len(circles) == 1)
-    _, args, _ = circles[0]
+    _, args = circles[0]
     test("dot radius = size/2", math.isclose(args[2], 5))
 
 

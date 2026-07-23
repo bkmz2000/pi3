@@ -523,21 +523,21 @@ def height() -> int:
 
 
 def circle(x, y, r) -> None:
-    _state._draw_commands.append(("circle", (float(x), float(y), float(r)), {}))
+    _state._draw_commands.append(("circle", (float(x), float(y), float(r))))
 
 
 def rect(x, y, w, h) -> None:
-    _state._draw_commands.append(("rect", (float(x), float(y), float(w), float(h)), {}))
+    _state._draw_commands.append(("rect", (float(x), float(y), float(w), float(h))))
 
 
 def ellipse(x, y, w, h=None) -> None:
     if h is None:
         h = w
-    _state._draw_commands.append(("ellipse", (float(x), float(y), float(w), float(h)), {}))
+    _state._draw_commands.append(("ellipse", (float(x), float(y), float(w), float(h))))
 
 
 def line(x1, y1, x2, y2) -> None:
-    _state._draw_commands.append(("line", (float(x1), float(y1), float(x2), float(y2)), {}))
+    _state._draw_commands.append(("line", (float(x1), float(y1), float(x2), float(y2))))
 
 
 def _flatten_points(points, name):
@@ -564,14 +564,14 @@ def polyline(points) -> None:
     flat = _flatten_points(points, "polyline")
     if len(flat) < 4:
         return
-    _state._draw_commands.append(("polyline", (flat,), {}))
+    _state._draw_commands.append(("polyline", (flat,)))
 
 
 def polygon(points) -> None:
     flat = _flatten_points(points, "polygon")
     if len(flat) < 6:
         return
-    _state._draw_commands.append(("polygon", (flat,), {}))
+    _state._draw_commands.append(("polygon", (flat,)))
 
 
 def spline(points, tension: float = 0.5) -> None:
@@ -583,37 +583,37 @@ def spline(points, tension: float = 0.5) -> None:
         t = 0.0
     elif t > 1.0:
         t = 1.0
-    _state._draw_commands.append(("spline", (flat, t), {}))
+    _state._draw_commands.append(("spline", (flat, t)))
 
 
 def point(x, y) -> None:
-    _state._draw_commands.append(("point", (float(x), float(y)), {}))
+    _state._draw_commands.append(("point", (float(x), float(y))))
 
 
 def text(s: Any, x_or_anchor, y=None, *, padding: int = 6) -> None:
     if isinstance(x_or_anchor, AnchorPoint):
         a = x_or_anchor
-        _state._draw_commands.append(("text_align", (a.h_align, a.v_align), {}))
+        _state._draw_commands.append(("text_align", (a.h_align, a.v_align)))
         px = _anchor_pad_x(a, padding)
         py = _anchor_pad_y(a, padding)
-        _state._draw_commands.append(("text", (str(s), px, py), {}))
+        _state._draw_commands.append(("text", (str(s), px, py)))
     else:
-        _state._draw_commands.append(("text", (str(s), float(x_or_anchor), float(y)), {}))
+        _state._draw_commands.append(("text", (str(s), float(x_or_anchor), float(y))))
 
 
 def say(s: Any, anchor, *, padding: int = 8) -> None:
     """Draw a speech bubble with a tail pointing at anchor."""
-    _state._draw_commands.append(("say", (str(s), float(anchor.x), float(anchor.y), anchor.h_align, anchor.v_align, int(padding)), {}))
+    _state._draw_commands.append(("say", (str(s), float(anchor.x), float(anchor.y), anchor.h_align, anchor.v_align, int(padding))))
 
 
 def text_size(n) -> None:
-    _state._draw_commands.append(("text_size", (int(n),), {}))
+    _state._draw_commands.append(("text_size", (int(n),)))
 
 
 def text_align(horizontal: str, vertical: Optional[str] = None) -> None:
     h = horizontal.lower() if isinstance(horizontal, str) else horizontal
     v = vertical.lower() if vertical and isinstance(vertical, str) else vertical
-    _state._draw_commands.append(("text_align", (h, v), {}))
+    _state._draw_commands.append(("text_align", (h, v)))
 
 
 # === COLOR ===
@@ -622,72 +622,72 @@ def text_align(horizontal: str, vertical: Optional[str] = None) -> None:
 def fill(r=None, g=None, b=None) -> None:
     if r is None:
         _state._current_fill = False
-        _state._draw_commands.append(("no_fill", (), {}))
+        _state._draw_commands.append(("no_fill", ()))
         return
     color = _resolve_color(r, g, b)
     _state._fill_color = color
     _state._current_fill = True
-    _state._draw_commands.append(("fill", color, {}))
+    _state._draw_commands.append(("fill", color))
 
 
 def no_fill() -> None:
     _state._current_fill = False
-    _state._draw_commands.append(("no_fill", (), {}))
+    _state._draw_commands.append(("no_fill", ()))
 
 
 def stroke(r=None, g=None, b=None) -> None:
     if r is None:
         _state._current_stroke = False
-        _state._draw_commands.append(("no_stroke", (), {}))
+        _state._draw_commands.append(("no_stroke", ()))
         return
     color = _resolve_color(r, g, b)
     _state._stroke_color = color
     _state._current_stroke = True
-    _state._draw_commands.append(("stroke", color, {}))
+    _state._draw_commands.append(("stroke", color))
 
 
 def no_stroke() -> None:
     _state._current_stroke = False
-    _state._draw_commands.append(("no_stroke", (), {}))
+    _state._draw_commands.append(("no_stroke", ()))
 
 
 def stroke_width(w) -> None:
     _state._stroke_width = int(w)
-    _state._draw_commands.append(("stroke_width", (int(w),), {}))
+    _state._draw_commands.append(("stroke_width", (int(w),)))
 
 
 def background(r, g=None, b=None) -> None:
     # Accept an asset dict (sprite reference) → draw stretched to fill canvas.
     if isinstance(r, dict) and r.get("done") and "name" in r:
-        _state._draw_commands.append(("background_image", (r["name"],), {}))
+        _state._draw_commands.append(("background_image", (r["name"],)))
         return
     color = _resolve_color(r, g, b)
-    _state._draw_commands.append(("background", color, {}))
+    _state._draw_commands.append(("background", color))
 
 
 # === TRANSFORM ===
 
 
 def push() -> None:
-    _state._draw_commands.append(("push", (), {}))
+    _state._draw_commands.append(("push", ()))
 
 
 def pop() -> None:
-    _state._draw_commands.append(("pop", (), {}))
+    _state._draw_commands.append(("pop", ()))
 
 
 def translate(x, y) -> None:
-    _state._draw_commands.append(("translate", (float(x), float(y)), {}))
+    _state._draw_commands.append(("translate", (float(x), float(y))))
 
 
 def rotate(angle) -> None:
-    _state._draw_commands.append(("rotate", (float(angle),), {}))
+    _state._draw_commands.append(("rotate", (float(angle),)))
 
 
 def scale(x, y=None) -> None:
     if y is None:
         y = x
-    _state._draw_commands.append(("scale", (float(x), float(y)), {}))
+    _state._draw_commands.append(("scale", (float(x), float(y))))
 
 
 # === IMAGE ===
@@ -703,7 +703,6 @@ def image(img_result: Any, x, y, w=None, h=None) -> None:
             "sprite",
             (bytes(img_result.pixels), int(img_result.width), int(img_result.height),
              float(x), float(y), w, h),
-            {},
         ))
         return
     if isinstance(img_result, SpriteEntry):
@@ -713,7 +712,6 @@ def image(img_result: Any, x, y, w=None, h=None) -> None:
                 "sprite",
                 (bytes(sprite.pixels), int(sprite.width), int(sprite.height),
                  float(x), float(y), w, h),
-                {},
             ))
         return
     if isinstance(img_result, SheetAnimation):
@@ -723,7 +721,6 @@ def image(img_result: Any, x, y, w=None, h=None) -> None:
                 "sprite",
                 (bytes(sprite.pixels), int(sprite.width), int(sprite.height),
                  float(x), float(y), w, h),
-                {},
             ))
         return
     if isinstance(img_result, dict):
@@ -732,12 +729,12 @@ def image(img_result: Any, x, y, w=None, h=None) -> None:
         if "anim_name" in img_result:
             anim_name = img_result["anim_name"]
             frame_idx = img_result.get("frame_idx", 0)
-            _state._draw_commands.append(("animation_frame", (anim_name, frame_idx, float(x), float(y), w, h), {}))
+            _state._draw_commands.append(("animation_frame", (anim_name, frame_idx, float(x), float(y), w, h)))
         elif "name" in img_result:
             name = img_result["name"]
-            _state._draw_commands.append(("image", (name, float(x), float(y), w, h), {}))
+            _state._draw_commands.append(("image", (name, float(x), float(y), w, h)))
     else:
-        _state._draw_commands.append(("image", (str(img_result), float(x), float(y), w, h), {}))
+        _state._draw_commands.append(("image", (str(img_result), float(x), float(y), w, h)))
 
 
 # === RANDOM HELPERS ===
@@ -1171,7 +1168,7 @@ class TilemapLayer:
             rrows = self._rotations.get(col, {})
             for row, name in rows.items():
                 cells_flat.append([col, row, name, rrows.get(row, 0)])
-        _state._draw_commands.append(("tilemap_layer", (cells_flat, self.tile_size, float(x), float(y)), {}))
+        _state._draw_commands.append(("tilemap_layer", (cells_flat, self.tile_size, float(x), float(y))))
 
     def tile_at(self, px, py=None):
         if py is None:
@@ -1713,7 +1710,7 @@ class Light:
         For a fully static scene the per-frame cost drops to O(sources +
         obstacles) — just the fingerprint comparison.
         """
-        _state._draw_commands.append(("light_begin", self._ambient, {}))
+        _state._draw_commands.append(("light_begin", self._ambient))
 
         obstacle_fp = self._obstacle_fingerprint()
         obstacles_changed = obstacle_fp != self._obstacle_fp
@@ -1744,13 +1741,12 @@ class Light:
                 "light_poly",
                 (poly_flat, float(sx), float(sy), float(radius),
                  tuple(self._shade_rgb), float(intensity)),
-                {},
             ))
 
         if obstacles_changed:
             self._obstacle_fp = obstacle_fp
 
-        _state._draw_commands.append(("light_end", (self._mode,), {}))
+        _state._draw_commands.append(("light_end", (self._mode,)))
 
 
 # Enable module-level __setattr__ so that external writes like

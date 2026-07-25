@@ -840,11 +840,17 @@
     "joined": "In session",
     "copyLink": "Copy join link",
     "copied": "Link copied",
-    "groupView": "Group view",
     "leave": "Leave",
     "empty": "No one here yet — share the join link.",
-    "selectMember": "Select someone to see their code.",
-    "react": "React"
+    "react": "React",
+    "panelTitle": "Live",
+    "notInSession": "Not in a session. Start one and share the link to code alongside your classmates.",
+    "signInFirst": "Sign in to start or join a live session.",
+    "openPeerTab": "Open in a tab",
+    "peerTabTitle": "{{name}} — live code (read-only)",
+    "closePeerTab": "Close {{name}}'s live code",
+    "readOnly": "read-only",
+    "peerNotVisible": "You can't view this member's code in this session."
   },
   "teacher": {
     "dashboard": "Teacher Dashboard",

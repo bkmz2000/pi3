@@ -73,7 +73,8 @@ describe('usePresencePinger', () => {
       content: 'x = 1',
       sessionId: null,
     }));
-    act(() => { jest.advanceTimersByTime(3000); });
+    // One ping per second — the roster has to read as live.
+    act(() => { jest.advanceTimersByTime(1000); });
     expect(postLivePresence).toHaveBeenCalledTimes(2);
   });
 
@@ -87,7 +88,7 @@ describe('usePresencePinger', () => {
     }));
     // First ping carries content.
     expect(postLivePresence.mock.calls[0][3]).toHaveProperty('content', 'stable');
-    act(() => { jest.advanceTimersByTime(3000); });
+    act(() => { jest.advanceTimersByTime(1000); });
     // Second ping (unchanged) omits content entirely.
     expect(postLivePresence.mock.calls[1][3]).not.toHaveProperty('content');
   });
@@ -117,6 +118,36 @@ describe('usePresencePinger', () => {
     postLivePresence.mockClear();
     unmount();
     act(() => { jest.advanceTimersByTime(10000); });
+    expect(postLivePresence).not.toHaveBeenCalled();
+  });
+
+  it('clears the session stamp when the user leaves a session', () => {
+    useLiveSession.setState({ token: 'tok', sid: 'sess-leave', role: 'joiner', expiresAt: Date.now() + 1000 });
+    renderHook(() => usePresencePinger({
+      projectId: null,
+      currentFile: 'main.py',
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      editorRef: fakeEditorRef(4, 'code') as any,
+      loggedIn: true,
+    }));
+    postLivePresence.mockClear();
+    act(() => { useLiveSession.getState().leave(); });
+    // The synthetic row is never pinged again, so leaving has to null the
+    // stamp explicitly or the leaver ghosts on their peers' roster.
+    expect(postLivePresence).toHaveBeenCalledWith('session:sess-leave', 'main.py', 4, { sessionId: null });
+  });
+
+  it('does not clear the stamp on unmount while still in the session', () => {
+    useLiveSession.setState({ token: 'tok', sid: 'sess-stay', role: 'joiner', expiresAt: Date.now() + 1000 });
+    const { unmount } = renderHook(() => usePresencePinger({
+      projectId: null,
+      currentFile: 'main.py',
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      editorRef: fakeEditorRef(2, 'code') as any,
+      loggedIn: true,
+    }));
+    postLivePresence.mockClear();
+    unmount();
     expect(postLivePresence).not.toHaveBeenCalled();
   });
 

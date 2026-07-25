@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useEditor } from "./state/IdeState";
 import { useThemeStore } from "./state/useTheme";
 import { useUser } from "./state/useUser";
+import { useLiveSession } from "./state/useLiveSession";
 import { useTeacherShare } from "./state/useTeacherShare";
 import { Icon } from "./components/Icons";
 import { AuthSection } from "./components/user";
@@ -157,6 +158,73 @@ function FileTab({
           <Icon name="close" size={12} color="currentColor" />
         </div>
       )}
+    </button>
+  );
+}
+
+/**
+ * A peer's live buffer as a tab. Visually distinct from a file tab (eye icon,
+ * no dirty dot, no rename) because it is somebody else's code, read-only.
+ */
+function PeerTabButton({
+  label,
+  active,
+  theme,
+  onSelect,
+  onClose,
+}: {
+  label: string;
+  active: boolean;
+  theme: ReturnType<typeof useThemeStore.getState>["theme"];
+  onSelect: () => void;
+  onClose: () => void;
+}) {
+  const [hover, setHover] = useState(false);
+  const { t } = useTranslation();
+
+  return (
+    <button
+      type="button"
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      onClick={onSelect}
+      title={t('session.peerTabTitle', { name: label })}
+      style={{
+        all: "unset",
+        cursor: "pointer",
+        height: active ? 38 : 32,
+        padding: "0 12px",
+        background: active ? theme.tabActiveBg : hover ? theme.tabInactiveHover : theme.tabInactiveBg,
+        color: active ? theme.tabActiveTxt : theme.tabInactiveTxt,
+        borderRadius: theme.radiusTab,
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 6,
+        marginRight: 4,
+        fontFamily: theme.fontUI,
+        fontWeight: active ? theme.weightUI + 100 : theme.weightUI,
+        fontSize: 13.5,
+        transition: "background 0.15s",
+      }}
+    >
+      <Icon name="eye" size={13} color="currentColor" />
+      <span>{label}</span>
+      <div
+        role="button"
+        tabIndex={0}
+        aria-label={t('session.closePeerTab', { name: label })}
+        onClick={(e) => { e.stopPropagation(); onClose(); }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); onClose(); }
+        }}
+        style={{
+          width: 18, height: 18, borderRadius: 6,
+          display: "inline-flex", alignItems: "center", justifyContent: "center",
+          color: theme.panelTxtMute, marginLeft: 2, cursor: "pointer",
+        }}
+      >
+        <Icon name="close" size={12} color="currentColor" />
+      </div>
     </button>
   );
 }
@@ -364,6 +432,10 @@ export default function FileBar() {
   const deleteFile = useEditor((s) => s.deleteFile);
   const changeFile = useEditor((s) => s.changeFile);
   const dirtyFiles = useEditor((s) => s.dirtyFiles);
+  const peerTabs = useLiveSession((s) => s.peerTabs);
+  const activePeer = useLiveSession((s) => s.activePeer);
+  const focusPeer = useLiveSession((s) => s.focusPeer);
+  const closePeer = useLiveSession((s) => s.closePeer);
   const { t } = useTranslation();
 
   const files = Object.keys(project.files);
@@ -394,10 +466,10 @@ export default function FileBar() {
           <FileTab
             key={name}
             name={name}
-            active={name === currentFile}
+            active={activePeer === null && name === currentFile}
             dirty={dirtyFiles.has(name)}
             theme={theme}
-            onSelect={() => changeCurrentFile(name)}
+            onSelect={() => { focusPeer(null); changeCurrentFile(name); }}
             onClose={() => {
               if (window.confirm(t('fileBar.deleteConfirm', { filename: name }))) {
                 deleteFile(name);
@@ -407,6 +479,16 @@ export default function FileBar() {
           />
         ))}
         <NewFileTab theme={theme} />
+        {peerTabs.map((p) => (
+          <PeerTabButton
+            key={p.id}
+            label={p.label}
+            active={activePeer === p.id}
+            theme={theme}
+            onSelect={() => focusPeer(p.id)}
+            onClose={() => closePeer(p.id)}
+          />
+        ))}
       </div>
       <ProjectShareActions />
       <AuthSection />

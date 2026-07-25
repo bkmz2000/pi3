@@ -16,6 +16,8 @@ const config = {
     // workerFactory.ts uses import.meta.url (ESM-only); swap for a jest.fn() mock
     // so RunnerProvider can be imported in jsdom tests.
     '^\\./(workerFactory)$': '<rootDir>/tests/unit/__mocks__/workerFactory.ts',
+    // deploymentProfile.ts reads import.meta.env; same treatment as apiBase.
+    '^.*/state/deploymentProfile$': '<rootDir>/tests/unit/__mocks__/deploymentProfile.ts',
     // assets.ts uses import.meta.glob (Vite-only); swap for a stub.
     '^.*/state/assets$': '<rootDir>/tests/unit/__mocks__/assets.ts',
     // storage.ts uses indexedDB (browser-only); swap for a stub.
@@ -55,12 +57,14 @@ const config = {
       statements: 27,
     },
     // Bumped after the live-code / live-session tier (useLiveSession 100%,
-    // usePresencePinger content+session paths).
+    // usePresencePinger content+session paths), then the join-link tier
+    // (pendingSession, usePresencePinger leave/clear), then the live-panel tier
+    // (peer tabs in useLiveSession, useSessionAutoJoin 100%).
     './src/state/': {
-      branches: 48,
-      functions: 47,
-      lines: 52,
-      statements: 52,
+      branches: 52,
+      functions: 52,
+      lines: 58,
+      statements: 57,
     },
     './src/utils/': {
       branches: 50,

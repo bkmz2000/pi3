@@ -28,7 +28,9 @@ import { WelcomePage } from "./pages/WelcomePage";
 import { isInstitutional } from "./state/deploymentProfile";
 import { useUser } from "./state/useUser";
 import { usePresencePinger } from "./state/usePresencePinger";
-import { SessionOverlay } from "./components/session/SessionOverlay";
+import { useSessionAutoJoin } from "./state/useSessionAutoJoin";
+import { useLiveSession } from "./state/useLiveSession";
+import { PeerCodeView } from "./components/session/PeerCodeView";
 import { useTranslation } from "react-i18next";
 import ForkDialog from "./components/dialogs/ForkDialog";
 import { useThemeStore } from "./state/useTheme";
@@ -240,6 +242,13 @@ function AppInner() {
     editorRef,
     loggedIn: authStateLive === 'logged_in',
   });
+
+  // A `#session=` link may have parked a token before sign-in; claim it here so
+  // joining never depends on the live panel being open.
+  useSessionAutoJoin(authStateLive === 'logged_in');
+  const peerTabs = useLiveSession((s) => s.peerTabs);
+  const activePeer = useLiveSession((s) => s.activePeer);
+  const activePeerTab = activePeer ? peerTabs.find((p) => p.id === activePeer) ?? null : null;
 
   useEffect(() => {
     const handler = (e: BeforeUnloadEvent) => {
@@ -463,6 +472,14 @@ function AppInner() {
                   className="h-full text-left"
                 />
               </div>
+              {/* A peer's buffer covers the editor rather than replacing it:
+                  CodeMirror stays mounted so presence pings (which read the
+                  live view) keep flowing while you watch someone else code. */}
+              {activePeerTab && (
+                <div style={{ position: 'absolute', inset: 0, zIndex: 5, display: 'flex' }}>
+                  <PeerCodeView peerId={activePeerTab.id} label={activePeerTab.label} />
+                </div>
+              )}
               {selectedLine !== null && anchorY !== null && (() => {
                 const lineComments = fileComments.filter(c => c.line_number === selectedLine);
                 if (lineComments.length === 0) return null;
@@ -514,7 +531,6 @@ function AppInner() {
           onSave={handleForkSave}
         />
       )}
-      {authStateLive === 'logged_in' && <SessionOverlay />}
     </div>
   );
 }

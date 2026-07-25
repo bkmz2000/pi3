@@ -63,8 +63,18 @@ remote-deploy:
 		echo '✓ Done' \
 	"
 
+# :previous lives only in the registry (push retags it there), so pull it
+# before the local retag or the tag step fails on a fresh VPS.
 rollback:
-	@ssh $(VPS) "cd /app/pi3 && docker compose stop && docker tag $(IMAGE):previous $(IMAGE):latest && docker compose up -d"
+	@ssh $(VPS) " \
+		set -e && \
+		cd /app/pi3 && \
+		docker pull $(IMAGE):previous && \
+		docker compose stop && \
+		docker tag $(IMAGE):previous $(IMAGE):latest && \
+		docker compose up -d && \
+		echo '✓ Rolled back' \
+	"
 
 # ── Vercel path ───────────────────────────────────────────────────────
 _do-vercel: test

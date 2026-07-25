@@ -27,6 +27,24 @@ services:
     volumes:
       - pi3-db:/app/db
 
+  # Ad-hoc DB shell. The runtime image ships no sqlite3 binary and neither
+  # does the host, so this is the way in:
+  #
+  #   docker compose run --rm sqlite                       # interactive shell
+  #   docker compose run --rm sqlite sqlite3 pi3.db "..."  # one-off query
+  #
+  # The tools profile keeps it out of `docker compose up`. Writes are safe
+  # while pi3 is running — WAL handles the concurrent access — but take a
+  # backup first: `.backup pi3.db.bak-$(date +%Y%m%dT%H%M%S)`.
+  sqlite:
+    image: alpine:3.22
+    profiles: ["tools"]
+    working_dir: /app/db
+    entrypoint: ["/bin/sh", "-c", "apk add --no-cache sqlite >/dev/null && exec \"$0\" \"$@\""]
+    command: ["sqlite3", "pi3.db"]
+    volumes:
+      - pi3-db:/app/db
+
 volumes:
   pi3-db:
     driver: local

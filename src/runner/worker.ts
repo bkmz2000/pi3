@@ -3,6 +3,7 @@ import { WorkerCommand, WorkerEvent, LintDiagnostic, SheetRunPayload, RuntimeErr
 import { PYODIDE_CDN } from "./pyodideVersion";
 import { executeDrawCommands } from "./canvasRenderer";
 import { blitPngToCanvas, PendingMatplotlibBuffer } from "./matplotlibBlit";
+import { hoistStarImports } from "./hoistStarImports";
 import { isInterruptError } from "./isInterruptError";
 
 let pyodide: PyodideInterface | null = null;
@@ -921,12 +922,18 @@ except SyntaxError as _se:
     }
   }
 
-  const indented = transformed.split('\n').map((l) => '    ' + l).join('\n');
+  // `from x import *` cannot live inside the async wrapper below — hoist those
+  // statements to module level (see hoistStarImports).
+  const { prelude: starImports, body: runBody } = hoistStarImports(transformed);
+  const indented = runBody.trim()
+    ? runBody.split('\n').map((l) => '    ' + l).join('\n')
+    : '    pass'; // a program of nothing but star-imports still needs a body
 
   // Build async wrapper with error_hook integration (no re-raise — JS reads _last_structured_error)
   const asyncCode = `
 import error_hook
 import json as _json
+${starImports}
 
 async def __run():
 ${indented}

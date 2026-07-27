@@ -75,12 +75,13 @@ const config = {
     // Bumped after the live-code runner tier (RunnerProvider message-handler
     // branches: result.keepCanvas, start/canvas_resize/input_request, error +
     // runtime_error channels, sound routing, store actions), then the
-    // interrupt-detection predicate (isInterruptError 100%).
+    // interrupt-detection predicate (isInterruptError 100%), then the
+    // star-import hoist (hoistStarImports 100%).
     './src/runner/': {
       branches: 36,
-      functions: 31,
-      lines: 38,
-      statements: 37,
+      functions: 32,
+      lines: 39,
+      statements: 38,
     },
   },
 };

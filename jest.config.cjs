@@ -74,9 +74,10 @@ const config = {
     },
     // Bumped after the live-code runner tier (RunnerProvider message-handler
     // branches: result.keepCanvas, start/canvas_resize/input_request, error +
-    // runtime_error channels, sound routing, store actions).
+    // runtime_error channels, sound routing, store actions), then the
+    // interrupt-detection predicate (isInterruptError 100%).
     './src/runner/': {
-      branches: 35,
+      branches: 36,
       functions: 31,
       lines: 38,
       statements: 37,

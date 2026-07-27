@@ -3,6 +3,7 @@ import { WorkerCommand, WorkerEvent, LintDiagnostic, SheetRunPayload, RuntimeErr
 import { PYODIDE_CDN } from "./pyodideVersion";
 import { executeDrawCommands } from "./canvasRenderer";
 import { blitPngToCanvas, PendingMatplotlibBuffer } from "./matplotlibBlit";
+import { isInterruptError } from "./isInterruptError";
 
 let pyodide: PyodideInterface | null = null;
 let offscreen: OffscreenCanvas | null = null;
@@ -1017,8 +1018,12 @@ self.onmessage = async (e: MessageEvent<WorkerCommand>) => {
       await runScript(p, msg.files, msg.assets, msg.tilemaps, msg.soundNames, msg.sheet, msg.entry, msg.showHitboxes, msg.showActorInfo);
     } catch (err: unknown) {
       const errStr = String(err);
-      // KeyboardInterrupt (stop button) — not an error, just a clean stop
-      if (errStr.includes("KeyboardInterrupt")) {
+      // KeyboardInterrupt (stop button) — not an error, just a clean stop.
+      // Detected via PythonError.type: an interrupted run often yields an empty
+      // message, so String(err) is only "PythonError". See isInterruptError.
+      if (isInterruptError(err)) {
+        // A4: a classification from earlier in this run must not resurface next run.
+        try { pyodide?.globals.delete("_last_structured_error"); } catch { /* ignore */ }
         post({ type: "stdout", text: "Program stopped." });
         post({ type: "result" });
       } else {

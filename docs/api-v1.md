@@ -60,6 +60,7 @@
 | `Shape.random(rect=None, n=1)` | Method | Random point(s) inside the shape (reject-sampled); `n=1` returns a Vector2, `n>1` a list. Raises `shapeRandomFailed` if it can't fit enough |
 | `Vector2.distance_to(shape)` | Method | Now also accepts a Line/Polygon/Spline — distance from the point to the shape's outline |
 | `Vector2.bounce_of(shape, at=None, restitution=1.0)` | Method | Reflect a velocity off a Shape's surface normal; `restitution` scales the bounced speed |
+| `show()` | Function | Paint everything drawn so far to the canvas, once — the still-picture counterpart of `run()`. Flushes and clears the pending draw-command buffer, applying any pending `size()` first. `turtle.done()` / `mainloop()` call it internally |
 
 ## Pattern-based error hints (Phase E)
 

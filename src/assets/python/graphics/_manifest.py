@@ -53,7 +53,7 @@ EXPORTED_NAMES = [
     "SheetAnimation", "SpriteEntry", "SheetNamespace", "AnimationController",
     "Timer",
     "State",
-    "run", "stop",
+    "run", "stop", "show",
     "assets",
     "sheet",
     "inspect",

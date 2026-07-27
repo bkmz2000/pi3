@@ -2344,6 +2344,75 @@ test("ALL_MESSAGE_KEYS has friendlyError.internal.classifierFailed",
      "friendlyError.internal.classifierFailed" in _amk)
 
 
+# === 15: show() paints the pending buffer once ===
+
+print("\n=== Runtime: show() ===")
+
+import types as _types
+
+# show() is the only public entry point that talks to the JS bridge outside a
+# run loop, so stub the two globals Pyodide would supply.
+_show_calls = {"resize": [], "flush": []}
+_fake_js = _types.ModuleType("js")
+_fake_js._ide_canvas_resize = lambda w, h: _show_calls["resize"].append((w, h))
+_fake_js._ide_flush_draw_commands = lambda c: _show_calls["flush"].append(list(c))
+_fake_ffi = _types.ModuleType("pyodide.ffi")
+_fake_ffi.to_js = lambda obj, **kw: obj
+_fake_pyodide = _types.ModuleType("pyodide")
+_fake_pyodide.__path__ = []
+_fake_pyodide.ffi = _fake_ffi
+
+sys.modules["js"] = _fake_js
+sys.modules["pyodide"] = _fake_pyodide
+sys.modules["pyodide.ffi"] = _fake_ffi
+try:
+    reset()
+    # A size() the student called before the first paint is queued, not applied.
+    g._state._width, g._state._height = 100, 100
+    g._state._pending_size = (321, 241)
+    g.circle(10, 20, 5)
+    g.show()
+
+    test("show(): applies the pending size",
+         (g._state._width, g._state._height) == (321, 241))
+    test("show(): consumes the pending size", g._state._pending_size is None)
+    test("show(): resizes the canvas to it", _show_calls["resize"] == [(321, 241)])
+    test("show(): flushes once", len(_show_calls["flush"]) == 1)
+    test("show(): flushes what was drawn",
+         len(_show_calls["flush"][0]) == 1 and _show_calls["flush"][0][0][0] == "circle")
+    test("show(): empties the buffer", list(g._draw_commands) == [])
+
+    # Second call must not repaint the first call's commands.
+    g.show()
+    test("show(): a second call flushes nothing new", _show_calls["flush"][1] == [])
+    test("show(): a second call still resizes", len(_show_calls["resize"]) == 2)
+finally:
+    for _m in ("js", "pyodide", "pyodide.ffi"):
+        sys.modules.pop(_m, None)
+    reset()
+
+
+# === 16: turtle's graphics dependencies exist ===
+
+# turtle.py reaches into the graphics module by name (`_g.show()` etc). A name
+# that isn't there fails only at runtime, in the student's program — which is
+# exactly how done()/mainloop() shipped broken once.
+
+print("\n=== turtle -> graphics attribute references ===")
+
+import re as _re
+
+with open(os.path.join(ROOT, "src", "assets", "python", "turtle.py")) as f:
+    _turtle_src = f.read()
+
+_turtle_refs = sorted(set(_re.findall(r"\b_g\.([A-Za-z_]\w*)", _turtle_src)))
+test("turtle.py references at least a dozen graphics names", len(_turtle_refs) >= 12)
+
+_missing = [n for n in _turtle_refs if not hasattr(g, n)]
+test(f"turtle.py: every graphics name it calls exists (missing: {_missing})",
+     not _missing)
+
+
 # === Summary ===
 
 print(f"\n{'='*50}")

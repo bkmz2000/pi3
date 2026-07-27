@@ -979,6 +979,38 @@ def run(main=None, fps=60) -> None:
     _run(main, fps)
 
 
+# === SHOW ===
+
+
+def _show() -> None:
+    from js import _ide_canvas_resize, _ide_flush_draw_commands  # type: ignore
+    from pyodide.ffi import to_js
+
+    if _state._pending_size:
+        _state._width, _state._height = _state._pending_size
+        _state._pending_size = None
+    _ide_canvas_resize(_state._width, _state._height)
+    _ide_flush_draw_commands(to_js(_state._draw_commands))
+    _state._draw_commands.clear()
+
+
+def show() -> None:
+    """Paint everything drawn so far onto the canvas, once.
+
+    For still pictures: draw, then show. Nothing appears on the canvas until
+    a frame is painted, and a program without `run()` never paints one.
+
+        background(Colors.sky)
+        circle(150, 150, 40)
+        show()
+
+    Animations use `run(main)` instead — it paints every frame for you.
+    Calling `show()` while a run loop is going is harmless but pointless:
+    the next frame overwrites it.
+    """
+    _show()
+
+
 # === STOP ===
 
 
@@ -1795,7 +1827,7 @@ __all__ = [
     "SheetAnimation", "SpriteEntry", "SheetNamespace", "AnimationController",
     "Timer",
     "State",
-    "run", "stop",
+    "run", "stop", "show",
     "assets",
     "sheet",
     "inspect",

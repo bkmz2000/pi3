@@ -50,9 +50,11 @@ const config = {
   // from the global pool, so each area regresses (and gates) on its own.
   // Global floors recalibrated after compete-mode + DBG tools on main.
   coverageThreshold: {
+    // Bumped after the canvas-window geometry tier (clampIntoView/dragTo/
+    // fitScale extracted from CanvasWindow and covered 100%).
     global: {
-      branches: 17,
-      functions: 19,
+      branches: 18,
+      functions: 20,
       lines: 27,
       statements: 27,
     },
@@ -75,8 +77,8 @@ const config = {
     // Bumped after the live-code runner tier (RunnerProvider message-handler
     // branches: result.keepCanvas, start/canvas_resize/input_request, error +
     // runtime_error channels, sound routing, store actions), then the
-    // interrupt-detection predicate (isInterruptError 100%), then the
-    // star-import hoist (hoistStarImports 100%).
+    // star-import hoist (hoistStarImports 100%), then the interrupt-detection
+    // predicate (isInterruptError 100%).
     './src/runner/': {
       branches: 36,
       functions: 32,

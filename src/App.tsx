@@ -424,9 +424,9 @@ function AppInner() {
           )}
           <FileBar />
 
-          {/* Outer row: [editor+console block] | [docked canvas]. Keeps the
-              canvas on the right regardless of where the console sits. */}
-          <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "row" }}>
+          {/* Editor + Console — row when consoleOnRight, column otherwise.
+              The canvas floats above this block (position: fixed), so it takes
+              no space here. */}
           <div
             style={{ flex: 1, minWidth: 0, minHeight: 0, display: "flex", flexDirection: consoleOnRight ? "row" : "column" }}
             onClick={e => {
@@ -522,7 +522,6 @@ function AppInner() {
           <ErrorBoundary label="Canvas">
             <CanvasWindow />
           </ErrorBoundary>
-          </div>
         </div>
       </div>
       {showForkDialog && (

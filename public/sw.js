@@ -1,4 +1,4 @@
-const CACHE_NAME = 'webide-v4';
+const CACHE_NAME = 'webide-v6';
 const PYODIDE_VERSION = '0.29.3';
 
 // We ship Pyodide from the same origin (public/pyodide/, mirrored from
@@ -24,7 +24,10 @@ const APP_SHELL = [
   '/icon-512.svg',
 ];
 
-const ALL_ASSETS = [...PYODIDE_ASSETS];
+// The hashed /assets/* bundle is not precached — its filenames are only known
+// at build time. It is cached on first request instead (cache-first below,
+// safe because the hash makes every file immutable).
+const ALL_ASSETS = [...PYODIDE_ASSETS, ...APP_SHELL];
 
 // Freeze-updates mode: when the app tells us the signed-in teacher has
 // enabled freeze, we hold this SW in "waiting" and refuse to serve the new
@@ -101,8 +104,13 @@ self.addEventListener('fetch', (event) => {
   const isPyodide = url.href.includes('cdn.jsdelivr.net/pyodide')
     || url.pathname.startsWith('/pyodide/');
   const isAppShell = APP_SHELL.includes(url.pathname);
-  
-  if (isPyodide) {
+  // Vite emits content-hashed filenames under /assets/, so a given URL never
+  // changes contents — cache-first is safe and is what makes an offline
+  // reload actually boot the app.
+  const isBundle = url.origin === self.location.origin
+    && url.pathname.startsWith('/assets/');
+
+  if (isPyodide || isBundle) {
     event.respondWith(
       caches.match(event.request).then((cachedResponse) => {
         if (cachedResponse) {
@@ -135,8 +143,14 @@ self.addEventListener('fetch', (event) => {
           });
         }
         return response;
-      }).catch(() => {
-        return caches.match(event.request).then(cached => cached || caches.match('/index.html'));
+      }).catch(async () => {
+        // Offline SPA fallback. The shell is precached under '/' (that is the
+        // URL the server answers with index.html), so a deep link like /ide
+        // has to fall back to '/' — matching '/index.html' misses.
+        return (await caches.match(event.request))
+          ?? (await caches.match('/'))
+          ?? (await caches.match('/index.html'))
+          ?? new Response('Offline', { status: 503 });
       })
     );
   }

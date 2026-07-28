@@ -242,7 +242,9 @@ const CSS = `
 }
 `;
 
-type StudentSlug = 'zara' | 'miguel' | 'priya' | 'ben';
+// Handles, not names — this is what the real teacher roster shows
+// (userLabel() renders @handle whenever one exists, which is always).
+type StudentSlug = 'fox' | 'koala' | 'heron' | 'gecko';
 interface Student {
   slug: StudentSlug;
   name: string;
@@ -255,7 +257,7 @@ interface Student {
 
 const STUDENTS: Student[] = [
   {
-    slug: 'zara', name: 'Zara', initial: 'Z', color: '#0e9aa7',
+    slug: 'fox', name: '@amberCleverFox', initial: 'A', color: '#0e9aa7',
     project: 'My Flappy Bird', file: 'flappy_bird.py',
     lines: [
       'from graphics import *',
@@ -279,7 +281,7 @@ const STUDENTS: Student[] = [
     ],
   },
   {
-    slug: 'miguel', name: 'Miguel', initial: 'M', color: '#f6a560',
+    slug: 'koala', name: '@jadeSleepyKoala', initial: 'J', color: '#f6a560',
     project: 'Snake Remix', file: 'snake.py',
     lines: [
       'from graphics import *',
@@ -301,7 +303,7 @@ const STUDENTS: Student[] = [
     ],
   },
   {
-    slug: 'priya', name: 'Priya', initial: 'P', color: '#7ec98f',
+    slug: 'heron', name: '@coralPluckyHeron', initial: 'C', color: '#7ec98f',
     project: 'Asteroids v2', file: 'asteroids.py',
     lines: [
       'from graphics import *',
@@ -323,7 +325,7 @@ const STUDENTS: Student[] = [
     ],
   },
   {
-    slug: 'ben', name: 'Ben', initial: 'B', color: '#d97a5a',
+    slug: 'gecko', name: '@indigoNimbleGecko', initial: 'I', color: '#d97a5a',
     project: 'Search Practice', file: 'binary_search.py',
     lines: [
       'from pi3 import debug',
@@ -714,7 +716,7 @@ function WhatStudentsBuild({ openProject }: { openProject: (file: string, source
         </div>
         <div className="card">
           <h3>A real ecosystem</h3>
-          <p><code>numpy</code>, <code>pygame</code>, and more, importable and running.</p>
+          <p><code>numpy</code>, <code>matplotlib</code>, and the rest of the scientific stack, importable and running.</p>
         </div>
       </div>
     </section>
@@ -776,11 +778,11 @@ function Classroom() {
 
   return (
     <section>
-      <h2>Run a class of 26 without leaving your desk.</h2>
+      <h2>Run the room without leaving your desk.</h2>
       <ul className="bullets">
-        <li>Watch every student's progress update live, from your own screen — no walking the room, no thirty open tabs</li>
-        <li>See who's stuck without singling them out — the dashboard tells you quietly, you don't have to ask in front of everyone</li>
-        <li>Pull verdicts across the whole class at a glance instead of opening each project one at a time</li>
+        <li>Watch every student in the group update live, from your own screen — who's on which file, which line, how long since they last typed</li>
+        <li>Open any student's code as they type it, without leaning over their shoulder or asking them to share anything</li>
+        <li>A student stuck on something raises a hand from inside the editor — it lands in your queue quietly, with no announcement to the room</li>
       </ul>
 
       <div className="classroom-panel">
@@ -920,17 +922,18 @@ export function WelcomePage() {
       <section>
         <h2>Built for a classroom, not an open platform.</h2>
         <ul className="bullets">
-          <li>No personal information collected — student logins are generated, not signed up</li>
-          <li>In-class messaging can't carry contact info, by design</li>
-          <li>If a parent asks "is this safe" — tell them: no student ever gives us their name, email, or any way to be found online</li>
-          <li>Something wrong? Fast takedown, no bureaucracy</li>
+          <li>Students appear as a generated handle — <code>@amberCleverFox</code>, not a name</li>
+          <li>There is no user directory and no search — you cannot look a student up, so neither can anyone else</li>
+          <li>In-session messaging is eight fixed emoji. Not a filter that can be worked around — there is no free-text field to type a phone number into</li>
+          <li>Sessions are joined by a signed link you hand to someone you know. No short codes, nothing shareable to strangers</li>
+          <li>Shared work carries the code, not the author</li>
         </ul>
       </section>
 
       <section>
         <h2>Install it. Freeze it. Nothing to break.</h2>
         <p className="section-lead" style={{ marginBottom: 0 }}>
-          pi3 installs like an app — no browser tab required. Once installed, it runs fully offline, and you choose when it updates. A lesson plan built around pi3 in September still works exactly the same way in May.
+          pi3 installs like an app — no browser tab required. Once installed, Python and the whole graphics library keep working with the network down, and you choose when it updates: flip freeze on before a lesson and the version your class is using stays put. A lesson plan built around pi3 in September still works exactly the same way in May.
         </p>
       </section>
 

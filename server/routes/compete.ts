@@ -1,7 +1,10 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { getClient } from '../db/index.js';
 import { authMiddleware, AuthUser } from '../middleware/auth.js';
+import { rateLimitPerUser } from '../middleware/rateLimitPerUser.js';
 import { scanSnapshot, ScanResult } from '../snapshots/scanner.js';
+
+const teacherProblemWriteLimit = rateLimitPerUser({ name: 'teacher-problem-write', windowMs: 3600_000, max: 60 });
 
 function scanProblemBody(body: {
   title?: string; statement?: string; starter_code?: string;
@@ -296,7 +299,7 @@ export function createCompeteRouter(): Router {
     res.json({ ...problem, tests });
   });
 
-  router.post('/teacher/problems', teacherOnly, async (req: Request, res: Response): Promise<void> => {
+  router.post('/teacher/problems', teacherOnly, teacherProblemWriteLimit, async (req: Request, res: Response): Promise<void> => {
     const validationError = validateProblemBody(req.body);
     if (validationError) {
       res.status(400).json({ error: 'Bad Request', message: validationError });
@@ -334,7 +337,7 @@ export function createCompeteRouter(): Router {
     res.status(201).json(problem);
   });
 
-  router.put('/teacher/problems/:slug', teacherOnly, async (req: Request, res: Response): Promise<void> => {
+  router.put('/teacher/problems/:slug', teacherOnly, teacherProblemWriteLimit, async (req: Request, res: Response): Promise<void> => {
     const validationError = validateProblemBody({ ...req.body, slug: req.params.slug });
     if (validationError) {
       res.status(400).json({ error: 'Bad Request', message: validationError });
@@ -380,7 +383,7 @@ export function createCompeteRouter(): Router {
     res.json(updated);
   });
 
-  router.post('/teacher/problems/import', teacherOnly, async (req: Request, res: Response): Promise<void> => {
+  router.post('/teacher/problems/import', teacherOnly, teacherProblemWriteLimit, async (req: Request, res: Response): Promise<void> => {
     const { problems: rawProblems, lang = 'ru', overwrite = false } = req.body as {
       problems: ImportProblem[];
       lang?: 'ru' | 'en';
@@ -485,7 +488,7 @@ export function createCompeteRouter(): Router {
   // Freeze the current problem state into published_json and move
   // public_status back to unlisted (the request/review cycle re-runs on
   // every republish). Any prior approval is invalidated.
-  router.post('/teacher/problems/:slug/publish', teacherOnly, async (req: Request, res: Response): Promise<void> => {
+  router.post('/teacher/problems/:slug/publish', teacherOnly, teacherProblemWriteLimit, async (req: Request, res: Response): Promise<void> => {
     const client = getClient();
     const row = (await client.execute(
       'SELECT id, title, statement, starter_code, created_by, scan_status FROM problems WHERE slug = ? AND archived = 0',
@@ -517,7 +520,7 @@ export function createCompeteRouter(): Router {
   // Author asks for a published problem to be listed on the public
   // sidebar. Same gate as project snapshots: scan clean + distinct-viewer
   // threshold. Reviewer approves via /api/moderation/... (once wired).
-  router.post('/teacher/problems/:slug/request-public', teacherOnly, async (req: Request, res: Response): Promise<void> => {
+  router.post('/teacher/problems/:slug/request-public', teacherOnly, teacherProblemWriteLimit, async (req: Request, res: Response): Promise<void> => {
     const client = getClient();
     const row = (await client.execute(
       `SELECT id, created_by, scan_status, public_status, published_json, distinct_view_count
@@ -572,7 +575,7 @@ export function createCompeteRouter(): Router {
     res.json({ slug: req.params.slug, solve_count: row.n });
   });
 
-  router.post('/teacher/problems/:slug/archive', teacherOnly, async (req: Request, res: Response): Promise<void> => {
+  router.post('/teacher/problems/:slug/archive', teacherOnly, teacherProblemWriteLimit, async (req: Request, res: Response): Promise<void> => {
     const client = getClient();
     const result = await client.execute(
       `UPDATE problems SET archived = 1, updated_at = datetime('now') WHERE slug = ? AND created_by = ?`,

@@ -4,8 +4,11 @@ import { getClient } from '../db/index.js';
 import { first } from '../db/client.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { getProjectAccess, hasRole } from '../middleware/projectAuth.js';
+import { rateLimitPerUser } from '../middleware/rateLimitPerUser.js';
 import { sanitizeText, InputTooLongError } from '../utils/sanitize.js';
 import { scanSnapshot } from '../snapshots/scanner.js';
+
+const commentPostLimit = rateLimitPerUser({ name: 'comment-post', windowMs: 3600_000, max: 60 });
 
 interface CommentRow {
   id: string;
@@ -64,7 +67,7 @@ export function createProjectCommentsRouter(): Router {
     res.json(result.rows);
   });
 
-  router.post('/', async (req: Request, res: Response): Promise<void> => {
+  router.post('/', commentPostLimit, async (req: Request, res: Response): Promise<void> => {
     const projectId = req.params['id'] as string;
     const client = getClient();
     const access = await getProjectAccess(projectId, req.user!.id);

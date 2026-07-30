@@ -19,6 +19,13 @@ These principles are enforced in shared code that runs regardless of profile.
   docstrings, string literals, identifiers, titles, README. No exceptions
   carved out for "it's just code." Layered, not airtight: catches the
   accidental/lazy cases and holds flagged content for human review.
+  What "holds for review" gates is specifically the CORE-7 public-listing
+  request (`scan_status` must be `clean`) — it does **not** gate the private
+  share link itself. A share link is opt-in distribution to whoever holds
+  it, not public discovery, so a flagged snapshot/problem stays fully
+  readable and forkable via its link. This is a deliberate, current product
+  decision (undiscoverable/link-only sharing is an accepted state), not a
+  gap — revisit if/when public listing is prioritized.
   Implementation: `server/snapshots/scanner.ts`.
 
 - **CORE-2: Publishing anything is a snapshot.** Private originals stay
@@ -51,8 +58,15 @@ These principles are enforced in shared code that runs regardless of profile.
 - **CORE-7: Snapshot public listing requires a distinct-viewer threshold
   and a reviewer decision.** Merely toggling `public_status` is not enough
   — an author can only *request* a listing after (a) scan is `clean`, and
-  (b) a per-account distinct-view count is met; a reviewer then approves
-  or rejects.
+  (b) a per-account distinct-view count is met. **Current status: the
+  request step is implemented and recorded (`public_status = 'requested'`),
+  but there is no reviewer approve/reject surface yet — a request is
+  accepted but not currently actionable.** This is intentional: public
+  discovery/listing is not being pursued right now (undiscoverable,
+  link-only sharing is fine for now), so building the reviewer decision
+  endpoint is parked, not a bug to fix. The same framing applies to
+  `compete.ts` problem `public_status = 'pending_review'`. Revisit when
+  public discoverability is prioritized.
 
 - **CORE-8: Live editor buffers are ephemeral telemetry, not snapshots.**
   The live-code view (teacher dashboard + session group view) streams the
@@ -93,8 +107,11 @@ current Систематика deployment stance.
 
 - **INST-4: Free-text project comments.** Teachers write feedback on
   student projects in prose, gated by CORE-1 scanner + CORE-5 rate
-  limits + a length cap. Flagged rows are held for review (visible only
-  to the author until cleared).
+  limits + a length cap. Flagged content is rejected at submission time
+  (422, with the specific findings named) — nothing is stored, and the
+  author edits and resubmits. There is no held-for-review queue for
+  comments (unlike the CORE-1 snapshot/problem scan, comments never reach
+  a stored-but-gated state).
 
 - **INST-5: Session store is server-backed.** Cookie-based sessions via
   `express-session`; SQLite or Redis store per env. No ephemeral-token

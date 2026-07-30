@@ -55,6 +55,7 @@ export function usePresencePinger(args: {
   // Reactive session id so joining/leaving a session re-runs the effect (a
   // session must broadcast even from an unsaved/example buffer).
   const sid = useLiveSession((s) => s.sid);
+  const sessionToken = useLiveSession((s) => s.token);
 
   useEffect(() => {
     if (!loggedIn) return;
@@ -91,6 +92,7 @@ export function usePresencePinger(args: {
         await postLivePresence(presenceProjectId, currentFile || 'main.py', line, {
           ...(changed ? { content: text, contentHash: hash } : {}),
           sessionId: sid,
+          sessionToken,
         });
       } catch {
         // best-effort; server may be offline or session expired
@@ -112,5 +114,5 @@ export function usePresencePinger(args: {
           .catch(() => { /* best-effort */ });
       }
     };
-  }, [projectId, currentFile, editorRef, loggedIn, sid]);
+  }, [projectId, currentFile, editorRef, loggedIn, sid, sessionToken]);
 }

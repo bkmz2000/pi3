@@ -1,6 +1,6 @@
 # pi³ Project Roadmap
 
-**Last Updated:** 2026-06-13
+**Last Updated:** 2026-07-30
 
 ---
 
@@ -39,6 +39,14 @@
 | HTML export | Single-file standalone export |
 | Noise | `noise(x, y, scale, seed)` — value noise |
 | Sound API | `Sound` class; `assets.sounds.name.play/loop/pause/stop/set_volume` |
+| Geometry shapes (phases 1-6) | `Line`, `Polygon`, `Spline`, texture-along-outline, `contains`/`random`/`in`/`distance_to`, `bounce_of`; draw-command marshalling perf pass |
+| Turtle module | `pi3.turtle` — classic turtle-graphics surface over the same runtime |
+| Compete mode | `/compete/:slug` problems, teacher problem authoring/import/publish, submission tiers |
+| Instructor dashboard / live session panel | Teacher live-activity roster + live code pane (`/teacher`); symmetric peer sessions joined by signed link; emoji reactions |
+| Floating canvas window | Canvas detached from docked layout, draggable/resizable (`CanvasWindow.tsx`) |
+| Matplotlib blit | Fast-path re-render for matplotlib figures in the worker |
+| `show()` | One-shot still-picture render, counterpart to `run()` |
+| Billing caps + freeze flag | Usage caps; freeze-updates toggle so a class's pinned version doesn't drift mid-term |
 
 ---
 
@@ -58,7 +66,7 @@
 | Docs: recipe pages for common patterns | high | Collision, camera, tilemaps, lighting |
 | Docs: A-Z reference rebuild | high | Against live `_manifest.py` |
 | Student comment view | medium | Instructor sharing flow |
-| Instructor dashboard | medium | View active sessions, real-time code display |
+| Public project discovery/listing | parked | Snapshot/problem "request public listing" is implemented and recorded, but has no reviewer approve/reject surface — intentionally not being pursued right now (see `docs/doctrine.md` CORE-7). Undiscoverable, link-only sharing is fine for now. |
 | Sprite editor: onion skin | low | Animation frame preview |
 | Sprite editor: import external PNG | low | |
 | Debug overlay improvements | low | Speed arrow, coordinate label with hitbox mode |

@@ -12,7 +12,7 @@ import { createUsersRouter } from './routes/users.js';
 import projectsRouter from './routes/projects.js';
 import authRouter from './routes/auth.js';
 import { createGroupsRouter } from './routes/groups.js';
-import { createLiveRouter } from './routes/live.js';
+import { createLiveRouter, pruneStaleLivePresence } from './routes/live.js';
 import { createHelpRequestsRouter } from './routes/help-requests.js';
 import { createCompeteRouter } from './routes/compete.js';
 import { createModerationRouter } from './routes/moderation.js';
@@ -147,6 +147,9 @@ app.use('/api/users', createUsersRouter(ALLOW_PASSWORD_AUTH));
 app.use('/api/projects', projectsRouter);
 app.use('/api/groups', createGroupsRouter());
 app.use('/api/live', createLiveRouter());
+if (process.env.NODE_ENV !== 'test') {
+  setInterval(() => { void pruneStaleLivePresence(); }, 60 * 60 * 1000).unref();
+}
 app.use('/api/help-requests', createHelpRequestsRouter());
 app.use('/api', createCompeteRouter());
 app.use('/api/moderation', createModerationRouter());

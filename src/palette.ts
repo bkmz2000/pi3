@@ -1,4 +1,4 @@
-// Sweetie 16 palette — must stay in sync with COLOR_NAMES in graphics/__init__.py
+// Sweetie 16 palette — must stay in sync with COLOR_NAMES in graphics/_color.py
 export const PAL_NAMES: Record<string, string> = {
   "#1a1c2c": "black",  "#5d275d": "wine",   "#b13e53": "red",   "#ef7d57": "orange",
   "#ffcd75": "yellow", "#a7f070": "lime",   "#38b764": "green", "#257179": "teal",

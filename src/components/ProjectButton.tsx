@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { MdDownload, MdDelete } from "react-icons/md";
+import { Icon } from "./Icons";
 
 type ProjectButtonProps = {
   name: string;
@@ -48,7 +48,7 @@ export default function ProjectButton({
             className="px-2 py-1 text-xs text-white hover:text-cyan-100 hover:bg-cyan-900/30 rounded transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500"
             title={t('sideMenu.exportProjectTooltip')}
           >
-            <MdDownload size={14} />
+            <Icon name="export" size={14} />
           </button>
         )}
         {onDelete && (
@@ -58,7 +58,7 @@ export default function ProjectButton({
             className="px-2 py-1 text-xs text-red-300 hover:text-red-100 hover:bg-red-900/30 rounded transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
             title={t('sideMenu.deleteProjectTooltip')}
           >
-            <MdDelete size={14} />
+            <Icon name="trash" size={14} />
           </button>
         )}
       </div>

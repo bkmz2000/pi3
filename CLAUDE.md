@@ -100,8 +100,8 @@ tests in sync with feature velocity. Frontend uses per-path slots
 - Server/API (node, in-memory SQLite): `server/tests/**/*.test.ts`; DB harness
   in `server/tests/setup.ts`.
 - E2E (Puppeteer, needs running app): `tests/puppeteer/`. Shared helpers in
-  `test-utils.js`. Note: `test:smoke`'s entrypoint `ide-smoke-test.js` does not
-  yet exist — writing it is a planned Tier 3 item, not wired into CI until then.
+  `test-utils.js`. `test:smoke`'s entrypoint is `tests/puppeteer/ide-smoke-test.js`;
+  not wired into the automated `make test` gate — run manually.
 
 **Testing the worker without Pyodide.** `src/runner/WorkerInterface.ts` defines
 typed `WorkerCommand`/`WorkerEvent` unions. Test `RunnerProvider` /
@@ -136,10 +136,16 @@ In dev, Vite proxies `/api` to `:3001`. The `Cross-Origin-Opener-Policy` / `Cros
 ### Routes (src/App.tsx)
 | Path | Component | Purpose |
 |------|-----------|---------|
-| `/` | `AppInner` | Main IDE (no project) |
+| `/` | `AppInner` (institutional) / `WelcomePage` (public) | Landing or main IDE, profile-gated |
+| `/ide` | `AppInner` | Main IDE (no project) |
 | `/ide/:projectId` | `AppInner` | IDE loading a specific project |
 | `/projects` | `ProjectsPage` | User project list |
-| `/teacher` | `TeacherDashboard` | Teacher dashboard (placeholder) |
+| `/teacher` | `TeacherDashboard` | Teacher dashboard — live activity roster |
+| `/teacher/projects/:projectId` | `TeacherProjectView` | Teacher view of one student's project |
+| `/teacher/problems` | `TeacherProblemList` | Compete-mode problem list (teacher) |
+| `/teacher/problems/new` | `TeacherProblemForm` | New compete-mode problem |
+| `/teacher/problems/:slug/edit` | `TeacherProblemForm` | Edit compete-mode problem |
+| `/compete/:slug` | `CompetePage` | Student-facing compete-mode problem |
 
 ### State Management (src/state/)
 - **`useTheme`** — Theme (Studio / Midnight / Daylight), font size. All UI uses `theme.xxx` inline style tokens. ~80 tokens in `src/state/useTheme.ts`.
@@ -161,7 +167,7 @@ Rail-based layout. Most panel content is inline in `SideMenu.tsx`; `DocsPanel` i
 - **Docs** (`src/components/DocsPanel.tsx`) — bilingual API reference
 
 **Asset editor split**: `src/AssetEditor.tsx` is the unified dispatcher modal. It shows a type picker for `mode='new'` and delegates to the appropriate leaf editor:
-- `src/PixelEditor.tsx` — 16×16 / 32×32 pixel sprite editor + animation frames
+- `src/SheetEditor.tsx` — 512×512 pixel sprite sheet editor, Sweetie 16 palette, animation frames
 - `src/TileEditor.tsx` — layer-based tilemap editor (cells, areas, undo/redo)
 
 **Docs maintenance**: `src/docs/graphicsDocs.ts` is the single source of truth for the API reference panel. Update it whenever `src/assets/python/graphics/` changes (add/remove/rename functions, change parameter names or defaults).
@@ -180,7 +186,7 @@ Rail-based layout. Most panel content is inline in `SideMenu.tsx`; `DocsPanel` i
 - Test DB: in-memory SQLite created in `server/tests/setup.ts`
 
 ### PWA
-Service worker at `public/sw.js` (cache name `webide-v4`). Caches Pyodide CDN assets and app shell on install.
+Service worker at `public/sw.js` (cache name `webide-v6`). Caches Pyodide CDN assets and app shell on install.
 
 ### OAuth & Authentication
 

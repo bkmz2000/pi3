@@ -48,10 +48,14 @@ const config = {
   // Rule: these only move UP. Bump the relevant slot in the same PR that adds a
   // tier's tests. Path-specific keys are checked independently and subtracted
   // from the global pool, so each area regresses (and gates) on its own.
-  // Global floors recalibrated after compete-mode + DBG tools on main.
+  // Global left untouched during the fable-audit fix pass: repeated local runs
+  // showed "All files" is flaky (~1-in-15 runs lands ~6-8pt below the typical
+  // 33.58/23.67/27.16/35.18, at 27.14/18.48/20.73/27.92 — some large
+  // lazy/dynamic-import file's coverage isn't always captured, root cause not
+  // chased). The low outcome sits right at today's floor, so these numbers
+  // were already conservatively seeded for it — bumping to the typical value
+  // would make CI intermittently red. Re-seed only once the flake is fixed.
   coverageThreshold: {
-    // Bumped after the canvas-window geometry tier (clampIntoView/dragTo/
-    // fitScale extracted from CanvasWindow and covered 100%).
     global: {
       branches: 18,
       functions: 20,
@@ -64,15 +68,15 @@ const config = {
     // (peer tabs in useLiveSession, useSessionAutoJoin 100%).
     './src/state/': {
       branches: 52,
-      functions: 52,
+      functions: 53,
       lines: 58,
       statements: 57,
     },
     './src/utils/': {
-      branches: 50,
-      functions: 65,
-      lines: 70,
-      statements: 70,
+      branches: 56,
+      functions: 76,
+      lines: 79,
+      statements: 74,
     },
     // Bumped after the live-code runner tier (RunnerProvider message-handler
     // branches: result.keepCanvas, start/canvas_resize/input_request, error +

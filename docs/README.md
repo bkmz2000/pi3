@@ -16,14 +16,14 @@
 
 ## `reference/` — archived module specs
 
-All 14 numbered docs have been moved to `reference/`. They were written **2026-04-30** and predate the API-v1 rework, error system, decomposition, and pixel editor. **Four have been fully rewritten; the rest carry a staleness banner.**
+All 14 numbered docs have been moved to `reference/`. They were written **2026-04-30** and predate the API-v1 rework, error system, decomposition, and pixel editor. **Two were rewritten and are still accurate; two more were rewritten but have since drifted again — see notes.**
 
 | # | Doc | Status |
 |---|-----|--------|
 | 01 | [Project Overview](reference/01-project-overview.md) | Archived — verify before use |
-| 02 | [State Management](reference/02-state-management.md) | **Rewritten — accurate** |
+| 02 | [State Management](reference/02-state-management.md) | Rewritten 2026-06-13, drifted since — lists 6 of the 23 current `src/state/` files (missing live-session/presence/pendingSession modules). Verify before use. |
 | 03 | [Runner Module](reference/03-runner-module.md) | Archived — verify before use |
-| 04 | [Graphics Module](reference/04-graphics-module.md) | **Rewritten — accurate** |
+| 04 | [Graphics Module](reference/04-graphics-module.md) | Rewritten 2026-06-13, drifted since — no mention of `Line`/`Polygon`/`Spline`/`show()`/`texture()` (all shipped after). Verify before use. |
 | 05 | [UI Components](reference/05-ui-components.md) | Archived — verify before use |
 | 06 | [Storage & Persistence](reference/06-storage.md) | **Rewritten — accurate** |
 | 07 | [Linter](reference/07-linter.md) | Archived — verify before use |
@@ -74,4 +74,4 @@ Save       → useIde.saveCurrentProject → API → IndexedDB cache
 
 ---
 
-*Index updated 2026-06-13. CLAUDE.md is the single authoritative source for day-to-day codebase orientation.*
+*Index updated 2026-07-30. CLAUDE.md is the single authoritative source for day-to-day codebase orientation.*

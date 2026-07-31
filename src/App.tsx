@@ -25,6 +25,7 @@ import TeacherProblemList from "./components/teacher/TeacherProblemList";
 import TeacherProblemForm from "./components/teacher/TeacherProblemForm";
 import CompetePage from "./compete/CompetePage";
 import { WelcomePage } from "./pages/WelcomePage";
+import { ExamplesGalleryPage } from "./pages/ExamplesGalleryPage";
 import { isInstitutional } from "./state/deploymentProfile";
 import { useUser } from "./state/useUser";
 import { usePresencePinger } from "./state/usePresencePinger";
@@ -533,6 +534,7 @@ export default function App() {
         <Route path="/teacher/problems/new" element={<TeacherProblemForm />} />
         <Route path="/teacher/problems/:slug/edit" element={<TeacherProblemForm />} />
         <Route path="/compete/:slug" element={<CompetePage />} />
+        <Route path="/examples" element={<ExamplesGalleryPage />} />
         <Route path="/ide/:projectId" element={<AppInner />} />
         <Route path="/ide" element={<AppInner />} />
         <Route path="/" element={isInstitutional() ? <AppInner /> : <WelcomePage />} />

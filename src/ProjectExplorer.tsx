@@ -4,22 +4,12 @@ import { useEditor, isExampleSessionId } from "./state/IdeState";
 import { useThemeStore } from "./state/useTheme";
 import type { AssetEditorMode } from "./AssetEditor";
 import { Icon, type IconName } from "./components/Icons";
-import {
-  packAssetsByMeta,
-  BUILTIN_SOUNDS,
-  type Category,
-  type Perspective,
-} from "./state/assets";
+import { BUILTIN_SOUNDS } from "./state/assets";
 import { useRunnerStore, type Screenshot } from "./runner/RunnerProvider";
 import { uploadProjectThumbnail } from "./state/api";
 import { ComingSoonPlug } from "./ExamplesPanel";
 
 type Theme = ReturnType<typeof useThemeStore.getState>["theme"];
-
-const CATEGORIES: Category[] = [
-  "Characters", "Enemies", "Vehicles", "Tiles",
-  "Items", "Hazards", "Effects", "Buildings",
-];
 
 const playAudio = (url: string) => {
   const a = new Audio(url);
@@ -132,7 +122,6 @@ export default function ProjectExplorer({
   const changeFile = useEditor((s) => s.changeFile);
   const deleteFile = useEditor((s) => s.deleteFile);
   const renameFile = useEditor((s) => s.renameFile);
-  const addAssetInstance = useEditor((s) => s.addAssetInstance);
   const deleteTilemap = useEditor((s) => s.deleteTilemap);
   const setSheet = useEditor((s) => s.setSheet);
   const addSound = useEditor((s) => s.addSound);
@@ -186,7 +175,7 @@ export default function ProjectExplorer({
       <div style={{ flex: 1, overflowY: "auto", padding: "8px 0" }}>
         <Section
           theme={theme}
-          title={t('sideMenu.tabSprites').toLowerCase() === 'sprites' ? 'Code' : 'Code'}
+          title="Code"
           defaultOpen
           actions={
             <NewFileInline theme={theme} onCreate={(n) => { changeFile(n, ""); changeCurrentFile(n); }} />
@@ -310,9 +299,7 @@ export default function ProjectExplorer({
       {libraryKind && (
         <LibraryPickerModal
           theme={theme}
-          kind={libraryKind}
           onClose={() => setLibraryKind(null)}
-          onAddSprite={(name, url) => addAssetInstance(name, url)}
           onAddSound={(name, url) => addSound(name, url)}
         />
       )}
@@ -741,34 +728,19 @@ function UploadSoundButton({
 // ── LibraryPickerModal ─────────────────────────────────────────────────────────
 
 function LibraryPickerModal({
-  theme, kind, onClose, onAddSprite, onAddSound,
+  theme, onClose, onAddSound,
 }: {
   theme: Theme;
-  kind: "sprites" | "sounds";
   onClose: () => void;
-  onAddSprite: (name: string, url: string) => void;
   onAddSound: (name: string, url: string) => void;
 }) {
   const { t } = useTranslation();
   const [query, setQuery] = useState("");
-  const [category, setCategory] = useState<Category | null>(null);
-  const [perspective, setPerspective] = useState<Perspective | null>(null);
 
-  // Asset list derivation removed pre-launch — the library content isn't
-  // shipped yet. Filter chips above stay wired so future re-enable is a
-  // straight restore of the deleted blocks.
-  void packAssetsByMeta; void BUILTIN_SOUNDS;
-  void category; void perspective; void query;
-  void onAddSprite; void onAddSound;
-
-  const chipStyle = (active: boolean): React.CSSProperties => ({
-    all: 'unset', cursor: 'pointer',
-    padding: '3px 8px', borderRadius: 20, fontSize: 11, fontWeight: 600,
-    fontFamily: theme.fontUI,
-    background: active ? theme.accent : theme.chip,
-    color: active ? '#fff' : theme.panelTxtMute,
-    whiteSpace: 'nowrap',
-  });
+  // Asset list derivation removed pre-launch — the sound library isn't
+  // shipped yet, this modal shell stands in for it until it is.
+  void BUILTIN_SOUNDS;
+  void query; void onAddSound;
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 500, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -784,7 +756,7 @@ function LibraryPickerModal({
           padding: '12px 16px', background: theme.panelHeader, borderBottom: `1px solid ${theme.panelBorder}`,
         }}>
           <span style={{ fontSize: 14, fontWeight: 700, color: theme.panelTxt }}>
-            {kind === 'sprites' ? t('sideMenu.availableAssets') : t('sideMenu.soundLibrary')}
+            {t('sideMenu.soundLibrary')}
           </span>
           <button onClick={onClose}
             style={{ all: 'unset', cursor: 'pointer', color: theme.panelTxtMute, fontSize: 18, width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 4 }}>
@@ -794,37 +766,21 @@ function LibraryPickerModal({
 
         <div style={{ padding: '10px 14px', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', borderBottom: `1px solid ${theme.panelBorder}` }}>
           <input value={query} onChange={(e) => setQuery(e.target.value)}
-            placeholder={t('sideMenu.searchSprites')}
+            placeholder={t('sideMenu.searchSounds')}
             style={{
               flex: '1 1 200px', minWidth: 160, padding: '6px 10px', background: theme.chip,
               border: `1px solid ${theme.panelBorder}`, borderRadius: 8,
               fontFamily: theme.fontUI, fontSize: 12, color: theme.panelTxt, outline: 'none',
             }} />
-          {kind === 'sprites' && (
-            <>
-              <button style={chipStyle(category === null)} onClick={() => setCategory(null)}>{t('sideMenu.filterAll')}</button>
-              {CATEGORIES.map((c) => (
-                <button key={c} style={chipStyle(category === c)}
-                  onClick={() => setCategory(category === c ? null : c)}>{c}</button>
-              ))}
-              <span style={{ width: 1, height: 16, background: theme.panelBorder, margin: '0 4px' }} />
-              {([null, 'side', 'top-down'] as const).map((p) => (
-                <button key={p ?? 'any'} style={chipStyle(perspective === p)}
-                  onClick={() => setPerspective(p)}>
-                  {p === null ? t('sideMenu.filterAll') : p === 'side' ? t('sideMenu.filterSide') : t('sideMenu.filterTopDown')}
-                </button>
-              ))}
-            </>
-          )}
         </div>
 
         <div style={{ flex: 1, overflowY: 'auto', padding: 12 }}>
-          {/* Pre-launch plug: sprite/sound asset packs aren't shipped yet.
-              Keeping the modal shell + the filter chips intact so the picker
-              feels real, but replacing the grid/list with a coming-soon hint. */}
+          {/* Pre-launch plug: the sound asset pack isn't shipped yet.
+              Keeping the modal shell intact so the picker feels real, but
+              replacing the grid/list with a coming-soon hint. */}
           <ComingSoonPlug
             theme={theme}
-            message={kind === 'sprites' ? t('comingSoon.sprites') : t('comingSoon.sounds')}
+            message={t('comingSoon.sounds')}
           />
         </div>
       </div>

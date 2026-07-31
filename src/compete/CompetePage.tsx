@@ -342,7 +342,7 @@ export default function CompetePage() {
                         </span>
                         {run && (
                           <span style={{ fontSize: 12, color: run.passed ? passColor : failColor, fontWeight: 600 }}>
-                            {run.passed ? '✓ OK' : '✗ WA'}
+                            {run.passed ? t('compete.passOk') : t('compete.failWa')}
                           </span>
                         )}
                         <button
@@ -362,14 +362,14 @@ export default function CompetePage() {
                       </div>
                       <div style={{ display: 'flex', gap: 0 }}>
                         <div style={{ flex: 1, padding: '8px 10px', borderRight: `1px solid ${theme.panelBorder}` }}>
-                          <div style={{ fontSize: 10.5, color: theme.panelTxtMute, marginBottom: 3 }}>Input</div>
+                          <div style={{ fontSize: 10.5, color: theme.panelTxtMute, marginBottom: 3 }}>{t('compete.input')}</div>
                           <pre style={{ margin: 0, fontSize: 12, fontFamily: theme.fontMono, color: theme.panelTxt, whiteSpace: 'pre-wrap' }}>
                             {test.input}
                           </pre>
                         </div>
                         <div style={{ flex: 1, padding: '8px 10px' }}>
                           <div style={{ fontSize: 10.5, color: theme.panelTxtMute, marginBottom: 3 }}>
-                            {run ? 'Output' : 'Expected'}
+                            {run ? t('compete.output') : t('compete.expected')}
                           </div>
                           <pre style={{ margin: 0, fontSize: 12, fontFamily: theme.fontMono, color: theme.panelTxt, whiteSpace: 'pre-wrap' }}>
                             {run ? run.stdout : test.expected}
@@ -378,7 +378,7 @@ export default function CompetePage() {
                       </div>
                       {run && !run.passed && (
                         <div style={{ padding: '4px 10px 8px', borderTop: `1px solid ${theme.panelBorder}` }}>
-                          <div style={{ fontSize: 10.5, color: theme.panelTxtMute, marginBottom: 3 }}>Expected</div>
+                          <div style={{ fontSize: 10.5, color: theme.panelTxtMute, marginBottom: 3 }}>{t('compete.expected')}</div>
                           <pre style={{ margin: 0, fontSize: 12, fontFamily: theme.fontMono, color: failColor, whiteSpace: 'pre-wrap' }}>
                             {test.expected}
                           </pre>

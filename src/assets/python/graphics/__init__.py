@@ -1773,7 +1773,7 @@ __all__ = [
     "say",
     "fill", "no_fill", "stroke", "no_stroke", "stroke_width",
     "background",
-    "push", "pop", "translate", "rotate",
+    "push", "pop", "translate", "rotate", "scale",
     "image",
     "frame_rate", "frame_count",
     "random", "random_color",

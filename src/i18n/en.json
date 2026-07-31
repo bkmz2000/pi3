@@ -128,6 +128,7 @@
     "failedImport": "Failed to import project: Please make sure it's a valid project file.",
     "docs": "Reference",
     "searchSprites": "Search sprites…",
+    "searchSounds": "Search sounds…",
     "filterSprites": "Filters",
     "filterCategory": "Category",
     "filterAll": "All",
@@ -1031,7 +1032,12 @@
     "runningTier": "Running tier {{tier}}, test {{n}} of {{total}}…",
     "testN": "Test #{{n}}",
     "noProblems": "No problems available.",
-    "problems": "Problems"
+    "problems": "Problems",
+    "passOk": "✓ OK",
+    "failWa": "✗ WA",
+    "input": "Input",
+    "output": "Output",
+    "expected": "Expected"
   },
   "errors": {
     "cannotFork": "Cannot fork a user project",
@@ -1270,6 +1276,140 @@
     "language": {
       "en": "English",
       "ru": "Русский"
+    },
+    "ctaStart": "Start free",
+    "openInEditor": "Open in editor",
+    "noAccount": "No account needed to try it — the button below drops you straight into the editor.",
+    "hero": {
+      "title": "Real Python. Right next to what it draws.",
+      "subtitle": "This is real Python — the same language, not a simplified version of it.",
+      "samples": {
+        "spiral": {
+          "label": "Fourier spiral",
+          "heading": "Real Python, right next to what it draws",
+          "blurb": "A discrete Fourier transform turns the pi3 signature into rotating circles — and the same graphics library students use renders every frame."
+        },
+        "matplotlib": {
+          "label": "matplotlib",
+          "heading": "matplotlib, already working",
+          "blurb": "Not a mockup — an actual matplotlib render, running in the browser with nothing to install."
+        },
+        "cube": {
+          "label": "3D cube",
+          "heading": "numpy does the math, 2D primitives draw it",
+          "blurbPre": "numpy rotates the cube in 3D; the same ",
+          "blurbPost": " students use projects it onto the screen."
+        }
+      }
+    },
+    "build": {
+      "heading": "What students build",
+      "lead": "Structured thinking still comes first — loops, variables, functions. The examples below are where that's visible.",
+      "samples": {
+        "debug": {
+          "label": "Debugging",
+          "heading": "Debugging you can watch",
+          "blurb": "Every call captures a frame — the search window in red, the midpoint in green — building a scrubbable timeline instead of scattered print statements."
+        },
+        "flappy": {
+          "label": "Flappy Bird",
+          "heading": "Flappy Bird, made of primitives",
+          "blurbPre": "No sprites at all here — just ",
+          "blurbAnd": " and ",
+          "blurbPost": ", gravity, and a flap. This is what a kid can build in one sitting once loops and state click."
+        },
+        "snake": {
+          "label": "Snake",
+          "heading": "Snake, with real pixel art",
+          "blurbPre": "Four actual sprites — head, body, tail, food — built pixel by pixel with ",
+          "blurbAnd": " and ",
+          "blurbMid": ", then drawn with ",
+          "blurbPost": "."
+        },
+        "asteroids": {
+          "label": "Asteroids",
+          "heading": "Asteroids, with sprites and gravity",
+          "blurbPre": "A ship sprite that actually rotates (",
+          "blurbPost": "), drifting asteroid sprites, and a real downward pull the player has to fight with thrust."
+        }
+      },
+      "cardPythonTitle": "Real Python",
+      "cardPythonText": " — the same language as a local install.",
+      "cardEcosystemTitle": "A real ecosystem",
+      "cardEcosystemText": ", and more, importable and running."
+    },
+    "classroom": {
+      "heading": "Run a class of 26 without leaving your desk.",
+      "bullet1": "Watch every student's progress update live, from your own screen — no walking the room, no thirty open tabs",
+      "bullet2": "See who's stuck without singling them out — the dashboard tells you quietly, you don't have to ask in front of everyone",
+      "bullet3": "Pull verdicts across the whole class at a glance instead of opening each project one at a time",
+      "updatedJustNow": "updated just now",
+      "updatedSecondsAgo": "updated {{count}}s ago",
+      "lineLabel": "line {{n}}"
+    },
+    "notTrial": {
+      "heading": "Not a trial.",
+      "bullet1": "Unlimited student projects, always free",
+      "bullet2": "Up to 3 groups of 10 students, no card required",
+      "bullet3": "Free to start, always — need more than that? [CONTACT_EMAIL]"
+    },
+    "safety": {
+      "heading": "Built for a classroom, not an open platform.",
+      "bullet1": "No personal information collected — student logins are generated, not signed up",
+      "bullet2": "In-class messaging can't carry contact info, by design",
+      "bullet3": "If a parent asks \"is this safe\" — tell them: no student ever gives us their name, email, or any way to be found online",
+      "bullet4": "Something wrong? Fast takedown, no bureaucracy"
+    },
+    "install": {
+      "heading": "Install it. Freeze it. Nothing to break.",
+      "body": "pi3 installs like an app — no browser tab required. Once installed, it runs fully offline, and you choose when it updates. A lesson plan built around pi3 in September still works exactly the same way in May."
+    },
+    "footer": {
+      "browseExamples": "Browse all examples →",
+      "privacyHeading": "Privacy & safety",
+      "privacyIntro": "The short version of our safety doctrine — the full technical policy is enforced in code, not just written down:",
+      "privacyBullet1": "Every project shared publicly is scanned before anyone else can see it, and can be reported and reviewed by a person.",
+      "privacyBullet2": "Public examples show code only — no student name is attached, and there's no directory or search to browse other users.",
+      "privacyBullet3": "Live class sessions allow only a small, fixed set of emoji reactions — no free-text chat between strangers.",
+      "privacyBullet4": "Students never enter a name, email, or any personal detail — pi3 generates their login automatically.",
+      "privacyBullet5": "Joining a shared session requires a private signed link — there's no short code to guess or pass around.",
+      "contactLabel": "Questions or a concern?",
+      "contactEmail": "[CONTACT_EMAIL]"
+    }
+  },
+  "examplesGallery": {
+    "title": "All examples",
+    "lead": "Every built-in example, grouped by the API it showcases. Pick one — it opens straight into the editor, no account needed.",
+    "backToHome": "← Back to home",
+    "topics": {
+      "basics": { "title": "Basics", "lead": "Where every language starts." },
+      "color": { "title": "Color", "lead": "Palettes and pixels as the core mechanic." },
+      "input": { "title": "Input", "lead": "Keyboard and mouse driving the whole program." },
+      "actors": { "title": "Actors & Collision", "lead": "Actor, Group, and collision detection." },
+      "classicGames": { "title": "Classic Games", "lead": "Complete games built from a grid and a loop." },
+      "procgen": { "title": "Procedural Generation", "lead": "Noise and cellular automata generating the level itself." },
+      "tilemaps": { "title": "Tilemaps", "lead": "TileMap collision and procedural layout." },
+      "spriteSheets": { "title": "Sprite Sheets", "lead": "Pixel-art sprites and animation, drawn in the sheet editor." }
+    },
+    "entries": {
+      "helloWorld": { "name": "Hello World", "blurb": "print() and running a script — the first program." },
+      "input": { "name": "Input", "blurb": "Read text from the player with input() and print it back." },
+      "colorFlood": { "name": "Color Flood", "blurb": "Flood-It clone — flood-fill the grid in the fewest moves." },
+      "chameleon": { "name": "Chameleon", "blurb": "Palette-swap your avatar to match the background — hunters ignore a matching color." },
+      "robot": { "name": "Robot", "blurb": "Press keys to change a robot's speech bubble." },
+      "aimTrainer": { "name": "Aim Trainer", "blurb": "Targets spawn and shrink — click before they vanish, build a streak." },
+      "bouncingActor": { "name": "Bouncing Actor", "blurb": "Control a ball and bounce it off the walls." },
+      "catch": { "name": "Catch", "blurb": "Catch falling fruit in a basket — lose a life if you miss." },
+      "dungeon": { "name": "Dungeon", "blurb": "Explore a torchlit room where the torches cast real shadows." },
+      "snake": { "name": "Snake", "blurb": "The classic — eat, grow, don't hit yourself." },
+      "sokoban": { "name": "Sokoban", "blurb": "Push boxes onto goals without getting stuck." },
+      "asteroids": { "name": "Asteroids", "blurb": "Shoot rocks and don't die." },
+      "mazeRunner": { "name": "Maze Runner", "blurb": "Corridors generated from noise — navigate to the glowing exit." },
+      "caveDiver": { "name": "Cave Diver", "blurb": "A cellular-automata cave — descend collecting gems with limited air." },
+      "topDownExplorer": { "name": "Top-Down Explorer", "blurb": "WASD around a tilemap, collect coins, avoid the spike area." },
+      "roomBuilder": { "name": "Room Builder", "blurb": "A new room layout every run, procedurally filled and bordered." },
+      "slimeRunner": { "name": "Slime Runner", "blurb": "Endless side-scroller — jump slimes, collect coins, animations switch automatically." },
+      "coinHop": { "name": "Coin Hop", "blurb": "Collect every coin before the slime catches you." }
     }
   }
 }

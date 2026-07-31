@@ -8,6 +8,13 @@ import { Icon } from "./Icons";
 
 type TabId = "concepts" | "recipes" | "reference";
 
+// graphicsDocs.ts (+ concepts.ts/recipes.ts) is the single source of truth for
+// docs content — pick the active-language string directly instead of routing
+// through i18next, which would let an unrelated JSON key silently shadow it.
+function docText(lang: string, en: string, ru: string): string {
+  return lang === "ru" ? ru : en;
+}
+
 function PanelHeader({ title, theme, onClose }: { title: string; theme: Theme; onClose: () => void }) {
   return (
     <div
@@ -84,7 +91,7 @@ function TabBar({ active, onChange, theme }: { active: TabId; onChange: (t: TabI
 }
 
 function ParamTable({ entry, theme }: { entry: DocEntry; theme: Theme }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   if (!entry.params || entry.params.length === 0) return null;
 
   const col: React.CSSProperties = {
@@ -133,7 +140,7 @@ function ParamTable({ entry, theme }: { entry: DocEntry; theme: Theme }) {
               </td>
               <td style={colMute}>{p.type}</td>
               <td style={{ ...colMute, fontFamily: theme.fontUI, fontSize: 12 }}>
-                {t(`docs.content.ref_${entry.id}_param_${p.name}`, p.en)}
+                {docText(i18n.language, p.en, p.ru)}
               </td>
             </tr>
           ))}
@@ -144,7 +151,7 @@ function ParamTable({ entry, theme }: { entry: DocEntry; theme: Theme }) {
           <span style={{ fontWeight: theme.weightHeader }}>{t("docs.returns")}: </span>
           <span style={{ fontFamily: theme.fontMono, fontSize: 11, color: theme.accent }}>{entry.returns.type}</span>
           {" — "}
-          {t(`docs.content.ref_${entry.id}_returns`, entry.returns.en)}
+          {docText(i18n.language, entry.returns.en, entry.returns.ru)}
         </div>
       )}
     </div>
@@ -215,7 +222,7 @@ function SwatchGrid({ swatches, theme }: { swatches: DocSwatch[]; theme: Theme }
 }
 
 function AdvancedNote({ entry, theme }: { entry: DocEntry; theme: Theme }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [open, setOpen] = useState(false);
   if (!entry.advanced) return null;
   return (
@@ -236,7 +243,7 @@ function AdvancedNote({ entry, theme }: { entry: DocEntry; theme: Theme }) {
       </button>
       {open && (
         <div style={{ marginTop: 6, fontFamily: theme.fontUI, fontSize: 12.5, color: theme.panelTxtMute, lineHeight: 1.55 }}>
-          {t(`docs.content.ref_${entry.id}_advanced`, entry.advanced.en)}
+          {docText(i18n.language, entry.advanced.en, entry.advanced.ru)}
         </div>
       )}
     </div>
@@ -256,10 +263,10 @@ function EntryRow({
   theme: Theme;
   depth?: number;
 }) {
-  const { t } = useTranslation();
+  const { i18n } = useTranslation();
   const leftPad = 14 + depth * 14;
   const expandedLeftPad = 14 + depth * 14;
-  const descKey = `docs.content.ref_${entry.id}`;
+  const desc = docText(i18n.language, entry.en, entry.ru);
   return (
     <div>
       <button
@@ -295,7 +302,7 @@ function EntryRow({
             {entry.signature}
           </div>
           <div style={{ fontFamily: theme.fontUI, fontSize: 12, color: theme.panelTxtMute, marginTop: 1 }}>
-            {t(descKey, entry.en)}
+            {desc}
           </div>
         </div>
       </button>
@@ -308,7 +315,7 @@ function EntryRow({
           }}
         >
           <div style={{ fontFamily: theme.fontUI, fontSize: 13, color: theme.panelTxt, lineHeight: 1.5 }}>
-            {t(descKey, entry.en)}
+            {desc}
           </div>
           {entry.example && <ExampleBlock code={entry.example} theme={theme} />}
           {entry.swatches && <SwatchGrid swatches={entry.swatches} theme={theme} />}
@@ -384,11 +391,10 @@ function CategorySection({
   onEntryToggle: (id: string) => void;
   theme: Theme;
 }) {
-  const { t } = useTranslation();
-  const catKey = `docs.content.cat_${category.id}`;
+  const { i18n } = useTranslation();
   return (
     <div>
-      <SectionHeader label={t(catKey, category.en)} isOpen={isOpen} onToggle={onToggle} theme={theme} />
+      <SectionHeader label={docText(i18n.language, category.en, category.ru)} isOpen={isOpen} onToggle={onToggle} theme={theme} />
       {isOpen && (
         <NestedGroup theme={theme}>
           {category.entries.map((entry) => (
@@ -408,9 +414,7 @@ function CategorySection({
 }
 
 function ConceptRow({ concept, isOpen, onToggle, theme }: { concept: DocConcept; isOpen: boolean; onToggle: () => void; theme: Theme }) {
-  const { t } = useTranslation();
-  const titleKey = `docs.content.concept_${concept.id}_title`;
-  const bodyKey = `docs.content.concept_${concept.id}_body`;
+  const { i18n } = useTranslation();
   return (
     <div>
       <button
@@ -430,11 +434,11 @@ function ConceptRow({ concept, isOpen, onToggle, theme }: { concept: DocConcept;
         }}
       >
         <span style={{ marginTop: 3, color: theme.panelTxtMute, flexShrink: 0, transform: isOpen ? "rotate(90deg)" : "rotate(0deg)", display: "inline-block", fontSize: 10 }}>▶</span>
-        <span style={{ fontFamily: theme.fontUI, fontSize: 13, color: theme.panelTxt, fontWeight: theme.weightHeader }}>{t(titleKey, concept.en.title)}</span>
+        <span style={{ fontFamily: theme.fontUI, fontSize: 13, color: theme.panelTxt, fontWeight: theme.weightHeader }}>{docText(i18n.language, concept.en.title, concept.ru.title)}</span>
       </button>
       {isOpen && (
         <div style={{ padding: "10px 14px 12px 14px", background: theme.surfacePanel, borderBottom: `1px solid ${theme.panelBorder}` }}>
-          <div style={{ fontFamily: theme.fontUI, fontSize: 13, color: theme.panelTxt, lineHeight: 1.55 }}>{t(bodyKey, concept.en.body)}</div>
+          <div style={{ fontFamily: theme.fontUI, fontSize: 13, color: theme.panelTxt, lineHeight: 1.55 }}>{docText(i18n.language, concept.en.body, concept.ru.body)}</div>
           {concept.example && <ExampleBlock code={concept.example} theme={theme} />}
         </div>
       )}
@@ -459,9 +463,7 @@ function RecipeRow({
   entryById: Map<string, DocEntry>;
   theme: Theme;
 }) {
-  const { t } = useTranslation();
-  const titleKey = `docs.content.recipe_${recipe.id}_title`;
-  const introKey = `docs.content.recipe_${recipe.id}_intro`;
+  const { i18n } = useTranslation();
   return (
     <div>
       <button
@@ -482,8 +484,8 @@ function RecipeRow({
       >
         <span style={{ marginTop: 3, color: theme.panelTxtMute, flexShrink: 0, transform: isOpen ? "rotate(90deg)" : "rotate(0deg)", display: "inline-block", fontSize: 10 }}>▶</span>
         <div style={{ minWidth: 0 }}>
-          <div style={{ fontFamily: theme.fontUI, fontSize: 13, color: theme.panelTxt, fontWeight: theme.weightHeader }}>{t(titleKey, recipe.en.title)}</div>
-          <div style={{ fontFamily: theme.fontUI, fontSize: 12, color: theme.panelTxtMute, marginTop: 1 }}>{t(introKey, recipe.en.intro)}</div>
+          <div style={{ fontFamily: theme.fontUI, fontSize: 13, color: theme.panelTxt, fontWeight: theme.weightHeader }}>{docText(i18n.language, recipe.en.title, recipe.ru.title)}</div>
+          <div style={{ fontFamily: theme.fontUI, fontSize: 12, color: theme.panelTxtMute, marginTop: 1 }}>{docText(i18n.language, recipe.en.intro, recipe.ru.intro)}</div>
         </div>
       </button>
       {isOpen && (
@@ -515,7 +517,7 @@ export default function DocsPanel({
   theme: Theme;
   onClose: () => void;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [tab, setTab] = useState<TabId>("recipes");
   const [openCategories, setOpenCategories] = useState<Set<string>>(new Set(["canvas"]));
   const [openEntry, setOpenEntry] = useState<string | null>(null);
@@ -571,7 +573,7 @@ export default function DocsPanel({
             return (
               <div key={section.id}>
                 <SectionHeader
-                  label={t(`docs.content.section_${section.id}`, section.en)}
+                  label={docText(i18n.language, section.en, section.ru)}
                   isOpen={isOpen}
                   onToggle={() => toggleSection(section.id)}
                   theme={theme}

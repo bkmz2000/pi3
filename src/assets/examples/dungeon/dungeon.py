@@ -65,6 +65,7 @@ def main():
         if try_move(vx, 0):
             if try_move(0, vy):
                 player.vel = (0, 0)
+    player.move()  # vel only sets a velocity — move() is the step that applies it
 
     # Draw walls and player
     for w in walls:

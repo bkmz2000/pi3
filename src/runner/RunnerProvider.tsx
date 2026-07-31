@@ -1034,8 +1034,9 @@ export function useRunner() {
   const resume = useCallback(() => {
     if (!useRunnerStore.getState().paused) return;
     setPaused(false);
+    scrubTo(null);
     getWorker().postMessage({ cmd: "resume" } satisfies WorkerCommand);
-  }, [setPaused]);
+  }, [setPaused, scrubTo]);
 
   const step = useCallback(() => {
     getWorker().postMessage({ cmd: "step" } satisfies WorkerCommand);

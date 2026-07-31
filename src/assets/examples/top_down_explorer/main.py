@@ -82,11 +82,11 @@ def tick():
 
     fill(Colors.white)
     text_size(14)
-    text(f"★ {state.score}  ♥ {state.lives}  WASD to move", Window.top_left)
+    text(f"★ {state.score}  ♥ {state.lives}  WASD to move", Window.top_left())
     if state.lives <= 0:
         fill(Colors.red)
         text_size(28)
-        text("Game Over!", Window.center)
+        text("Game Over!", Window.center())
 
 
 size(W, H)

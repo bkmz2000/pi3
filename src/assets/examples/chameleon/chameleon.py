@@ -77,12 +77,12 @@ def tick():
 
     fill(Colors.white)
     text_size(12)
-    text(f"{'[hidden]' if state.hidden else '[VISIBLE]'}  ♥{state.lives}  Space=camouflage  R=restart", Window.top_left)
+    text(f"{'[hidden]' if state.hidden else '[VISIBLE]'}  ♥{state.lives}  Space=camouflage  R=restart", Window.top_left())
 
     if state.done:
         fill(Colors.red)
         text_size(26)
-        text("Caught!  R to restart", Window.center)
+        text("Caught!  R to restart", Window.center())
 
 
 size(W, H)

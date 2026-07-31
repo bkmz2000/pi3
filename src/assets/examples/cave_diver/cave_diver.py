@@ -103,7 +103,7 @@ def tick():
     if state.done:
         text_size(26)
         fill(Colors.lime if state.win else Colors.red)
-        text(f"{'Surface!' if state.win else 'Suffocated!'}  Score {state.score}  R retry", Window.center)
+        text(f"{'Surface!' if state.win else 'Suffocated!'}  Score {state.score}  R retry", Window.center())
 
 
 size(W, H)

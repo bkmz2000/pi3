@@ -32,8 +32,8 @@ export function ProjectsPage() {
     navigate(`/ide/${id}`);
   };
 
-  const handleCreateProject = async (name: string) => {
-    await addProject(name);
+  const handleCreateProject = async (name: string, description?: string) => {
+    await addProject(name, description);
     setShowNewProject(false);
   };
 

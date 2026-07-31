@@ -118,10 +118,10 @@ def tick():
     if not state.alive:
         fill(Colors.red)
         text_size(22)
-        text("Game Over!", Window.center)
+        text("Game Over!", Window.center())
         text_size(13)
         fill(Colors.white)
-        text("Press R to restart", Window.bottom)
+        text("Press R to restart", Window.bottom())
         if Keyboard.r.pressed:
             stop()
 

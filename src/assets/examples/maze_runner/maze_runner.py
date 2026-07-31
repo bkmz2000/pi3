@@ -55,12 +55,12 @@ def tick():
 
     fill(Colors.silver)
     text_size(11)
-    text("Arrows/WASD move   R new maze", Window.bottom_left)
+    text("Arrows/WASD move   R new maze", Window.bottom_left())
 
     if state.won:
         fill(Colors.yellow)
         text_size(28)
-        text("You escaped!  Space new maze", Window.center)
+        text("You escaped!  Space new maze", Window.center())
 
 
 size(W, H)

@@ -110,11 +110,11 @@ def tick():
     if state.won:
         fill(Colors.lime)
         text_size(22)
-        text("You win!", Window.center)
+        text("You win!", Window.center())
     elif state.lost:
         fill(Colors.red)
         text_size(22)
-        text("Caught!", Window.center)
+        text("Caught!", Window.center())
 
 
 size(W, H)

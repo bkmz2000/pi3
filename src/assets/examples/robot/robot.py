@@ -42,12 +42,12 @@ def tick():
 
     # Speech bubble above the robot's head
     no_stroke()
-    say(phrases[state.current], head.top)
+    say(phrases[state.current], head.top())
 
     # Hint at the bottom
     fill(Colors.gray)
     text_size(13)
-    text("Press 1, 2 or 3 to change phrase", Window.bottom)
+    text("Press 1, 2 or 3 to change phrase", Window.bottom())
 
 
 size(500, 400)

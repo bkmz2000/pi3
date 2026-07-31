@@ -2,7 +2,7 @@
 
 import time as _time
 
-from graphics._errors import FriendlyError
+from graphics._errors import FriendlyError, raise_migration_error
 
 
 def clamp(value, lo, hi):
@@ -89,7 +89,7 @@ class Timer:
     Usage:
         t = Timer(s=2)
         # in update():
-        if t.done():
+        if t.is_done():
             spawn_enemy()
             t.restart()
     """
@@ -109,8 +109,13 @@ class Timer:
     def elapsed(self) -> float:
         return _time.monotonic() - self._start
 
-    def done(self) -> bool:
+    def is_done(self) -> bool:
         return self.left() <= 0
+
+    # MIGRATION SHIM — remove after sunset. `done()` is `is_done()` now
+    # (boolean-query convention, matches `Actor.is_alive()`).
+    def done(self, *args, **kwargs):
+        raise_migration_error("done()", "is_done()")
 
     def restart(self, s=None, ms=None) -> None:
         if s is not None:

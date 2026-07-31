@@ -18,6 +18,7 @@
     "signIn": "Sign In",
     "signUp": "Sign Up",
     "signOut": "Sign Out",
+    "signInFailed": "Sign-in failed. Please try again.",
     "myProjects": "My Projects",
     "yourName": "Username",
     "enterYourName": "Enter your username",
@@ -45,7 +46,6 @@
     "joinClass": "Join your class",
     "studentSub": "Code & learn",
     "teacherSub": "Run a class",
-    "forgotPassword": "Forgot?",
     "passwordHint": "4+ characters. Make it something you'll remember.",
     "teacherDashboard": "Teacher dashboard",
     "myClasses": "My classes",
@@ -75,6 +75,11 @@
     "exportProjectTooltip": "Export project",
     "deleteProjectTooltip": "Delete project",
     "cancel": "Cancel",
+    "ok": "OK",
+    "unsavedChangesTitle": "Unsaved changes",
+    "unsavedChangesBody": "You have unsaved changes. What would you like to do?",
+    "discardChanges": "Discard changes",
+    "saveAndContinue": "Save and continue",
     "create": "Create",
     "createProject": "Create New Project",
     "projectName": "Project Name",
@@ -1059,6 +1064,8 @@
     "roleEditor": "Editor",
     "roleViewer": "Viewer",
     "description": "Description (optional)",
+    "descriptionPlaceholder": "A brief description...",
+    "createError": "Failed to create project.",
     "creating": "Creating...",
     "backToEditor": "Back to editor",
     "shareTitle": "Share project",
@@ -1189,6 +1196,10 @@
     "internal": {
       "title": "Something went wrong inside pi3",
       "classifierFailed": "The error reporter crashed while analyzing your code. Please report this to your teacher!"
+    },
+    "migration": {
+      "title": "This spelling changed",
+      "renamed": "`{{old}}` was renamed to `{{new}}`. Update your code to use the new spelling."
     },
     "rawTraceback": "Full error details",
     "showRaw": "Show details",
@@ -1351,7 +1362,7 @@
       "heading": "Not a trial.",
       "bullet1": "Unlimited student projects, always free",
       "bullet2": "Up to 3 groups of 10 students, no card required",
-      "bullet3": "Free to start, always — need more than that? [CONTACT_EMAIL]"
+      "bullet3": "Free to start, always — need more than that? idbronner@gmail.com"
     },
     "safety": {
       "heading": "Built for a classroom, not an open platform.",
@@ -1374,7 +1385,7 @@
       "privacyBullet4": "Students never enter a name, email, or any personal detail — pi3 generates their login automatically.",
       "privacyBullet5": "Joining a shared session requires a private signed link — there's no short code to guess or pass around.",
       "contactLabel": "Questions or a concern?",
-      "contactEmail": "[CONTACT_EMAIL]"
+      "contactEmail": "idbronner@gmail.com"
     }
   },
   "examplesGallery": {

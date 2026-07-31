@@ -55,7 +55,7 @@ export function LoginDialog({ open, onClose }: LoginDialogProps) {
       }
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed');
+      setError(err instanceof Error ? err.message : t('auth.signInFailed'));
     } finally {
       setLoading(false);
     }
@@ -269,15 +269,10 @@ export function LoginDialog({ open, onClose }: LoginDialogProps) {
           {/* Password */}
           {allowPasswordAuth && (
             <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 5 }}>
+              <div style={{ marginBottom: 5 }}>
                 <label style={{ fontSize: 12, fontWeight: 600, color: theme.panelTxtMute }}>
                   {t('auth.password')}
                 </label>
-                {!isSignUp && (
-                  <span style={{ fontSize: 11.5, color: theme.panelTxtMute, fontWeight: 500, opacity: 0.5 }}>
-                    {t('auth.forgotPassword')}
-                  </span>
-                )}
               </div>
               <input
                 type="password"

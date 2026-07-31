@@ -50,8 +50,6 @@ class Snake(Actor):
 
 class Apple(Actor):
     def init(self):
-        from random import randint
-
         self.move_to(15, 15)
         self.avoid = []
 
@@ -80,8 +78,6 @@ apple.avoid = snake.tail
 
 
 def tick():
-    from graphics import Keyboard
-
     if Keyboard.w.pressed or Keyboard.arrow_up.pressed:
         if snake.direction != "down":
             snake.next_direction = "up"

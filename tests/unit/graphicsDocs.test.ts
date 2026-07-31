@@ -58,8 +58,8 @@ describe('graphicsDocs — tilemap + actor regression guards', () => {
     expect(polar).toBeDefined();
     expect(polar!.signature).toMatch(/Polar\(magnitude,\s*angle_degrees\)/);
     expect(polar!.returns?.type).toBe('Vector2');
-    // Should mention the actor.vel use case
-    expect(polar!.en).toMatch(/actor\.vel/);
+    // Should mention the actor.set_vel(...) use case
+    expect(polar!.en).toMatch(/actor\.set_vel/);
   });
 
   it('flags actor.angle as visual-only and points to Polar for motion', () => {

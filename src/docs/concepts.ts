@@ -40,15 +40,15 @@ export const CONCEPTS: DocConcept[] = [
     en: {
       title: "The game loop",
       body:
-        "A game is a loop: many times per second the program clears the screen, updates the state (positions, timers, input), and draws a new frame. Pass `run()` a function you want to call ~60 times a second. It's common to name this function `main` and have it call smaller functions in order — one for drawing, one for input, one for physics, and so on. Variables you want to keep between frames live outside the function.",
+        "A game is a loop: many times per second the program clears the screen, updates the state (positions, timers, input), and draws a new frame. Pass `run()` a function you want to call ~60 times a second. It's common to name this function `main` and have it call smaller functions in order — one for drawing, one for input, one for physics, and so on. Variables you want to keep between frames go in a `State(**kwargs)` object instead of bare module variables — that way every function can read and write them without a `global` statement.",
     },
     ru: {
       title: "Игровой цикл",
       body:
-        "Игра — это цикл: много раз в секунду программа очищает экран, обновляет состояние (позиции, таймеры, ввод) и рисует новый кадр. Передай в `run()` функцию, которую хочешь выполнять примерно 60 раз в секунду. Обычно эту функцию называют `main`, а из неё в нужном порядке вызывают другие функции, каждая из которых отвечает за свою область: рисование, управление, физика и т.д. Переменные, которые нужно сохранять между кадрами, живут вне функции.",
+        "Игра — это цикл: много раз в секунду программа очищает экран, обновляет состояние (позиции, таймеры, ввод) и рисует новый кадр. Передай в `run()` функцию, которую хочешь выполнять примерно 60 раз в секунду. Обычно эту функцию называют `main`, а из неё в нужном порядке вызывают другие функции, каждая из которых отвечает за свою область: рисование, управление, физика и т.д. Переменные, которые нужно сохранять между кадрами, удобнее держать в объекте `State(**kwargs)`, а не в обычных переменных модуля — тогда любая функция может их читать и менять без `global`.",
     },
     example:
-      "x = 0\n\ndef frame():\n    global x\n    x += 1\n    background(\"black\")\n    circle(x, 100, 20)\n\nrun(frame)",
+      "state = State(x=0)\n\ndef frame():\n    state.x += 1\n    background(\"black\")\n    circle(state.x, 100, 20)\n\nrun(frame)",
   },
   {
     id: "vectors",
@@ -63,7 +63,7 @@ export const CONCEPTS: DocConcept[] = [
         "Позиция — это два числа (x, y). Скорость — тоже два числа: насколько x и y меняются за кадр. Чтобы двигать объект, прибавляй его скорость к позиции каждый кадр. `Vector2` объединяет оба числа в одно значение, чтобы складывать, масштабировать или поворачивать их одним действием.",
     },
     example:
-      "pos = Vector2(50, 50)\nvel = Vector2(2, 1)\n\ndef frame():\n    pos.add(vel)\n    background(\"black\")\n    circle(pos.x, pos.y, 10)\n\nrun(frame)",
+      "pos = Vector2(50, 50)\nvel = Vector2(2, 1)\n\ndef frame():\n    pos.x += vel.x\n    pos.y += vel.y\n    background(\"black\")\n    circle(pos.x, pos.y, 10)\n\nrun(frame)",
   },
   {
     id: "animation_concepts",
@@ -78,7 +78,7 @@ export const CONCEPTS: DocConcept[] = [
         "Анимация — это последовательность кадров. Воспроизведение — это переход между кадрами по времени. Частота кадров (fps) задаёт скорость. Циклическая анимация возвращается к началу; нециклическая останавливается на последнем кадре. Чтобы анимация шла, вызывай `.update()` в каждом кадре.",
     },
     example:
-      "anim = Animation(assets.animations.walk, fps=12, loop=True)\n\ndef frame():\n    anim.update()\n    background(\"black\")\n    image(anim.frame, 100, 100)\n\nrun(frame)",
+      "anim = Animation(assets.animations.walk.frames, fps=12)\nanim.loop = True\n\ndef frame():\n    anim.update()\n    background(\"black\")\n    image(anim.frame, 100, 100)\n\nrun(frame)",
   },
   {
     id: "collisions",
@@ -93,21 +93,21 @@ export const CONCEPTS: DocConcept[] = [
         "Столкновение — это перекрытие двух фигур. Самая простая проверка — касаются ли два хитбокса (прямоугольники вокруг фигур). У актёров это уже встроено через `Collider`. Обнаружение только сообщает, что столкновение произошло — чтобы актёр не прошёл сквозь препятствие, столкновение нужно ещё и «разрешить» (вытолкнуть наружу).",
     },
     example:
-      "if hero.collider.overlaps(wall.collider):\n    hero.pos = previous_pos   # simple resolution: undo the move",
+      "if hero.collides_with(wall):\n    hero.set_pos(previous_pos)   # simple resolution: undo the move",
   },
   {
     id: "transforms",
     en: {
       title: "Transforms & the matrix stack",
       body:
-        "`translate`, `rotate`, and `scale` change the coordinate system for everything drawn after them. They stack: `push()` saves the current transform, `pop()` restores it. The order matters — `translate` then `rotate` rotates around the moved origin, not the canvas origin. Use push/pop around any local transform to keep it from leaking into other drawings.",
+        "`translate`, `rotate`, and `scale` change the coordinate system for everything drawn after them. They stack: `push()` saves the current transform, `pop()` restores it. The order matters — `translate` then `rotate` rotates around the moved origin, not the canvas origin. Use push/pop around any local transform to keep it from leaking into other drawings — or use `with translated(...):` / `with rotated(...):` / `with scaled(...):`, which wrap push/pop for you so a missing `pop()` can't happen. `Stamp` builds on the same idea: record a drawing once inside `with Stamp() as icon:`, then replay it anywhere with `icon.draw(x, y, angle)`.",
     },
     ru: {
       title: "Трансформации и стек матриц",
       body:
-        "`translate`, `rotate` и `scale` меняют систему координат для всего, что рисуется после них. Они складываются стеком: `push()` сохраняет текущую трансформацию, `pop()` восстанавливает её. Порядок важен — `translate` потом `rotate` поворачивает вокруг новой точки отсчёта, а не вокруг (0, 0) холста. Оборачивай локальную трансформацию в push/pop, чтобы она не повлияла на остальные рисунки.",
+        "`translate`, `rotate` и `scale` меняют систему координат для всего, что рисуется после них. Они складываются стеком: `push()` сохраняет текущую трансформацию, `pop()` восстанавливает её. Порядок важен — `translate` потом `rotate` поворачивает вокруг новой точки отсчёта, а не вокруг (0, 0) холста. Оборачивай локальную трансформацию в push/pop, чтобы она не повлияла на остальные рисунки — либо используй `with translated(...):` / `with rotated(...):` / `with scaled(...):`, которые сами оборачивают push/pop, так что забыть `pop()` невозможно. `Stamp` работает по той же идее: запиши рисунок один раз внутри `with Stamp() as icon:`, а затем воспроизводи его где угодно через `icon.draw(x, y, angle)`.",
     },
     example:
-      "push()\ntranslate(100, 100)\nrotate(angle)\nrect(-20, -20, 40, 40)   # rotates around (100, 100)\npop()",
+      "with translated(100, 100):\n    with rotated(angle):\n        rect(-20, -20, 40, 40)   # rotates around (100, 100)",
   },
 ];

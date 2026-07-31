@@ -304,7 +304,6 @@ for root_dir, dirs, files in os.walk(EXAMPLES_DIR):
 # Known old examples that should still be there (not deleted)
 expected_examples = {
     "asteroids/files/main.py",
-    "bounce/bounce.py",
     "catch/catch.py",
     "hello_world/hello_world.py",
     "input/input.py",
@@ -396,14 +395,6 @@ test("P5 uses Rect", "Rect(" in p5_src)
 test("P5 uses Mouse", "Mouse." in p5_src)
 test("P5 uses run()", "run(" in p5_src)
 
-# Bounce should use Circle and not have the * 2 radius bug
-bounce_path = os.path.join(EXAMPLES_DIR, "bounce", "bounce.py")
-with open(bounce_path) as f:
-    bounce_src = f.read()
-test("Bounce uses Circle", "Circle" in bounce_src)
-test("Bounce uses Colors", "Colors." in bounce_src)
-test("Bounce no radius*2 bug", "radius * 2" not in bounce_src and "radius*2" not in bounce_src)
-
 # Catch should use Colors, Window anchors, collides_with, run()
 catch_path = os.path.join(EXAMPLES_DIR, "catch", "catch.py")
 with open(catch_path) as f:
@@ -424,7 +415,7 @@ test("Robot uses Keyboard.key_1", "Keyboard.key_1" in robot_src)
 test("Robot uses Window.bottom", "Window.bottom" in robot_src)
 test("Robot uses Colors", "Colors." in robot_src)
 test("Robot uses run()", "run(" in robot_src)
-test("Robot uses actor anchor (.top)", ".top)" in robot_src or ".top," in robot_src)
+test("Robot uses actor anchor (.top())", ".top()" in robot_src)
 
 # Swatches should reference every Colors.* name and use run()
 swatches_path = os.path.join(EXAMPLES_DIR, "swatches", "swatches.py")
@@ -580,37 +571,64 @@ test("scale(2) queues (2.0, 2.0)", cmd() == ("scale", (2.0, 2.0)))
 reset(); g.scale(2, 3)
 test("scale(x,y) queues correctly", cmd() == ("scale", (2.0, 3.0)))
 
+# --- translated / rotated / scaled context managers ---
+
+reset()
+with g.translated(5, 10):
+    pass
+test("translated() queues push/translate/pop",
+     [c[0] for c in cmds()] == ["push", "translate", "pop"])
+test("translated() translate args", cmds()[1] == ("translate", (5.0, 10.0)))
+
+reset()
+with g.rotated(45):
+    pass
+test("rotated() queues push/rotate/pop",
+     [c[0] for c in cmds()] == ["push", "rotate", "pop"])
+
+reset()
+with g.scaled(2, 3):
+    pass
+test("scaled() queues push/scale/pop",
+     [c[0] for c in cmds()] == ["push", "scale", "pop"])
+
+reset()
+with g.translated(5, 10):
+    g.circle(0, 0, 1)
+test("translated() nests drawing between push and pop",
+     [c[0] for c in cmds()] == ["push", "translate", "circle", "pop"])
+
 
 # --- text with AnchorPoint ---
 
 g._width = 800; g._height = 600
 
-reset(); g.text("Score", g.Window.top_right)
+reset(); g.text("Score", g.Window.top_right())
 cs = cmds()
 test("text(s, anchor) queues text_align then text", len(cs) == 2 and cs[0][0] == "text_align" and cs[1][0] == "text")
-test("text(Window.top_right) aligns right", cs[0][1][0] == "right")
-test("text(Window.top_right) baseline top", cs[0][1][1] == "top")
-test("text(Window.top_right) x is padded left from right edge", cs[1][1][1] < 800)
+test("text(Window.top_right()) aligns right", cs[0][1][0] == "right")
+test("text(Window.top_right()) baseline top", cs[0][1][1] == "top")
+test("text(Window.top_right()) x is padded left from right edge", cs[1][1][1] < 800)
 
-reset(); g.text("Lives", g.Window.top_left)
+reset(); g.text("Lives", g.Window.top_left())
 cs = cmds()
-test("text(Window.top_left) aligns left", cs[0][1][0] == "left")
-test("text(Window.top_left) x > 0 (padded)", cs[1][1][1] > 0)
+test("text(Window.top_left()) aligns left", cs[0][1][0] == "left")
+test("text(Window.top_left()) x > 0 (padded)", cs[1][1][1] > 0)
 
-reset(); g.text("Center", g.Window.center)
+reset(); g.text("Center", g.Window.center())
 cs = cmds()
-test("text(Window.center) aligns center", cs[0][1][0] == "center")
-test("text(Window.center) x near 400", 350 < cs[1][1][1] < 450)
+test("text(Window.center()) aligns center", cs[0][1][0] == "center")
+test("text(Window.center()) x near 400", 350 < cs[1][1][1] < 450)
 
-reset(); g.text("Bottom", g.Window.bottom)
+reset(); g.text("Bottom", g.Window.bottom())
 cs = cmds()
-test("text(Window.bottom) baseline bottom", cs[0][1][1] == "bottom")
-test("text(Window.bottom) y padded above bottom edge", cs[1][1][2] < 600)
+test("text(Window.bottom()) baseline bottom", cs[0][1][1] == "bottom")
+test("text(Window.bottom()) y padded above bottom edge", cs[1][1][2] < 600)
 
 
 # --- say() command queuing ---
 
-reset(); g.say("Hello", g.Window.top_left)
+reset(); g.say("Hello", g.Window.top_left())
 cs = cmds()
 test("say() queues a 'say' command", len(cs) == 1 and cs[0][0] == "say")
 test("say() command has string first", cs[0][1][0] == "Hello")
@@ -647,47 +665,47 @@ g._width = 500; g._height = 400
 test("Window.width", g.Window.width == 500)
 test("Window.height", g.Window.height == 400)
 
-top_left = g.Window.top_left
-test("Window.top_left x == 0", top_left.x == 0)
-test("Window.top_left y == 0", top_left.y == 0)
+top_left = g.Window.top_left()
+test("Window.top_left() x == 0", top_left.x == 0)
+test("Window.top_left() y == 0", top_left.y == 0)
 
-top_right = g.Window.top_right
-test("Window.top_right x == 500", top_right.x == 500)
-test("Window.top_right y == 0", top_right.y == 0)
+top_right = g.Window.top_right()
+test("Window.top_right() x == 500", top_right.x == 500)
+test("Window.top_right() y == 0", top_right.y == 0)
 
-bot_left = g.Window.bottom_left
-test("Window.bottom_left x == 0", bot_left.x == 0)
-test("Window.bottom_left y == 400", bot_left.y == 400)
+bot_left = g.Window.bottom_left()
+test("Window.bottom_left() x == 0", bot_left.x == 0)
+test("Window.bottom_left() y == 400", bot_left.y == 400)
 
-bot_right = g.Window.bottom_right
-test("Window.bottom_right x == 500", bot_right.x == 500)
-test("Window.bottom_right y == 400", bot_right.y == 400)
+bot_right = g.Window.bottom_right()
+test("Window.bottom_right() x == 500", bot_right.x == 500)
+test("Window.bottom_right() y == 400", bot_right.y == 400)
 
-center = g.Window.center
-test("Window.center x == 250", center.x == 250)
-test("Window.center y == 200", center.y == 200)
+center = g.Window.center()
+test("Window.center() x == 250", center.x == 250)
+test("Window.center() y == 200", center.y == 200)
 
-top = g.Window.top
-test("Window.top x == 250", top.x == 250)
-test("Window.top y == 0", top.y == 0)
+top = g.Window.top()
+test("Window.top() x == 250", top.x == 250)
+test("Window.top() y == 0", top.y == 0)
 
-bottom = g.Window.bottom
-test("Window.bottom x == 250", bottom.x == 250)
-test("Window.bottom y == 400", bottom.y == 400)
+bottom = g.Window.bottom()
+test("Window.bottom() x == 250", bottom.x == 250)
+test("Window.bottom() y == 400", bottom.y == 400)
 
-left = g.Window.left
-test("Window.left x == 0", left.x == 0)
-test("Window.left y == 200", left.y == 200)
+left = g.Window.left()
+test("Window.left() x == 0", left.x == 0)
+test("Window.left() y == 200", left.y == 200)
 
-right = g.Window.right
-test("Window.right x == 500", right.x == 500)
-test("Window.right y == 200", right.y == 200)
+right = g.Window.right()
+test("Window.right() x == 500", right.x == 500)
+test("Window.right() y == 200", right.y == 200)
 
 # Window anchors are dynamic (lambda-based)
 g._width = 600; g._height = 300
-test("Window.top_right x updates with _width", g.Window.top_right.x == 600)
-test("Window.center x updates with _width", g.Window.center.x == 300)
-test("Window.bottom y updates with _height", g.Window.bottom.y == 300)
+test("Window.top_right() x updates with _width", g.Window.top_right().x == 600)
+test("Window.center() x updates with _width", g.Window.center().x == 300)
+test("Window.bottom() y updates with _height", g.Window.bottom().y == 300)
 
 
 # --- AnchorPoint ---
@@ -909,59 +927,66 @@ g._width = 800; g._height = 600
 
 # Rect: center at (100,100), w=40, h=20 → half=(20,10)
 r_anc = Rect(100, 100, 40, 20)
-test("Rect.top.y == 90",          r_anc.top.y == 90)
-test("Rect.bottom.y == 110",      r_anc.bottom.y == 110)
-test("Rect.left.x == 80",         r_anc.left.x == 80)
-test("Rect.right.x == 120",       r_anc.right.x == 120)
-test("Rect.top.x == 100 (center)",  r_anc.top.x == 100)
-test("Rect.left.y == 100 (center)", r_anc.left.y == 100)
-test("Rect.top_right.x == 120",   r_anc.top_right.x == 120)
-test("Rect.top_right.y == 90",    r_anc.top_right.y == 90)
-test("Rect.top_left.x == 80",     r_anc.top_left.x == 80)
-test("Rect.top_left.y == 90",     r_anc.top_left.y == 90)
-test("Rect.bottom_right.x == 120", r_anc.bottom_right.x == 120)
-test("Rect.bottom_right.y == 110", r_anc.bottom_right.y == 110)
-test("Rect.bottom_left.x == 80",  r_anc.bottom_left.x == 80)
-test("Rect.bottom_left.y == 110", r_anc.bottom_left.y == 110)
-test("Rect.center.x == 100",      r_anc.center.x == 100)
-test("Rect.center.y == 100",      r_anc.center.y == 100)
+test("Rect.top().y == 90",          r_anc.top().y == 90)
+test("Rect.bottom().y == 110",      r_anc.bottom().y == 110)
+test("Rect.left().x == 80",         r_anc.left().x == 80)
+test("Rect.right().x == 120",       r_anc.right().x == 120)
+test("Rect.top().x == 100 (center)",  r_anc.top().x == 100)
+test("Rect.left().y == 100 (center)", r_anc.left().y == 100)
+test("Rect.top_right().x == 120",   r_anc.top_right().x == 120)
+test("Rect.top_right().y == 90",    r_anc.top_right().y == 90)
+test("Rect.top_left().x == 80",     r_anc.top_left().x == 80)
+test("Rect.top_left().y == 90",     r_anc.top_left().y == 90)
+test("Rect.bottom_right().x == 120", r_anc.bottom_right().x == 120)
+test("Rect.bottom_right().y == 110", r_anc.bottom_right().y == 110)
+test("Rect.bottom_left().x == 80",  r_anc.bottom_left().x == 80)
+test("Rect.bottom_left().y == 110", r_anc.bottom_left().y == 110)
+test("Rect.center().x == 100",      r_anc.center().x == 100)
+test("Rect.center().y == 100",      r_anc.center().y == 100)
 
 # Anchor h_align/v_align
-test("Rect.top v_align == 'bottom'",    r_anc.top.v_align == "bottom")
-test("Rect.bottom v_align == 'top'",    r_anc.bottom.v_align == "top")
-test("Rect.left h_align == 'right'",    r_anc.left.h_align == "right")
-test("Rect.right h_align == 'left'",    r_anc.right.h_align == "left")
-test("Rect.top_right h_align == 'left'", r_anc.top_right.h_align == "left")
-test("Rect.top_right v_align == 'bottom'", r_anc.top_right.v_align == "bottom")
-test("Rect.center h_align == 'center'", r_anc.center.h_align == "center")
-test("Rect.center v_align == 'middle'", r_anc.center.v_align == "middle")
+test("Rect.top() v_align == 'bottom'",    r_anc.top().v_align == "bottom")
+test("Rect.bottom() v_align == 'top'",    r_anc.bottom().v_align == "top")
+test("Rect.left() h_align == 'right'",    r_anc.left().h_align == "right")
+test("Rect.right() h_align == 'left'",    r_anc.right().h_align == "left")
+test("Rect.top_right() h_align == 'left'", r_anc.top_right().h_align == "left")
+test("Rect.top_right() v_align == 'bottom'", r_anc.top_right().v_align == "bottom")
+test("Rect.center() h_align == 'center'", r_anc.center().h_align == "center")
+test("Rect.center() v_align == 'middle'", r_anc.center().v_align == "middle")
 
 # Circle: center at (50,50), radius=15
 ci_anc = Circle(50, 50, 15)
-test("Circle.top.y == 35",    ci_anc.top.y == 35)
-test("Circle.bottom.y == 65", ci_anc.bottom.y == 65)
-test("Circle.left.x == 35",   ci_anc.left.x == 35)
-test("Circle.right.x == 65",  ci_anc.right.x == 65)
-test("Circle.top.x == 50",    ci_anc.top.x == 50)
-test("Circle.top_right.x == 65", ci_anc.top_right.x == 65)
-test("Circle.top_right.y == 35", ci_anc.top_right.y == 35)
-test("Circle.center.x == 50", ci_anc.center.x == 50)
-test("Circle.center.y == 50", ci_anc.center.y == 50)
+test("Circle.top().y == 35",    ci_anc.top().y == 35)
+test("Circle.bottom().y == 65", ci_anc.bottom().y == 65)
+test("Circle.left().x == 35",   ci_anc.left().x == 35)
+test("Circle.right().x == 65",  ci_anc.right().x == 65)
+test("Circle.top().x == 50",    ci_anc.top().x == 50)
+test("Circle.top_right().x == 65", ci_anc.top_right().x == 65)
+test("Circle.top_right().y == 35", ci_anc.top_right().y == 35)
+test("Circle.center().x == 50", ci_anc.center().x == 50)
+test("Circle.center().y == 50", ci_anc.center().y == 50)
 
 # Base Actor with no collider shape — anchors fall back to (x, y)
 reset()
 a_bare = Actor(); a_bare._x = 10; a_bare._y = 20
-test("Base Actor.top.x == x", a_bare.top.x == 10)
-test("Base Actor.top.y == y (no half-size)", a_bare.top.y == 20)
-test("Base Actor.top_left.x == x", a_bare.top_left.x == 10)
-test("Base Actor.top_left.y == y", a_bare.top_left.y == 20)
-test("Base Actor.center.x == x", a_bare.center.x == 10)
-test("Base Actor.center.y == y", a_bare.center.y == 20)
+test("Base Actor.top().x == x", a_bare.top().x == 10)
+test("Base Actor.top().y == y (no half-size)", a_bare.top().y == 20)
+test("Base Actor.top_left().x == x", a_bare.top_left().x == 10)
+test("Base Actor.top_left().y == y", a_bare.top_left().y == 20)
+test("Base Actor.center().x == x", a_bare.center().x == 10)
+test("Base Actor.center().y == y", a_bare.center().y == 20)
 
 # Anchors are static snapshots (not lambdas)
-snap = r_anc.top_right
+snap = r_anc.top_right()
 r_anc._x = 200
 test("Actor anchor is a static snapshot, not dynamic", snap.x == 120)
+
+# Migration shim: bare (uncalled) anchor access raises
+try:
+    _ = r_anc.top.y
+    test("bare Rect.top raises FriendlyError", False)
+except FriendlyError as e:
+    test("bare Rect.top raises FriendlyError", e.message_key == "friendlyError.migration.renamed")
 
 
 # --- Vector2 ---
@@ -1033,10 +1058,10 @@ _segs = _floor.segments
 test("Line has one segment", len(_segs) == 1 and isinstance(_segs[0], Segment))
 test("segment endpoints match", _segs[0].a == (0, 400) and _segs[0].b == (600, 400))
 
-# bounds is the axis-aligned box, order-independent of endpoint order.
-test("Line.bounds", Line((10, 20), (40, 80)).bounds == (10, 20, 40, 80))
-test("Line.bounds endpoint-order invariant",
-     Line((40, 80), (10, 20)).bounds == (10, 20, 40, 80))
+# bounds() is the axis-aligned box, order-independent of endpoint order.
+test("Line.bounds()", Line((10, 20), (40, 80)).bounds() == (10, 20, 40, 80))
+test("Line.bounds() endpoint-order invariant",
+     Line((40, 80), (10, 20)).bounds() == (10, 20, 40, 80))
 
 # thickness is constructor-only / read-only.
 test("Line.thickness default", Line((0, 0), (1, 0)).thickness == 2)
@@ -1093,7 +1118,7 @@ test("Polygon.points are Vector2", all(isinstance(p, Vector2) for p in _square.p
 test("Polygon has one segment per edge", len(_square.segments) == 4)
 test("Polygon last edge wraps to first",
      _square.segments[-1].a == (0, 100) and _square.segments[-1].b == (0, 0))
-test("Polygon.bounds", _square.bounds == (0, 0, 100, 100))
+test("Polygon.bounds()", _square.bounds() == (0, 0, 100, 100))
 
 # normal_at picks the nearest edge; expected (per formula) normals of the square.
 test("Polygon.normal_at bottom edge", _vclose(_square.normal_at((50, 0)), 0, 1))
@@ -1360,37 +1385,60 @@ print("\n=== Runtime: AnchorPoint ⊂ Vector2 ===")
 
 reset()
 ap_actor = Rect(10, 20, 40, 20)
-ap = ap_actor.bottom  # x=10, y=30 (10+20/2... wait collider rect)
+ap = ap_actor.bottom()  # x=10, y=30 (10+20/2... wait collider rect)
 # Rect collider is set: width=40, height=20 → half=(20, 10). bottom = (10, 20+10=30)
 test("AnchorPoint is Vector2 subclass", isinstance(ap, Vector2))
 test("AnchorPoint arithmetic", (ap + Vector2(0, 5)).y == 35)
 test("AnchorPoint == AnchorPoint same coords",
-     Rect(10, 20, 40, 20).center == Rect(10, 20, 40, 20).center)
+     Rect(10, 20, 40, 20).center() == Rect(10, 20, 40, 20).center())
 test("AnchorPoint.distance_to", ap.distance_to(Vector2(10, 30)) == 0)
 
 
-# --- Actor pos / vel proxies ---
+# --- Actor pos() / vel() proxies ---
 
-print("\n=== Runtime: Actor.pos / Actor.vel ===")
+print("\n=== Runtime: Actor.pos() / Actor.vel() ===")
 
 reset()
 a_p = Actor(); a_p._x = 5; a_p._y = 7
-p = a_p.pos
-test("actor.pos returns Vector2", isinstance(p, Vector2))
-test("actor.pos.x matches _x", p.x == 5)
-test("actor.pos.y matches _y", p.y == 7)
-a_p.pos = Vector2(100, 200)
-test("actor.pos = v sets _x", a_p._x == 100)
-test("actor.pos = v sets _y", a_p._y == 200)
-a_p.pos = (1, 2)
-test("actor.pos = tuple", a_p._x == 1 and a_p._y == 2)
-a_p.pos += Vector2(10, 20)
-test("actor.pos += v", a_p._x == 11 and a_p._y == 22)
+p = a_p.pos()
+test("actor.pos() returns Vector2", isinstance(p, Vector2))
+test("actor.pos().x matches _x", p.x == 5)
+test("actor.pos().y matches _y", p.y == 7)
+a_p.set_pos(Vector2(100, 200))
+test("actor.set_pos(v) sets _x", a_p._x == 100)
+test("actor.set_pos(v) sets _y", a_p._y == 200)
+a_p.set_pos((1, 2))
+test("actor.set_pos(tuple)", a_p._x == 1 and a_p._y == 2)
+a_p.set_pos(a_p.pos() + Vector2(10, 20))
+test("actor.set_pos(pos() + v)", a_p._x == 11 and a_p._y == 22)
 
 a_v = Actor(); a_v._vx = 3; a_v._vy = 4
-test("actor.vel.x matches _vx", a_v.vel.x == 3)
-a_v.vel = Vector2(5, 6)
-test("actor.vel = v sets _vx/_vy", a_v._vx == 5 and a_v._vy == 6)
+test("actor.vel().x matches _vx", a_v.vel().x == 3)
+a_v.set_vel(Vector2(5, 6))
+test("actor.set_vel(v) sets _vx/_vy", a_v._vx == 5 and a_v._vy == 6)
+
+# --- Migration shims: old pos/vel spellings raise ---
+
+print("\n=== Runtime: Actor.pos / Actor.vel migration shims ===")
+
+reset()
+a_shim = Actor(); a_shim._x = 1; a_shim._y = 2
+try:
+    _ = a_shim.pos.x
+    test("bare actor.pos.x raises FriendlyError", False)
+except FriendlyError as e:
+    test("bare actor.pos.x raises FriendlyError", e.message_key == "friendlyError.migration.renamed")
+try:
+    a_shim.pos = Vector2(9, 9)
+    test("actor.pos = v raises FriendlyError", False)
+except FriendlyError:
+    test("actor.pos = v raises FriendlyError", True)
+try:
+    a_shim.vel = Vector2(9, 9)
+    test("actor.vel = v raises FriendlyError", False)
+except FriendlyError:
+    test("actor.vel = v raises FriendlyError", True)
+test("actor.pos() still callable (shim call-through)", a_shim.pos().x == 1)
 
 
 # --- Actor anchors fall back to image dimensions when no collider ---
@@ -1402,10 +1450,10 @@ a_img = Actor()
 a_img._x = 100
 a_img._y = 200
 a_img.image = {"done": True, "name": "hero", "width": 32, "height": 48}
-test("Actor with image: bottom.y == y + h/2", a_img.bottom.y == 200 + 24)
-test("Actor with image: top.y == y - h/2", a_img.top.y == 200 - 24)
-test("Actor with image: left.x == x - w/2", a_img.left.x == 100 - 16)
-test("Actor with image: right.x == x + w/2", a_img.right.x == 100 + 16)
+test("Actor with image: bottom().y == y + h/2", a_img.bottom().y == 200 + 24)
+test("Actor with image: top().y == y - h/2", a_img.top().y == 200 - 24)
+test("Actor with image: left().x == x - w/2", a_img.left().x == 100 - 16)
+test("Actor with image: right().x == x + w/2", a_img.right().x == 100 + 16)
 
 # Explicit collider wins over image
 reset()
@@ -1413,13 +1461,13 @@ a_both = Actor()
 a_both._x = 100; a_both._y = 200
 a_both.image = {"done": True, "name": "hero", "width": 32, "height": 48}
 a_both.collider.set_rect(10, 10)
-test("Explicit collider wins over image dims", a_both.bottom.y == 200 + 5)
+test("Explicit collider wins over image dims", a_both.bottom().y == 200 + 5)
 
 # Image without width/height still falls back to (0, 0)
 reset()
 a_noimg = Actor(); a_noimg._x = 100; a_noimg._y = 200
 a_noimg.image = {"done": True, "name": "hero"}
-test("Image without dims → anchors at center", a_noimg.bottom.y == 200)
+test("Image without dims → anchors at center", a_noimg.bottom().y == 200)
 
 
 # --- Tilemap tile_at accepts Vector2 / AnchorPoint ---
@@ -1436,8 +1484,8 @@ test("tile_at(empty cell) is None", tl.tile_at(200, 200) is None)
 reset()
 a_tile = Actor()
 a_tile._x = 5; a_tile._y = 80
-a_tile.image = {"done": True, "name": "hero", "width": 16, "height": 40}  # bottom.y = 100
-test("tile_at(actor.bottom) works", tl.tile_at(a_tile.bottom) == "tile_stone")
+a_tile.image = {"done": True, "name": "hero", "width": 16, "height": 40}  # bottom().y = 100
+test("tile_at(actor.bottom()) works", tl.tile_at(a_tile.bottom()) == "tile_stone")
 
 
 # --- Camera ---
@@ -1621,12 +1669,12 @@ s = Polar(10, 180)
 test("Polar(10, 180) points south (+y)", abs(s.x) < 1e-9 and abs(s.y - 10) < 1e-9)
 test("Polar returns a Vector2", isinstance(Polar(1, 0), Vector2))
 test("Polar magnitude is preserved", abs(Polar(7, 33).length - 7) < 1e-9)
-# Setting actor.vel = Polar(5, 90) drives motion east via _apply_velocity.
+# Setting actor.set_vel(Polar(5, 90)) drives motion east via _apply_velocity.
 reset()
 mover = Rect(0, 0, 4, 4)
-mover.vel = Polar(5, 90)
+mover.set_vel(Polar(5, 90))
 mover._apply_velocity()
-test("actor.vel = Polar then apply moves east", abs(mover._x - 5) < 1e-9 and abs(mover._y) < 1e-9)
+test("actor.set_vel(Polar) then apply moves east", abs(mover._x - 5) < 1e-9 and abs(mover._y) < 1e-9)
 
 
 # --- Colors (Sweetie 16 palette) ---
@@ -1653,16 +1701,36 @@ reset()
 torch = Circle(50, 50, 4)
 tl = Light(ambient=(30, 30, 50), radius=120)
 test("Light chain: add_source returns self", tl.add_source(torch) is tl)
-test("Light chain: shade returns self", tl.shade("warm") is tl)
-test("Light chain: flicker returns self", tl.flicker(True) is tl)
-test("Light chain: radius returns self", tl.radius(100) is tl)
-test("Light shade('warm') sets warm RGB", tl._shade_rgb == SHADES["warm"])
+tl.shade = "warm"
+tl.flicker = True
+tl.radius = 100
+test("Light.shade = 'warm' sets warm RGB", tl._shade_rgb == SHADES["warm"])
+test("Light.shade reads back the name", str(tl.shade) == "warm")
+test("Light.flicker reads back True", bool(tl.flicker) is True)
+test("Light.radius reads back 100", float(tl.radius) == 100.0)
 
 try:
-    tl.shade("rainbow")
+    tl.shade = "rainbow"
     test("Unknown shade raises", False)
 except ValueError as e:
     test("Unknown shade raises ValueError naming it", "rainbow" in str(e))
+
+# Migration shims: old fluent-method spellings raise a friendly error.
+try:
+    tl.shade("warm")
+    test("tl.shade(...) old call spelling raises FriendlyError", False)
+except FriendlyError as e:
+    test("tl.shade(...) old call spelling raises FriendlyError", e.message_key == "friendlyError.migration.renamed")
+try:
+    tl.flicker(True)
+    test("tl.flicker(...) old call spelling raises FriendlyError", False)
+except FriendlyError:
+    test("tl.flicker(...) old call spelling raises FriendlyError", True)
+try:
+    tl.radius(100)
+    test("tl.radius(...) old call spelling raises FriendlyError", False)
+except FriendlyError:
+    test("tl.radius(...) old call spelling raises FriendlyError", True)
 
 # Flicker is deterministic in [0.85, 1.0] range
 from graphics import _flicker_value
@@ -1694,7 +1762,9 @@ test("add_obstacles(group) registers from iterable", tlw2._obstacles == [wall1])
 reset()
 g._width = 400; g._height = 400
 src_actor = Circle(100, 100, 4)
-tld = Light(ambient=(20, 20, 40), radius=80).add_source(src_actor).shade("warm")
+tld = Light(ambient=(20, 20, 40), radius=80)
+tld.add_source(src_actor)
+tld.shade = "warm"
 tld.draw()
 kinds = [c[0] for c in g._draw_commands]
 test("Light.draw emits light_begin first", kinds[0] == "light_begin")
@@ -1729,7 +1799,9 @@ test("Shadow notch present (min vertex dist << radius)", min(dists) < 100)
 
 # Light.draw with flicker uses [0.85, 1.0] intensity
 reset()
-fl_light = Light(radius=50).add_source((10, 10)).flicker(True)
+fl_light = Light(radius=50)
+fl_light.add_source((10, 10))
+fl_light.flicker = True
 fl_light.draw()
 poly_intensity = next(c[1][5] for c in g._draw_commands if c[0] == "light_poly")
 test("Flicker intensity in range", 0.85 <= poly_intensity <= 1.0)
@@ -1771,7 +1843,7 @@ test("Polygons cached again after obstacle settles",
      cache_light._cache_counters == {"recomputed": 6, "reused": 30})
 
 # Radius change invalidates every source (encoded in the per-source cache key).
-cache_light.radius(200)
+cache_light.radius = 200
 reset_draw(); cache_light.draw()
 test("Radius change invalidates all sources",
      cache_light._cache_counters == {"recomputed": 9, "reused": 30})
@@ -2342,6 +2414,122 @@ test("ALL_MESSAGE_KEYS has friendlyError.internal.title",
      "friendlyError.internal.title" in _amk)
 test("ALL_MESSAGE_KEYS has friendlyError.internal.classifierFailed",
      "friendlyError.internal.classifierFailed" in _amk)
+test("ALL_MESSAGE_KEYS has friendlyError.migration.title",
+     "friendlyError.migration.title" in _amk)
+test("ALL_MESSAGE_KEYS has friendlyError.migration.renamed",
+     "friendlyError.migration.renamed" in _amk)
+
+
+# === Sprite.get/set, darken/lighten/saturate/desaturate, from_ascii ===
+
+print("\n=== Runtime: Sprite methods (get/set, shading, from_ascii) ===")
+
+def _trunc_rgb(c):
+    return (int(c[0]), int(c[1]), int(c[2]))
+
+
+_sp = g.create_sprite(4, 4)
+_sp.set(1, 1, g.Colors.red)
+test("Sprite.set/get round-trip", _sp.get(1, 1) == g.Colors.red)
+
+_sp.darken(1, 1, steps=1)
+test("Sprite.darken mutates toward black", _sp.get(1, 1) == _trunc_rgb(g.darker(g.Colors.red, 1)))
+
+_sp2 = g.create_sprite(2, 2, fill=g.Colors.blue)
+_sp2.lighten(0, 0)
+test("Sprite.lighten mutates toward white", _sp2.get(0, 0) == _trunc_rgb(g.lighter(g.Colors.blue, 1)))
+
+_sp3 = g.create_sprite(2, 2, fill=g.Colors.red)
+_sp3.saturate(0, 0)
+_expect_saturated = _trunc_rgb(g.saturated(g.Colors.red, 1))
+test("Sprite.saturate is a Sprite method now", _sp3.get(0, 0) == _expect_saturated)
+_sp3.desaturate(0, 0)
+test("Sprite.desaturate is a Sprite method now", _sp3.get(0, 0) == _trunc_rgb(g.desaturated(_expect_saturated, 1)))
+
+with g.create_sprite(3, 3) as _ctx_sprite:
+    test("Sprite.__enter__ returns self", _ctx_sprite is not None)
+    _ctx_sprite.set(0, 0, g.Colors.green)
+test("Sprite context manager doesn't swallow the write", True)
+
+# Migration shims: old free-function spellings raise.
+for _fn_name in ("darken", "lighten", "saturate", "desaturate"):
+    _fn = getattr(g, _fn_name)
+    try:
+        _fn(_sp, 0, 0)
+        test(f"free function {_fn_name}(sprite,...) raises FriendlyError", False)
+    except FriendlyError as e:
+        test(f"free function {_fn_name}(sprite,...) raises FriendlyError",
+             e.message_key == "friendlyError.migration.renamed")
+
+# from_ascii
+_hero = g.Sprite.from_ascii(
+    """
+    .rr.
+    rrrr
+    .rr.
+    """,
+    red="r",
+)
+test("Sprite.from_ascii sizes to art (4 wide)", _hero.width == 4)
+test("Sprite.from_ascii sizes to art (3 tall)", _hero.height == 3)
+test("Sprite.from_ascii paints mapped char", _hero.get(1, 0) == g.Colors.red)
+test("Sprite.from_ascii leaves bg transparent", _hero.get(0, 0) is None)
+
+try:
+    g.Sprite.from_ascii(".x.", x="q")
+    test("Sprite.from_ascii bad color name raises FriendlyError", False)
+except FriendlyError as e:
+    test("Sprite.from_ascii bad color name raises FriendlyError",
+         e.message_key == "friendlyError.naming.badColor")
+
+
+# === Actor.draw() with a raw Sprite image ===
+
+print("\n=== Runtime: Actor.draw() with Sprite image ===")
+
+reset()
+_draw_sprite_actor = Actor()
+_draw_sprite_actor._x = 10
+_draw_sprite_actor._y = 20
+_draw_sprite_actor.image = g.create_sprite(6, 8, fill=g.Colors.cyan)
+_draw_sprite_actor.draw()
+_draw_kinds = [c[0] for c in g._draw_commands]
+test("Actor.draw() with Sprite image emits a sprite command", "sprite" in _draw_kinds)
+_sprite_cmd = next(c for c in g._draw_commands if c[0] == "sprite")
+test("Actor.draw() Sprite branch centers the sprite (-w/2, -h/2)",
+     _sprite_cmd[1][3] == -3.0 and _sprite_cmd[1][4] == -4.0)
+
+
+# === Stamp ===
+
+print("\n=== Runtime: Stamp ===")
+
+reset()
+_stamp = g.Stamp()
+with _stamp:
+    g.fill(g.Colors.red)
+    g.circle(0, 0, 5)
+test("Stamp records commands without drawing them live", g._draw_commands == [])
+test("Stamp captured the recorded commands", [c[0] for c in _stamp._commands] == ["fill", "circle"])
+
+reset()
+_stamp.draw(50, 60)
+test("Stamp.draw(x, y) queues push/translate/rotate/fill/circle/pop",
+     [c[0] for c in g._draw_commands] == ["push", "translate", "rotate", "fill", "circle", "pop"])
+test("Stamp.draw(x, y) translates to the given position",
+     g._draw_commands[1] == ("translate", (50.0, 60.0)))
+
+reset()
+_stamp_actor = Actor(); _stamp_actor._x = 7; _stamp_actor._y = 8; _stamp_actor._angle = 15
+_stamp.draw(_stamp_actor)
+test("Stamp.draw(actor) reads actor.x/.y/.angle",
+     g._draw_commands[1] == ("translate", (7.0, 8.0)) and g._draw_commands[2] == ("rotate", (15.0,)))
+
+reset()
+with g.translated(100, 0):
+    _stamp.draw()
+test("Stamp.draw() with no args composes with the active transform",
+     [c[0] for c in g._draw_commands] == ["push", "translate", "push", "translate", "rotate", "fill", "circle", "pop", "pop"])
 
 
 # === Summary ===

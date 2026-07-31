@@ -6,16 +6,16 @@ afterEach(() => {
 });
 
 describe('profile — deployment profile seam', () => {
-  it('defaults to institutional when env is unset', () => {
+  it('defaults to public when env is unset', () => {
     delete process.env.DEPLOYMENT_PROFILE;
     const p = getProfile();
-    expect(p.profile).toBe('institutional');
-    expect(p.userSearch.mode).toBe('teacher_directory');
-    expect(p.snapshotPublicIncludesAuthor).toBe(true);
-    expect(p.commentsMode).toBe('freetext_scanned');
+    expect(p.profile).toBe('public');
+    expect(p.userSearch.mode).toBe('disabled_gone');
+    expect(p.snapshotPublicIncludesAuthor).toBe(false);
+    expect(p.commentsMode).toBe('emoji_only');
   });
 
-  it('DEPLOYMENT_PROFILE=institutional matches default', () => {
+  it('DEPLOYMENT_PROFILE=institutional opts in explicitly', () => {
     process.env.DEPLOYMENT_PROFILE = 'institutional';
     const p = getProfile();
     expect(p.profile).toBe('institutional');

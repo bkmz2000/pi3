@@ -29,7 +29,7 @@ def tick():
 
     fill(Colors.white)
     text_size(14)
-    text(f"Moves: {state.moves} / {MAX_MOVES}", Window.top_right)
+    text(f"Moves: {state.moves} / {MAX_MOVES}", Window.top_right())
 
     for i, c in enumerate(PALETTE):
         bx = 20 + i * 64
@@ -44,7 +44,7 @@ def tick():
     if state.done:
         text_size(24)
         fill(Colors.lime if all_same() else Colors.red)
-        text("You win!" if all_same() else "No moves left!", Window.center)
+        text("You win!" if all_same() else "No moves left!", Window.center())
 
 
 size(20 + SIZE * CELL + 40, SIZE * CELL + 80)

@@ -46,13 +46,13 @@ def tick():
     no_stroke()
     text_size(18)
     fill(Colors.white)
-    text(f"Score: {state.score}", Window.top_left)
-    text(f"{'♥' * state.lives}", Window.top_right)
+    text(f"Score: {state.score}", Window.top_left())
+    text(f"{'♥' * state.lives}", Window.top_right())
 
     if state.lives <= 0:
         text_size(32)
         fill(Colors.red)
-        text("Game Over!", Window.center)
+        text("Game Over!", Window.center())
         stop()
 
 

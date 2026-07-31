@@ -47,8 +47,6 @@ def try_move(dx, dy):
 
 
 def tick():
-    from graphics import Keyboard
-
     if Keyboard.w.pressed or Keyboard.arrow_up.pressed:
         try_move(0, -1)
     elif Keyboard.s.pressed or Keyboard.arrow_down.pressed:

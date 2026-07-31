@@ -71,12 +71,12 @@ def tick():
 
     fill(Colors.white)
     text_size(13)
-    text("WASD to move — reach the green exit", Window.bottom_left)
+    text("WASD to move — reach the green exit", Window.bottom_left())
 
     if state.won:
         fill(Colors.lime)
         text_size(28)
-        text("Escaped!  R for new room", Window.center)
+        text("Escaped!  R for new room", Window.center())
 
 
 size(W, H)

@@ -74,6 +74,61 @@ The IDE now detects and explains these specific mistakes:
 - **Wrong keyboard layout**: Cyrillic homoglyphs (`сircle`) detected and
   transliterated to Latin
 
+## 2026-07-31: property/method consistency pass + authoring ergonomics
+
+A mechanical rule applied library-wide: plain stored fields stay bare
+attributes; computed/derived values become zero-arg methods; boolean queries
+are always `is_...()` methods. Every renamed/reshaped member keeps a
+temporary **migration shim** under its old name/shape — old usage raises a
+friendly `friendlyError.migration.renamed` error naming the new spelling
+instead of silently working wrong or throwing a raw traceback. Shims are
+tagged `# MIGRATION SHIM — remove after sunset` in the source and are not
+permanent.
+
+### Breaking (shimmed — old spelling raises a friendly error)
+- **`Actor.pos` / `Actor.vel`** (properties) → **`pos()` / `vel()`** (methods).
+  Setters removed — use **`set_pos(v)` / `set_vel(v)`**.
+- **`Actor.center`, `.top`, `.bottom`, `.left`, `.right`, `.top_left`,
+  `.top_right`, `.bottom_left`, `.bottom_right`** (properties) → same names as
+  **methods** (call with `()`). Applies identically to **`Window`**'s anchor
+  points.
+- **`shape.bounds`** (Line/Polygon/Spline property) → **`bounds()`** (method),
+  converging with `TileGroup.bounds()` which was already a method.
+- **`Animation.done`** (property) → **`is_done()`** (method).
+- **`Timer.done()`** → **`is_done()`** (renamed method; boolean-query naming
+  now matches `Actor.is_alive()` everywhere).
+- **`Light.radius(r)` / `.flicker(enabled)` / `.shade(name)`** (fluent
+  methods) → plain attributes: `light.radius = r`, `light.flicker = bool`,
+  `light.shade = name`. `shade` keeps write-side validation (unknown name
+  still raises `ValueError`) via a real property setter.
+- **`darken(sprite, x, y, steps=1)` / `lighten` / `saturate` / `desaturate`**
+  (free functions) → **`Sprite` methods**: `sprite.darken(x, y, steps=1)`,
+  etc. The pure color-transform functions `darker`/`lighter`/`saturated`/
+  `desaturated` are unaffected.
+
+### New
+| Name | Kind | Description |
+|------|------|-------------|
+| `with translated(dx, dy):` | Context manager | `push(); translate(dx, dy); ...; pop()`, composes with `rotated`/`scaled`/plain `push()`/`pop()` |
+| `with rotated(angle):` | Context manager | `push(); rotate(angle); ...; pop()` |
+| `with scaled(sx, sy=None):` | Context manager | `push(); scale(sx, sy); ...; pop()` |
+| `Sprite.get(x, y)` / `Sprite.set(x, y, color)` | Method | Method-shaped equivalents of `get_pixel`/`set_pixel`, which remain unchanged (not deprecated) |
+| `with sprite.image as img:` | Context manager | `Sprite.__enter__`/`__exit__` for visually scoping pixel edits — purely ergonomic, not a batching optimization (every draw already re-ships the full pixel buffer) |
+| `Sprite.from_ascii(art, bg=" ", **color_chars)` | Classmethod | Build a Sprite from an ASCII-art string; kwarg name = color, value = the character marking it. Unmapped chars (incl. `bg`) are transparent |
+| `Stamp` | Class | Record a drawing macro inside `with Stamp() as icon:`, replay anywhere with `icon.draw(x=0, y=0, angle=0)` or `icon.draw(actor)` |
+
+### Fixed
+- `Actor.draw()` had no `isinstance(Sprite)` branch — assigning a raw
+  `Sprite` (e.g. from `Sprite.from_ascii(...)` or `create_sprite(...)`) to
+  `actor.image` silently mis-rendered (stringified and treated as an asset
+  name). Required for `from_ascii` to be usable on Actors at all.
+- Docs examples: reversed-receiver `level.collides_with`/`collides_with_any`
+  calls, `Vector2.add()` (doesn't exist — use `+=` or mutate `.x`/`.y`),
+  `Animation(loop=True)` (`loop` isn't a constructor kwarg — set
+  `anim.loop = True` after construction), `Collider.overlaps()` (doesn't
+  exist — use `actor.collides_with(other)`), duplicate `id: "debug"` category
+  key in `graphicsDocs.ts`.
+
 ## Version
 
 **1.0** — stable API surface snapshot at `tests/unit/api-surface.json`.

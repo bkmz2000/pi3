@@ -7,10 +7,18 @@ from graphics.actors import Actor, Rect, Circle, Group
 """
 
 import math
+from contextlib import contextmanager
 from types import SimpleNamespace
 from typing import Any, Callable, Optional, Union
 
-from graphics._errors import FriendlyError, FriendlyAttrError
+from graphics._errors import (
+    FriendlyError,
+    FriendlyAttrError,
+    raise_migration_error,
+    migration_value,
+    MigrationBool,
+    migration_proxy_property,
+)
 from graphics._state_ns import State
 from graphics import _state
 from graphics._color import (
@@ -142,6 +150,79 @@ class Sprite:
             for x in range(self.width):
                 yield PixelView(self, x, y)
 
+    def darken(self, x, y, steps=1):
+        """Mutating shade: replace pixel (x, y) with `darker(pixel, steps)`."""
+        c = get_pixel(self, x, y)
+        if c is None:
+            return
+        set_pixel(self, x, y, darker(c, steps))
+
+    def lighten(self, x, y, steps=1):
+        """Mutating shade: replace pixel (x, y) with `lighter(pixel, steps)`."""
+        c = get_pixel(self, x, y)
+        if c is None:
+            return
+        set_pixel(self, x, y, lighter(c, steps))
+
+    def saturate(self, x, y, steps=1):
+        """Mutating shade: replace pixel (x, y) with `saturated(pixel, steps)`."""
+        c = get_pixel(self, x, y)
+        if c is None:
+            return
+        set_pixel(self, x, y, saturated(c, steps))
+
+    def desaturate(self, x, y, steps=1):
+        """Mutating shade: replace pixel (x, y) with `desaturated(pixel, steps)`."""
+        c = get_pixel(self, x, y)
+        if c is None:
+            return
+        set_pixel(self, x, y, desaturated(c, steps))
+
+    def get(self, x, y):
+        """Method-shaped equivalent of `get_pixel(sprite, x, y)`."""
+        return get_pixel(self, x, y)
+
+    def set(self, x, y, color):
+        """Method-shaped equivalent of `set_pixel(sprite, x, y, color)`."""
+        set_pixel(self, x, y, color)
+
+    def __enter__(self):
+        """`with sprite.image as img:` — purely ergonomic scoping; every
+        draw already re-ships the full pixel buffer, so this is not a
+        batching optimization."""
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        return False
+
+    @classmethod
+    def from_ascii(cls, art, bg=" ", **color_chars):
+        """Build a Sprite from an ASCII-art string.
+
+        Kwarg name is a color name (validated the same way fill()/stroke()
+        validate color names — a typo raises the usual friendly error);
+        kwarg value is the character marking that color in `art`.
+        Characters that map to no color, including `bg`, are transparent.
+
+            hero = Sprite.from_ascii('''
+                .rr.
+                rrrr
+                .rr.
+            ''', red="r")
+        """
+        import textwrap
+        lines = textwrap.dedent(art).strip("\n").split("\n")
+        height = len(lines)
+        width = max((len(line) for line in lines), default=0)
+        char_to_rgb = {ch: _to_rgb(color_name) for color_name, ch in color_chars.items()}
+        sprite = cls(width, height)
+        for y, line in enumerate(lines):
+            for x in range(width):
+                ch = line[x] if x < len(line) else bg
+                rgb = None if ch == bg else char_to_rgb.get(ch)
+                set_pixel(sprite, x, y, rgb)
+        return sprite
+
     def __repr__(self):
         return f"Sprite({self.width}x{self.height})"
 
@@ -267,36 +348,23 @@ def flood_fill(sprite, x, y, color):
         stack.append((cx, cy - 1))
 
 
+# MIGRATION SHIM — remove after sunset. darken/lighten/saturate/desaturate
+# used to be free functions taking `sprite` as the first arg; they're
+# Sprite methods now (`sprite.darken(x, y, steps=1)`, etc).
 def darken(sprite, x, y, steps=1):
-    """Mutating shade: replace pixel (x, y) with `darker(pixel, steps)`."""
-    c = get_pixel(sprite, x, y)
-    if c is None:
-        return
-    set_pixel(sprite, x, y, darker(c, steps))
+    raise_migration_error("darken(sprite, x, y, steps=1)", "sprite.darken(x, y, steps=1)")
 
 
 def lighten(sprite, x, y, steps=1):
-    """Mutating shade: replace pixel (x, y) with `lighter(pixel, steps)`."""
-    c = get_pixel(sprite, x, y)
-    if c is None:
-        return
-    set_pixel(sprite, x, y, lighter(c, steps))
+    raise_migration_error("lighten(sprite, x, y, steps=1)", "sprite.lighten(x, y, steps=1)")
 
 
 def saturate(sprite, x, y, steps=1):
-    """Mutating shade: replace pixel (x, y) with `saturated(pixel, steps)`."""
-    c = get_pixel(sprite, x, y)
-    if c is None:
-        return
-    set_pixel(sprite, x, y, saturated(c, steps))
+    raise_migration_error("saturate(sprite, x, y, steps=1)", "sprite.saturate(x, y, steps=1)")
 
 
 def desaturate(sprite, x, y, steps=1):
-    """Mutating shade: replace pixel (x, y) with `desaturated(pixel, steps)`."""
-    c = get_pixel(sprite, x, y)
-    if c is None:
-        return
-    set_pixel(sprite, x, y, desaturated(c, steps))
+    raise_migration_error("desaturate(sprite, x, y, steps=1)", "sprite.desaturate(x, y, steps=1)")
 
 
 
@@ -428,41 +496,45 @@ class _Window:
 
     # --- anchor points ---
 
-    @property
-    def top_left(self):
+    def _compute_top_left(self):
         return AnchorPoint(0, 0, "left", "top")
 
-    @property
-    def top_right(self):
+    def _compute_top_right(self):
         return AnchorPoint(lambda: _state._width, 0, "right", "top")
 
-    @property
-    def bottom_left(self):
+    def _compute_bottom_left(self):
         return AnchorPoint(0, lambda: _state._height, "left", "bottom")
 
-    @property
-    def bottom_right(self):
+    def _compute_bottom_right(self):
         return AnchorPoint(lambda: _state._width, lambda: _state._height, "right", "bottom")
 
-    @property
-    def center(self):
+    def _compute_center(self):
         return AnchorPoint(lambda: _state._width / 2, lambda: _state._height / 2, "center", "middle")
 
-    @property
-    def top(self):
+    def _compute_top(self):
         return AnchorPoint(lambda: _state._width / 2, 0, "center", "top")
 
-    @property
-    def bottom(self):
+    def _compute_bottom(self):
         return AnchorPoint(lambda: _state._width / 2, lambda: _state._height, "center", "bottom")
 
-    @property
-    def left(self):
+    def _compute_left(self):
         return AnchorPoint(0, lambda: _state._height / 2, "left", "middle")
 
-    @property
-    def right(self):
+    def _compute_right(self):
         return AnchorPoint(lambda: _state._width, lambda: _state._height / 2, "right", "middle")
+
+    # MIGRATION SHIM — remove after sunset. Anchors used to be plain
+    # properties; they're computed values now (same as Actor's anchors), so
+    # the new spelling is a call: `Window.center()`, `Window.top_left()`, etc.
+    top_left = property(migration_proxy_property(lambda s: s._compute_top_left(), "top_left", "top_left()"))
+    top_right = property(migration_proxy_property(lambda s: s._compute_top_right(), "top_right", "top_right()"))
+    bottom_left = property(migration_proxy_property(lambda s: s._compute_bottom_left(), "bottom_left", "bottom_left()"))
+    bottom_right = property(migration_proxy_property(lambda s: s._compute_bottom_right(), "bottom_right", "bottom_right()"))
+    center = property(migration_proxy_property(lambda s: s._compute_center(), "center", "center()"))
+    top = property(migration_proxy_property(lambda s: s._compute_top(), "top", "top()"))
+    bottom = property(migration_proxy_property(lambda s: s._compute_bottom(), "bottom", "bottom()"))
+    left = property(migration_proxy_property(lambda s: s._compute_left(), "left", "left()"))
+    right = property(migration_proxy_property(lambda s: s._compute_right(), "right", "right()"))
 
 
 Window = _Window()
@@ -688,6 +760,88 @@ def scale(x, y=None) -> None:
     if y is None:
         y = x
     _state._draw_commands.append(("scale", (float(x), float(y))))
+
+
+@contextmanager
+def translated(dx, dy):
+    """`with translated(dx, dy):` — push, translate, run the block, pop.
+
+        with translated(100, 50):
+            circle(0, 0, 10)   # drawn at (100, 50)
+        circle(0, 0, 10)       # back to (0, 0)
+    """
+    push()
+    translate(dx, dy)
+    try:
+        yield
+    finally:
+        pop()
+
+
+@contextmanager
+def rotated(angle):
+    """`with rotated(angle):` — push, rotate, run the block, pop."""
+    push()
+    rotate(angle)
+    try:
+        yield
+    finally:
+        pop()
+
+
+@contextmanager
+def scaled(sx, sy=None):
+    """`with scaled(sx, sy=None):` — push, scale, run the block, pop."""
+    push()
+    scale(sx, sy)
+    try:
+        yield
+    finally:
+        pop()
+
+
+class Stamp:
+    """Record a reusable drawing macro, then replay it anywhere.
+
+    Draw commands issued inside the `with` block are captured instead of
+    rendered immediately::
+
+        icon = Stamp()
+        with icon:
+            fill(Colors.red)
+            circle(0, 0, 10)
+
+        def main():
+            icon.draw(100, 100)     # replay at (100, 100)
+            icon.draw(player)       # sugar: reads player.x/.y/.angle
+            with translated(50, 0):
+                icon.draw()         # no args -> uses the active transform
+    """
+
+    def __init__(self):
+        self._commands = []
+        self._prev_commands = None
+
+    def __enter__(self):
+        self._prev_commands = _state._draw_commands
+        self._commands = []
+        _state._draw_commands = self._commands
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        _state._draw_commands = self._prev_commands
+        self._prev_commands = None
+        return False
+
+    def draw(self, x=0, y=0, angle=0):
+        if isinstance(x, Actor):
+            actor = x
+            x, y, angle = actor.x, actor.y, actor.angle
+        push()
+        translate(x, y)
+        rotate(angle)
+        _state._draw_commands.extend(self._commands)
+        pop()
 
 
 # === IMAGE ===
@@ -1591,7 +1745,8 @@ class Light:
         tlight = Light(ambient=(40, 40, 60), radius=180)
         tlight.add_obstacles(level.areas.walls)
         tlight.add_source(torch)
-        tlight.shade("warm").flicker(True)
+        tlight.shade = "warm"
+        tlight.flicker = True
         # In main(): call tlight.draw() last so it composites over all drawing.
     """
 
@@ -1609,6 +1764,7 @@ class Light:
         self._ambient = tuple(int(c) for c in ambient)
         self._radius = float(radius)
         self._mode = mode
+        self._shade_name = "neutral"
         self._shade_rgb = (255, 255, 255)
         self._obstacles = []
         self._sources = []   # list of ("actor", Actor) | ("pos", (x, y))
@@ -1668,21 +1824,42 @@ class Light:
         self._source_polys = self._source_polys[: len(self._sources)]
         return self
 
+    @property
+    def shade(self):
+        # MIGRATION SHIM — remove after sunset (drop the migration_value
+        # wrap, just `return self._shade_name`). `shade` used to be a
+        # fluent method; it's a plain attribute now, but keeps a real
+        # property so writes still validate against SHADES.
+        return migration_value(self._shade_name, "shade(name)", "shade = name")
+
+    @shade.setter
     def shade(self, name):
         if name not in SHADES:
             raise ValueError(
                 f"Unknown shade '{name}'. Available: {sorted(SHADES.keys())}"
             )
+        self._shade_name = name
         self._shade_rgb = SHADES[name]
-        return self
 
-    def flicker(self, enabled=True):
-        self._flicker = bool(enabled)
-        return self
+    @property
+    def flicker(self):
+        # MIGRATION SHIM — remove after sunset (drop the MigrationBool
+        # wrap, just `return self._flicker`).
+        return MigrationBool(self._flicker, "flicker(enabled)", "flicker = bool")
 
-    def radius(self, r):
-        self._radius = float(r)
-        return self
+    @flicker.setter
+    def flicker(self, value):
+        self._flicker = bool(value)
+
+    @property
+    def radius(self):
+        # MIGRATION SHIM — remove after sunset (drop the migration_value
+        # wrap, just `return self._radius`).
+        return migration_value(self._radius, "radius(value)", "radius = value")
+
+    @radius.setter
+    def radius(self, value):
+        self._radius = float(value)
 
     def _source_position(self, src):
         kind, val = src
@@ -1774,6 +1951,7 @@ __all__ = [
     "fill", "no_fill", "stroke", "no_stroke", "stroke_width",
     "background",
     "push", "pop", "translate", "rotate", "scale",
+    "translated", "rotated", "scaled",
     "image",
     "frame_rate", "frame_count",
     "random", "random_color",
@@ -1783,6 +1961,7 @@ __all__ = [
     "Sprite", "PixelView", "create_sprite", "get_pixel", "set_pixel",
     "palette_swap", "flood_fill",
     "darken", "lighten", "saturate", "desaturate",
+    "Stamp",
     "Vector2", "Point", "Polar",
     "Line", "Polygon", "Spline",
     "Mouse", "Keyboard", "Window",

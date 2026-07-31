@@ -1,6 +1,6 @@
 from graphics import *
 from graphics.actors import Actor, Group
-import random
+import random as _r  # aliased: graphics already exports random()
 
 
 def create_asteroid(size="big", pos=None):
@@ -15,7 +15,7 @@ def create_asteroid(size="big", pos=None):
         pos = Actor.random_coords()
 
     a.move_to(*pos)
-    a.angle = random.randint(0, 360)
+    a.angle = _r.randint(0, 360)
     asteroids.add(a)
 
 

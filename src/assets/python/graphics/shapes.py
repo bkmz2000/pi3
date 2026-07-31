@@ -5,12 +5,12 @@ velocities off of::
 
     wall = Line((0, 400), (600, 400))       # a floor
     ...
-    ball.vel = ball.vel.bounce_of(wall)     # reflect off it
+    ball.set_vel(ball.vel().bounce_of(wall))     # reflect off it
     wall.draw()
 
 Subclasses (Line here; Polygon and Spline arrive in later stages) share this
-base's dirty-tracking, its cached `segments`/`bounds`, and its `draw()` path.
-Rebuild work is lazy — it happens the first time `segments`, `bounds`, or
+base's dirty-tracking, its cached `segments`/`bounds()`, and its `draw()` path.
+Rebuild work is lazy — it happens the first time `segments`, `bounds()`, or
 `draw()` is used after the shape changes, never on construction alone.
 """
 
@@ -19,7 +19,7 @@ import random as _random
 from collections import namedtuple
 
 from graphics._vec import Vector2
-from graphics._errors import FriendlyError
+from graphics._errors import FriendlyError, migration_proxy_property
 from graphics import _state
 
 
@@ -93,11 +93,16 @@ class Shape:
         self._ensure_built()
         return self._segments
 
-    @property
-    def bounds(self):
+    def _compute_bounds_value(self):
         """Axis-aligned bounding box as (min_x, min_y, max_x, max_y), or None if empty."""
         self._ensure_built()
         return self._bounds
+
+    # MIGRATION SHIM — remove after sunset. `bounds` used to be a plain
+    # property; it's a method now, converging with TileGroup.bounds(). This
+    # property returns a proxy — calling it (`shape.bounds()`) works, any
+    # other use raises.
+    bounds = property(migration_proxy_property(lambda s: s._compute_bounds_value(), "bounds", "bounds()"))
 
     def normal_at(self, point=None):
         """Unit normal of the segment nearest `point` (or the first, if point is None).
@@ -251,7 +256,7 @@ class Shape:
     def _distance_from(self, point):
         """Distance from `point` to this shape's outline (its nearest segment).
 
-        The hook Vector2.distance_to uses so `ball.pos.distance_to(wall)` works.
+        The hook Vector2.distance_to uses so `ball.pos().distance_to(wall)` works.
         """
         self._ensure_built()
         if not self._segments:
@@ -341,7 +346,7 @@ class Line(Shape):
     """A straight wall between two points.
 
         wall = Line((0, 400), (600, 400))       # a floor
-        ball.vel = ball.vel.bounce_of(wall)     # reflect off it
+        ball.set_vel(ball.vel().bounce_of(wall))     # reflect off it
         wall.draw()
 
     `thickness` is the stroke width and is fixed at construction time.
@@ -391,8 +396,8 @@ class Polygon(Shape):
     """A closed region defined by a ring of points.
 
         level = Polygon([(0, 0), (200, 0), (200, 150), (0, 150)])
-        if level.contains(ball.pos):
-            ball.vel = ball.vel.bounce_of(level, at=ball.pos)
+        if level.contains(ball.pos()):
+            ball.set_vel(ball.vel().bounce_of(level, at=ball.pos()))
         level.draw()
 
     The points form a closed loop — the last point connects back to the first,
@@ -428,7 +433,7 @@ class Polygon(Shape):
     def normal_at(self, point=None):
         """Unit normal of the edge nearest `point`.
 
-        Pass the contact point (e.g. `at=ball.pos`) so the bounce uses the side
+        Pass the contact point (e.g. `at=ball.pos()`) so the bounce uses the side
         the ball actually hit. With no point, falls back to the first edge. The
         sign is unspecified; Vector2.bounce_of is invariant to it.
         """
@@ -484,12 +489,12 @@ class Spline(Shape):
     """A smooth curve through a series of points.
 
         ramp = Spline([(0, 400), (200, 300), (400, 380)])   # an open ramp
-        ball.vel = ball.vel.bounce_of(ramp, at=ball.pos)
+        ball.set_vel(ball.vel().bounce_of(ramp, at=ball.pos()))
         ramp.draw()
 
         trail = Spline([])
         def main():
-            trail.add(player.pos)      # grows one point per frame, O(1)
+            trail.add(player.pos())      # grows one point per frame, O(1)
             trail.draw()
 
     `closed=False` (the default) is an open curve — `contains()` tests nearness

@@ -93,9 +93,9 @@ def singles(*indices, name=None) -> _Singles:
             flat.append(i)
     return _Singles(flat, name)
 
-def cell(r: int, c: int, *, name=None) -> _Cell:
+def cell(row: int, col: int, *, name=None) -> _Cell:
     """Explicit cell selector for grids: debug.cell(row, col, name=...)."""
-    return _Cell(r, c, name)
+    return _Cell(row, col, name)
 
 def label(name: str, value) -> _LabelWrapper:
     """Wrap a value with an explicit slot title (not a legend name)."""

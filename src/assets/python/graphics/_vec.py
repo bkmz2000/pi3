@@ -84,7 +84,7 @@ class Vector2:
 
     def distance_to(self, other):
         # A Shape (Line/Polygon/Spline) reports the distance to its outline via
-        # _distance_from, so `ball.pos.distance_to(wall)` works like a point pair.
+        # _distance_from, so `ball.pos().distance_to(wall)` works like a point pair.
         dist_from = getattr(other, "_distance_from", None)
         if callable(dist_from):
             return dist_from(self)
@@ -109,8 +109,8 @@ class Vector2:
         Mirrors the velocity across the shape's surface normal at the contact
         point `at` (ignored for a straight Line, which has a single normal)::
 
-            ball.vel = ball.vel.bounce_of(wall)                    # perfect bounce
-            ball.vel = ball.vel.bounce_of(floor, restitution=0.8)  # loses energy
+            ball.set_vel(ball.vel().bounce_of(wall))                    # perfect bounce
+            ball.set_vel(ball.vel().bounce_of(floor, restitution=0.8))  # loses energy
 
         `restitution` scales the bounced speed: 1.0 keeps it, 0.5 halves it,
         values above 1.0 speed it up. The result never depends on which way the
@@ -143,9 +143,9 @@ def Polar(magnitude, angle_degrees):
     90° = east (+x), 180° = south (+y), 270° = west (-x) — clockwise on screen.
 
     Common uses:
-        player.vel = Polar(120, 60)         # 120 px/frame at 60°
-        bullet.vel = Polar(8, ship.angle)   # match the ship's facing
-        wind = Polar(2, 90)                 # blow east
+        player.set_vel(Polar(120, 60))         # 120 px/frame at 60°
+        bullet.set_vel(Polar(8, ship.angle))   # match the ship's facing
+        wind = Polar(2, 90)                    # blow east
     """
     rad = math.radians(float(angle_degrees))
     return Vector2(float(magnitude) * math.sin(rad), -float(magnitude) * math.cos(rad))
@@ -155,7 +155,7 @@ class AnchorPoint(Vector2):
     """A resolved position with alignment hints for text() and say().
 
     Behaves as a Vector2 for arithmetic and `tile_at(anchor)`; its x/y may be
-    lazy (e.g. Window.center recomputes when the canvas size changes).
+    lazy (e.g. Window.center() recomputes when the canvas size changes).
     """
 
     def __init__(self, x, y, h_align="left", v_align="top"):

@@ -244,15 +244,15 @@ export default function Rail() {
                 fontSize: 13, fontWeight: 600,
               }}
             >
-              OK
+              {t('sideMenu.ok')}
             </button>
           </div>
         </ThemedDialog>
       )}
       {pendingAction && (
-        <ThemedDialog title="Unsaved changes" onClose={() => setPendingAction(null)}>
+        <ThemedDialog title={t('sideMenu.unsavedChangesTitle')} onClose={() => setPendingAction(null)}>
           <p style={{ margin: '0 0 16px', fontSize: 13, color: 'inherit' }}>
-            You have unsaved changes. What would you like to do?
+            {t('sideMenu.unsavedChangesBody')}
           </p>
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
             <button
@@ -265,7 +265,7 @@ export default function Rail() {
                 border: `1px solid ${theme.panelBorder}`,
               }}
             >
-              Cancel
+              {t('sideMenu.cancel')}
             </button>
             <button
               type="button"
@@ -285,7 +285,7 @@ export default function Rail() {
                 border: `1px solid ${theme.panelBorder}`,
               }}
             >
-              Discard changes
+              {t('sideMenu.discardChanges')}
             </button>
             <button
               type="button"
@@ -303,7 +303,7 @@ export default function Rail() {
                 fontSize: 13, fontWeight: 600,
               }}
             >
-              Save and continue
+              {t('sideMenu.saveAndContinue')}
             </button>
           </div>
         </ThemedDialog>

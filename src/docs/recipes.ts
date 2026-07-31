@@ -9,7 +9,8 @@ export type DocRecipeSection =
   | "camera"
   | "transforms"
   | "color"
-  | "procedural";
+  | "procedural"
+  | "debugging";
 
 export type DocRecipe = {
   id: string;
@@ -33,6 +34,7 @@ export const RECIPE_SECTIONS: { id: DocRecipeSection; en: string; ru: string }[]
   { id: "transforms",   en: "Transformations",     ru: "Трансформации" },
   { id: "color",        en: "Color & shading",     ru: "Цвет и оттенки" },
   { id: "procedural",   en: "Procedural patterns", ru: "Процедурная генерация" },
+  { id: "debugging",    en: "Debugging",           ru: "Отладка" },
 ];
 
 export const RECIPES: DocRecipe[] = [
@@ -107,9 +109,9 @@ export const RECIPES: DocRecipe[] = [
     id: "detect_collisions",
     section: "actors",
     difficulty: "intermediate",
-    en: { title: "Check collisions", intro: "Check if two actors overlap." },
-    ru: { title: "Проверка столкновений", intro: "Проверь, пересекаются ли два актёра." },
-    entryIds: ["actor_collider"],
+    en: { title: "Check collisions against a whole group", intro: "Test one actor against many at once, and bounce off what it hits." },
+    ru: { title: "Столкновения с целой группой", intro: "Проверь одного актёра против многих сразу и отскочи от того, во что он попал." },
+    entryIds: ["actor_collider", "group", "bounce_of"],
   },
   {
     id: "actor_anchors",
@@ -169,6 +171,14 @@ export const RECIPES: DocRecipe[] = [
     ru: { title: "Время и таймеры", intro: "Запусти что-то по задержке или измерь, сколько прошло." },
     entryIds: ["timer", "timer_left", "timer_elapsed", "timer_done", "timer_restart"],
   },
+  {
+    id: "sheet_sprite_actor",
+    section: "animation",
+    difficulty: "intermediate",
+    en: { title: "Animate an actor from a sprite sheet", intro: "Build a walking/running character out of a sheet's named animations, switching between them based on input." },
+    ru: { title: "Анимировать актёра из листа спрайтов", intro: "Собери ходящего/бегущего персонажа из именованных анимаций листа, переключая их по вводу." },
+    entryIds: ["assets_sheet_namespace", "sprite_entry", "sheet_animation", "animation_controller_tick", "actor_with_sheet"],
+  },
 
   // ─── Movement & input ────────────────────────────────────────────────────
   {
@@ -199,9 +209,9 @@ export const RECIPES: DocRecipe[] = [
     id: "move_with_keys",
     section: "input",
     difficulty: "intermediate",
-    en: { title: "Move with keys (full)", intro: "Read the keyboard each frame and move an object." },
-    ru: { title: "Двигать клавишами (полное)", intro: "Читай клавиатуру в каждом кадре и двигай объект." },
-    entryIds: ["keyboard", "keyboard_keys"],
+    en: { title: "Move diagonally at consistent speed", intro: "Combine two arrow-key axes into one velocity vector so diagonal movement isn't faster than straight movement." },
+    ru: { title: "Диагональное движение с постоянной скоростью", intro: "Объедини две оси стрелок в один вектор скорости, чтобы диагональ не была быстрее прямого движения." },
+    entryIds: ["keyboard", "keyboard_keys", "vector2"],
   },
   {
     id: "vector_math",
@@ -283,7 +293,7 @@ export const RECIPES: DocRecipe[] = [
     difficulty: "intermediate",
     en: { title: "Move, rotate, scale", intro: "Shift, turn, and resize the coordinate system." },
     ru: { title: "Сдвиг, поворот, масштаб", intro: "Сдвигай, вращай и масштабируй систему координат." },
-    entryIds: ["push", "pop", "translate", "rotate", "scale"],
+    entryIds: ["push", "pop", "translate", "rotate", "scale", "translated", "rotated", "scaled", "stamp"],
   },
 
   // ─── Color & shading ─────────────────────────────────────────────────────
@@ -317,7 +327,7 @@ export const RECIPES: DocRecipe[] = [
     difficulty: "advanced",
     en: { title: "Paint a sprite in code", intro: "Make a new sprite, draw pixels into it, then recolor or bucket-fill it." },
     ru: { title: "Нарисовать спрайт кодом", intro: "Создай спрайт, рисуй в нём пиксели, потом перекрашивай или заливай ведром." },
-    entryIds: ["create_sprite", "set_pixel", "get_pixel", "flood_fill", "palette_swap", "darken", "lighten"],
+    entryIds: ["create_sprite", "sprite_from_ascii", "set_pixel", "get_pixel", "sprite_get_set", "flood_fill", "palette_swap", "darken", "lighten", "sprite_context_manager"],
   },
 
   // ─── Procedural patterns ─────────────────────────────────────────────────
@@ -344,5 +354,23 @@ export const RECIPES: DocRecipe[] = [
     en: { title: "Scatter things randomly", intro: "Pick random numbers and colors; scatter tiles across a TileGroup." },
     ru: { title: "Случайное размещение", intro: "Получай случайные числа и цвета; разбрасывай тайлы по TileGroup." },
     entryIds: ["random_fn", "random_color", "tile_group", "tilemap_group"],
+  },
+
+  // ─── Debugging ───────────────────────────────────────────────────────────
+  {
+    id: "print_and_pin_values",
+    section: "debugging",
+    difficulty: "beginner",
+    en: { title: "Print and pin live values", intro: "inspect() for a one-off dump, watch() to keep a value pinned above the console while your program runs." },
+    ru: { title: "Печать и закрепление значений", intro: "inspect() для разового вывода, watch() — чтобы закрепить значение над консолью, пока программа работает." },
+    entryIds: ["inspect", "watch"],
+  },
+  {
+    id: "visualize_an_algorithm",
+    section: "debugging",
+    difficulty: "advanced",
+    en: { title: "Visualize an algorithm step by step", intro: "Register an array, grid, stack, queue, or set with pi3.debug, call debug.show() each step, then scrub through the recorded frames." },
+    ru: { title: "Визуализировать алгоритм по шагам", intro: "Зарегистрируй массив, сетку, стек, очередь или множество через pi3.debug, вызывай debug.show() на каждом шаге и пролистывай записанные кадры." },
+    entryIds: ["debug_array", "debug_grid", "debug_stack", "debug_queue", "debug_set", "debug_show"],
   },
 ];

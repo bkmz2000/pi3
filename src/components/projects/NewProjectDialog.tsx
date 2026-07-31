@@ -6,7 +6,7 @@ import { Icon } from '../Icons';
 interface NewProjectDialogProps {
   open: boolean;
   onClose: () => void;
-  onCreate: (name: string) => Promise<void>;
+  onCreate: (name: string, description?: string) => Promise<void>;
 }
 
 export function NewProjectDialog({ open, onClose, onCreate }: NewProjectDialogProps) {
@@ -25,12 +25,12 @@ export function NewProjectDialog({ open, onClose, onCreate }: NewProjectDialogPr
     setLoading(true);
     setError(null);
     try {
-      await onCreate(name.trim());
+      await onCreate(name.trim(), description.trim() || undefined);
       setName('');
       setDescription('');
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create project');
+      setError(err instanceof Error ? err.message : t('projects.createError'));
     } finally {
       setLoading(false);
     }
@@ -114,7 +114,7 @@ export function NewProjectDialog({ open, onClose, onCreate }: NewProjectDialogPr
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="A brief description..."
+              placeholder={t('projects.descriptionPlaceholder')}
               disabled={loading}
               rows={3}
               style={{

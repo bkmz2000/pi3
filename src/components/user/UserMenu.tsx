@@ -161,6 +161,10 @@ export function UserMenu() {
         },
       ];
 
+  // Coming-soon items stay in the data (so re-enabling is a one-line flip)
+  // but are hidden from the rendered menu until the feature actually ships.
+  const visibleMenuItems = menuItems.filter((item) => !item.comingSoon);
+
   const highlightBg = isTeacher ? `${theme.runBg}18` : `${theme.accent}18`;
   const highlightColor = isTeacher ? theme.runBg : theme.accent;
 
@@ -210,7 +214,7 @@ export function UserMenu() {
           <div style={{ height: 1, background: theme.panelBorder, margin: '0 -5px 4px' }} />
 
           {/* Menu items */}
-          {menuItems.map((item, i) => (
+          {visibleMenuItems.map((item, i) => (
             <button
               key={i}
               onClick={item.comingSoon ? undefined : item.onClick}

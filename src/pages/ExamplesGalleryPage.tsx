@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 
 import { useEditor } from '../state/IdeState';
 import { Examples } from '../state/exampleProjects';
+import { EXAMPLES_CATALOG } from '../data/examplesCatalog';
 import { WELCOME_CSS, TopBar, IconOpen } from './welcome/shared';
 
 // Gallery-specific layout on top of the shared marketing CSS (topbar, cta,
@@ -25,82 +26,6 @@ const GALLERY_CSS = `
 .examples-gallery .example-open:hover { background: #2f9549; }
 .examples-gallery .example-open svg { width: 13px; height: 13px; }
 `;
-
-interface GalleryEntry {
-  key: string;
-  i18nKey: string;
-}
-interface TopicGroup {
-  i18nKey: string;
-  entries: GalleryEntry[];
-}
-
-// Curated inclusion list — the "Example set v1" roster (7 topics) plus the
-// two newer sprite-sheet demos. Deliberately excludes 8 pre-v1 relics still
-// present in exampleProjects.ts (swatches, p5, platformer, color_shifter,
-// gradient_sky, sprite_painter, random_walls, cave_generator): showcase
-// demos, not complete games, not ready for an audience with zero context.
-// Display text lives in en.json/ru.json under examplesGallery.topics/entries.
-const TOPICS: TopicGroup[] = [
-  {
-    i18nKey: 'basics',
-    entries: [
-      { key: 'hello world', i18nKey: 'helloWorld' },
-      { key: 'input', i18nKey: 'input' },
-    ],
-  },
-  {
-    i18nKey: 'color',
-    entries: [
-      { key: 'color flood', i18nKey: 'colorFlood' },
-      { key: 'chameleon', i18nKey: 'chameleon' },
-    ],
-  },
-  {
-    i18nKey: 'input',
-    entries: [
-      { key: 'robot', i18nKey: 'robot' },
-      { key: 'aim trainer', i18nKey: 'aimTrainer' },
-    ],
-  },
-  {
-    i18nKey: 'actors',
-    entries: [
-      { key: 'bouncing actor', i18nKey: 'bouncingActor' },
-      { key: 'catch', i18nKey: 'catch' },
-      { key: 'dungeon', i18nKey: 'dungeon' },
-    ],
-  },
-  {
-    i18nKey: 'classicGames',
-    entries: [
-      { key: 'snake', i18nKey: 'snake' },
-      { key: 'sokoban', i18nKey: 'sokoban' },
-      { key: 'asteroids', i18nKey: 'asteroids' },
-    ],
-  },
-  {
-    i18nKey: 'procgen',
-    entries: [
-      { key: 'maze runner', i18nKey: 'mazeRunner' },
-      { key: 'cave diver', i18nKey: 'caveDiver' },
-    ],
-  },
-  {
-    i18nKey: 'tilemaps',
-    entries: [
-      { key: 'top-down explorer', i18nKey: 'topDownExplorer' },
-      { key: 'room builder', i18nKey: 'roomBuilder' },
-    ],
-  },
-  {
-    i18nKey: 'spriteSheets',
-    entries: [
-      { key: 'slime runner', i18nKey: 'slimeRunner' },
-      { key: 'coin hop', i18nKey: 'coinHop' },
-    ],
-  },
-];
 
 export function ExamplesGalleryPage() {
   const { t } = useTranslation();
@@ -127,7 +52,7 @@ export function ExamplesGalleryPage() {
       </section>
 
       <section>
-        {TOPICS.map((topic) => (
+        {EXAMPLES_CATALOG.map((topic) => (
           <div className="topic-group" key={topic.i18nKey}>
             <h2>{t(`examplesGallery.topics.${topic.i18nKey}.title`)}</h2>
             <p className="topic-lead">{t(`examplesGallery.topics.${topic.i18nKey}.lead`)}</p>

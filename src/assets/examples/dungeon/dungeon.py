@@ -2,11 +2,11 @@
 #
 # Showcases:
 #   - Light(): multiply-blended overlay with shadow-casting obstacles
-#   - Light.shade("candle") + Light.flicker(True): warm flickering torches
+#   - Light.shade = "candle" + Light.flicker = True: warm flickering torches
 #   - Actor.future_state.collides_any(walls): wall-stop without a sweep test;
 #     try each axis separately so the player slides along walls
-#   - Polar(speed, angle): build velocity from a speed + angle (0°=up, 90°=right)
-#     angle is visual-only — motion comes from .vel
+#   - Actor.set_vel(v) + Actor.move(): velocity only takes effect once move()
+#     is called — setting vel alone never moves the actor
 
 from graphics import *
 
@@ -32,11 +32,9 @@ for x, y, w, h in (
 torches = [(220, 60), (420, 60), (60, 290)]
 
 # Build the light overlay once; it reads positions live each frame.
-light = (
-    Light(ambient=(35, 30, 50), radius=150)
-    .shade("candle")     # warm candle color for the lightmap
-    .flicker(True)       # deterministic [0.85, 1.0] intensity wobble
-)
+light = Light(ambient=(35, 30, 50), radius=150)
+light.shade = "candle"    # warm candle color for the lightmap
+light.flicker = True      # deterministic [0.85, 1.0] intensity wobble
 light.add_obstacles(walls)
 for tx, ty in torches:
     light.add_source((tx, ty))
@@ -44,8 +42,8 @@ light.add_source(player)  # the player carries a softer light too
 
 
 def try_move(vx, vy):
-    """Set player.vel and return True if next frame would collide a wall."""
-    player.vel = (vx, vy)
+    """Set player velocity and return True if next frame would collide a wall."""
+    player.set_vel((vx, vy))
     return player.future_state.collides_any(walls) is not None
 
 
@@ -64,7 +62,7 @@ def main():
     if try_move(vx, vy):
         if try_move(vx, 0):
             if try_move(0, vy):
-                player.vel = (0, 0)
+                player.set_vel((0, 0))
     player.move()  # vel only sets a velocity — move() is the step that applies it
 
     # Draw walls and player

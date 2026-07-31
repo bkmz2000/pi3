@@ -5,10 +5,15 @@
 //
 //   institutional  — persistent roles, real identities, teacher-directory
 //                    accountable to a school. This is what main historically
-//                    behaved like; it is the default.
+//                    behaved like.
 //   public         — no persistent role, ephemeral sessions, no queryable
 //                    directory. This is the public-launch stance ported
-//                    from feat/phase1-campaign-classroom.
+//                    from feat/phase1-campaign-classroom, and is the default
+//                    (matches the client's VITE_DEPLOYMENT_PROFILE default in
+//                    src/state/deploymentProfile.ts — an unset var must
+//                    resolve the same way on both sides, or the landing
+//                    page's public-mode privacy promises can run over an
+//                    institutional-mode backend).
 //
 // Adding a third profile is a matter of extending the enum and the
 // `resolve()` switch below. Callers must never branch directly on the raw
@@ -55,8 +60,8 @@ function resolve(profile: DeploymentProfile): ProfileConfig {
 
 function readEnv(): DeploymentProfile {
   const raw = (process.env['DEPLOYMENT_PROFILE'] ?? '').trim().toLowerCase();
-  if (raw === 'public') return 'public';
-  if (raw === 'institutional' || raw === '') return 'institutional';
+  if (raw === 'public' || raw === '') return 'public';
+  if (raw === 'institutional') return 'institutional';
   // Loud fail-safe: an unknown value should fall to institutional (the
   // more restrictive-of-outbound-data default), not silently switch to
   // public. Log so it's noticed.

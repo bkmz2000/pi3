@@ -8,7 +8,13 @@ Group for managing collections of actors, and Collider for hitbox configuration.
 import math
 import random
 
-from graphics._errors import FriendlyError, FriendlyAttrError, _compute_suggestions
+from graphics._errors import (
+    FriendlyError,
+    FriendlyAttrError,
+    _compute_suggestions,
+    migration_proxy_property,
+    migration_setter_raises,
+)
 
 # Valid kwargs for Actor (and broadly for Rect/Circle) — used for typo detection.
 _ACTOR_KWARG_ATTRS = frozenset([
@@ -247,29 +253,40 @@ class Actor:
     def vy(self, value):
         self._vy = float(value)
 
-    @property
-    def pos(self):
+    def _compute_pos(self):
         from graphics import Vector2
         return Vector2(self._x, self._y)
 
-    @pos.setter
-    def pos(self, value):
+    def set_pos(self, value):
+        """Set position from an (x, y) pair or Vector2."""
         from graphics import Vector2
         v = value if isinstance(value, Vector2) else Vector2(value)
         self._x = v.x
         self._y = v.y
 
-    @property
-    def vel(self):
+    def _compute_vel(self):
         from graphics import Vector2
         return Vector2(self._vx, self._vy)
 
-    @vel.setter
-    def vel(self, value):
+    def set_vel(self, value):
+        """Set velocity from an (x, y) pair or Vector2."""
         from graphics import Vector2
         v = value if isinstance(value, Vector2) else Vector2(value)
         self._vx = v.x
         self._vy = v.y
+
+    # MIGRATION SHIM — remove after sunset. `pos`/`vel` used to be plain
+    # properties; they're computed values now, so the new spelling is a
+    # call: `actor.pos()` / `actor.vel()`. This property returns a proxy —
+    # calling it (the new spelling) works, any other use raises.
+    pos = property(
+        migration_proxy_property(lambda s: s._compute_pos(), "pos", "pos()"),
+        migration_setter_raises("pos = value", "set_pos(value)"),
+    )
+    vel = property(
+        migration_proxy_property(lambda s: s._compute_vel(), "vel", "vel()"),
+        migration_setter_raises("vel = value", "set_vel(value)"),
+    )
 
     @property
     def visible(self):
@@ -305,58 +322,63 @@ class Actor:
                 return w / 2, h / 2
         return 0, 0
 
-    @property
-    def center(self):
+    def _compute_center(self):
         from graphics import AnchorPoint
         return AnchorPoint(self._x, self._y, "center", "middle")
 
-    @property
-    def top(self):
+    def _compute_top(self):
         from graphics import AnchorPoint
         _, hy = self._half_size()
         return AnchorPoint(self._x, self._y - hy, "center", "bottom")
 
-    @property
-    def bottom(self):
+    def _compute_bottom(self):
         from graphics import AnchorPoint
         _, hy = self._half_size()
         return AnchorPoint(self._x, self._y + hy, "center", "top")
 
-    @property
-    def left(self):
+    def _compute_left(self):
         from graphics import AnchorPoint
         hx, _ = self._half_size()
         return AnchorPoint(self._x - hx, self._y, "right", "middle")
 
-    @property
-    def right(self):
+    def _compute_right(self):
         from graphics import AnchorPoint
         hx, _ = self._half_size()
         return AnchorPoint(self._x + hx, self._y, "left", "middle")
 
-    @property
-    def top_left(self):
+    def _compute_top_left(self):
         from graphics import AnchorPoint
         hx, hy = self._half_size()
         return AnchorPoint(self._x - hx, self._y - hy, "right", "bottom")
 
-    @property
-    def top_right(self):
+    def _compute_top_right(self):
         from graphics import AnchorPoint
         hx, hy = self._half_size()
         return AnchorPoint(self._x + hx, self._y - hy, "left", "bottom")
 
-    @property
-    def bottom_left(self):
+    def _compute_bottom_left(self):
         from graphics import AnchorPoint
         hx, hy = self._half_size()
         return AnchorPoint(self._x - hx, self._y + hy, "right", "top")
 
-    @property
-    def bottom_right(self):
+    def _compute_bottom_right(self):
         from graphics import AnchorPoint
         hx, hy = self._half_size()
         return AnchorPoint(self._x + hx, self._y + hy, "left", "top")
+
+    # MIGRATION SHIM — remove after sunset. Anchors used to be plain
+    # properties; they're computed values now, so the new spelling is a
+    # call: `actor.center()`, `actor.top_left()`, etc. Read-only — no
+    # setter shim needed, these never had one.
+    center = property(migration_proxy_property(lambda s: s._compute_center(), "center", "center()"))
+    top = property(migration_proxy_property(lambda s: s._compute_top(), "top", "top()"))
+    bottom = property(migration_proxy_property(lambda s: s._compute_bottom(), "bottom", "bottom()"))
+    left = property(migration_proxy_property(lambda s: s._compute_left(), "left", "left()"))
+    right = property(migration_proxy_property(lambda s: s._compute_right(), "right", "right()"))
+    top_left = property(migration_proxy_property(lambda s: s._compute_top_left(), "top_left", "top_left()"))
+    top_right = property(migration_proxy_property(lambda s: s._compute_top_right(), "top_right", "top_right()"))
+    bottom_left = property(migration_proxy_property(lambda s: s._compute_bottom_left(), "bottom_left", "bottom_left()"))
+    bottom_right = property(migration_proxy_property(lambda s: s._compute_bottom_right(), "bottom_right", "bottom_right()"))
 
     # --- movement ---
 
@@ -518,6 +540,13 @@ class Actor:
                     ))
                 if ctrl is not None:
                     ctrl._ticked_this_frame = False
+            elif isinstance(img, g.Sprite):
+                sw, sh = img.width, img.height
+                g._draw_commands.append((
+                    "sprite",
+                    (bytes(img.pixels), int(sw), int(sh),
+                     float(-sw / 2), float(-sh / 2), None, None),
+                ))
             elif isinstance(img, dict) and img.get("done"):
                 if "anim_name" in img:
                     anim_name = img["anim_name"]

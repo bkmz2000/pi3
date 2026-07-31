@@ -2,6 +2,8 @@
 Animation class for cycling through sprite frames.
 """
 
+from graphics._errors import migration_property_raises
+
 
 class Animation:
     """Cycles through a list of sprite frames at a given fps.
@@ -70,10 +72,17 @@ class Animation:
             return None
         return self._frames[self._frame_idx]
 
-    @property
-    def done(self):
+    def is_done(self):
         """True if a non-looping animation has reached its last frame."""
         return (not self.loop) and (not self._playing) and (self._frame_idx >= len(self._frames) - 1)
+
+    def is_playing(self):
+        """True if the animation is currently advancing (not paused, not done)."""
+        return self._playing
+
+    # MIGRATION SHIM — remove after sunset. `done` was a property; it's
+    # `is_done()` now (boolean-query convention, matches `Actor.is_alive()`).
+    done = migration_property_raises("done", "is_done()")
 
     @property
     def fps(self):

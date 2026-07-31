@@ -52,14 +52,14 @@ def tick():
     fill(Colors.white)
     no_stroke()
     text_size(16)
-    text(f"Score: {state.score}   Streak: {state.streak}", Window.top_left)
+    text(f"Score: {state.score}   Streak: {state.streak}", Window.top_left())
     fill(Colors.red)
-    text("✕" * state.missed + "○" * (MAX_MISSED - state.missed), Window.top_right)
+    text("✕" * state.missed + "○" * (MAX_MISSED - state.missed), Window.top_right())
 
     if state.missed >= MAX_MISSED:
         fill(Colors.orange)
         text_size(30)
-        text(f"Final score: {state.score}", Window.center)
+        text(f"Final score: {state.score}", Window.center())
         stop()
 
 

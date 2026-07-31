@@ -10,6 +10,7 @@
     "fill", "no_fill", "stroke", "no_stroke", "stroke_width",
     "background",
     "push", "pop", "translate", "rotate", "scale",
+    "translated", "rotated", "scaled",
     "image",
     "frame_rate", "frame_count",
     "random", "random_color",
@@ -19,6 +20,7 @@
     "Sprite", "PixelView", "create_sprite", "get_pixel", "set_pixel",
     "palette_swap", "flood_fill",
     "darken", "lighten", "saturate", "desaturate",
+    "Stamp",
     "Vector2", "Point", "Polar",
     "Line", "Polygon", "Spline",
     "Mouse", "Keyboard", "Window",
@@ -38,7 +40,7 @@
     "watch"
   ],
   "Actor": {
-    "properties": ["x", "y", "angle", "vx", "vy", "pos", "vel", "visible", "scale", "flip_x", "flip_y", "image", "collider", "state"],
+    "properties": ["x", "y", "angle", "vx", "vy", "pos", "vel", "visible", "scale", "flip_x", "flip_y", "image", "collider"],
     "methods": ["init", "update", "draw", "move", "forward", "move_to", "rotate", "point_towards", "die", "is_alive", "wrap", "wrap_x", "wrap_y", "in_bounds", "bounce", "keep_in_bounds", "distance_to", "random_position"],
     "anchors": ["center", "top", "bottom", "left", "right", "top_left", "top_right", "bottom_left", "bottom_right"]
   },
@@ -46,7 +48,7 @@
     "properties": ["x", "y", "pos", "pressed", "down", "released"]
   },
   "Keyboard": {
-    "properties": ["arrow_up", "arrow_down", "arrow_left", "arrow_right", "space", "enter", "escape", "tab", "backspace", "delete", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", "key_0", "key_1", "key_2", "key_3", "key_4", "key_5", "key_6", "key_7", "key_8", "key_9"]
+    "properties": ["arrow_up", "arrow_down", "arrow_left", "arrow_right", "space", "enter", "escape", "tab", "backspace", "shift", "ctrl", "alt", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", "key_0", "key_1", "key_2", "key_3", "key_4", "key_5", "key_6", "key_7", "key_8", "key_9"]
   },
   "Window": {
     "properties": ["width", "height", "top_left", "top_right", "bottom_left", "bottom_right", "center", "top", "bottom", "left", "right"]
@@ -55,7 +57,7 @@
     "description": "Mutable namespace for module-level game state. Attributes are unrestricted."
   },
   "Group": {
-    "methods": ["add", "remove", "clear", "__iter__", "__len__", "__contains__"]
+    "methods": ["add", "remove", "__iter__", "__len__", "__bool__"]
   },
   "ACTOR_METHODS": [
     "bounce", "collides_any", "collides_with", "die", "distance_to", "draw",

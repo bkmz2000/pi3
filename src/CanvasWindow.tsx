@@ -5,6 +5,7 @@ import { useThemeStore } from "./state/useTheme";
 import { Icon } from "./components/Icons";
 import { useEditor, isExampleSessionId } from "./state/IdeState";
 import { uploadProjectThumbnail } from "./state/api";
+import { clampIntoView, dragTo, fitScale } from "./canvasWindowGeometry";
 
 export default function CanvasWindow() {
   const { t } = useTranslation();
@@ -81,9 +82,7 @@ export default function CanvasWindow() {
     const clamp = () => {
       if (!windowRef.current) return;
       const rect = windowRef.current.getBoundingClientRect();
-      const dy = rect.top < 0 ? -rect.top : 0;
-      const dx = rect.left < 0 ? -rect.left : 0;
-      if (dx !== 0 || dy !== 0) setPos(p => ({ x: p.x + dx, y: p.y + dy }));
+      setPos(p => clampIntoView(rect, p));
     };
     clamp();
     window.addEventListener('resize', clamp);
@@ -102,16 +101,8 @@ export default function CanvasWindow() {
 
   const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!dragState.current) return;
-    const newX = dragState.current.baseX + e.clientX - dragState.current.startX;
-    let newY = dragState.current.baseY + e.clientY - dragState.current.startY;
-
-    if (windowRef.current) {
-      const rect = windowRef.current.getBoundingClientRect();
-      const projectedTop = rect.top + (newY - pos.y);
-      if (projectedTop < 0) newY -= projectedTop;
-    }
-
-    setPos({ x: newX, y: newY });
+    const rect = windowRef.current?.getBoundingClientRect() ?? null;
+    setPos(dragTo(dragState.current, { x: e.clientX, y: e.clientY }, pos, rect));
   };
 
   const onPointerUp = () => {
@@ -124,11 +115,7 @@ export default function CanvasWindow() {
   useEffect(() => {
     const compute = () => {
       if (!canvasActive) { setVisualScale(1); return; }
-      const maxW = window.innerWidth * 0.85;
-      const maxH = (window.innerHeight - 60) * 0.85; // subtract approx title bar + console
-      const ws = w > maxW ? maxW / w : 1;
-      const hs = h > maxH ? maxH / h : 1;
-      setVisualScale(Math.min(ws, hs, 1));
+      setVisualScale(fitScale(w, h, window.innerWidth, window.innerHeight));
     };
     compute();
     window.addEventListener('resize', compute);
@@ -168,15 +155,6 @@ export default function CanvasWindow() {
         bottom: 156,
         width: `${visualW}px`,
         height: `${visualH + 30}px`, // +30 for title bar
-        // content-box, not the project-wide border-box default: width/height
-        // above are meant to be the exact content size for the flex children
-        // (title bar + canvas) to fill without shrinking. Under border-box,
-        // this element's own 1px border ate 2px out of that declared height,
-        // leaving the flex column 2px short — which either compressed a
-        // child (flex-shrink) or, once shrink was disabled, overflowed and
-        // got clipped by overflow:hidden instead. content-box makes the
-        // border additive so neither happens.
-        boxSizing: "content-box",
         background: theme.canvasFrame,
         borderRadius: theme.radiusCard,
         boxShadow:
@@ -198,7 +176,6 @@ export default function CanvasWindow() {
         onPointerUp={onPointerUp}
         style={{
           height: 30,
-          flexShrink: 0,
           padding: "0 10px 0 14px",
           display: "flex",
           alignItems: "center",
@@ -386,7 +363,6 @@ export default function CanvasWindow() {
         style={{
           width: `${visualW}px`,
           height: `${visualH}px`,
-          flexShrink: 0,
           position: "relative",
           background: theme.canvasBg,
           imageRendering: "pixelated",
@@ -415,6 +391,9 @@ export default function CanvasWindow() {
                 top: 0, left: 0,
                 width: "100%", height: "100%",
                 imageRendering: "pixelated",
+                outline: "2px solid rgba(255,220,0,0.7)",
+                outlineOffset: "-2px",
+                boxSizing: "border-box",
               }}
             />
             <div
@@ -439,22 +418,6 @@ export default function CanvasWindow() {
                 back: frameHistory.length - 1 - scrubIndex,
               })}
             </div>
-            {/* Ring drawn as a plain sibling div, not styled on the <img> itself:
-                border/outline/box-shadow on a replaced element (<img>) don't
-                paint reliably in all browsers — a plain div always does. Placed
-                last (after the rewind chip) because the chip's own `transform`
-                promotes it to a separate compositing layer, and on some Chrome
-                builds that layer's bounds silently occlude earlier siblings
-                painted underneath it — painting last avoids that entirely. */}
-            <div
-              style={{
-                position: "absolute",
-                top: 0, left: 0,
-                width: "100%", height: "100%",
-                boxShadow: "inset 0 0 0 2px rgba(255,220,0,0.7)",
-                pointerEvents: "none",
-              }}
-            />
           </>
         )}
       </div>

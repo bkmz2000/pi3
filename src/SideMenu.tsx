@@ -22,6 +22,7 @@ import { CloseButton } from "./components/CloseButton";
 import AssetEditor, { type AssetEditorMode } from "./AssetEditor";
 import ExamplesPanel from "./ExamplesPanel";
 import ProblemsPanel from "./ProblemsPanel";
+import LivePanel from "./components/session/LivePanel";
 const DocsPanel = lazy(() => import("./components/DocsPanel"));
 
 // ── Logo ───────────────────────────────────
@@ -351,6 +352,14 @@ export default function Rail() {
           theme={theme}
         />
 
+        <RailButton
+          icon="users"
+          label={t('session.panelTitle')}
+          active={isOpen("live")}
+          onClick={() => togglePanel("live")}
+          theme={theme}
+        />
+
         <div style={{ position: "relative", marginTop: 4, marginBottom: 4 }}>
           <button
             type="button"
@@ -491,6 +500,9 @@ export default function Rail() {
           )}
           {activePanel === "problems" && (
             <ProblemsPanel onClose={closePanels} />
+          )}
+          {activePanel === "live" && (
+            <LivePanel onClose={closePanels} />
           )}
         </div>
       )}

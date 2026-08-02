@@ -846,11 +846,17 @@
     "joined": "In session",
     "copyLink": "Copy join link",
     "copied": "Link copied",
-    "groupView": "Group view",
     "leave": "Leave",
     "empty": "No one here yet — share the join link.",
-    "selectMember": "Select someone to see their code.",
-    "react": "React"
+    "react": "React",
+    "panelTitle": "Live",
+    "notInSession": "Not in a session. Start one and share the link to code alongside your classmates.",
+    "signInFirst": "Sign in to start or join a live session.",
+    "openPeerTab": "Open in a tab",
+    "peerTabTitle": "{{name}} — live code (read-only)",
+    "closePeerTab": "Close {{name}}'s live code",
+    "readOnly": "read-only",
+    "peerNotVisible": "You can't view this member's code in this session."
   },
   "teacher": {
     "dashboard": "Teacher Dashboard",
@@ -1347,13 +1353,13 @@
       "cardPythonTitle": "Real Python",
       "cardPythonText": " — the same language as a local install.",
       "cardEcosystemTitle": "A real ecosystem",
-      "cardEcosystemText": ", and more, importable and running."
+      "cardEcosystemText": ", and the rest of the scientific stack, importable and running."
     },
     "classroom": {
       "heading": "Run a class of 26 without leaving your desk.",
-      "bullet1": "Watch every student's progress update live, from your own screen — no walking the room, no thirty open tabs",
-      "bullet2": "See who's stuck without singling them out — the dashboard tells you quietly, you don't have to ask in front of everyone",
-      "bullet3": "Pull verdicts across the whole class at a glance instead of opening each project one at a time",
+      "bullet1": "Watch every student update live, from your own screen — who's on which file, which line, and how long since they last typed",
+      "bullet2": "Open any student's code as they type it, without leaning over their shoulder or asking them to share anything",
+      "bullet3": "A student stuck on something raises a hand from inside the editor — it lands in your queue quietly, with no announcement to the room",
       "updatedJustNow": "updated just now",
       "updatedSecondsAgo": "updated {{count}}s ago",
       "lineLabel": "line {{n}}"
@@ -1366,14 +1372,15 @@
     },
     "safety": {
       "heading": "Built for a classroom, not an open platform.",
-      "bullet1": "No personal information collected — student logins are generated, not signed up",
-      "bullet2": "In-class messaging can't carry contact info, by design",
-      "bullet3": "If a parent asks \"is this safe\" — tell them: no student ever gives us their name, email, or any way to be found online",
-      "bullet4": "Something wrong? Fast takedown, no bureaucracy"
+      "bullet1": "Students appear as a generated handle — @amberCleverFox — never a real name",
+      "bullet2": "There's no user directory and no search — you can't look a student up, and neither can anyone else",
+      "bullet3": "In-session messaging is eight fixed emoji, not a text field — there's nowhere to type a phone number even if someone wanted to",
+      "bullet4": "Sessions are joined by a signed link you hand to someone you know — no short codes, nothing guessable or shareable to strangers",
+      "bullet5": "Shared work carries the code, not the author"
     },
     "install": {
       "heading": "Install it. Freeze it. Nothing to break.",
-      "body": "pi3 installs like an app — no browser tab required. Once installed, it runs fully offline, and you choose when it updates. A lesson plan built around pi3 in September still works exactly the same way in May."
+      "body": "pi3 installs like an app — no browser tab required. Once installed, Python and the whole graphics library keep working with the network down, and you choose when it updates: flip freeze on before a lesson and the version your class is using stays put. A lesson plan built around pi3 in September still works exactly the same way in May."
     },
     "footer": {
       "browseExamples": "Browse all examples →",
@@ -1393,34 +1400,112 @@
     "lead": "Every built-in example, grouped by the API it showcases. Pick one — it opens straight into the editor, no account needed.",
     "backToHome": "← Back to home",
     "topics": {
-      "basics": { "title": "Basics", "lead": "Where every language starts." },
-      "color": { "title": "Color", "lead": "Palettes and pixels as the core mechanic." },
-      "input": { "title": "Input", "lead": "Keyboard and mouse driving the whole program." },
-      "actors": { "title": "Actors & Collision", "lead": "Actor, Group, and collision detection." },
-      "classicGames": { "title": "Classic Games", "lead": "Complete games built from a grid and a loop." },
-      "procgen": { "title": "Procedural Generation", "lead": "Noise and cellular automata generating the level itself." },
-      "tilemaps": { "title": "Tilemaps", "lead": "TileMap collision and procedural layout." },
-      "spriteSheets": { "title": "Sprite Sheets", "lead": "Pixel-art sprites and animation, drawn in the sheet editor." }
+      "basics": {
+        "title": "Basics",
+        "lead": "Where every language starts."
+      },
+      "color": {
+        "title": "Color",
+        "lead": "Palettes and pixels as the core mechanic."
+      },
+      "input": {
+        "title": "Input",
+        "lead": "Keyboard and mouse driving the whole program."
+      },
+      "actors": {
+        "title": "Actors & Collision",
+        "lead": "Actor, Group, and collision detection."
+      },
+      "classicGames": {
+        "title": "Classic Games",
+        "lead": "Complete games built from a grid and a loop."
+      },
+      "procgen": {
+        "title": "Procedural Generation",
+        "lead": "Noise and cellular automata generating the level itself."
+      },
+      "tilemaps": {
+        "title": "Tilemaps",
+        "lead": "TileMap collision and procedural layout."
+      },
+      "spriteSheets": {
+        "title": "Sprite Sheets",
+        "lead": "Pixel-art sprites and animation, drawn in the sheet editor."
+      }
     },
     "entries": {
-      "helloWorld": { "name": "Hello World", "blurb": "print() and running a script — the first program." },
-      "input": { "name": "Input", "blurb": "Read text from the player with input() and print it back." },
-      "colorFlood": { "name": "Color Flood", "blurb": "Flood-It clone — flood-fill the grid in the fewest moves." },
-      "chameleon": { "name": "Chameleon", "blurb": "Palette-swap your avatar to match the background — hunters ignore a matching color." },
-      "robot": { "name": "Robot", "blurb": "Press keys to change a robot's speech bubble." },
-      "aimTrainer": { "name": "Aim Trainer", "blurb": "Targets spawn and shrink — click before they vanish, build a streak." },
-      "bouncingActor": { "name": "Bouncing Actor", "blurb": "Control a ball and bounce it off the walls." },
-      "catch": { "name": "Catch", "blurb": "Catch falling fruit in a basket — lose a life if you miss." },
-      "dungeon": { "name": "Dungeon", "blurb": "Explore a torchlit room where the torches cast real shadows." },
-      "snake": { "name": "Snake", "blurb": "The classic — eat, grow, don't hit yourself." },
-      "sokoban": { "name": "Sokoban", "blurb": "Push boxes onto goals without getting stuck." },
-      "asteroids": { "name": "Asteroids", "blurb": "Shoot rocks and don't die." },
-      "mazeRunner": { "name": "Maze Runner", "blurb": "Corridors generated from noise — navigate to the glowing exit." },
-      "caveDiver": { "name": "Cave Diver", "blurb": "A cellular-automata cave — descend collecting gems with limited air." },
-      "topDownExplorer": { "name": "Top-Down Explorer", "blurb": "WASD around a tilemap, collect coins, avoid the spike area." },
-      "roomBuilder": { "name": "Room Builder", "blurb": "A new room layout every run, procedurally filled and bordered." },
-      "slimeRunner": { "name": "Slime Runner", "blurb": "Endless side-scroller — jump slimes, collect coins, animations switch automatically." },
-      "coinHop": { "name": "Coin Hop", "blurb": "Collect every coin before the slime catches you." }
+      "helloWorld": {
+        "name": "Hello World",
+        "blurb": "print() and running a script — the first program."
+      },
+      "input": {
+        "name": "Input",
+        "blurb": "Read text from the player with input() and print it back."
+      },
+      "colorFlood": {
+        "name": "Color Flood",
+        "blurb": "Flood-It clone — flood-fill the grid in the fewest moves."
+      },
+      "chameleon": {
+        "name": "Chameleon",
+        "blurb": "Palette-swap your avatar to match the background — hunters ignore a matching color."
+      },
+      "robot": {
+        "name": "Robot",
+        "blurb": "Press keys to change a robot's speech bubble."
+      },
+      "aimTrainer": {
+        "name": "Aim Trainer",
+        "blurb": "Targets spawn and shrink — click before they vanish, build a streak."
+      },
+      "bouncingActor": {
+        "name": "Bouncing Actor",
+        "blurb": "Control a ball and bounce it off the walls."
+      },
+      "catch": {
+        "name": "Catch",
+        "blurb": "Catch falling fruit in a basket — lose a life if you miss."
+      },
+      "dungeon": {
+        "name": "Dungeon",
+        "blurb": "Explore a torchlit room where the torches cast real shadows."
+      },
+      "snake": {
+        "name": "Snake",
+        "blurb": "The classic — eat, grow, don't hit yourself."
+      },
+      "sokoban": {
+        "name": "Sokoban",
+        "blurb": "Push boxes onto goals without getting stuck."
+      },
+      "asteroids": {
+        "name": "Asteroids",
+        "blurb": "Shoot rocks and don't die."
+      },
+      "mazeRunner": {
+        "name": "Maze Runner",
+        "blurb": "Corridors generated from noise — navigate to the glowing exit."
+      },
+      "caveDiver": {
+        "name": "Cave Diver",
+        "blurb": "A cellular-automata cave — descend collecting gems with limited air."
+      },
+      "topDownExplorer": {
+        "name": "Top-Down Explorer",
+        "blurb": "WASD around a tilemap, collect coins, avoid the spike area."
+      },
+      "roomBuilder": {
+        "name": "Room Builder",
+        "blurb": "A new room layout every run, procedurally filled and bordered."
+      },
+      "slimeRunner": {
+        "name": "Slime Runner",
+        "blurb": "Endless side-scroller — jump slimes, collect coins, animations switch automatically."
+      },
+      "coinHop": {
+        "name": "Coin Hop",
+        "blurb": "Collect every coin before the slime catches you."
+      }
     }
   }
 }

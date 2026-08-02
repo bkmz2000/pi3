@@ -1,6 +1,8 @@
 import { Router, Request, Response } from 'express';
 import { getClient } from '../db/index.js';
 import { authMiddleware } from '../middleware/auth.js';
+import { rateLimitPerUser } from '../middleware/rateLimitPerUser.js';
+import { getProjectAccess } from '../middleware/projectAuth.js';
 import { verifySessionToken } from '../sessions/tokens.js';
 
 // Presence pings older than this are considered stale/idle.
@@ -10,20 +12,34 @@ const STALE_MS = 5 * 60 * 1000;
 // telemetry, so we truncate rather than reject an oversized file.
 const MAX_CONTENT_CHARS = 256 * 1024;
 
+// Retention for the ephemeral live-presence telemetry (CORE-8): rows older
+// than this are swept by pruneStaleLivePresence(), called on an hourly
+// interval from server/index.ts.
+const PRESENCE_RETENTION_MS = 24 * 60 * 60 * 1000;
+
+const livePresenceLimit = rateLimitPerUser({ name: 'live-presence', windowMs: 60_000, max: 30 });
+
+export async function pruneStaleLivePresence(retentionMs: number = PRESENCE_RETENTION_MS): Promise<void> {
+  await getClient().execute(
+    'DELETE FROM live_presence WHERE updated_at < ?',
+    [Date.now() - retentionMs],
+  );
+}
+
 export function createLiveRouter(): Router {
   const router = Router();
   router.use(authMiddleware);
 
   // POST /api/live/presence — student writes their current file + cursor.
   // Called on a debounce from the editor (every ~3s while editing).
-  router.post('/presence', async (req: Request, res: Response): Promise<void> => {
-    const { project_id, file, cursor_line, content, content_hash, session_id } = req.body as {
+  router.post('/presence', livePresenceLimit, async (req: Request, res: Response): Promise<void> => {
+    const { project_id, file, cursor_line, content, content_hash, token } = req.body as {
       project_id?: string;
       file?: string;
       cursor_line?: number;
       content?: string;
       content_hash?: string;
-      session_id?: string;
+      token?: string;
     };
     if (!project_id || typeof project_id !== 'string') {
       res.status(400).json({ error: 'Bad Request', message: 'project_id required' });
@@ -37,6 +53,32 @@ export function createLiveRouter(): Router {
       ? Math.min(Math.floor(cursor_line as number), 1_000_000)
       : 0;
 
+    // A token is proof of session membership; without it, session_id is never
+    // trusted from the client (dropped to null). With it, the token's own
+    // (signed, unspoofable) sid is what gets written — never the client's
+    // session_id/project_id string.
+    let verifiedSid: string | null = null;
+    if (typeof token === 'string' && token) {
+      const verified = verifySessionToken(token, req.user!.id);
+      if (verified) verifiedSid = verified.sid;
+    }
+
+    // project_id is either a real project (ownership required) or a synthetic
+    // `session:<sid>` key (session membership, proven by the token, required).
+    if (project_id.startsWith('session:')) {
+      if (!verifiedSid) {
+        res.status(401).json({ error: 'Unauthorized', message: 'valid session token required for session presence' });
+        return;
+      }
+    } else {
+      const access = await getProjectAccess(project_id, req.user!.id);
+      if (!access.exists || !access.role) {
+        res.status(403).json({ error: 'Forbidden', message: 'No access to this project' });
+        return;
+      }
+    }
+    const effectiveProjectId = project_id.startsWith('session:') ? `session:${verifiedSid}` : project_id;
+
     // Content is optional: the client omits it when the buffer is unchanged
     // (skip-unchanged), so a null here must NOT wipe the stored buffer — we
     // COALESCE below to keep the last-known content. When present, cap it.
@@ -44,11 +86,10 @@ export function createLiveRouter(): Router {
       ? content.slice(0, MAX_CONTENT_CHARS)
       : null;
     const hashVal = typeof content_hash === 'string' ? content_hash.slice(0, 128) : null;
-    // session_id is always authoritative (null clears it when a student leaves
-    // a session), so it is written directly, not COALESCE'd.
-    const sessionVal = typeof session_id === 'string' && session_id.length <= 64
-      ? session_id
-      : null;
+    // The verified token's sid is always authoritative (null clears it, e.g.
+    // when a student leaves a session), so it is written directly, not
+    // COALESCE'd.
+    const sessionVal = verifiedSid;
 
     await getClient().execute(
       `INSERT INTO live_presence (student_id, project_id, file, cursor_line, updated_at, content, content_hash, session_id)
@@ -60,7 +101,7 @@ export function createLiveRouter(): Router {
          content = COALESCE(excluded.content, live_presence.content),
          content_hash = COALESCE(excluded.content_hash, live_presence.content_hash),
          session_id = excluded.session_id`,
-      [req.user!.id, project_id, file, line, Date.now(), contentVal, hashVal, sessionVal],
+      [req.user!.id, effectiveProjectId, file, line, Date.now(), contentVal, hashVal, sessionVal],
     );
     res.status(204).send();
   });
@@ -165,13 +206,13 @@ export function createLiveRouter(): Router {
   });
 
   // --- Session-scoped reads (public profile + institutional peer sessions) ---
-  // Auth is a signed session token (?token=...), not a role. Visibility is
-  // decided by the token, not the deployment profile:
+  // Auth is a signed session token (X-Session-Token header), not a role.
+  // Visibility is decided by the token, not the deployment profile:
   //   - symmetric  (no groupId): any member may read any member
   //   - classroom  (groupId-bound, starter = teacher): only the starter may
   //     read a peer; a joiner (student) may read only their own buffer.
 
-  // GET /api/live/session/:sid/roster?token=...
+  // GET /api/live/session/:sid/roster (X-Session-Token header)
   router.get('/session/:sid/roster', async (req: Request, res: Response): Promise<void> => {
     const verified = verifySession(req, res);
     if (!verified) return;
@@ -208,7 +249,7 @@ export function createLiveRouter(): Router {
     res.json({ members, server_now: now, role: verified.role });
   });
 
-  // GET /api/live/session/:sid/member/:studentId?token=...
+  // GET /api/live/session/:sid/member/:studentId (X-Session-Token header)
   router.get('/session/:sid/member/:studentId', async (req: Request, res: Response): Promise<void> => {
     const verified = verifySession(req, res);
     if (!verified) return;
@@ -221,12 +262,13 @@ export function createLiveRouter(): Router {
     res.json(await latestMemberBuffer(studentId, verified.sid));
   });
 
-  // Verify a session token from ?token=... and that it matches :sid. Writes the
-  // error response and returns null on failure.
+  // Verify a session token from the X-Session-Token header and that it
+  // matches :sid. A header (not a query param) keeps the signed token out of
+  // access/proxy logs. Writes the error response and returns null on failure.
   function verifySession(req: Request, res: Response) {
-    const token = typeof req.query['token'] === 'string' ? req.query['token'] : '';
+    const token = typeof req.headers['x-session-token'] === 'string' ? req.headers['x-session-token'] : '';
     if (!token) {
-      res.status(401).json({ error: 'Unauthorized', message: 'session token required (?token=...)' });
+      res.status(401).json({ error: 'Unauthorized', message: 'session token required (X-Session-Token header)' });
       return null;
     }
     const verified = verifySessionToken(token, req.user!.id);

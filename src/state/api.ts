@@ -73,8 +73,8 @@ class ApiClient {
     return response.json();
   }
 
-  async get<T>(path: string): Promise<T> {
-    return this.request<T>(path, { method: 'GET' });
+  async get<T>(path: string, options: RequestInit = {}): Promise<T> {
+    return this.request<T>(path, { ...options, method: 'GET' });
   }
 
   async post<T>(path: string, body?: unknown): Promise<T> {
@@ -301,6 +301,7 @@ export interface PresencePayload {
   content?: string;
   contentHash?: string;
   sessionId?: string | null;
+  sessionToken?: string | null;
 }
 
 export async function postLivePresence(
@@ -316,6 +317,9 @@ export async function postLivePresence(
     // Omit content when unchanged so the server keeps the last buffer.
     ...(extra.content != null ? { content: extra.content, content_hash: extra.contentHash } : {}),
     session_id: extra.sessionId ?? null,
+    // The server re-derives session_id from this verified token when present;
+    // sessionId above is otherwise ignored for session-scoped rows.
+    ...(extra.sessionToken ? { token: extra.sessionToken } : {}),
   });
 }
 
@@ -355,13 +359,15 @@ export async function joinSession(token: string): Promise<SessionJoinResponse> {
 
 export async function getSessionRoster(sid: string, token: string): Promise<LiveSessionRosterResponse> {
   return api.get<LiveSessionRosterResponse>(
-    `/api/live/session/${encodeURIComponent(sid)}/roster?token=${encodeURIComponent(token)}`,
+    `/api/live/session/${encodeURIComponent(sid)}/roster`,
+    { headers: { 'X-Session-Token': token } },
   );
 }
 
 export async function getSessionMember(sid: string, studentId: string, token: string): Promise<LiveMemberBuffer> {
   return api.get<LiveMemberBuffer>(
-    `/api/live/session/${encodeURIComponent(sid)}/member/${encodeURIComponent(studentId)}?token=${encodeURIComponent(token)}`,
+    `/api/live/session/${encodeURIComponent(sid)}/member/${encodeURIComponent(studentId)}`,
+    { headers: { 'X-Session-Token': token } },
   );
 }
 

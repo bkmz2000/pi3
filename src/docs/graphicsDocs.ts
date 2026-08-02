@@ -988,6 +988,18 @@ export const DOCS: DocCategory[] = [
         example: "if Keyboard.escape.pressed:\n    stop()",
       },
       {
+        id: "show",
+        name: "show",
+        signature: "show()",
+        en: "Paint everything drawn so far onto the canvas, once. Use it for still pictures: draw your shapes, then call show(). A program that never calls run() or show() paints nothing at all.",
+        ru: "Рисует на холсте всё, что было нарисовано до этого момента — один раз. Нужен для статичных картинок: нарисуй фигуры, затем вызови show(). Программа, которая не вызывает ни run(), ни show(), не покажет ничего.",
+        example: 'background("sky")\ncircle(150, 150, 40)\nshow()',
+        advanced: {
+          en: "Flushes the pending draw-command buffer and clears it, so a second `show()` paints only what was drawn since the first. Pending `size()` changes are applied before the flush. Harmless during a `run()` loop, but pointless — the next frame overwrites it. `turtle`'s `done()` / `mainloop()` call this internally.",
+          ru: "Сбрасывает буфер команд рисования и очищает его, поэтому второй `show()` нарисует только то, что добавлено после первого. Отложенный `size()` применяется перед сбросом. Во время цикла `run()` безвреден, но бесполезен — следующий кадр всё перерисует. `done()` / `mainloop()` из `turtle` вызывают его внутри.",
+        },
+      },
+      {
         id: "frame_rate",
         name: "frame_rate",
         signature: "frame_rate(fps)",

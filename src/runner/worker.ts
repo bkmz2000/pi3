@@ -3,6 +3,8 @@ import { WorkerCommand, WorkerEvent, LintDiagnostic, SheetRunPayload, RuntimeErr
 import { PYODIDE_CDN } from "./pyodideVersion";
 import { executeDrawCommands } from "./canvasRenderer";
 import { blitPngToCanvas, PendingMatplotlibBuffer } from "./matplotlibBlit";
+import { hoistStarImports } from "./hoistStarImports";
+import { isInterruptError } from "./isInterruptError";
 
 let pyodide: PyodideInterface | null = null;
 let offscreen: OffscreenCanvas | null = null;
@@ -920,12 +922,18 @@ except SyntaxError as _se:
     }
   }
 
-  const indented = transformed.split('\n').map((l) => '    ' + l).join('\n');
+  // `from x import *` cannot live inside the async wrapper below — hoist those
+  // statements to module level (see hoistStarImports).
+  const { prelude: starImports, body: runBody } = hoistStarImports(transformed);
+  const indented = runBody.trim()
+    ? runBody.split('\n').map((l) => '    ' + l).join('\n')
+    : '    pass'; // a program of nothing but star-imports still needs a body
 
   // Build async wrapper with error_hook integration (no re-raise — JS reads _last_structured_error)
   const asyncCode = `
 import error_hook
 import json as _json
+${starImports}
 
 async def __run():
 ${indented}
@@ -1017,8 +1025,12 @@ self.onmessage = async (e: MessageEvent<WorkerCommand>) => {
       await runScript(p, msg.files, msg.assets, msg.tilemaps, msg.soundNames, msg.sheet, msg.entry, msg.showHitboxes, msg.showActorInfo);
     } catch (err: unknown) {
       const errStr = String(err);
-      // KeyboardInterrupt (stop button) — not an error, just a clean stop
-      if (errStr.includes("KeyboardInterrupt")) {
+      // KeyboardInterrupt (stop button) — not an error, just a clean stop.
+      // Detected via PythonError.type: an interrupted run often yields an empty
+      // message, so String(err) is only "PythonError". See isInterruptError.
+      if (isInterruptError(err)) {
+        // A4: a classification from earlier in this run must not resurface next run.
+        try { pyodide?.globals.delete("_last_structured_error"); } catch { /* ignore */ }
         post({ type: "stdout", text: "Program stopped." });
         post({ type: "result" });
       } else {

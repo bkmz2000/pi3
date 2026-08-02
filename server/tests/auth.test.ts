@@ -165,6 +165,38 @@ describe('Bearer token invalidation on logout', () => {
   });
 });
 
+// 8.6 — SKIP_AUTH bypass is inert in production
+describe('SKIP_AUTH bypass gated to non-production', () => {
+  const originalSkip = process.env.SKIP_AUTH;
+  const originalEnv = process.env.NODE_ENV;
+
+  afterEach(() => {
+    if (originalSkip === undefined) delete process.env.SKIP_AUTH; else process.env.SKIP_AUTH = originalSkip;
+    process.env.NODE_ENV = originalEnv;
+  });
+
+  it('bypasses auth outside production', async () => {
+    db = createTestDb();
+    // authMiddleware's bypass stamps req.user = { id: 'test-user', ... } — the
+    // row has to exist for /me to resolve it to a 200.
+    const now = Date.now();
+    db.prepare('INSERT INTO users (id, api_token, name, role, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)')
+      .run('test-user', uuidv4(), 'Test User', 'student', now, now);
+    process.env.SKIP_AUTH = 'true';
+    process.env.NODE_ENV = 'test';
+    const res = await request(app).get('/api/users/me');
+    expect(res.status).toBe(200);
+  });
+
+  it('does not bypass auth when NODE_ENV=production', async () => {
+    db = createTestDb();
+    process.env.SKIP_AUTH = 'true';
+    process.env.NODE_ENV = 'production';
+    const res = await request(app).get('/api/users/me');
+    expect(res.status).toBe(401);
+  });
+});
+
 // 8.5 — Logout requires authenticated session (CSRF defense)
 describe('Session-gated logout (CSRF defense)', () => {
   it('logout without session is rejected (401)', async () => {

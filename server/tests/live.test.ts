@@ -5,7 +5,7 @@ import request from 'supertest';
 import Database from 'better-sqlite3';
 import { createTestDb, closeTestDb } from './setup.js';
 import { v4 as uuidv4 } from 'uuid';
-import { createLiveRouter } from '../routes/live.js';
+import { createLiveRouter, pruneStaleLivePresence } from '../routes/live.js';
 import { createGroupsRouter } from '../routes/groups.js';
 import { issueSessionToken } from '../sessions/tokens.js';
 
@@ -35,6 +35,17 @@ function mkUser(role: 'teacher' | 'student', name: string) {
   return u;
 }
 
+// Presence now requires a real, owned project (or a token-verified session
+// key) — a bare literal string like 'p1' is no longer accepted.
+function mkProject(ownerId: string, name = 'P'): string {
+  const id = uuidv4();
+  const now = Date.now();
+  db.prepare(
+    'INSERT INTO projects (id, user_id, name, is_public, files, assets, current_file, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+  ).run(id, ownerId, name, 0, '{}', '{}', 'main.py', now, now);
+  return id;
+}
+
 beforeEach(() => {
   db = createTestDb();
   teacher = mkUser('teacher', 'T');
@@ -50,19 +61,20 @@ afterAll(() => {
 
 describe('POST /api/live/presence', () => {
   it('writes a presence row, then updates it on conflict', async () => {
+    const p1 = mkProject(s1.id);
     const r1 = await request(app).post('/api/live/presence').set(auth(s1.api_token))
-      .send({ project_id: 'p1', file: 'main.py', cursor_line: 12 });
+      .send({ project_id: p1, file: 'main.py', cursor_line: 12 });
     expect(r1.status).toBe(204);
     const row1 = db.prepare('SELECT * FROM live_presence WHERE student_id = ? AND project_id = ?')
-      .get(s1.id, 'p1') as { file: string; cursor_line: number };
+      .get(s1.id, p1) as { file: string; cursor_line: number };
     expect(row1.file).toBe('main.py');
     expect(row1.cursor_line).toBe(12);
 
     const r2 = await request(app).post('/api/live/presence').set(auth(s1.api_token))
-      .send({ project_id: 'p1', file: 'other.py', cursor_line: 3 });
+      .send({ project_id: p1, file: 'other.py', cursor_line: 3 });
     expect(r2.status).toBe(204);
     const rows = db.prepare('SELECT * FROM live_presence WHERE student_id = ? AND project_id = ?')
-      .all(s1.id, 'p1') as { file: string; cursor_line: number }[];
+      .all(s1.id, p1) as { file: string; cursor_line: number }[];
     expect(rows).toHaveLength(1);
     expect(rows[0].file).toBe('other.py');
     expect(rows[0].cursor_line).toBe(3);
@@ -81,19 +93,51 @@ describe('POST /api/live/presence', () => {
     expect(r.status).toBe(400);
   });
 
+  it('rejects a real-looking but unowned/nonexistent project_id', async () => {
+    const otherProject = mkProject(s2.id);
+    const r = await request(app).post('/api/live/presence').set(auth(s1.api_token))
+      .send({ project_id: otherProject, file: 'a.py', cursor_line: 1 });
+    expect(r.status).toBe(403);
+    const r2 = await request(app).post('/api/live/presence').set(auth(s1.api_token))
+      .send({ project_id: uuidv4(), file: 'a.py', cursor_line: 1 });
+    expect(r2.status).toBe(403);
+  });
+
+  it('rejects a session: key with no token, or an invalid one', async () => {
+    const r1 = await request(app).post('/api/live/presence').set(auth(s1.api_token))
+      .send({ project_id: 'session:abc123', file: 'a.py', cursor_line: 1 });
+    expect(r1.status).toBe(401);
+    const r2 = await request(app).post('/api/live/presence').set(auth(s1.api_token))
+      .send({ project_id: 'session:abc123', file: 'a.py', cursor_line: 1, token: 'garbage' });
+    expect(r2.status).toBe(401);
+  });
+
+  it('accepts a session: key with a valid token, and ignores a spoofed sid', async () => {
+    const { token, payload } = issueSessionToken(s1.id);
+    const r = await request(app).post('/api/live/presence').set(auth(s1.api_token))
+      .send({ project_id: 'session:someone-elses-sid', file: 'a.py', cursor_line: 1, token });
+    expect(r.status).toBe(204);
+    // The verified token's own sid wins — never the client-claimed one.
+    const row = db.prepare('SELECT project_id, session_id FROM live_presence WHERE student_id = ?')
+      .get(s1.id) as { project_id: string; session_id: string };
+    expect(row.project_id).toBe(`session:${payload.sid}`);
+    expect(row.session_id).toBe(payload.sid);
+  });
+
   it('clamps negative / non-finite / huge cursor_line', async () => {
+    const p1 = mkProject(s1.id);
     await request(app).post('/api/live/presence').set(auth(s1.api_token))
-      .send({ project_id: 'p1', file: 'a.py', cursor_line: -5 });
+      .send({ project_id: p1, file: 'a.py', cursor_line: -5 });
     let row = db.prepare('SELECT cursor_line FROM live_presence WHERE student_id = ?').get(s1.id) as { cursor_line: number };
     expect(row.cursor_line).toBe(0);
 
     await request(app).post('/api/live/presence').set(auth(s1.api_token))
-      .send({ project_id: 'p1', file: 'a.py', cursor_line: 9_999_999_999 });
+      .send({ project_id: p1, file: 'a.py', cursor_line: 9_999_999_999 });
     row = db.prepare('SELECT cursor_line FROM live_presence WHERE student_id = ?').get(s1.id) as { cursor_line: number };
     expect(row.cursor_line).toBe(1_000_000);
 
     await request(app).post('/api/live/presence').set(auth(s1.api_token))
-      .send({ project_id: 'p1', file: 'a.py' /* cursor_line omitted */ });
+      .send({ project_id: p1, file: 'a.py' /* cursor_line omitted */ });
     row = db.prepare('SELECT cursor_line FROM live_presence WHERE student_id = ?').get(s1.id) as { cursor_line: number };
     expect(row.cursor_line).toBe(0);
   });
@@ -104,8 +148,9 @@ describe('POST /api/live/presence', () => {
   });
 
   it('stores content + hash; a later ping without content keeps the last buffer', async () => {
+    const p1 = mkProject(s1.id);
     await request(app).post('/api/live/presence').set(auth(s1.api_token))
-      .send({ project_id: 'p1', file: 'a.py', cursor_line: 1, content: 'print(1)', content_hash: 'h1' });
+      .send({ project_id: p1, file: 'a.py', cursor_line: 1, content: 'print(1)', content_hash: 'h1' });
     let row = db.prepare('SELECT content, content_hash FROM live_presence WHERE student_id = ?')
       .get(s1.id) as { content: string; content_hash: string };
     expect(row.content).toBe('print(1)');
@@ -113,7 +158,7 @@ describe('POST /api/live/presence', () => {
 
     // Skip-unchanged: cursor moved but content omitted — buffer must survive.
     await request(app).post('/api/live/presence').set(auth(s1.api_token))
-      .send({ project_id: 'p1', file: 'a.py', cursor_line: 5 });
+      .send({ project_id: p1, file: 'a.py', cursor_line: 5 });
     row = db.prepare('SELECT content, content_hash FROM live_presence WHERE student_id = ?')
       .get(s1.id) as { content: string; content_hash: string };
     expect(row.content).toBe('print(1)');
@@ -121,28 +166,33 @@ describe('POST /api/live/presence', () => {
 
     // New content overwrites.
     await request(app).post('/api/live/presence').set(auth(s1.api_token))
-      .send({ project_id: 'p1', file: 'a.py', cursor_line: 5, content: 'print(2)', content_hash: 'h2' });
+      .send({ project_id: p1, file: 'a.py', cursor_line: 5, content: 'print(2)', content_hash: 'h2' });
     row = db.prepare('SELECT content, content_hash FROM live_presence WHERE student_id = ?')
       .get(s1.id) as { content: string; content_hash: string };
     expect(row.content).toBe('print(2)');
   });
 
   it('caps oversized content instead of rejecting', async () => {
+    const p1 = mkProject(s1.id);
     const big = 'x'.repeat(300 * 1024);
     const r = await request(app).post('/api/live/presence').set(auth(s1.api_token))
-      .send({ project_id: 'p1', file: 'a.py', cursor_line: 1, content: big, content_hash: 'h' });
+      .send({ project_id: p1, file: 'a.py', cursor_line: 1, content: big, content_hash: 'h' });
     expect(r.status).toBe(204);
     const row = db.prepare('SELECT content FROM live_presence WHERE student_id = ?').get(s1.id) as { content: string };
     expect(row.content.length).toBe(256 * 1024);
   });
 
-  it('stores session_id and clears it when omitted', async () => {
+  it('tags a real-project row with session_id only when a valid token is sent, and clears it when the token is dropped', async () => {
+    const p1 = mkProject(s1.id);
+    const { token, payload } = issueSessionToken(s1.id);
     await request(app).post('/api/live/presence').set(auth(s1.api_token))
-      .send({ project_id: 'p1', file: 'a.py', cursor_line: 1, session_id: 'sess-abc' });
+      .send({ project_id: p1, file: 'a.py', cursor_line: 1, token });
     let row = db.prepare('SELECT session_id FROM live_presence WHERE student_id = ?').get(s1.id) as { session_id: string | null };
-    expect(row.session_id).toBe('sess-abc');
+    expect(row.session_id).toBe(payload.sid);
+
+    // Leaving the session: client stops sending the token, row's session_id clears.
     await request(app).post('/api/live/presence').set(auth(s1.api_token))
-      .send({ project_id: 'p1', file: 'a.py', cursor_line: 1 });
+      .send({ project_id: p1, file: 'a.py', cursor_line: 1 });
     row = db.prepare('SELECT session_id FROM live_presence WHERE student_id = ?').get(s1.id) as { session_id: string | null };
     expect(row.session_id).toBeNull();
   });
@@ -153,8 +203,9 @@ describe('GET /api/live/group/:groupId/member/:studentId', () => {
     const g = await request(app).post('/api/groups').set(auth(teacher.api_token)).send({ name: 'G' });
     const groupId = g.body.id as string;
     await request(app).post('/api/groups/join').set(auth(s1.api_token)).send({ code: g.body.invite_code });
+    const p1 = mkProject(s1.id);
     await request(app).post('/api/live/presence').set(auth(s1.api_token))
-      .send({ project_id: 'p1', file: 'main.py', cursor_line: 7, content: 'x = 1', content_hash: 'h' });
+      .send({ project_id: p1, file: 'main.py', cursor_line: 7, content: 'x = 1', content_hash: 'h' });
     return groupId;
   }
 
@@ -186,27 +237,31 @@ describe('GET /api/live/group/:groupId/member/:studentId', () => {
 });
 
 describe('GET /api/live/session/:sid — symmetric vs classroom', () => {
-  // Peers self-register by stamping presence pings with the session id.
-  async function ping(who: { api_token: string }, sid: string, content: string) {
+  // Peers self-register by stamping presence pings with a verified session
+  // token, using the synthetic `session:<sid>` project key (no real project
+  // needed — this is how the pinger behaves for an unsaved/example buffer).
+  async function ping(who: { id: string; api_token: string }, sid: string, token: string, content: string) {
     await request(app).post('/api/live/presence').set(auth(who.api_token))
-      .send({ project_id: `proj-${sid}`, file: 'main.py', cursor_line: 2, content, content_hash: content, session_id: sid });
+      .send({ project_id: `session:${sid}`, file: 'main.py', cursor_line: 2, content, content_hash: content, token });
   }
 
   it('symmetric: any member reads any member; roster lists peers', async () => {
     const { token, payload } = issueSessionToken(s1.id); // no groupId ⇒ symmetric
-    await ping(s1, payload.sid, 's1 code');
-    await ping(s2, payload.sid, 's2 code');
+    await ping(s1, payload.sid, token, 's1 code');
+    await ping(s2, payload.sid, token, 's2 code');
 
     // s2 (joiner) reads s1 (peer) — allowed.
     const res = await request(app)
-      .get(`/api/live/session/${payload.sid}/member/${s1.id}?token=${encodeURIComponent(token)}`)
-      .set(auth(s2.api_token));
+      .get(`/api/live/session/${payload.sid}/member/${s1.id}`)
+      .set(auth(s2.api_token))
+      .set('X-Session-Token', token);
     expect(res.status).toBe(200);
     expect(res.body.content).toBe('s1 code');
 
     const roster = await request(app)
-      .get(`/api/live/session/${payload.sid}/roster?token=${encodeURIComponent(token)}`)
-      .set(auth(s2.api_token));
+      .get(`/api/live/session/${payload.sid}/roster`)
+      .set(auth(s2.api_token))
+      .set('X-Session-Token', token);
     expect(roster.status).toBe(200);
     expect(roster.body.members).toHaveLength(2);
     expect(roster.body.role).toBe('joiner');
@@ -216,46 +271,60 @@ describe('GET /api/live/session/:sid — symmetric vs classroom', () => {
     // groupId-bound token, starter = teacher.
     const g = await request(app).post('/api/groups').set(auth(teacher.api_token)).send({ name: 'G' });
     const { token, payload } = issueSessionToken(teacher.id, Date.now(), { groupId: g.body.id });
-    await ping(s1, payload.sid, 's1 code');
-    await ping(s2, payload.sid, 's2 code');
+    await ping(s1, payload.sid, token, 's1 code');
+    await ping(s2, payload.sid, token, 's2 code');
 
     // s1 (joiner) tries to read s2 (peer) — denied.
     const denied = await request(app)
-      .get(`/api/live/session/${payload.sid}/member/${s2.id}?token=${encodeURIComponent(token)}`)
-      .set(auth(s1.api_token));
+      .get(`/api/live/session/${payload.sid}/member/${s2.id}`)
+      .set(auth(s1.api_token))
+      .set('X-Session-Token', token);
     expect(denied.status).toBe(403);
 
     // s1 may still read their own buffer.
     const own = await request(app)
-      .get(`/api/live/session/${payload.sid}/member/${s1.id}?token=${encodeURIComponent(token)}`)
-      .set(auth(s1.api_token));
+      .get(`/api/live/session/${payload.sid}/member/${s1.id}`)
+      .set(auth(s1.api_token))
+      .set('X-Session-Token', token);
     expect(own.status).toBe(200);
     expect(own.body.content).toBe('s1 code');
 
     // The starter (teacher) reads any peer.
     const allowed = await request(app)
-      .get(`/api/live/session/${payload.sid}/member/${s2.id}?token=${encodeURIComponent(token)}`)
-      .set(auth(teacher.api_token));
+      .get(`/api/live/session/${payload.sid}/member/${s2.id}`)
+      .set(auth(teacher.api_token))
+      .set('X-Session-Token', token);
     expect(allowed.status).toBe(200);
     expect(allowed.body.content).toBe('s2 code');
 
     // A joiner's roster shows only themselves.
     const roster = await request(app)
-      .get(`/api/live/session/${payload.sid}/roster?token=${encodeURIComponent(token)}`)
-      .set(auth(s1.api_token));
+      .get(`/api/live/session/${payload.sid}/roster`)
+      .set(auth(s1.api_token))
+      .set('X-Session-Token', token);
     expect(roster.body.members).toHaveLength(1);
     expect(roster.body.members[0].student_id).toBe(s1.id);
   });
 
   it('401 without a token, 403 on session mismatch', async () => {
     const { token, payload } = issueSessionToken(s1.id);
-    await ping(s1, payload.sid, 'code');
+    await ping(s1, payload.sid, token, 'code');
     const noTok = await request(app).get(`/api/live/session/${payload.sid}/roster`).set(auth(s1.api_token));
     expect(noTok.status).toBe(401);
     const mismatch = await request(app)
-      .get(`/api/live/session/other-sid/roster?token=${encodeURIComponent(token)}`)
-      .set(auth(s1.api_token));
+      .get('/api/live/session/other-sid/roster')
+      .set(auth(s1.api_token))
+      .set('X-Session-Token', token);
     expect(mismatch.status).toBe(403);
+  });
+
+  it('no longer authenticates via the old ?token= query param', async () => {
+    const { token, payload } = issueSessionToken(s1.id);
+    await ping(s1, payload.sid, token, 'code');
+    const viaQuery = await request(app)
+      .get(`/api/live/session/${payload.sid}/roster?token=${encodeURIComponent(token)}`)
+      .set(auth(s1.api_token));
+    expect(viaQuery.status).toBe(401);
   });
 });
 
@@ -272,8 +341,9 @@ describe('GET /api/live/group/:groupId', () => {
   it('teacher sees each member with idle flag; members with no ping are idle', async () => {
     const groupId = await makeGroupWithMembers();
     // s1 has a fresh ping, s2 has none.
+    const p1 = mkProject(s1.id);
     await request(app).post('/api/live/presence').set(auth(s1.api_token))
-      .send({ project_id: 'p1', file: 'main.py', cursor_line: 4 });
+      .send({ project_id: p1, file: 'main.py', cursor_line: 4 });
 
     const res = await request(app).get(`/api/live/group/${groupId}`).set(auth(teacher.api_token));
     expect(res.status).toBe(200);
@@ -290,26 +360,29 @@ describe('GET /api/live/group/:groupId', () => {
   it('picks the most-recently-updated presence row per student across projects', async () => {
     const groupId = await makeGroupWithMembers();
     // Two projects for s1; second write wins in ORDER BY MAX(updated_at).
+    const pOld = mkProject(s1.id, 'old');
+    const pNew = mkProject(s1.id, 'new');
     await request(app).post('/api/live/presence').set(auth(s1.api_token))
-      .send({ project_id: 'p-old', file: 'old.py', cursor_line: 1 });
+      .send({ project_id: pOld, file: 'old.py', cursor_line: 1 });
     // Force a later timestamp by patching the row directly, since successive
     // requests in the same ms would tie.
     db.prepare('UPDATE live_presence SET updated_at = ? WHERE student_id = ? AND project_id = ?')
-      .run(Date.now() - 60_000, s1.id, 'p-old');
+      .run(Date.now() - 60_000, s1.id, pOld);
     await request(app).post('/api/live/presence').set(auth(s1.api_token))
-      .send({ project_id: 'p-new', file: 'new.py', cursor_line: 42 });
+      .send({ project_id: pNew, file: 'new.py', cursor_line: 42 });
 
     const res = await request(app).get(`/api/live/group/${groupId}`).set(auth(teacher.api_token));
     const alice = res.body.members.find((m: { student_name: string }) => m.student_name === 'Alice');
     expect(alice.file).toBe('new.py');
     expect(alice.cursor_line).toBe(42);
-    expect(alice.project_id).toBe('p-new');
+    expect(alice.project_id).toBe(pNew);
   });
 
   it('marks stale (>5 min) presence as idle', async () => {
     const groupId = await makeGroupWithMembers();
+    const p1 = mkProject(s1.id);
     await request(app).post('/api/live/presence').set(auth(s1.api_token))
-      .send({ project_id: 'p1', file: 'main.py', cursor_line: 1 });
+      .send({ project_id: p1, file: 'main.py', cursor_line: 1 });
     // Backdate 6 minutes.
     db.prepare('UPDATE live_presence SET updated_at = ? WHERE student_id = ?')
       .run(Date.now() - 6 * 60_000, s1.id);
@@ -333,5 +406,23 @@ describe('GET /api/live/group/:groupId', () => {
   it('404 for unknown group id', async () => {
     const res = await request(app).get(`/api/live/group/${uuidv4()}`).set(auth(teacher.api_token));
     expect(res.status).toBe(404);
+  });
+});
+
+describe('pruneStaleLivePresence', () => {
+  it('deletes rows past retention, keeps fresh ones', async () => {
+    const p1 = mkProject(s1.id);
+    const p2 = mkProject(s2.id);
+    await request(app).post('/api/live/presence').set(auth(s1.api_token))
+      .send({ project_id: p1, file: 'a.py', cursor_line: 1 });
+    await request(app).post('/api/live/presence').set(auth(s2.api_token))
+      .send({ project_id: p2, file: 'b.py', cursor_line: 1 });
+    db.prepare('UPDATE live_presence SET updated_at = ? WHERE student_id = ?')
+      .run(Date.now() - 2 * 24 * 60 * 60 * 1000, s1.id);
+
+    await pruneStaleLivePresence(24 * 60 * 60 * 1000);
+
+    const rows = db.prepare('SELECT student_id FROM live_presence').all() as { student_id: string }[];
+    expect(rows.map((r) => r.student_id)).toEqual([s2.id]);
   });
 });

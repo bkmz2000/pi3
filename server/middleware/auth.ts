@@ -59,7 +59,7 @@ async function resolveUser(req: Request): Promise<AuthUser | undefined> {
 }
 
 export async function authMiddleware(req: Request, res: Response, next: NextFunction): Promise<void> {
-  if (process.env.SKIP_AUTH === 'true') {
+  if (process.env.SKIP_AUTH === 'true' && process.env.NODE_ENV !== 'production') {
     req.user = { id: 'test-user', name: 'Test User', role: 'student' };
     next();
     return;
@@ -78,7 +78,7 @@ export async function authMiddleware(req: Request, res: Response, next: NextFunc
 // never rejects. Used by public-read endpoints that also want to count
 // authenticated views distinctly.
 export async function optionalAuthMiddleware(req: Request, _res: Response, next: NextFunction): Promise<void> {
-  if (process.env.SKIP_AUTH === 'true') {
+  if (process.env.SKIP_AUTH === 'true' && process.env.NODE_ENV !== 'production') {
     req.user = { id: 'test-user', name: 'Test User', role: 'student' };
     next();
     return;

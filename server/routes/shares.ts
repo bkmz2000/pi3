@@ -3,6 +3,9 @@ import { v4 as uuidv4 } from 'uuid';
 import { getClient } from '../db/index.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { getProjectAccess } from '../middleware/projectAuth.js';
+import { rateLimitPerUser } from '../middleware/rateLimitPerUser.js';
+
+const shareCreateLimit = rateLimitPerUser({ name: 'share-create', windowMs: 3600_000, max: 30 });
 
 interface ProjectShare {
   id: string;
@@ -30,7 +33,7 @@ export function createSharesRouter(): Router {
   const router = Router({ mergeParams: true });
   router.use(authMiddleware);
 
-  router.post('/', async (req: Request, res: Response): Promise<void> => {
+  router.post('/', shareCreateLimit, async (req: Request, res: Response): Promise<void> => {
     const projectId = req.params.id as string;
     const { username, user_id, role = 'viewer' } = req.body;
     const client = getClient();

@@ -11,7 +11,7 @@ import { encodeSheet } from "./sheetCodec";
 import { writeAnonStash } from "../utils/anonStash";
 import { EXAMPLE_SESSION_PREFIX, isExampleSessionId, exampleNameFromSessionId } from "./sessionId";
 
-export type PanelId = "projects" | "settings" | "docs" | "examples" | "problems" | null;
+export type PanelId = "projects" | "settings" | "docs" | "examples" | "problems" | "live" | null;
 
 export type {
   TilemapLayer,

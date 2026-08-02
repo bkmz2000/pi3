@@ -19,7 +19,9 @@ import flappyCode from './welcome/code/flappy.py.txt?raw';
 import snakeCode from './welcome/code/snake.py.txt?raw';
 import asteroidsCode from './welcome/code/asteroids.py.txt?raw';
 
-type StudentSlug = 'zara' | 'miguel' | 'priya' | 'ben';
+// Handles, not names — this is what the real teacher roster shows
+// (userLabel() renders @handle whenever one exists, which is always).
+type StudentSlug = 'fox' | 'koala' | 'heron' | 'gecko';
 interface Student {
   slug: StudentSlug;
   name: string;
@@ -32,7 +34,7 @@ interface Student {
 
 const STUDENTS: Student[] = [
   {
-    slug: 'zara', name: 'Zara', initial: 'Z', color: '#0e9aa7',
+    slug: 'fox', name: '@amberCleverFox', initial: 'A', color: '#0e9aa7',
     project: 'My Flappy Bird', file: 'flappy_bird.py',
     lines: [
       'from graphics import *',
@@ -56,7 +58,7 @@ const STUDENTS: Student[] = [
     ],
   },
   {
-    slug: 'miguel', name: 'Miguel', initial: 'M', color: '#f6a560',
+    slug: 'koala', name: '@jadeSleepyKoala', initial: 'J', color: '#f6a560',
     project: 'Snake Remix', file: 'snake.py',
     lines: [
       'from graphics import *',
@@ -78,7 +80,7 @@ const STUDENTS: Student[] = [
     ],
   },
   {
-    slug: 'priya', name: 'Priya', initial: 'P', color: '#7ec98f',
+    slug: 'heron', name: '@coralPluckyHeron', initial: 'C', color: '#7ec98f',
     project: 'Asteroids v2', file: 'asteroids.py',
     lines: [
       'from graphics import *',
@@ -100,7 +102,7 @@ const STUDENTS: Student[] = [
     ],
   },
   {
-    slug: 'ben', name: 'Ben', initial: 'B', color: '#d97a5a',
+    slug: 'gecko', name: '@indigoNimbleGecko', initial: 'I', color: '#d97a5a',
     project: 'Search Practice', file: 'binary_search.py',
     lines: [
       'from pi3 import debug',
@@ -483,7 +485,7 @@ function WhatStudentsBuild({ openProject }: { openProject: (file: string, source
         </div>
         <div className="card">
           <h3>{t('welcome.build.cardEcosystemTitle')}</h3>
-          <p><code>numpy</code>, <code>pygame</code>{t('welcome.build.cardEcosystemText')}</p>
+          <p><code>numpy</code>{t('welcome.build.cardEcosystemText')}</p>
         </div>
       </div>
     </section>
@@ -684,6 +686,7 @@ export function WelcomePage() {
           <li>{t('welcome.safety.bullet2')}</li>
           <li>{t('welcome.safety.bullet3')}</li>
           <li>{t('welcome.safety.bullet4')}</li>
+          <li>{t('welcome.safety.bullet5')}</li>
         </ul>
       </section>
 

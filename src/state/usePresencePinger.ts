@@ -4,7 +4,7 @@ import { postLivePresence } from './api';
 import { isExampleSessionId } from './sessionId';
 import { useLiveSession } from './useLiveSession';
 
-const PING_INTERVAL_MS = 3000;
+const PING_INTERVAL_MS = 1000;
 const IDLE_AFTER_MS = 60_000; // stop pinging if no keyboard/mouse for 60s
 
 // Cheap, dependency-free string hash (FNV-1a). Only used to detect whether the
@@ -20,7 +20,8 @@ function hashText(s: string): string {
 
 /**
  * Emits a live-presence ping (project id + current file + cursor line) to the
- * server every few seconds so the teacher dashboard can render a live roster.
+ * server about once a second so the teacher dashboard and the session roster
+ * read as live. The buffer itself rides along only when it changed.
  *
  * Runs only for real, saved projects (skips example sessions and anon work).
  * Silently no-ops on 401 or transient network failure — presence is best-effort
@@ -35,6 +36,7 @@ export function usePresencePinger(args: {
   const { projectId, currentFile, editorRef, loggedIn } = args;
   const lastActivity = useRef(0);
   const lastSentHash = useRef<string | null>(null);
+  const lastLine = useRef(1);
 
   // Track user activity so we don't spam the server while a tab is idle.
   useEffect(() => {
@@ -53,6 +55,7 @@ export function usePresencePinger(args: {
   // Reactive session id so joining/leaving a session re-runs the effect (a
   // session must broadcast even from an unsaved/example buffer).
   const sid = useLiveSession((s) => s.sid);
+  const sessionToken = useLiveSession((s) => s.token);
 
   useEffect(() => {
     if (!loggedIn) return;
@@ -75,6 +78,7 @@ export function usePresencePinger(args: {
       } catch {
         return;
       }
+      lastLine.current = line;
       // Send the current buffer only when it changed since the last ping
       // (skip-unchanged); the roster stays cheap and the server keeps the last
       // known content via COALESCE. session_id is always sent (null clears it).
@@ -88,6 +92,7 @@ export function usePresencePinger(args: {
         await postLivePresence(presenceProjectId, currentFile || 'main.py', line, {
           ...(changed ? { content: text, contentHash: hash } : {}),
           sessionId: sid,
+          sessionToken,
         });
       } catch {
         // best-effort; server may be offline or session expired
@@ -97,6 +102,17 @@ export function usePresencePinger(args: {
     // First ping immediately so the roster populates fast, then poll.
     void tick();
     const id = window.setInterval(() => { void tick(); }, PING_INTERVAL_MS);
-    return () => { cancelled = true; window.clearInterval(id); };
-  }, [projectId, currentFile, editorRef, loggedIn, sid]);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+      // Leaving a session has to clear the stamp explicitly. The synthetic
+      // `session:<sid>` row is never pinged again once sid goes away (the next
+      // effect run bails at `presenceProjectId`), so without this the leaver
+      // keeps showing up on their peers' roster until the row goes stale.
+      if (sid && presenceProjectId.startsWith('session:') && useLiveSession.getState().sid !== sid) {
+        void postLivePresence(presenceProjectId, currentFile || 'main.py', lastLine.current, { sessionId: null })
+          .catch(() => { /* best-effort */ });
+      }
+    };
+  }, [projectId, currentFile, editorRef, loggedIn, sid, sessionToken]);
 }

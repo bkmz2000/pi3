@@ -20,13 +20,16 @@ export default {
   collectCoverageFrom: ['server/**/*.ts'],
   // Ratchet floor seeded at real measured actuals. Server is the
   // strongest-covered layer; this stops it silently regressing. Only moves UP.
-  // Nudged after the live-code endpoints tier (live.ts ~95%).
+  // Re-seeded after the fable-audit fix pass (live-presence hardening,
+  // rate-limit buckets on comments/shares/teacher-problem writes, SKIP_AUTH
+  // prod gate, session-token-header tests) — floors had drifted well below
+  // actuals.
   coverageThreshold: {
     global: {
-      branches: 46,
-      functions: 70,
-      lines: 62,
-      statements: 62,
+      branches: 63,
+      functions: 80,
+      lines: 73,
+      statements: 71,
     },
   },
   coverageDirectory: 'coverage/server',

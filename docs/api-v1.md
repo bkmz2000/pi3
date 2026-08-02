@@ -51,6 +51,9 @@
 | `pop()` | Function | Restore the last saved transform |
 | `translate(x, y)` | Function | Shift the origin of following draws by (x, y) |
 | `rotate(angle)` | Function | Rotate following draws by `angle` radians around the origin |
+| `polyline(points)` | Function | One-shot immediate draw of an open multi-point line (not a `Shape` — no collision/`contains`) |
+| `polygon(points)` | Function | One-shot immediate draw of a closed filled region (not a `Shape`) |
+| `spline(points, tension=0.5)` | Function | One-shot immediate draw of a smooth curve through points (not a `Shape`) |
 | `Line(a, b, thickness=2)` | Class | Straight wall geometry: `segments`, `bounds`, `normal_at()`, `draw()`. First of the Shape family (Polygon/Spline follow) |
 | `Polygon(points, thickness=2)` | Class | Closed region geometry: `contains(point)`, closest-edge `normal_at(point)`, `segments`, `bounds`, filled `draw()` |
 | `Spline(points, closed=False, thickness=6)` | Class | Smooth cardinal curve; O(1) `add(point)` tail growth; `closed` toggles region/loop vs open curve; `contains`/`normal_at`/`bounce_of` |
@@ -60,6 +63,7 @@
 | `Shape.random(rect=None, n=1)` | Method | Random point(s) inside the shape (reject-sampled); `n=1` returns a Vector2, `n>1` a list. Raises `shapeRandomFailed` if it can't fit enough |
 | `Vector2.distance_to(shape)` | Method | Now also accepts a Line/Polygon/Spline — distance from the point to the shape's outline |
 | `Vector2.bounce_of(shape, at=None, restitution=1.0)` | Method | Reflect a velocity off a Shape's surface normal; `restitution` scales the bounced speed |
+| `show()` | Function | Paint everything drawn so far to the canvas, once — the still-picture counterpart of `run()`. Flushes and clears the pending draw-command buffer, applying any pending `size()` first. `turtle.done()` / `mainloop()` call it internally |
 
 ## Pattern-based error hints (Phase E)
 

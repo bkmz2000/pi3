@@ -6,12 +6,34 @@ import { Icon } from "./components/Icons";
 import { useEditor, isExampleSessionId } from "./state/IdeState";
 import { uploadProjectThumbnail } from "./state/api";
 import { clampIntoView, dragTo, fitScale } from "./canvasWindowGeometry";
+import { MeasureOverlay } from "./components/MeasureOverlay";
 
 export default function CanvasWindow() {
   const { t } = useTranslation();
   const theme = useThemeStore((s) => s.theme);
   const { attachCanvas, canvasActive, running, canvasWidth, canvasHeight, captureScreenshot, paused, speed, pause, resume, step, setGameSpeed, stepBack, stepFwd } = useRunner();
   const workerEpoch = useRunnerStore((s) => s.workerEpoch);
+  const canvasScale = useRunnerStore((s) => s.canvasScale);
+  const [measureActive, setMeasureActive] = useState(false);
+  const pausedByMeasureRef = useRef(false);
+
+  // Measuring against a moving frame is useless — freeze the program while
+  // the ruler is on, but only resume it on toggle-off if we're the one who
+  // paused it (respect a pause the user set before turning the ruler on).
+  useEffect(() => {
+    if (measureActive) {
+      if (running && !paused) {
+        pause();
+        pausedByMeasureRef.current = true;
+      } else {
+        pausedByMeasureRef.current = false;
+      }
+    } else if (pausedByMeasureRef.current) {
+      pausedByMeasureRef.current = false;
+      if (running && paused) resume();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [measureActive]);
   const frameHistory = useRunnerStore((s) => s.frameHistory);
   const scrubIndex = useRunnerStore((s) => s.scrubIndex);
   const projectId = useEditor((s) => s.currentProjectId);
@@ -291,6 +313,24 @@ export default function CanvasWindow() {
         )}
         <button
           type="button"
+          onClick={(e) => { e.stopPropagation(); setMeasureActive((v) => !v); }}
+          onPointerDown={(e) => e.stopPropagation()}
+          disabled={!canvasActive}
+          title={t('canvas.measure')}
+          style={{
+            all: 'unset',
+            cursor: canvasActive ? 'pointer' : 'default',
+            opacity: canvasActive ? 1 : 0.35,
+            width: 22, height: 22, borderRadius: 4,
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            color: theme.canvasTitleTxt,
+            background: measureActive ? 'rgba(255,220,0,0.22)' : 'transparent',
+          }}
+        >
+          <Icon name="line" size={13} color="currentColor" />
+        </button>
+        <button
+          type="button"
           onClick={(e) => { e.stopPropagation(); capture(); }}
           onPointerDown={(e) => e.stopPropagation()}
           disabled={!canvasActive || busy}
@@ -380,6 +420,15 @@ export default function CanvasWindow() {
             height: '100%',
             imageRendering: 'pixelated',
           }}
+        />
+        <MeasureOverlay
+          canvasRef={ref}
+          w={w}
+          h={h}
+          visualScale={visualScale}
+          canvasScale={canvasScale || 1}
+          active={measureActive}
+          theme={theme}
         />
         {scrubIndex !== null && frameHistory[scrubIndex] && (
           <>

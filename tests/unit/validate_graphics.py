@@ -537,6 +537,24 @@ test("ellipse(x,y,w,h) queues correctly", cmd() == ("ellipse", (5.0, 5.0, 20.0, 
 reset(); g.line(0, 0, 10, 10)
 test("line queues line cmd", cmd() == ("line", (0.0, 0.0, 10.0, 10.0)))
 
+reset(); g.line((0, 0), (10, 10))
+test("line(p1, p2) with tuples queues the same cmd", cmd() == ("line", (0.0, 0.0, 10.0, 10.0)))
+
+reset(); g.line(g.Vector2(1, 2), g.Vector2(3, 4))
+test("line(p1, p2) with Vector2 queues the same cmd", cmd() == ("line", (1.0, 2.0, 3.0, 4.0)))
+
+try:
+    g.line(1, 2)
+    test("line(number, number) raises FriendlyError", False)
+except FriendlyError as e:
+    test("line(number, number) raises FriendlyError", e.message_key == "friendlyError.apiMisuse.lineNeedsPointsOrCoords")
+
+try:
+    g.line(0, 0, 10)
+    test("line(x1, y1, x2) missing y2 raises FriendlyError", False)
+except FriendlyError as e:
+    test("line(x1, y1, x2) missing y2 raises FriendlyError", e.message_key == "friendlyError.apiMisuse.lineNeedsPointsOrCoords")
+
 reset(); g.point(5, 7)
 test("point queues point cmd", cmd() == ("point", (5.0, 7.0)))
 

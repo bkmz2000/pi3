@@ -608,7 +608,25 @@ def ellipse(x, y, w, h=None) -> None:
     _state._draw_commands.append(("ellipse", (float(x), float(y), float(w), float(h))))
 
 
-def line(x1, y1, x2, y2) -> None:
+def _is_point_like(v) -> bool:
+    return isinstance(v, Vector2) or (isinstance(v, (tuple, list)) and len(v) == 2)
+
+
+def line(x1, y1, x2=None, y2=None) -> None:
+    """line(x1, y1, x2, y2) or line(p1, p2) with (x, y) tuples / Vector2."""
+    if x2 is None and y2 is None:
+        if not (_is_point_like(x1) and _is_point_like(y1)):
+            raise FriendlyError(
+                "friendlyError.apiMisuse.lineNeedsPointsOrCoords",
+                {"args": ", ".join(repr(v) for v in (x1, y1))},
+            )
+        p1, p2 = Vector2(x1), Vector2(y1)
+        x1, y1, x2, y2 = p1.x, p1.y, p2.x, p2.y
+    elif x2 is None or y2 is None:
+        raise FriendlyError(
+            "friendlyError.apiMisuse.lineNeedsPointsOrCoords",
+            {"args": ", ".join(repr(v) for v in (x1, y1, x2, y2) if v is not None)},
+        )
     _state._draw_commands.append(("line", (float(x1), float(y1), float(x2), float(y2))))
 
 
@@ -957,6 +975,33 @@ def watch(label, value=_WATCH_SENTINEL) -> None:
         _state._watches[str(label)] = repr(value)
 
 
+def _flush_watches(frame: int) -> None:
+    """Push pinned watch() values to JS (throttled to once per 100ms).
+
+    Values persist in `_state._watches` for the life of the run — pinned,
+    not per-tick — so a label stays visible even on a frame that doesn't
+    call watch() for it again. Called once per "frame": a canvas tick or a
+    pi3.debug.show() call are both natural frame boundaries for this
+    purpose. `_state._watches` is reset only at the start of a new run
+    (see worker.ts).
+    """
+    if _state._watches:
+        try:
+            import js as _js
+            _now = _js.Date.now()
+            if _now - _state._watch_last_sent >= 100:
+                import json as _json
+                from js import _ide_post_watch_values
+                _ide_post_watch_values(_json.dumps({
+                    "values": [{"label": k, "value": v}
+                               for k, v in _state._watches.items()],
+                    "frame": frame,
+                }))
+                _state._watch_last_sent = _now
+        except Exception:
+            pass
+
+
 # === RUN ===
 
 
@@ -1007,22 +1052,7 @@ def _tick(main, my_generation):
         _ide_flush_draw_commands(to_js(_state._draw_commands), frame_count)
         _state._draw_commands.clear()
 
-        if _state._watches:
-            try:
-                import js as _js
-                _now = _js.Date.now()
-                if _now - _state._watch_last_sent >= 100:
-                    import json as _json
-                    from js import _ide_post_watch_values
-                    _ide_post_watch_values(_json.dumps({
-                        "values": [{"label": k, "value": v}
-                                   for k, v in _state._watches.items()],
-                        "frame": frame_count,
-                    }))
-                    _state._watch_last_sent = _now
-            except Exception:
-                pass
-        _state._watches.clear()
+        _flush_watches(frame_count)
 
         frame_count += 1
 

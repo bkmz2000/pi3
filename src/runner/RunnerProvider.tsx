@@ -28,6 +28,7 @@ import Pi3Testing from "../assets/python/pi3/testing.py?raw";
 import DebugTransform from "../assets/python/debug_transform.py?raw";
 import { libraryUrlMap, librarySoundUrlMap } from "../state/assets";
 import { createRunnerWorker } from "./workerFactory";
+import { screenToBufferPoint } from "../canvasWindowGeometry";
 
 type OutputLine = {
   kind: "stdout" | "stderr";
@@ -592,17 +593,13 @@ function wireEvents(canvas: HTMLCanvasElement): () => void {
 
   const onMouseMove = (e: MouseEvent) => {
     const s = useRunnerStore.getState().canvasScale || 1;
-    const r = canvas.getBoundingClientRect();
-    send("mousemove", { x: (e.clientX - r.left) * s, y: (e.clientY - r.top) * s });
+    const p = screenToBufferPoint(e.clientX, e.clientY, canvas.getBoundingClientRect(), s);
+    send("mousemove", p);
   };
   const onMouseDown = (e: MouseEvent) => {
     const s = useRunnerStore.getState().canvasScale || 1;
-    const r = canvas.getBoundingClientRect();
-    send("mousedown", {
-      x: (e.clientX - r.left) * s,
-      y: (e.clientY - r.top) * s,
-      button: e.button,
-    });
+    const p = screenToBufferPoint(e.clientX, e.clientY, canvas.getBoundingClientRect(), s);
+    send("mousedown", { ...p, button: e.button });
   };
   const onMouseUp = (e: MouseEvent) => send("mouseup", { button: e.button });
   const onKeyDown = (e: KeyboardEvent) =>

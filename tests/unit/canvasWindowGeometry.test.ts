@@ -4,7 +4,7 @@
  * viewport, or grown past it by a `size()` call in student code.
  */
 import { describe, test, expect } from '@jest/globals';
-import { clampIntoView, dragTo, fitScale } from '../../src/canvasWindowGeometry';
+import { clampIntoView, dragTo, fitScale, screenToBufferPoint, bearingDegrees } from '../../src/canvasWindowGeometry';
 
 describe('clampIntoView', () => {
   test('returns the same offset when the window is fully on screen', () => {
@@ -65,5 +65,34 @@ describe('fitScale', () => {
 
   test('uses the tighter of the two limits', () => {
     expect(fitScale(1000, 1000, 500, 400)).toBeCloseTo(0.289);
+  });
+});
+
+describe('screenToBufferPoint', () => {
+  test('subtracts the rect origin and applies the buffer/display scale', () => {
+    expect(screenToBufferPoint(110, 220, { top: 20, left: 10 }, 2)).toEqual({ x: 200, y: 400 });
+  });
+
+  test('is a no-op at scale 1 with a zero-origin rect', () => {
+    expect(screenToBufferPoint(50, 75, { top: 0, left: 0 }, 1)).toEqual({ x: 50, y: 75 });
+  });
+});
+
+describe('bearingDegrees', () => {
+  // Matches actor.angle / Polar(): 0° = north (up, -y), clockwise positive.
+  test('straight up is 0 degrees', () => {
+    expect(bearingDegrees({ x: 0, y: 0 }, { x: 0, y: -10 })).toBeCloseTo(0);
+  });
+
+  test('straight right is 90 degrees', () => {
+    expect(bearingDegrees({ x: 0, y: 0 }, { x: 10, y: 0 })).toBeCloseTo(90);
+  });
+
+  test('straight down is 180 degrees', () => {
+    expect(bearingDegrees({ x: 0, y: 0 }, { x: 0, y: 10 })).toBeCloseTo(180);
+  });
+
+  test('straight left is 270 degrees', () => {
+    expect(bearingDegrees({ x: 0, y: 0 }, { x: -10, y: 0 })).toBeCloseTo(270);
   });
 });

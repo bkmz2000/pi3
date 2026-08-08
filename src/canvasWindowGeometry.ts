@@ -59,3 +59,28 @@ export function fitScale(w: number, h: number, viewportW: number, viewportH: num
   const hs = h > maxH ? maxH / h : 1;
   return Math.min(ws, hs, 1);
 }
+
+/**
+ * Map a client (viewport) point to the canvas's own buffer-pixel space —
+ * the same coordinates the Python graphics API sees. `rect` is the live
+ * canvas element's bounding box; `scale` is the buffer-size/displayed-size
+ * ratio already tracked in the runner store.
+ */
+export function screenToBufferPoint(
+  clientX: number,
+  clientY: number,
+  rect: Box,
+  scale: number,
+): Offset {
+  return { x: (clientX - rect.left) * scale, y: (clientY - rect.top) * scale };
+}
+
+/**
+ * Bearing in degrees from `a` to `b`, in the same convention as
+ * `actor.angle` / `Polar()`: 0° = north (up, -y), clockwise positive.
+ */
+export function bearingDegrees(a: Offset, b: Offset): number {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  return ((Math.atan2(dx, -dy) * 180) / Math.PI + 360) % 360;
+}

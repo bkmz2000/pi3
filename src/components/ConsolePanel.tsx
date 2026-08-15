@@ -385,11 +385,25 @@ export default function ConsolePanel({ onRight = false }: { onRight?: boolean })
   const { output, inputPrompt, respondToInput, clear, running, watches } = useRunner();
   const scrubIndex = useRunnerStore((s) => s.scrubIndex);
   const frameHistory = useRunnerStore((s) => s.frameHistory);
-  const rewinding = scrubIndex !== null;
-  const shownWatches: WatchEntry[] = rewinding && frameHistory[scrubIndex]
-    ? frameHistory[scrubIndex].watches.map((w) => ({ ...w, changedAt: 0 }))
-    : watches;
+  const debugScrubIndex = useRunnerStore((s) => s.debugScrubIndex);
+  const debugFrames = useRunnerStore((s) => s.debugFrames);
+  // Mirror DebugPanel's own default (`scrubIndex ?? total - 1`): as soon as
+  // pi3.debug frames exist, the array viz shows the latest one even before
+  // the user ever touches the slider. The watch panel needs to track that
+  // same implicit position, not just explicit manual scrubs, or it shows
+  // stale live-push data while the array is already on the final frame.
+  const debugIdx = debugFrames.length > 0 ? debugScrubIndex ?? debugFrames.length - 1 : null;
+  const rewinding = scrubIndex !== null || debugScrubIndex !== null;
+  const shownWatches: WatchEntry[] =
+    scrubIndex !== null && frameHistory[scrubIndex]
+      ? frameHistory[scrubIndex].watches.map((w) => ({ ...w, changedAt: 0 }))
+      : debugIdx !== null && debugFrames[debugIdx]
+      ? (debugFrames[debugIdx].watches ?? []).map((w) => ({ ...w, changedAt: 0 }))
+      : watches;
   const [inputValue, setInputValue] = useState("");
+  const [queuedLines, setQueuedLines] = useState<string[]>([]);
+  const queuedLinesRef = useRef<string[]>([]);
+  queuedLinesRef.current = queuedLines;
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const [size, setSize] = useState(() => onRight
@@ -401,9 +415,35 @@ export default function ConsolePanel({ onRight = false }: { onRight?: boolean })
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, [output, inputPrompt]);
 
+  // A fresh run must not inherit a paste queue left over from a previous run.
   useEffect(() => {
-    if (inputPrompt !== null) inputRef.current?.focus();
-  }, [inputPrompt]);
+    if (running) setQueuedLines([]);
+  }, [running]);
+
+  // Deliberately keyed on inputPrompt alone: a fresh prompt should auto-drain
+  // the queue, but a paste that merely populates the queue (leaving the
+  // current prompt still pending, waiting for the user's own Enter on the
+  // pre-filled first line) must not re-trigger this.
+  useEffect(() => {
+    if (inputPrompt === null) return;
+    if (queuedLinesRef.current.length > 0) {
+      const [next, ...rest] = queuedLinesRef.current;
+      setQueuedLines(rest);
+      respondToInput(next);
+      return;
+    }
+    inputRef.current?.focus();
+  }, [inputPrompt, respondToInput]);
+
+  const handlePasteInput = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    const text = e.clipboardData.getData("text").replace(/\r\n/g, "\n");
+    if (!text.includes("\n")) return; // let the browser handle single-line paste normally
+    e.preventDefault();
+    const lines = text.split("\n").filter((_, i, arr) => !(i === arr.length - 1 && arr[i] === ""));
+    if (lines.length === 0) return;
+    setInputValue(lines[0]);
+    setQueuedLines(lines.slice(1));
+  };
 
   const submit = () => {
     if (inputPrompt === null) return;
@@ -634,6 +674,7 @@ export default function ConsolePanel({ onRight = false }: { onRight?: boolean })
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") submit(); }}
+              onPaste={handlePasteInput}
               // Small by default; grow with what's typed (capped by the row).
               size={Math.max(inputValue.length + 1, 4)}
               style={{

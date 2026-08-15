@@ -1,38 +1,26 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useRunnerStore } from "../runner/RunnerProvider";
 import type { SlotSnapshot, DebugFrame, DebugSelectionAtom } from "../runner/WorkerInterface";
-import { useThemeStore } from "../state/useTheme";
+import { useThemeStore, type Theme } from "../state/useTheme";
 import { Icon } from "./Icons";
+import { hexToRgb, rgbToHex } from "../sheetPixels";
+import { usePointerScrub } from "../hooks/usePointerScrub";
 
-const CELL_MUTED_BG = "#3a5a5a";
-const CELL_MUTED_FG = "#d7ece9";
-const CELL_INK = "#0a1414";
-const PANEL_BG = "#0a3d44";
-const CHROME_BG = "#11444b";
-const CHROME_FG = "#d7ece9";
-const CHROME_MUTE = "#9fc4c0";
-
+// Canonical Woodblock/Sweetie16 palette — must stay in sync with Colors.*
+// in graphics/_color.py and src/palette.ts. Theme-independent: these are
+// the student's debug.array(red=..., green=...) colors, not app chrome.
 const HIGHLIGHT: Record<string, string> = {
-  red: "#d97a5a",
-  green: "#7ec98f",
-  blue: "#7ba5d4",
-  yellow: "#e8c66a",
-  cyan: "#7fc4c9",
-  gray: "#8fa5a5",
+  red: "#b13e53",
+  green: "#38b764",
+  blue: "#3b5dc9",
+  yellow: "#ffcd75",
+  cyan: "#73eff7",
+  gray: "#566c86",
 };
 
 function pickColor(color: string): string | null {
   return HIGHLIGHT[color] ?? null;
-}
-
-function hexToRgb(hex: string): [number, number, number] {
-  const s = hex.replace("#", "");
-  return [parseInt(s.slice(0, 2), 16), parseInt(s.slice(2, 4), 16), parseInt(s.slice(4, 6), 16)];
-}
-
-function rgbToHex(r: number, g: number, b: number): string {
-  const h = (n: number) => Math.max(0, Math.min(255, Math.round(n))).toString(16).padStart(2, "0");
-  return `#${h(r)}${h(g)}${h(b)}`;
 }
 
 // HSL L -= 18% while preserving hue — used when a cell has same-color fill+stroke,
@@ -66,6 +54,18 @@ function darkerShade(hex: string): string {
   else [rp, gp, bp] = [c, 0, x];
   const m = newL - c / 2;
   return rgbToHex((rp + m) * 255, (gp + m) * 255, (bp + m) * 255);
+}
+
+// Fixed ink colors for text drawn on a saturated HIGHLIGHT swatch —
+// theme-independent, same reasoning as HIGHLIGHT itself: the swatch color
+// doesn't change with the app theme, so its contrasting ink shouldn't either.
+const INK_DARK = "#0a1414";
+const INK_LIGHT = "#f4f4f4";
+
+function readableInk(hex: string): string {
+  const [r, g, b] = hexToRgb(hex);
+  const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  return luminance > 140 ? INK_DARK : INK_LIGHT;
 }
 
 type ColorPick = { fill: string | null; stroke: string | null };
@@ -121,15 +121,16 @@ function pickForGrid(
   return { fill: fillColor, stroke: strokeColor };
 }
 
-function Cell({ pick, strokeWidth, children, size = 21, fresh = true }: {
+function Cell({ pick, strokeWidth, children, size = 21, fresh = true, theme }: {
   pick: ColorPick;
   strokeWidth: number;
   children: React.ReactNode;
   size?: number;
   fresh?: boolean;
+  theme: Theme;
 }) {
-  const background = pick.fill ?? CELL_MUTED_BG;
-  const color = pick.fill ? CELL_INK : CELL_MUTED_FG;
+  const background = pick.fill ?? theme.chip;
+  const color = pick.fill ? readableInk(pick.fill) : theme.consoleTxtMute;
   const shadow = pick.stroke ? `inset 0 0 0 ${strokeWidth}px ${pick.stroke}` : undefined;
   return (
     <div
@@ -165,7 +166,7 @@ function ScrollTrack({ children }: { children: React.ReactNode }) {
   );
 }
 
-function Array1DRenderer({ slot }: { slot: SlotSnapshot }) {
+function Array1DRenderer({ slot, theme }: { slot: SlotSnapshot; theme: Theme }) {
   const items = Array.isArray(slot.data) ? (slot.data as unknown[]) : [slot.data];
   const fills = slot.highlights;
   const strokes = slot.strokes ?? {};
@@ -174,7 +175,7 @@ function Array1DRenderer({ slot }: { slot: SlotSnapshot }) {
     <ScrollTrack>
       <div style={{ display: "flex", gap: 3, padding: "0 2px" }}>
         {items.map((item, i) => (
-          <Cell key={i} pick={pickFor1D(i, fills, strokes)} strokeWidth={sw} fresh={slot.fresh}>
+          <Cell key={i} pick={pickFor1D(i, fills, strokes)} strokeWidth={sw} fresh={slot.fresh} theme={theme}>
             {String(item)}
           </Cell>
         ))}
@@ -183,7 +184,7 @@ function Array1DRenderer({ slot }: { slot: SlotSnapshot }) {
   );
 }
 
-function GridRenderer({ slot }: { slot: SlotSnapshot }) {
+function GridRenderer({ slot, theme }: { slot: SlotSnapshot; theme: Theme }) {
   const rows = Array.isArray(slot.data) ? (slot.data as unknown[][]) : [];
   const fills = slot.highlights;
   const strokes = slot.strokes ?? {};
@@ -200,6 +201,7 @@ function GridRenderer({ slot }: { slot: SlotSnapshot }) {
                 strokeWidth={sw}
                 fresh={slot.fresh}
                 size={24}
+                theme={theme}
               >
                 {String(cellVal)}
               </Cell>
@@ -211,7 +213,7 @@ function GridRenderer({ slot }: { slot: SlotSnapshot }) {
   );
 }
 
-function TextRenderer({ slot }: { slot: SlotSnapshot }) {
+function TextRenderer({ slot, theme }: { slot: SlotSnapshot; theme: Theme }) {
   const s = String(slot.data);
   const fills = slot.highlights;
   const strokes = slot.strokes ?? {};
@@ -220,7 +222,7 @@ function TextRenderer({ slot }: { slot: SlotSnapshot }) {
     <ScrollTrack>
       <div style={{ display: "flex", gap: 2, padding: "0 2px" }}>
         {s.split("").map((ch, i) => (
-          <Cell key={i} pick={pickFor1D(i, fills, strokes)} strokeWidth={sw} fresh={slot.fresh} size={18}>
+          <Cell key={i} pick={pickFor1D(i, fills, strokes)} strokeWidth={sw} fresh={slot.fresh} size={18} theme={theme}>
             {ch === " " ? " " : ch}
           </Cell>
         ))}
@@ -260,7 +262,7 @@ function LegendSwatch({ fill, stroke }: { fill: string | null; stroke: string | 
   );
 }
 
-function Legend({ slot }: { slot: SlotSnapshot }) {
+function Legend({ slot, theme }: { slot: SlotSnapshot; theme: Theme }) {
   const fills = slot.highlights;
   const strokes = slot.strokes ?? {};
   const legend = slot.legend ?? {};
@@ -277,7 +279,7 @@ function Legend({ slot }: { slot: SlotSnapshot }) {
       style={{
         marginTop: 8,
         fontSize: 11,
-        color: CHROME_MUTE,
+        color: theme.consoleTxtMute,
         fontFamily: "'JetBrains Mono', ui-monospace, monospace",
         display: "flex",
         gap: 14,
@@ -303,7 +305,7 @@ function Legend({ slot }: { slot: SlotSnapshot }) {
   );
 }
 
-function SlotTrack({ slot }: { slot: SlotSnapshot }) {
+function SlotTrack({ slot, theme }: { slot: SlotSnapshot; theme: Theme }) {
   const primaryLabel = Object.values(slot.labels ?? {})[0];
   return (
     <div style={{ marginBottom: 14, display: "flex", flexDirection: "column", alignItems: "center" }}>
@@ -311,23 +313,23 @@ function SlotTrack({ slot }: { slot: SlotSnapshot }) {
         style={{
           fontFamily: "'JetBrains Mono', ui-monospace, monospace",
           fontSize: 11,
-          color: CHROME_MUTE,
+          color: theme.consoleTxtMute,
           marginBottom: 6,
           display: "flex",
           gap: 8,
           justifyContent: "center",
         }}
       >
-        {primaryLabel && <span style={{ color: CHROME_FG, fontWeight: 600 }}>{primaryLabel}</span>}
+        {primaryLabel && <span style={{ color: theme.consoleTxt, fontWeight: 600 }}>{primaryLabel}</span>}
         <span style={{ opacity: 0.6 }}>line {slot.line}</span>
         {!slot.fresh && <span style={{ opacity: 0.6 }}>(stale)</span>}
       </div>
       {(slot.kind === "array" || slot.kind === "stack" || slot.kind === "queue" || slot.kind === "set") && (
-        <Array1DRenderer slot={slot} />
+        <Array1DRenderer slot={slot} theme={theme} />
       )}
-      {slot.kind === "grid" && <GridRenderer slot={slot} />}
-      {slot.kind === "text" && <TextRenderer slot={slot} />}
-      <Legend slot={slot} />
+      {slot.kind === "grid" && <GridRenderer slot={slot} theme={theme} />}
+      {slot.kind === "text" && <TextRenderer slot={slot} theme={theme} />}
+      <Legend slot={slot} theme={theme} />
     </div>
   );
 }
@@ -336,37 +338,14 @@ function Timeline({
   current,
   total,
   onChange,
+  theme,
 }: {
   current: number;
   total: number;
   onChange: (idx: number) => void;
+  theme: Theme;
 }) {
-  const trackRef = useRef<HTMLDivElement>(null);
-  const dragging = useRef(false);
-
-  const posToFrame = (clientX: number): number => {
-    const el = trackRef.current;
-    if (!el || total <= 1) return 0;
-    const rect = el.getBoundingClientRect();
-    const t = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-    return Math.round(t * (total - 1));
-  };
-
-  const onPointerDown = (e: React.PointerEvent) => {
-    dragging.current = true;
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-    onChange(posToFrame(e.clientX));
-  };
-  const onPointerMove = (e: React.PointerEvent) => {
-    if (!dragging.current) return;
-    onChange(posToFrame(e.clientX));
-  };
-  const onPointerUp = (e: React.PointerEvent) => {
-    dragging.current = false;
-    try {
-      (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
-    } catch { /* ignore */ }
-  };
+  const { trackRef, onPointerDown, onPointerMove, onPointerUp } = usePointerScrub<HTMLDivElement>(total, onChange);
 
   const pct = total <= 1 ? 0 : (current / (total - 1)) * 100;
   const thumbSize = 14;
@@ -395,7 +374,7 @@ function Timeline({
           right: 0,
           top: `calc(50% - ${trackH / 2}px)`,
           height: trackH,
-          background: "rgba(215,236,233,0.15)",
+          background: theme.consoleBorder,
           borderRadius: trackH,
         }}
       />
@@ -413,19 +392,19 @@ function Timeline({
       />
       {/* Frame ticks */}
       {total <= 40 && Array.from({ length: total }).map((_, i) => {
-        const t = total <= 1 ? 0 : (i / (total - 1)) * 100;
+        const pct = total <= 1 ? 0 : (i / (total - 1)) * 100;
         return (
           <div
             key={i}
             style={{
               position: "absolute",
-              left: `${t}%`,
+              left: `${pct}%`,
               top: `calc(50% - 2px)`,
               width: 4,
               height: 4,
               marginLeft: -2,
               borderRadius: 4,
-              background: i <= current ? HIGHLIGHT.green : "rgba(215,236,233,0.3)",
+              background: i <= current ? HIGHLIGHT.green : theme.consoleBorder,
             }}
           />
         );
@@ -441,7 +420,7 @@ function Timeline({
           marginLeft: -thumbSize / 2,
           borderRadius: "50%",
           background: HIGHLIGHT.green,
-          border: `2px solid ${CHROME_FG}`,
+          border: `2px solid ${theme.consoleTxt}`,
           boxShadow: "0 1px 3px rgba(0,0,0,0.4)",
         }}
       />
@@ -454,11 +433,13 @@ function ControlButton({
   disabled,
   title,
   children,
+  theme,
 }: {
   onClick: () => void;
   disabled?: boolean;
   title: string;
   children: React.ReactNode;
+  theme: Theme;
 }) {
   return (
     <button
@@ -466,9 +447,9 @@ function ControlButton({
       disabled={disabled}
       title={title}
       style={{
-        background: CHROME_BG,
-        color: CHROME_FG,
-        border: "1px solid rgba(215,236,233,0.2)",
+        background: theme.chip,
+        color: theme.consoleTxt,
+        border: `1px solid ${theme.consoleBorder}`,
         borderRadius: 2,
         width: 32,
         height: 28,
@@ -488,6 +469,7 @@ function ControlButton({
 }
 
 export default function DebugPanel() {
+  const { t } = useTranslation();
   const theme = useThemeStore((s) => s.theme);
   const debugFrames = useRunnerStore((s) => s.debugFrames);
   const scrubIndex = useRunnerStore((s) => s.debugScrubIndex);
@@ -525,7 +507,7 @@ export default function DebugPanel() {
   return (
     <div
       style={{
-        background: PANEL_BG,
+        background: theme.consoleBg,
         borderBottom: `1px solid ${theme.consoleBorder}`,
         padding: "14px 16px",
         flex: "none",
@@ -545,7 +527,7 @@ export default function DebugPanel() {
         {/* Row 1 — array / grid / text renderers per slot */}
         {frame.slots.map((slot) => (
           <div key={`${slot.filename}:${slot.line}`} style={{ width: "100%" }}>
-            <SlotTrack slot={slot} />
+            <SlotTrack slot={slot} theme={theme} />
           </div>
         ))}
 
@@ -566,12 +548,13 @@ export default function DebugPanel() {
               setPlaying(false);
               debugScrubTo(n);
             }}
+            theme={theme}
           />
           <span
             style={{
               fontFamily: "'JetBrains Mono', ui-monospace, monospace",
               fontSize: 11,
-              color: CHROME_MUTE,
+              color: theme.consoleTxtMute,
               whiteSpace: "nowrap",
               minWidth: 46,
               textAlign: "right",
@@ -583,7 +566,7 @@ export default function DebugPanel() {
 
         {/* Row 3 — buttons centered */}
         <div style={{ display: "flex", justifyContent: "center", gap: 8 }}>
-          <ControlButton onClick={() => step(-1)} disabled={idx === 0} title="Previous frame">
+          <ControlButton onClick={() => step(-1)} disabled={idx === 0} title={t('frameControls.previousFrame')} theme={theme}>
             <Icon name="step-back" size={14} />
           </ControlButton>
           <ControlButton
@@ -591,11 +574,12 @@ export default function DebugPanel() {
               if (atEnd) debugScrubTo(0);
               setPlaying((p) => !p);
             }}
-            title="Play / pause"
+            title={t('frameControls.playPause')}
+            theme={theme}
           >
             <Icon name={playing ? "pause" : "play"} size={14} />
           </ControlButton>
-          <ControlButton onClick={() => step(1)} disabled={atEnd} title="Next frame">
+          <ControlButton onClick={() => step(1)} disabled={atEnd} title={t('frameControls.nextFrame')} theme={theme}>
             <Icon name="step-fwd" size={14} />
           </ControlButton>
         </div>

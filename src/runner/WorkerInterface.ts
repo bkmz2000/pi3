@@ -161,6 +161,7 @@ export type SlotSnapshot = {
 
 export type DebugFrame = {
   index: number;
+  watches?: { label: string; value: string }[];
   slots: SlotSnapshot[];
 };
 

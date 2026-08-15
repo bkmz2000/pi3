@@ -9,6 +9,7 @@ import { foldGutter, codeFolding } from '@codemirror/language';
 
 import { useEditor } from '../state/IdeState';
 import { SafeLink } from '../components/SafeLink';
+import { usePointerScrub } from '../hooks/usePointerScrub';
 import { WELCOME_CSS, TopBar, IconOpen } from './welcome/shared';
 
 import spiralCode from './welcome/code/spiral.py.txt?raw';
@@ -277,36 +278,18 @@ function IconPause() {
   );
 }
 function DebugTimeline({ current, total, onChange }: { current: number; total: number; onChange: (n: number) => void }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const dragging = useRef(false);
-
-  const posToFrame = (clientX: number): number => {
-    const el = ref.current;
-    if (!el || total <= 1) return 0;
-    const rect = el.getBoundingClientRect();
-    const t = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-    return Math.round(t * (total - 1));
-  };
+  const { trackRef, onPointerDown, onPointerMove, onPointerUp } = usePointerScrub<HTMLDivElement>(total, onChange);
 
   const pct = total <= 1 ? 0 : (current / (total - 1)) * 100;
 
   return (
     <div
-      ref={ref}
+      ref={trackRef}
       className="debug-timeline"
-      onPointerDown={(e) => {
-        dragging.current = true;
-        (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-        onChange(posToFrame(e.clientX));
-      }}
-      onPointerMove={(e) => {
-        if (!dragging.current) return;
-        onChange(posToFrame(e.clientX));
-      }}
-      onPointerUp={(e) => {
-        dragging.current = false;
-        try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch { /* ignore */ }
-      }}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerCancel={onPointerUp}
     >
       <div className="track" />
       <div className="fill" style={{ width: `${pct}%` }} />
@@ -326,6 +309,7 @@ function DebugTimeline({ current, total, onChange }: { current: number; total: n
 }
 
 function DebugScrubber() {
+  const { t } = useTranslation();
   const [frame, setFrame] = useState(0);
   const [playing, setPlaying] = useState(false);
 
@@ -358,9 +342,9 @@ function DebugScrubber() {
         })}
       </div>
       <div className="debug-legend">
-        <span><span className="sw red" /> search window</span>
-        <span><span className="sw green" /> mid</span>
-        <span><span className="sw stroke-blue" /> lo, hi</span>
+        <span><span className="sw red" /> {t('welcome.debugDemo.searchWindow')}</span>
+        <span><span className="sw green" /> {t('welcome.debugDemo.mid')}</span>
+        <span><span className="sw stroke-blue" /> {t('welcome.debugDemo.loHi')}</span>
       </div>
       <div className="debug-timeline-row">
         <DebugTimeline
@@ -371,17 +355,17 @@ function DebugScrubber() {
         <span className="label">{frame + 1} / {DEBUG_FRAMES.length}</span>
       </div>
       <div className="debug-controls">
-        <button onClick={() => step(-1)} disabled={frame === 0} title="Previous frame"><IconStepBack /></button>
+        <button onClick={() => step(-1)} disabled={frame === 0} title={t('frameControls.previousFrame')}><IconStepBack /></button>
         <button
           onClick={() => {
             if (atEnd) setFrame(0);
             setPlaying((p) => !p);
           }}
-          title="Play / pause"
+          title={t('frameControls.playPause')}
         >
           {playing ? <IconPause /> : <IconPlay />}
         </button>
-        <button onClick={() => step(1)} disabled={atEnd} title="Next frame"><IconStepFwd /></button>
+        <button onClick={() => step(1)} disabled={atEnd} title={t('frameControls.nextFrame')}><IconStepFwd /></button>
       </div>
     </div>
   );

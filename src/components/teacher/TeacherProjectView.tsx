@@ -5,7 +5,7 @@ import { python } from '@codemirror/lang-python';
 import { EditorState } from '@codemirror/state';
 import { EditorView, lineNumbers } from '@codemirror/view';
 import { indentUnit } from '@codemirror/language';
-import { githubLight, githubDark } from '@uiw/codemirror-theme-github';
+import { getCmTheme } from '../../editor/cmTheme';
 import type { ReactCodeMirrorRef } from '@uiw/react-codemirror';
 import { useTranslation } from 'react-i18next';
 import { useThemeStore } from '../../state/useTheme';
@@ -130,7 +130,7 @@ export default function TeacherProjectView() {
   const { projectId } = useParams<{ projectId: string }>();
   const theme = useThemeStore((s) => s.theme);
   const fontSize = useThemeStore((s) => s.fontSize);
-  const cmTheme = theme.name === 'Midnight' ? githubDark : githubLight;
+  const cmTheme = getCmTheme(theme);
   const { user } = useUser();
 
   const [project, setProject] = useState<Project | null>(null);

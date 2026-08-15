@@ -30,7 +30,7 @@ export function HelpRequestsSection() {
       </div>
       {error && <div role="alert" aria-live="polite" style={{ fontSize: 12, color: '#e05', marginBottom: 8 }}>{error}</div>}
       {helpRequests.length === 0 ? (
-        <div style={{ color: theme.panelTxtMute, fontSize: 13 }}>{t('teacher.noHelpRequests')}</div>
+        <div style={{ padding: '32px 0', textAlign: 'center', color: theme.panelTxtMute, fontSize: 14 }}>{t('teacher.noHelpRequests')}</div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {helpRequests.map(hr => (

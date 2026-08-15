@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useThemeStore } from '../../state/useTheme';
 import { Icon } from '../Icons';
 import ImportProblemsModal from './ImportProblemsModal';
+import { TeacherShell, type TeacherSection } from './TeacherShell';
 
 interface ProblemRow {
   id: number;
@@ -90,8 +91,11 @@ export default function TeacherProblemList() {
     </div>
   );
 
+  const goTo = (s: TeacherSection) => navigate(s === 'problems' ? '/teacher/problems' : '/teacher');
+
   return (
-    <div style={{ padding: '20px 24px', fontFamily: theme.fontUI, color: theme.panelTxt }}>
+    <TeacherShell active="problems" onNavigate={goTo}>
+    <div style={{ flex: 1, overflow: 'auto', padding: '20px 24px', fontFamily: theme.fontUI, color: theme.panelTxt }}>
       <div style={{ display: 'flex', alignItems: 'center', marginBottom: 16, gap: 12 }}>
         <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>{t('teacher.problems')}</h2>
         <div style={{ flex: 1 }} />
@@ -117,11 +121,11 @@ export default function TeacherProblemList() {
             all: 'unset', cursor: 'pointer',
             display: 'flex', alignItems: 'center', gap: 6,
             padding: '7px 14px', borderRadius: 7,
-            background: theme.accent, color: '#fff',
+            background: theme.primaryBg, color: theme.primaryTxt,
             fontSize: 13, fontWeight: 600,
           }}
         >
-          <Icon name="plus" size={14} color="#fff" />
+          <Icon name="plus" size={14} color={theme.primaryTxt} />
           {t('teacher.newProblem')}
         </button>
       </div>
@@ -161,5 +165,6 @@ export default function TeacherProblemList() {
         </div>
       )}
     </div>
+    </TeacherShell>
   );
 }

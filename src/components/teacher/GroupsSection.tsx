@@ -10,6 +10,7 @@ import {
 import { asyncAction } from '../../state/asyncAction';
 import { Icon } from '../Icons';
 import { ThemedDialog } from '../ThemedDialog';
+import { ToggleRow } from '../ToggleRow';
 import { GroupQueueView } from './GroupQueueView';
 import { LiveRoster } from './LiveRoster';
 import { inputStyle, btnPrimary, btnSecondary } from './styles';
@@ -167,34 +168,44 @@ export function GroupsSection() {
     <div style={{ flex: 1, overflow: 'auto', padding: 28 }}>
       <div style={{ display: 'flex', alignItems: 'center', marginBottom: 16, gap: 10 }}>
         <span style={{ flex: 1, fontWeight: 700, fontSize: 15, color: theme.panelTxt }}>{t('teacher.groups')}</span>
-        <label
-          title={t('teacher.freezeUpdatesHint')}
-          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: theme.panelTxtMute, cursor: freezeBusy ? 'wait' : 'pointer' }}
-        >
-          <input
-            type="checkbox"
-            disabled={freezeBusy}
-            checked={!!user?.freeze_updates}
-            onChange={async (e) => {
-              setFreezeBusy(true);
-              try { await toggleFreezeUpdates(e.target.checked); } finally { setFreezeBusy(false); }
-            }}
-          />
-          {t('teacher.freezeUpdates')}
-        </label>
-        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: theme.panelTxtMute, cursor: 'pointer' }}>
-          <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} />
-          {t('teacher.showArchived')}
-        </label>
         <button type="button" onClick={() => setShowCreate(true)} style={btnPrimary(theme)}>
           + {t('teacher.createGroup')}
         </button>
       </div>
 
+      <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
+        <div style={{ width: 220 }}>
+          <ToggleRow
+            label={t('teacher.freezeUpdates')}
+            hint={t('teacher.freezeUpdatesHint')}
+            on={!!user?.freeze_updates}
+            theme={theme}
+            disabled={freezeBusy}
+            onChange={async (v) => {
+              setFreezeBusy(true);
+              try { await toggleFreezeUpdates(v); } finally { setFreezeBusy(false); }
+            }}
+          />
+        </div>
+        <div style={{ width: 180 }}>
+          <ToggleRow
+            label={t('teacher.showArchived')}
+            on={showArchived}
+            theme={theme}
+            onChange={setShowArchived}
+          />
+        </div>
+      </div>
+
       {loading ? (
         <div style={{ color: theme.panelTxtMute, fontSize: 13 }}>{t('sideMenu.loading')}</div>
       ) : groups.length === 0 ? (
-        <div style={{ color: theme.panelTxtMute, fontSize: 13 }}>{t('teacher.noGroups')}</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'flex-start' }}>
+          <div style={{ color: theme.panelTxtMute, fontSize: 13 }}>{t('teacher.noGroups')}</div>
+          <button type="button" onClick={() => setShowCreate(true)} style={btnPrimary(theme)}>
+            + {t('teacher.createGroup')}
+          </button>
+        </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {groups.map((g) => {

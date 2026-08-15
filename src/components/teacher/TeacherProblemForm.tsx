@@ -8,7 +8,7 @@ import rehypeKatex from 'rehype-katex';
 import { SafeLink } from '../SafeLink';
 import { runGenerator, runReference, runChecker } from '../../runner/RunnerProvider';
 import CodeMirror from '@uiw/react-codemirror';
-import { githubDark, githubLight } from '@uiw/codemirror-theme-github';
+import { getCmTheme } from '../../editor/cmTheme';
 import { useThemeStore } from '../../state/useTheme';
 import { competeProfile } from '../../editor/profiles';
 import { IconTrash, IconEye, IconEyeOff } from '../Icons';
@@ -445,6 +445,7 @@ function StudentPreview({
   visibleTests: TestDraft[];
 }) {
   const theme = useThemeStore((s) => s.theme);
+  const { t } = useTranslation();
 
   return (
     <div style={{ borderRadius: 12, overflow: 'hidden', border: `0.5px solid ${theme.panelBorder}` }}>
@@ -461,7 +462,7 @@ function StudentPreview({
         borderBottom: `0.5px solid ${theme.panelBorder}`,
       }}>
         <span style={{ width: 7, height: 7, borderRadius: '50%', background: theme.primaryBg, display: 'inline-block', flexShrink: 0 }} />
-        Preview · what students see
+        {t('teacher.previewHeading')}
       </div>
 
       <div style={{
@@ -470,7 +471,7 @@ function StudentPreview({
         background: theme.chip,
       }}>
         <div style={{ fontSize: 16, fontWeight: 600, color: theme.panelTxt }}>
-          {title || 'Untitled'}
+          {title || t('teacher.previewUntitled')}
         </div>
       </div>
 
@@ -483,7 +484,7 @@ function StudentPreview({
         overflowY: 'auto',
       }}>
         <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]} components={{ a: SafeLink }}>
-          {statement || '_No statement yet._'}
+          {statement || t('teacher.previewNoStatement')}
         </ReactMarkdown>
 
         {visibleTests.length > 0 && (
@@ -496,7 +497,7 @@ function StudentPreview({
               color: theme.panelTxtMute,
               margin: '18px 0 10px',
             }}>
-              Examples
+              {t('teacher.previewExamples')}
             </div>
             {visibleTests.map((test, i) => (
               <div key={i} style={{
@@ -514,18 +515,18 @@ function StudentPreview({
                   gap: 8,
                 }}>
                   <span style={{ flex: 1, fontSize: 12, fontWeight: 600, color: theme.panelTxtMute }}>
-                    Test {i + 1}
+                    {t('teacher.previewTestN', { n: i + 1 })}
                   </span>
                 </div>
                 <div style={{ display: 'flex' }}>
                   <div style={{ flex: 1, padding: '8px 10px' }}>
-                    <div style={{ fontSize: 10, color: theme.panelTxtMute, marginBottom: 3 }}>Input</div>
+                    <div style={{ fontSize: 10, color: theme.panelTxtMute, marginBottom: 3 }}>{t('teacher.testInput')}</div>
                     <pre style={{ margin: 0, fontSize: 12, fontFamily: theme.fontMono, color: theme.panelTxt, whiteSpace: 'pre-wrap' }}>
                       {test.input || '—'}
                     </pre>
                   </div>
                   <div style={{ flex: 1, padding: '8px 10px', borderLeft: `1px solid ${theme.panelBorder}` }}>
-                    <div style={{ fontSize: 10, color: theme.panelTxtMute, marginBottom: 3 }}>Expected</div>
+                    <div style={{ fontSize: 10, color: theme.panelTxtMute, marginBottom: 3 }}>{t('teacher.testExpected')}</div>
                     <pre style={{ margin: 0, fontSize: 12, fontFamily: theme.fontMono, color: theme.panelTxt, whiteSpace: 'pre-wrap' }}>
                       {test.expected || '—'}
                     </pre>
@@ -572,7 +573,6 @@ const IconCheckSquare = () => (
 export default function TeacherProblemForm() {
   const { t, i18n } = useTranslation();
   const theme = useThemeStore((s) => s.theme);
-  const themeId = useThemeStore((s) => s.themeId);
   const fontSize = useThemeStore((s) => s.fontSize);
   const navigate = useNavigate();
   const { slug: editSlug } = useParams<{ slug?: string }>();
@@ -890,7 +890,7 @@ export default function TeacherProblemForm() {
 
   const handleCancel = () => navigate('/teacher/problems');
 
-  const cmTheme = themeId === 'midnight' ? githubDark : githubLight;
+  const cmTheme = getCmTheme(theme);
   const tierTests = (tier: 1 | 2 | 3) =>
     form.tests.map((test, idx) => ({ test, idx })).filter(({ test }) => test.tier === tier);
   const visibleTests = form.tests.filter((t) => t.is_visible);
@@ -910,7 +910,7 @@ export default function TeacherProblemForm() {
   ];
 
   if (!loaded) {
-    return <div style={{ padding: 24, fontFamily: theme.fontUI, color: theme.panelTxtMute }}>Loading…</div>;
+    return <div style={{ padding: 24, fontFamily: theme.fontUI, color: theme.panelTxtMute }}>{t('sideMenu.loading')}</div>;
   }
 
   const headerTitle = form.title || (isNew ? t('teacher.newProblem') : t('teacher.editProblem'));
@@ -1279,13 +1279,13 @@ export default function TeacherProblemForm() {
                         <div style={{ fontSize: 10.5, color: theme.panelTxtMute }}>#{i + 1}</div>
                       </div>
                       <div style={{ flex: 1, padding: '6px 8px', borderRight: `0.5px solid ${theme.panelBorder}` }}>
-                        <div style={{ fontSize: 10, color: theme.panelTxtMute, marginBottom: 2 }}>Input</div>
+                        <div style={{ fontSize: 10, color: theme.panelTxtMute, marginBottom: 2 }}>{t('teacher.testInput')}</div>
                         <pre style={{ margin: 0, fontSize: 11, fontFamily: theme.fontMono, color: theme.panelTxt, whiteSpace: 'pre-wrap' }}>
                           {tc.input || '—'}
                         </pre>
                       </div>
                       <div style={{ flex: 1, padding: '6px 8px', borderRight: `0.5px solid ${theme.panelBorder}` }}>
-                        <div style={{ fontSize: 10, color: theme.panelTxtMute, marginBottom: 2 }}>Expected</div>
+                        <div style={{ fontSize: 10, color: theme.panelTxtMute, marginBottom: 2 }}>{t('teacher.testExpected')}</div>
                         <pre style={{ margin: 0, fontSize: 11, fontFamily: theme.fontMono, color: theme.panelTxt, whiteSpace: 'pre-wrap' }}>
                           {tc.expected || '—'}
                         </pre>

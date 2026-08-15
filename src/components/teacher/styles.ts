@@ -13,7 +13,7 @@ export const inputStyle = (theme: Theme): CSSProperties => ({
 export const btnPrimary = (theme: Theme, acting = false): CSSProperties => ({
   all: 'unset', cursor: 'pointer',
   padding: '7px 16px', borderRadius: 6,
-  background: theme.runBg, color: theme.runTxt,
+  background: theme.primaryBg, color: theme.primaryTxt,
   fontSize: 13, fontWeight: 600,
   opacity: acting ? 0.6 : 1,
 });

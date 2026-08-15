@@ -27,7 +27,7 @@ export function StudentProjectsSection() {
       {loading ? (
         <div style={{ color: theme.panelTxtMute, fontSize: 13 }}>{t('sideMenu.loading')}</div>
       ) : projects.length === 0 ? (
-        <div style={{ color: theme.panelTxtMute, fontSize: 13 }}>{t('teacher.noSharedProjects')}</div>
+        <div style={{ padding: '32px 0', textAlign: 'center', color: theme.panelTxtMute, fontSize: 14 }}>{t('teacher.noSharedProjects')}</div>
       ) : (
         Object.entries(grouped).map(([group, items]) => (
           <div key={group} style={{ marginBottom: 24 }}>

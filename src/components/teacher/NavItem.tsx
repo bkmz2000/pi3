@@ -7,13 +7,13 @@ export function NavItem({ label, active, onClick }: { label: string; active: boo
       type="button"
       onClick={onClick}
       style={{
-        all: 'unset', cursor: 'pointer',
+        all: 'unset', cursor: 'pointer', boxSizing: 'border-box',
         display: 'block', width: '100%',
         padding: '9px 16px',
         borderRadius: 6,
         fontSize: 13, fontWeight: active ? 600 : 400,
-        color: active ? theme.railIconActive : theme.panelTxt,
-        background: active ? theme.railActiveBg : 'transparent',
+        color: active ? theme.primaryBg : theme.panelTxt,
+        background: active ? theme.chip : 'transparent',
         textAlign: 'left',
       }}
     >

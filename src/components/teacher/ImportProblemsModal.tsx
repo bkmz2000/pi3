@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useThemeStore } from '../../state/useTheme';
 
 interface ImportTestRow {
@@ -39,6 +40,7 @@ interface Props {
 
 export default function ImportProblemsModal({ onClose, onImported }: Props) {
   const theme = useThemeStore((s) => s.theme);
+  const { t } = useTranslation();
   const fileRef = useRef<HTMLInputElement>(null);
 
   const [problems, setProblems] = useState<ImportProblem[] | null>(null);
@@ -54,14 +56,14 @@ export default function ImportProblemsModal({ onClose, onImported }: Props) {
       const json = JSON.parse(text);
       const arr: ImportProblem[] = Array.isArray(json) ? json : [json];
       if (!arr.every((p) => typeof p.id === 'string')) {
-        setParseError('Each problem must have a string "id" field.');
+        setParseError(t('importProblems.idFieldRequired'));
         return;
       }
       setProblems(arr);
       setParseError(null);
       setResult(null);
     } catch {
-      setParseError('Invalid JSON.');
+      setParseError(t('importProblems.invalidJson'));
     }
   };
 
@@ -92,7 +94,7 @@ export default function ImportProblemsModal({ onClose, onImported }: Props) {
       setResult(data);
       if (data.imported > 0) onImported();
     } catch {
-      setResult({ imported: 0, skipped: 0, errors: [{ id: '*', reason: 'Network error' }] });
+      setResult({ imported: 0, skipped: 0, errors: [{ id: '*', reason: t('importProblems.networkError') }] });
     } finally {
       setImporting(false);
     }
@@ -151,7 +153,7 @@ export default function ImportProblemsModal({ onClose, onImported }: Props) {
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={theme.primaryBg} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
           </svg>
-          <span style={{ fontSize: 14, fontWeight: 600, color: theme.panelTxt }}>Import problems from JSON</span>
+          <span style={{ fontSize: 14, fontWeight: 600, color: theme.panelTxt }}>{t('importProblems.title')}</span>
           <div style={{ flex: 1 }} />
           <button
             onClick={onClose}
@@ -190,10 +192,10 @@ export default function ImportProblemsModal({ onClose, onImported }: Props) {
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
               </svg>
               <div style={{ fontSize: 13.5, color: theme.panelTxt, marginBottom: 4 }}>
-                {problems ? 'Drop another file to replace' : 'Drop JSON file or click to browse'}
+                {problems ? t('importProblems.dropReplace') : t('importProblems.dropOrBrowse')}
               </div>
               <div style={{ fontSize: 12, color: theme.panelTxtMute }}>
-                Array of problem objects or a single problem
+                {t('importProblems.arrayHint')}
               </div>
               <input
                 ref={fileRef}
@@ -215,7 +217,7 @@ export default function ImportProblemsModal({ onClose, onImported }: Props) {
           {problems && !result && (
             <div>
               <div style={{ fontSize: 12, color: theme.panelTxtMute, marginBottom: 10 }}>
-                Found <strong style={{ color: theme.panelTxt }}>{problems.length}</strong> problem{problems.length !== 1 ? 's' : ''} · <strong style={{ color: theme.panelTxt }}>{totalTests}</strong> usable tests
+                {t('importProblems.foundPrefix')} <strong style={{ color: theme.panelTxt }}>{problems.length}</strong> {t('importProblems.problemsWord', { count: problems.length })} · <strong style={{ color: theme.panelTxt }}>{totalTests}</strong> {t('importProblems.usableTests')}
               </div>
               <div style={{
                 border: `0.5px solid ${theme.panelBorder}`,
@@ -254,11 +256,11 @@ export default function ImportProblemsModal({ onClose, onImported }: Props) {
           {/* Options */}
           {problems && !result && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: theme.panelTxtMute, marginBottom: 2 }}>Options</div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: theme.panelTxtMute, marginBottom: 2 }}>{t('importProblems.options')}</div>
 
               {/* Lang toggle */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span style={{ fontSize: 13, color: theme.panelTxt, width: 130 }}>Title language</span>
+                <span style={{ fontSize: 13, color: theme.panelTxt, width: 130 }}>{t('importProblems.titleLanguage')}</span>
                 <div style={{ display: 'flex', gap: 0 }}>
                   {(['ru', 'en'] as Lang[]).map((l) => (
                     <button
@@ -278,7 +280,7 @@ export default function ImportProblemsModal({ onClose, onImported }: Props) {
                         borderRight: l === 'ru' ? 'none' : undefined,
                       }}
                     >
-                      {l === 'ru' ? 'Russian' : 'English'}
+                      {l === 'ru' ? t('importProblems.langRussian') : t('importProblems.langEnglish')}
                     </button>
                   ))}
                 </div>
@@ -293,12 +295,12 @@ export default function ImportProblemsModal({ onClose, onImported }: Props) {
                   style={{ width: 14, height: 14, accentColor: theme.primaryBg }}
                 />
                 <span style={{ fontSize: 13, color: theme.panelTxt }}>
-                  Overwrite existing problems (same slug)
+                  {t('importProblems.overwriteLabel')}
                 </span>
               </label>
 
               <div style={{ fontSize: 11.5, color: theme.panelTxtMute, marginTop: 2 }}>
-                Statements are imported as raw LaTeX and may need editing in the problem form.
+                {t('importProblems.rawLatexHint')}
               </div>
             </div>
           )}
@@ -315,7 +317,7 @@ export default function ImportProblemsModal({ onClose, onImported }: Props) {
                   <div style={{ fontSize: 22, fontWeight: 700, color: result.imported > 0 ? '#5fd6a0' : theme.panelTxtMute }}>
                     {result.imported}
                   </div>
-                  <div style={{ fontSize: 11, color: theme.panelTxtMute, marginTop: 2 }}>imported</div>
+                  <div style={{ fontSize: 11, color: theme.panelTxtMute, marginTop: 2 }}>{t('importProblems.imported')}</div>
                 </div>
                 <div style={{
                   flex: 1, padding: '12px 14px', borderRadius: 8, textAlign: 'center',
@@ -325,7 +327,7 @@ export default function ImportProblemsModal({ onClose, onImported }: Props) {
                   <div style={{ fontSize: 22, fontWeight: 700, color: result.skipped > 0 ? '#f0b429' : theme.panelTxtMute }}>
                     {result.skipped}
                   </div>
-                  <div style={{ fontSize: 11, color: theme.panelTxtMute, marginTop: 2 }}>skipped (exists)</div>
+                  <div style={{ fontSize: 11, color: theme.panelTxtMute, marginTop: 2 }}>{t('importProblems.skippedExists')}</div>
                 </div>
                 <div style={{
                   flex: 1, padding: '12px 14px', borderRadius: 8, textAlign: 'center',
@@ -335,7 +337,7 @@ export default function ImportProblemsModal({ onClose, onImported }: Props) {
                   <div style={{ fontSize: 22, fontWeight: 700, color: result.errors.length > 0 ? '#ff7a7a' : theme.panelTxtMute }}>
                     {result.errors.length}
                   </div>
-                  <div style={{ fontSize: 11, color: theme.panelTxtMute, marginTop: 2 }}>errors</div>
+                  <div style={{ fontSize: 11, color: theme.panelTxtMute, marginTop: 2 }}>{t('importProblems.errors')}</div>
                 </div>
               </div>
 
@@ -377,7 +379,7 @@ export default function ImportProblemsModal({ onClose, onImported }: Props) {
         }}>
           {!result ? (
             <>
-              <button style={btn(false)} onClick={onClose}>Cancel</button>
+              <button style={btn(false)} onClick={onClose}>{t('importProblems.cancel')}</button>
               <button
                 style={btn(true, !problems || importing)}
                 onClick={handleImport}
@@ -388,20 +390,20 @@ export default function ImportProblemsModal({ onClose, onImported }: Props) {
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ animation: 'spin 1s linear infinite' }}>
                       <path d="M21 12a9 9 0 1 1-6.219-8.56" />
                     </svg>
-                    Importing…
+                    {t('importProblems.importing')}
                   </>
                 ) : (
                   <>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M20 6L9 17l-5-5" />
                     </svg>
-                    Import {problems ? `${problems.length} problem${problems.length !== 1 ? 's' : ''}` : ''}
+                    {t('importProblems.importCount', { count: problems ? problems.length : 0 })}
                   </>
                 )}
               </button>
             </>
           ) : (
-            <button style={btn(true)} onClick={onClose}>Done</button>
+            <button style={btn(true)} onClick={onClose}>{t('importProblems.done')}</button>
           )}
         </div>
       </div>

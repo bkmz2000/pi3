@@ -18,6 +18,7 @@ import {
   type IconName,
 } from "./components/Icons";
 import { CloseButton } from "./components/CloseButton";
+import { ToggleRow } from "./components/ToggleRow";
 
 import AssetEditor, { type AssetEditorMode } from "./AssetEditor";
 import ExamplesPanel from "./ExamplesPanel";
@@ -600,94 +601,6 @@ function SectionLabel({
 // ── Sounds Sub-Panel ───────────────────────
 
 // ── Settings Panel ─────────────────────────
-function ToggleRow({
-  label,
-  hint,
-  on: checked,
-  theme,
-  accent,
-  onChange,
-}: {
-  label: string;
-  hint?: string;
-  on: boolean;
-  theme: Theme;
-  accent?: string;
-  onChange?: (v: boolean) => void;
-}) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      onClick={() => onChange?.(!checked)}
-      style={{
-        all: "unset",
-        cursor: "pointer",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        padding: "12px 14px",
-        marginBottom: 6,
-        background: theme.chip,
-        borderRadius: theme.radiusCard,
-        width: "100%",
-        boxSizing: "border-box",
-      }}
-    >
-      <div style={{ textAlign: "left" }}>
-        <div
-          style={{
-            fontFamily: theme.fontUI,
-            fontWeight: theme.weightUI + 100,
-            color: theme.panelTxt,
-            fontSize: 14,
-          }}
-        >
-          {label}
-        </div>
-        {hint && (
-          <div
-            style={{
-              fontFamily: theme.fontUI,
-              fontSize: 12,
-              color: theme.panelTxtMute,
-              marginTop: 2,
-            }}
-          >
-            {hint}
-          </div>
-        )}
-      </div>
-      <span
-        style={{
-          width: 40,
-          height: 24,
-          borderRadius: 999,
-          background: checked ? (accent || theme.runBg) : theme.panelBorder,
-          position: "relative",
-          transition: "background 0.18s",
-          flex: "none",
-        }}
-      >
-        <span
-          style={{
-            position: "absolute",
-            top: 3,
-            left: checked ? 19 : 3,
-            width: 18,
-            height: 18,
-            borderRadius: 999,
-            background: "#fff",
-            boxShadow: "0 1px 3px rgba(0,0,0,0.25)",
-            transition: "left 0.18s",
-          }}
-        />
-      </span>
-    </button>
-  );
-}
-
 function SettingsPanel({
   theme,
   onClose,
@@ -791,11 +704,11 @@ function SettingsPanel({
           <input
             type="range" min="10" max="24" step="1"
             value={fontSize}
-            aria-label="Font size"
+            aria-label={t('sideMenu.fontSize')}
             aria-valuemin={10}
             aria-valuemax={24}
             aria-valuenow={fontSize}
-            aria-valuetext={`${fontSize} pixels`}
+            aria-valuetext={t('sideMenu.pixelsUnit', { n: fontSize })}
             onChange={(e) => setFontSize(+e.target.value)}
             style={{ flex: 1, accentColor: theme.accent }}
           />

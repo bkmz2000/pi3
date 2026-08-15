@@ -40,6 +40,8 @@ jest.mock("@uiw/codemirror-theme-github", () => ({
   __esModule: true,
   githubDark: {},
   githubLight: {},
+  githubDarkInit: () => ({}),
+  githubLightInit: () => ({}),
 }));
 jest.mock("@codemirror/lang-python", () => ({ __esModule: true, python: () => [] }));
 jest.mock("@codemirror/view", () => ({ __esModule: true, EditorView: { lineWrapping: {} } }));

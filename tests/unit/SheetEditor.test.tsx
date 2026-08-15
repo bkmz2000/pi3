@@ -119,7 +119,7 @@ describe('SheetEditor', () => {
     editorState.sheet = { pixels: blankPixels(), width: 512, height: 512, sprites: {} };
     const onClose = jest.fn();
     render(<SheetEditor onClose={onClose} />);
-    fireEvent.click(screen.getByText('Close'));
+    fireEvent.click(screen.getByTitle('Close'));
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 

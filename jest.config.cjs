@@ -43,29 +43,44 @@ const config = {
     // denominator grow every time docs do, sinking line % without any real
     // test regression.
     '!src/docs/**',
+    // Runs inside the Web Worker thread against real Pyodide — the
+    // documented pattern (CLAUDE.md) is to test its effects indirectly by
+    // posting synthetic WorkerEvents into RunnerProvider's useRunnerStore
+    // (see tests/unit/runner*.test.ts), not to unit-test this file directly.
+    // It sits at a permanent 0% otherwise, which drags down the runner/
+    // folder average without reflecting any real coverage gap there.
+    '!src/runner/worker.ts',
   ],
   // Ratchet floors seeded at real measured actuals, not aspirational.
   // Rule: these only move UP. Bump the relevant slot in the same PR that adds a
   // tier's tests. Path-specific keys are checked independently and subtracted
   // from the global pool, so each area regresses (and gates) on its own.
-  // Global left untouched during the fable-audit fix pass: repeated local runs
-  // showed "All files" is flaky (~1-in-15 runs lands ~6-8pt below the typical
-  // 33.58/23.67/27.16/35.18, at 27.14/18.48/20.73/27.92 — some large
-  // lazy/dynamic-import file's coverage isn't always captured, root cause not
-  // chased). The low outcome sits right at today's floor, so these numbers
-  // were already conservatively seeded for it — bumping to the typical value
-  // would make CI intermittently red. Re-seed only once the flake is fixed.
+  //
+  // Global-only flake (2026-08-03 investigation): the printed coverage table
+  // and the coverageThreshold check occasionally read two different merged
+  // coverage snapshots within the same run — diffing a flaky run's log
+  // against a typical one, every path-specific bucket below (state/utils/
+  // hooks/runner) was byte-identical in both; only the global aggregate
+  // moved. So it's specifically some file(s) outside those four tracked
+  // folders (a lazily-loaded page-level chunk is the leading suspect).
+  // Confirmed as a known, open, unfixed Jest bug in @jest/reporters'
+  // CoverageReporter — not specific to this repo or to the coverage
+  // provider: istanbul's variant is tracked at jestjs/jest#15358
+  // (_addUntestedFiles races the untested-file merge against the global vs.
+  // per-context glob match); tried switching to coverageProvider: 'v8' as a
+  // workaround, but v8 has its own documented flake from test order/
+  // parallelism (jestjs/jest#14766) and reproduced the same global-only
+  // symptom in 2/20 local runs — reverted, no upstream fix available in
+  // either provider. Global is seeded at the observed low, not the typical,
+  // so a repeat doesn't turn CI red; the four path-specific blocks are
+  // unaffected and seeded at their exact actuals.
   coverageThreshold: {
     global: {
-      branches: 18,
-      functions: 20,
-      lines: 27,
-      statements: 27,
+      branches: 22,
+      functions: 28,
+      lines: 34,
+      statements: 33,
     },
-    // Bumped after the live-code / live-session tier (useLiveSession 100%,
-    // usePresencePinger content+session paths), then the join-link tier
-    // (pendingSession, usePresencePinger leave/clear), then the live-panel tier
-    // (peer tabs in useLiveSession, useSessionAutoJoin 100%).
     './src/state/': {
       branches: 52,
       functions: 53,
@@ -78,16 +93,17 @@ const config = {
       lines: 79,
       statements: 74,
     },
-    // Bumped after the live-code runner tier (RunnerProvider message-handler
-    // branches: result.keepCanvas, start/canvas_resize/input_request, error +
-    // runtime_error channels, sound routing, store actions), then the
-    // star-import hoist (hoistStarImports 100%), then the interrupt-detection
-    // predicate (isInterruptError 100%).
+    './src/hooks/': {
+      branches: 73,
+      functions: 86,
+      lines: 88,
+      statements: 87,
+    },
     './src/runner/': {
-      branches: 36,
-      functions: 32,
-      lines: 39,
-      statements: 38,
+      branches: 69,
+      functions: 63,
+      lines: 73,
+      statements: 71,
     },
   },
 };

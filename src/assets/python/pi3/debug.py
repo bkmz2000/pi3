@@ -8,26 +8,48 @@ Usage:
         debug.array(arr, red=i)
         debug.show()
 """
+import ast
 import copy
 import json
-import inspect
+import linecache
+import inspect as _inspect
 
-from graphics import _state
+from graphics import _state, _flush_watches
+from graphics import peek, watch
+from graphics._errors import FriendlyError
 
 __all__ = [
     "array",
+    "between",
     "cell",
     "grid",
     "label",
+    "members",
     "named",
+    "peek",
     "queue",
-    "range",
-    "set",
     "show",
     "singles",
     "stack",
     "text",
+    "watch",
 ]
+
+
+def __getattr__(name):
+    """Friendly errors for the renamed debug API (range->between, set->members, inspect->peek)."""
+    renames = {
+        "range": "between",
+        "set": "members",
+        "inspect": "peek",
+    }
+    if name in renames:
+        raise FriendlyError(
+            "friendlyError.migration.renamed",
+            {"old": f"debug.{name}", "new": f"debug.{renames[name]}"},
+            raw=f"debug.{name} was renamed to debug.{renames[name]}().",
+        )
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 _COLORS = frozenset({"red", "green", "blue", "yellow", "cyan", "gray"})
 _STROKE_PREFIX = "stroke_"
@@ -74,14 +96,14 @@ class _Named:
 
 # ── Public selection helpers ──────────────────────────────────────────────────
 
-def range(lo: int, hi: int, *, name=None) -> _Range:
-    """Explicit range selector for 1-D structures: debug.range(lo, hi, name=...)."""
+def between(lo: int, hi: int, *, name=None) -> _Range:
+    """Explicit range selector for 1-D structures: debug.between(lo, hi, name=...)."""
     return _Range(lo, hi, name)
 
 def singles(*indices, name=None) -> _Singles:
     """Highlight several individual positions: debug.singles(lo, hi, ..., name=...).
 
-    Unlike debug.range(lo, hi) which covers every index between lo and hi,
+    Unlike debug.between(lo, hi) which covers every index between lo and hi,
     this marks each argument as a distinct single-cell highlight. Useful for
     showing endpoint markers alongside a range selection.
     """
@@ -176,18 +198,70 @@ def _safe_copy(data):
     except Exception:
         return data
 
+def _resolve_expr_key(filename: str, lineno: int, kind: str):
+    """Return the source text of the first positional argument passed to the
+    debug.<kind>(...) call at (filename, lineno), or None if it can't be
+    resolved (multi-line call, missing source, unusual formatting, etc.).
+
+    Used so two calls that visualize the same variable (e.g. debug.array(arr, ...)
+    from two different loops) collapse into one figure instead of one per
+    call site. Only resolves when exactly one debug.<kind>(...) call matches
+    on the line — two distinct calls of the same kind on one line (D7) can't
+    be told apart from source text alone, so they fall back to the
+    lineno/lasti identity that already disambiguates them correctly.
+    """
+    try:
+        line = linecache.getline(filename, lineno)
+        if not line:
+            return None
+        tree = ast.parse(line.strip())
+        matches = []
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call) or not node.args:
+                continue
+            func = node.func
+            if isinstance(func, ast.Attribute):
+                name = func.attr
+            elif isinstance(func, ast.Name):
+                name = func.id
+            else:
+                name = None
+            if name == kind:
+                matches.append(node)
+        if len(matches) == 1:
+            return ast.unparse(matches[0].args[0])
+    except Exception:
+        pass
+    return None
+
 def _register(kind: str, data, fills_raw: dict, strokes_raw: dict,
               legend: dict, labels: dict, stroke_width: int) -> None:
     # Walk up: _register → array/grid/etc → user code
-    frame = inspect.currentframe()
+    frame = _inspect.currentframe()
     caller = frame.f_back.f_back if (frame and frame.f_back) else None
     filename = caller.f_code.co_filename if caller else "<unknown>"
-    lineno = caller.f_lineno if caller else 0
+    raw_lineno = caller.f_lineno if caller else 0
     # D7: disambiguate by bytecode-instruction pointer so two distinct calls on
     # the SAME line (e.g. `debug.array(a); debug.array(b)`) get separate slots,
     # while a single call in a loop keeps the same slot (same f_lasti).
     lasti = caller.f_lasti if caller else 0
-    slot_id = (filename, lineno, lasti)
+    # Prefer keying by the visualized variable's source expression so the same
+    # logical value shown from two different call sites collapses into one
+    # figure. Falls back to call-site identity when the expression can't be
+    # resolved from source.
+    #
+    # linecache lookup must use the RAW (uncorrected) line number: the
+    # plain-script runner passes `filename` to pyodide's runPythonAsync,
+    # which registers linecache[filename] with the *compiled unit's* text —
+    # the harness-wrapped source, not the file worker.ts wrote to Pyodide's
+    # FS — so raw_lineno is what actually indexes into what's cached there.
+    key_expr = _resolve_expr_key(filename, raw_lineno, kind)
+    # Only the *displayed* line (and the call-site fallback key) should match
+    # what the student sees in their editor — correct for the harness offset
+    # here, after the lookup above. Zero for the graphics path, which has no
+    # such wrapper.
+    lineno = raw_lineno - _state._debug_line_offset
+    slot_id = (filename, key_expr) if key_expr else (filename, lineno, lasti)
 
     is_grid = kind == "grid"
     normalizer = _normalize_2d if is_grid else _normalize_1d
@@ -240,13 +314,13 @@ def _split_kwargs(kwargs: dict):
     for k, v in kwargs.items():
         if k in _COLORS:
             fills[k] = v
-            n = _extract_name(v)
+            n = _extract_name(v) or labels.get(k)
             if n is not None:
                 legend[k] = n
         elif k in _STROKE_COLORS:
             bare = k[len(_STROKE_PREFIX):]
             strokes[bare] = v
-            n = _extract_name(v)
+            n = _extract_name(v) or labels.get(bare)
             if n is not None:
                 legend[bare] = n
         # else: silently ignore unknown kwargs — best-effort API surface
@@ -283,7 +357,7 @@ def queue(data, **kwargs):
     f, s, lg, lbl, sw = _split_kwargs(kwargs)
     _register("queue", list(data), f, s, lg, lbl, sw)
 
-def set(data, **kwargs):
+def members(data, **kwargs):
     """Register a set snapshot."""
     f, s, lg, lbl, sw = _split_kwargs(kwargs)
     _register("set", sorted(data), f, s, lg, lbl, sw)
@@ -293,10 +367,13 @@ def set(data, **kwargs):
 
 def show() -> None:
     """Capture a timeline frame from all registered slots and emit it to JS."""
+    watch_snapshot = [{"label": k, "value": v} for k, v in _state._watches.items()]
+    _flush_watches(len(_state._debug_frames))
     if not _state._debug_slots:
         return
     frame = {
         "index": len(_state._debug_frames),
+        "watches": watch_snapshot,
         "slots": [
             {
                 "kind": slot["kind"],

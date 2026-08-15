@@ -27,8 +27,26 @@ import sys as _sys
 if "graphics" not in _sys.modules:
     _g_mod = _types.ModuleType("graphics")
     _g_mod._state = _state_mod
+    # pi3/debug.py re-exports these from graphics; stub them out like _state
+    # since the real ones need JS interop this harness deliberately avoids.
+    _g_mod._flush_watches = lambda frame: None
+    _g_mod.peek = lambda x: print(repr(x))
+    _g_mod.watch = lambda label, value=None: None
     _sys.modules["graphics"] = _g_mod
     _sys.modules["graphics._state"] = _state_mod
+
+    # Stub graphics._errors so debug.py can import FriendlyError for its
+    # renamed-API __getattr__ shims (the real module needs JS interop).
+    _errors_mod = _types.ModuleType("graphics._errors")
+    class _FriendlyError(Exception):
+        def __init__(self, message_key, message_args=None, suggestions=None, raw=""):
+            self.message_key = message_key
+            self.message_args = message_args or {}
+            self.suggestions = suggestions or []
+            self.raw = raw
+            super().__init__(message_key)
+    _errors_mod.FriendlyError = _FriendlyError
+    _sys.modules["graphics._errors"] = _errors_mod
 
 from pi3 import debug
 
@@ -111,7 +129,7 @@ check("1d-tuple-range-atom", slot["highlights"]["blue"] == [["range", 0, 2]],
       f"got {slot['highlights']['blue']}")
 
 reset()
-debug.array([1, 2, 3], green=debug.range(0, 2))
+debug.array([1, 2, 3], green=debug.between(0, 2))
 slot = list(st._debug_slots.values())[0]
 check("1d-range-sentinel", slot["highlights"]["green"] == [["range", 0, 2]],
       f"got {slot['highlights']['green']}")
@@ -153,9 +171,26 @@ check("grid-data", slot["data"] == [[1, 2, 3], [4, 5, 6]],
 
 # ── Test: set data is sorted ──────────────────────────────────────────────────
 reset()
-debug.set({3, 1, 2})
+debug.members({3, 1, 2})
 slot = list(st._debug_slots.values())[0]
 check("set-sorted", slot["data"] == [1, 2, 3], f"got {slot['data']}")
+
+# ── Test: renamed API raises friendly errors (range->between, set->members) ──
+reset()
+try:
+    debug.range(0, 2)
+    check("range-renamed-errors", False, "debug.range did not raise")
+except Exception as e:
+    ok = getattr(e, "message_key", None) == "friendlyError.migration.renamed"
+    check("range-renamed-errors", ok, f"got {e!r}")
+
+reset()
+try:
+    debug.set({1})
+    check("set-renamed-errors", False, "debug.set did not raise")
+except Exception as e:
+    ok = getattr(e, "message_key", None) == "friendlyError.migration.renamed"
+    check("set-renamed-errors", ok, f"got {e!r}")
 
 # ── Results ───────────────────────────────────────────────────────────────────
 if failures:

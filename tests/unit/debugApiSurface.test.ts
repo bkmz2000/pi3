@@ -46,14 +46,14 @@ describe('pi3.debug api-surface snapshot', () => {
 
   test('snapshot contains the core visualization functions', () => {
     const names = snapshot.__all__ as string[];
-    for (const name of ['array', 'grid', 'text', 'stack', 'queue', 'set', 'show']) {
+    for (const name of ['array', 'grid', 'text', 'stack', 'queue', 'members', 'show']) {
       expect(names).toContain(name);
     }
   });
 
   test('snapshot contains the selection helpers', () => {
     const names = snapshot.__all__ as string[];
-    for (const name of ['range', 'cell', 'label']) {
+    for (const name of ['between', 'cell', 'label']) {
       expect(names).toContain(name);
     }
   });

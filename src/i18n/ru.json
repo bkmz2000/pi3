@@ -679,11 +679,6 @@
       "ref_assets_overview_param_assets.sounds": "Аудиоклипы (mp3/ogg/wav). См. запись assets.sounds.",
       "ref_assets_overview_param_assets.tilemaps": "Тайловые карты. См. запись assets.tilemaps.",
       "ref_assets_overview_param_assets.animations": "Покадровые анимации. См. запись assets.animations.",
-      "ref_random_fn": "Возвращает случайное число с плавающей точкой. С одним аргументом — в диапазоне [0, low). С двумя — в диапазоне [low, high).",
-      "ref_random_fn_advanced": "Возвращает `float` (использует `random.uniform`), не целое — оборачивай `int()`, если нужно целое число. Управления seed здесь нет, результаты не детерминированы между запусками. Оба конца могут попасть в результат (`uniform` включает обе границы для float), в отличие от `random.randrange`.",
-      "ref_random_fn_param_low": "Нижняя граница (или верхняя, если high не указан).",
-      "ref_random_fn_param_high": "Верхняя граница.",
-      "ref_random_fn_returns": "Случайное число с плавающей точкой.",
       "ref_noise": "Гладкий value-noise в диапазоне [0, 1]. Детерминирован по (x, y, scale, seed) — двойной вызов с теми же аргументами вернёт одно и то же. Подходит для генерации натуральных карт высот, масок пещер, дитеринга цветов.",
       "ref_noise_advanced": "Большее `scale` — приближение (плавнее, крупнее формы); меньшее — отдаление (более частая вариация). Для пещероподобных масок хорошо работает `scale=0.1–0.3` и порог около 0.5. Меняй `seed`, чтобы получить новый мир; один и тот же seed всегда даёт одинаковую карту — детям удобно делиться интересными seed.",
       "ref_noise_param_x": "Координата X (обычно столбец сетки).",
@@ -820,7 +815,7 @@
       "recipe_window_anchors_title": "Привязать к краям окна",
       "recipe_window_anchors_intro": "Размести UI относительно углов и краёв окна.",
       "recipe_get_random_title": "Получить случайное значение",
-      "recipe_get_random_intro": "Выбери случайное число или цвет.",
+      "recipe_get_random_intro": "Выбери случайное целое число или цвет.",
       "recipe_camera_follow_title": "Подвижная камера",
       "recipe_camera_follow_intro": "Сдвигай вид, чтобы игрок оставался виден.",
       "recipe_move_rotate_scale_title": "Сдвиг, поворот, масштаб",
@@ -834,11 +829,11 @@
       "recipe_paint_a_sprite_title": "Нарисовать спрайт кодом",
       "recipe_paint_a_sprite_intro": "Создай спрайт, рисуй в нём пиксели, потом перекрашивай или заливай ведром.",
       "recipe_random_vs_noise_title": "Случайные числа vs шум",
-      "recipe_random_vs_noise_intro": "random() даёт хаос; noise(x, y) — плавные, повторяемые паттерны. Увидь разницу за 30 секунд.",
+      "recipe_random_vs_noise_intro": "randint() даёт хаос; noise(x, y) — плавные, повторяемые паттерны. Увидь разницу за 30 секунд.",
       "recipe_noise_patterns_title": "Гладкий шум для природных форм",
       "recipe_noise_patterns_intro": "Детерминированный шум для рельефа, пещер или дитеринга цветов.",
       "recipe_scatter_randomly_title": "Случайное размещение",
-      "recipe_scatter_randomly_intro": "Получай случайные числа и цвета; разбрасывай тайлы по TileGroup."
+      "recipe_scatter_randomly_intro": "Получай случайные целые числа и цвета; разбрасывай тайлы по TileGroup."
     }
   },
   "session": {
@@ -972,9 +967,9 @@
     "tier3": "★★★ Уровень 3",
     "testInput": "Входные данные",
     "testExpected": "Ожидаемый вывод",
-    "previewHeading": "Предпросмотр · что видят студенты",
+    "previewHeading": "Предпросмотр · что видят ученики",
     "previewUntitled": "Без названия",
-    "previewNoStatement": "_Пока нет условия._",
+    "previewNoStatement": "_Условие пока не написано._",
     "previewExamples": "Примеры",
     "previewTestN": "Тест {{n}}",
     "testVisible": "Видно студентам",
@@ -1213,7 +1208,8 @@
     },
     "migration": {
       "title": "Это написание изменилось",
-      "renamed": "`{{old}}` теперь называется `{{new}}`. Обнови код на новое написание."
+      "renamed": "`{{old}}` теперь называется `{{new}}`. Обнови код на новое написание.",
+      "removed": "`{{old}}` удалена. Используй `{{hint}}`."
     },
     "rawTraceback": "Подробности ошибки",
     "showRaw": "Показать детали",

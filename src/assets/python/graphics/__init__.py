@@ -40,6 +40,18 @@ _version = "1.0"
 
 def __getattr__(name):
     """Forward module-level attribute reads to _state for backward compatibility."""
+    if name == "random":
+        raise FriendlyError(
+            "friendlyError.migration.removed",
+            {"old": "random", "hint": "import random  # then random.uniform(lo, hi)"},
+            raw="graphics.random was removed — use Python's standard library random module.",
+        )
+    if name == "inspect":
+        raise FriendlyError(
+            "friendlyError.migration.renamed",
+            {"old": "inspect", "new": "peek"},
+            raw="graphics.inspect was renamed to peek().",
+        )
     try:
         return getattr(_state, name)
     except AttributeError:
@@ -962,13 +974,6 @@ def image(img_result: Any, x, y, w=None, h=None) -> None:
 # === RANDOM HELPERS ===
 
 
-def random(low, high=None) -> float:
-    import random as _random
-    if high is None:
-        return _random.uniform(0, low)
-    return _random.uniform(low, high)
-
-
 def _noise_hash(ix, iy, seed):
     # Deterministic 32-bit-ish integer hash for value noise grid points.
     h = (ix * 374761393 + iy * 668265263 + seed * 1442695040888963407) & 0xFFFFFFFF
@@ -1005,7 +1010,7 @@ def frame_rate(fps) -> None:
     _state._target_fps = int(fps)
 
 
-def inspect(x) -> None:
+def peek(x) -> None:
     """Print a readable description of an Actor, Vector2, or any value."""
     print(repr(x))
 
@@ -2066,7 +2071,7 @@ __all__ = [
     "translated", "rotated", "scaled",
     "image",
     "frame_rate", "frame_count",
-    "random", "random_color",
+    "random_color",
     "clamp", "randint", "pick",
     "Colors", "AnchorPoint",
     "lerp", "darker", "lighter", "saturated", "desaturated",
@@ -2089,6 +2094,6 @@ __all__ = [
     "run", "stop", "show",
     "assets",
     "sheet",
-    "inspect",
+    "peek",
     "watch",
 ]

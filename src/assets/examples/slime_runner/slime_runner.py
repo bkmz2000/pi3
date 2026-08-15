@@ -9,6 +9,7 @@ The hero's animation switches automatically:
   jump  → in the air
 """
 
+import random
 from graphics import *
 
 W, H = 480, 270
@@ -32,7 +33,7 @@ state = State(vy=0, on_ground=True, score=0, alive=True, distance=0)
 
 
 def reset_actor(actor, base_y, spread=400):
-    actor.x = W + random(spread)
+    actor.x = W + random.uniform(0, spread)
     actor.y = base_y
 
 

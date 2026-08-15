@@ -13,7 +13,7 @@
     "translated", "rotated", "scaled",
     "image",
     "frame_rate", "frame_count",
-    "random", "random_color",
+    "random_color",
     "clamp", "randint", "pick",
     "Colors", "AnchorPoint",
     "lerp", "darker", "lighter", "saturated", "desaturated",
@@ -36,12 +36,12 @@
     "run", "stop", "show",
     "assets",
     "sheet",
-    "inspect",
+    "peek",
     "watch"
   ],
   "Actor": {
-    "properties": ["x", "y", "angle", "vx", "vy", "pos", "vel", "visible", "scale", "flip_x", "flip_y", "image", "collider"],
-    "methods": ["init", "update", "draw", "move", "forward", "move_to", "rotate", "point_towards", "die", "is_alive", "wrap", "wrap_x", "wrap_y", "in_bounds", "bounce", "keep_in_bounds", "distance_to", "random_position"],
+    "properties": ["x", "y", "angle", "vx", "vy", "visible", "scale", "flip_x", "flip_y", "image", "collider"],
+    "methods": ["init", "update", "draw", "move", "forward", "move_to", "rotate", "point_towards", "pos", "vel", "die", "is_alive", "wrap", "wrap_x", "wrap_y", "in_bounds", "bounce", "keep_in_bounds", "distance_to", "random_position"],
     "anchors": ["center", "top", "bottom", "left", "right", "top_left", "top_right", "bottom_left", "bottom_right"]
   },
   "Mouse": {
@@ -62,7 +62,7 @@
   "ACTOR_METHODS": [
     "bounce", "collides_any", "collides_with", "die", "distance_to", "draw",
     "forward", "in_bounds", "is_alive", "keep_in_bounds", "move", "move_to",
-    "point_towards", "random_position", "reset", "rotate", "update",
-    "wrap", "wrap_x", "wrap_y"
+    "point_towards", "pos", "random_position", "reset", "rotate", "update",
+    "vel", "wrap", "wrap_x", "wrap_y"
   ]
 }

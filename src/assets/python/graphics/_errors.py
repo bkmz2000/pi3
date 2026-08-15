@@ -282,4 +282,5 @@ ALL_MESSAGE_KEYS = [
     # Migration (temporary shims for renamed/reshaped API members)
     "friendlyError.migration.title",
     "friendlyError.migration.renamed",
+    "friendlyError.migration.removed",
 ]

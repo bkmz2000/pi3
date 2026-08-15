@@ -35,7 +35,7 @@ EXPORTED_NAMES = [
     "translated", "rotated", "scaled",
     "image",
     "frame_rate", "frame_count",
-    "random", "random_color",
+    "random_color",
     "clamp", "randint", "pick",
     "Colors", "AnchorPoint",
     "lerp", "darker", "lighter", "saturated", "desaturated",
@@ -58,7 +58,7 @@ EXPORTED_NAMES = [
     "run", "stop", "show",
     "assets",
     "sheet",
-    "inspect",
+    "peek",
     "watch",
 ]
 

@@ -679,11 +679,6 @@
       "ref_assets_overview_param_assets.sounds": "Audio clips (mp3/ogg/wav). See assets.sounds entry.",
       "ref_assets_overview_param_assets.tilemaps": "Tile maps. See assets.tilemaps entry.",
       "ref_assets_overview_param_assets.animations": "Frame-strip animations. See assets.animations entry.",
-      "ref_random_fn": "Return a random float. With one argument, returns a value in [0, low). With two arguments, returns a value in [low, high).",
-      "ref_random_fn_advanced": "Returns a `float` (uses `random.uniform`), not an integer — wrap with `int()` if you need a whole number. There is no seed control here; results are non-deterministic across runs. Both endpoints can appear in the result (uniform is inclusive on both sides for floats), unlike `random.randrange`.",
-      "ref_random_fn_param_low": "Lower bound (or upper bound if high is omitted).",
-      "ref_random_fn_param_high": "Upper bound.",
-      "ref_random_fn_returns": "A random float.",
       "ref_noise": "Smooth value noise in [0, 1]. Deterministic per (x, y, scale, seed) — call it twice with the same arguments and you get the same number. Use it to build natural-looking terrain heights, cave masks, or dithered colors.",
       "ref_noise_advanced": "Higher `scale` zooms in (smoother, slower features); lower `scale` zooms out (more rapid variation). For cave-like masks, `scale=0.1–0.3` and threshold around 0.5 works well. Change `seed` for a fresh world; the same seed always yields the same layout, so kids can share interesting seeds.",
       "ref_noise_param_x": "Sample X (typically a grid column).",
@@ -820,7 +815,7 @@
       "recipe_window_anchors_title": "Anchor things to window edges",
       "recipe_window_anchors_intro": "Position UI relative to the window corners and edges.",
       "recipe_get_random_title": "Get random values",
-      "recipe_get_random_intro": "Pick a random number or color.",
+      "recipe_get_random_intro": "Pick a random integer or color.",
       "recipe_camera_follow_title": "Moving camera",
       "recipe_camera_follow_intro": "Scroll the view to keep the player visible.",
       "recipe_move_rotate_scale_title": "Move, rotate, scale",
@@ -834,11 +829,11 @@
       "recipe_paint_a_sprite_title": "Paint a sprite in code",
       "recipe_paint_a_sprite_intro": "Make a new sprite, draw pixels into it, then recolor or bucket-fill it.",
       "recipe_random_vs_noise_title": "Random numbers vs noise",
-      "recipe_random_vs_noise_intro": "random() gives jitter; noise(x, y) gives smooth, repeatable patterns. See the difference in 30 seconds.",
+      "recipe_random_vs_noise_intro": "randint() gives jitter; noise(x, y) gives smooth, repeatable patterns. See the difference in 30 seconds.",
       "recipe_noise_patterns_title": "Smooth noise for natural shapes",
       "recipe_noise_patterns_intro": "Use deterministic noise to seed terrain, caves, or dithered colors.",
       "recipe_scatter_randomly_title": "Scatter things randomly",
-      "recipe_scatter_randomly_intro": "Pick random numbers and colors; scatter tiles across a TileGroup."
+      "recipe_scatter_randomly_intro": "Pick random integers and colors; scatter tiles across a TileGroup."
     }
   },
   "session": {
@@ -1213,7 +1208,8 @@
     },
     "migration": {
       "title": "This spelling changed",
-      "renamed": "`{{old}}` was renamed to `{{new}}`. Update your code to use the new spelling."
+      "renamed": "`{{old}}` was renamed to `{{new}}`. Update your code to use the new spelling.",
+      "removed": "`{{old}}` was removed. Use `{{hint}}` instead."
     },
     "rawTraceback": "Full error details",
     "showRaw": "Show details",

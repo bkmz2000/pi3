@@ -56,8 +56,8 @@ describe('recipes — beginner coverage for required primitives', () => {
     expect(beginnerIds.has('sound_play')).toBe(true);
   });
 
-  it('random_fn primitive covered by a beginner recipe', () => {
-    expect(beginnerIds.has('random_fn')).toBe(true);
+  it('randint_fn primitive covered by a beginner recipe', () => {
+    expect(beginnerIds.has('randint_fn')).toBe(true);
   });
 
   it('noise primitive covered by a beginner recipe', () => {

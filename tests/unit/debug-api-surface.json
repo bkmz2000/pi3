@@ -3,16 +3,18 @@
   "_version": "1.0",
   "__all__": [
     "array",
+    "between",
     "cell",
     "grid",
     "label",
+    "members",
     "named",
+    "peek",
     "queue",
-    "range",
-    "set",
     "show",
     "singles",
     "stack",
-    "text"
+    "text",
+    "watch"
   ]
 }

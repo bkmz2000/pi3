@@ -112,7 +112,7 @@ const STUDENTS: Student[] = [
       '    lo, hi = 0, len(arr) - 1',
       '    while lo <= hi:',
       '        mid = (lo + hi) // 2',
-      '        debug.array(arr, red=debug.range(lo, hi), green=mid)',
+      '        debug.array(arr, red=debug.between(lo, hi), green=mid)',
       '        debug.show()',
       '        if arr[mid] == target:',
       '            return mid',

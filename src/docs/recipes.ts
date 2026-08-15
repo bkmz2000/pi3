@@ -271,9 +271,9 @@ export const RECIPES: DocRecipe[] = [
     id: "get_random",
     section: "window_utils",
     difficulty: "intermediate",
-    en: { title: "Get random values", intro: "Pick a random number or color." },
-    ru: { title: "Получить случайное значение", intro: "Выбери случайное число или цвет." },
-    entryIds: ["random_fn", "random_color"],
+    en: { title: "Get random values", intro: "Pick a random integer or color." },
+    ru: { title: "Получить случайное значение", intro: "Выбери случайное целое число или цвет." },
+    entryIds: ["randint_fn", "random_color"],
   },
 
   // ─── Camera ──────────────────────────────────────────────────────────────
@@ -335,9 +335,9 @@ export const RECIPES: DocRecipe[] = [
     id: "random_vs_noise",
     section: "procedural",
     difficulty: "beginner",
-    en: { title: "Random numbers vs noise", intro: "random() gives jitter; noise(x, y) gives smooth, repeatable patterns. See the difference in 30 seconds." },
-    ru: { title: "Случайные числа vs шум", intro: "random() даёт хаос; noise(x, y) — плавные, повторяемые паттерны. Увидь разницу за 30 секунд." },
-    entryIds: ["random_fn", "noise"],
+    en: { title: "Random numbers vs noise", intro: "randint() gives jitter; noise(x, y) gives smooth, repeatable patterns. See the difference in 30 seconds." },
+    ru: { title: "Случайные числа vs шум", intro: "randint() даёт хаос; noise(x, y) — плавные, повторяемые паттерны. Увидь разницу за 30 секунд." },
+    entryIds: ["randint_fn", "noise"],
   },
   {
     id: "noise_patterns",
@@ -351,9 +351,9 @@ export const RECIPES: DocRecipe[] = [
     id: "scatter_randomly",
     section: "procedural",
     difficulty: "advanced",
-    en: { title: "Scatter things randomly", intro: "Pick random numbers and colors; scatter tiles across a TileGroup." },
-    ru: { title: "Случайное размещение", intro: "Получай случайные числа и цвета; разбрасывай тайлы по TileGroup." },
-    entryIds: ["random_fn", "random_color", "tile_group", "tilemap_group"],
+    en: { title: "Scatter things randomly", intro: "Pick random integers and colors; scatter tiles across a TileGroup." },
+    ru: { title: "Случайное размещение", intro: "Получай случайные целые числа и цвета; разбрасывай тайлы по TileGroup." },
+    entryIds: ["randint_fn", "random_color", "tile_group", "tilemap_group"],
   },
 
   // ─── Debugging ───────────────────────────────────────────────────────────
@@ -361,9 +361,9 @@ export const RECIPES: DocRecipe[] = [
     id: "print_and_pin_values",
     section: "debugging",
     difficulty: "beginner",
-    en: { title: "Print and pin live values", intro: "inspect() for a one-off dump, watch() to keep a value pinned above the console while your program runs." },
-    ru: { title: "Печать и закрепление значений", intro: "inspect() для разового вывода, watch() — чтобы закрепить значение над консолью, пока программа работает." },
-    entryIds: ["inspect", "watch"],
+    en: { title: "Print and pin live values", intro: "peek() for a one-off dump, watch() to keep a value pinned above the console while your program runs." },
+    ru: { title: "Печать и закрепление значений", intro: "peek() для разового вывода, watch() — чтобы закрепить значение над консолью, пока программа работает." },
+    entryIds: ["peek", "watch"],
   },
   {
     id: "visualize_an_algorithm",
@@ -371,6 +371,6 @@ export const RECIPES: DocRecipe[] = [
     difficulty: "advanced",
     en: { title: "Visualize an algorithm step by step", intro: "Register an array, grid, stack, queue, or set with pi3.debug, call debug.show() each step, then scrub through the recorded frames." },
     ru: { title: "Визуализировать алгоритм по шагам", intro: "Зарегистрируй массив, сетку, стек, очередь или множество через pi3.debug, вызывай debug.show() на каждом шаге и пролистывай записанные кадры." },
-    entryIds: ["debug_array", "debug_grid", "debug_stack", "debug_queue", "debug_set", "debug_show"],
+    entryIds: ["debug_array", "debug_grid", "debug_stack", "debug_queue", "debug_members", "debug_show"],
   },
 ];

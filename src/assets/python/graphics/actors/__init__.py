@@ -13,7 +13,6 @@ from graphics._errors import (
     FriendlyAttrError,
     _compute_suggestions,
     migration_proxy_property,
-    migration_setter_raises,
 )
 
 # Valid kwargs for Actor (and broadly for Rect/Circle) — used for typo detection.
@@ -115,7 +114,15 @@ class Actor:
                     self.collider.set_rect(float(w), float(h))
 
         # Process kwargs: properties via their setter, plain attrs via object.__setattr__.
+        # pos/vel are getter methods (computed), so a constructor kwarg routes
+        # through the explicit setters set_pos/set_vel.
         for key, value in kwargs.items():
+            if key == "pos":
+                self.set_pos(value)
+                continue
+            if key == "vel":
+                self.set_vel(value)
+                continue
             cls_attr = None
             for cls in type(self).__mro__:
                 if key in cls.__dict__:
@@ -143,6 +150,20 @@ class Actor:
         if name.startswith('_'):
             object.__setattr__(self, name, value)
             return
+        # pos/vel are getter methods (computed values) — a direct assignment
+        # has no valid continuation; point at the explicit setters.
+        if name == "pos":
+            raise FriendlyError(
+                "friendlyError.migration.renamed",
+                {"old": "actor.pos = value", "new": "actor.set_pos(value)"},
+                raw="actor.pos is a computed getter — use actor.set_pos(value) to set it.",
+            )
+        if name == "vel":
+            raise FriendlyError(
+                "friendlyError.migration.renamed",
+                {"old": "actor.vel = value", "new": "actor.set_vel(value)"},
+                raw="actor.vel is a computed getter — use actor.set_vel(value) to set it.",
+            )
         # Property descriptor check.
         for cls in type(self).__mro__:
             if name in cls.__dict__:
@@ -275,18 +296,13 @@ class Actor:
         self._vx = v.x
         self._vy = v.y
 
-    # MIGRATION SHIM — remove after sunset. `pos`/`vel` used to be plain
-    # properties; they're computed values now, so the new spelling is a
-    # call: `actor.pos()` / `actor.vel()`. This property returns a proxy —
-    # calling it (the new spelling) works, any other use raises.
-    pos = property(
-        migration_proxy_property(lambda s: s._compute_pos(), "pos", "pos()"),
-        migration_setter_raises("pos = value", "set_pos(value)"),
-    )
-    vel = property(
-        migration_proxy_property(lambda s: s._compute_vel(), "vel", "vel()"),
-        migration_setter_raises("vel = value", "set_vel(value)"),
-    )
+    def pos(self):
+        """Position as a fresh Vector2 computed from x/y — call with parens: actor.pos()."""
+        return self._compute_pos()
+
+    def vel(self):
+        """Velocity as a fresh Vector2 computed from vx/vy — call with parens: actor.vel()."""
+        return self._compute_vel()
 
     @property
     def visible(self):
@@ -466,8 +482,9 @@ class Actor:
         else:
             mx = my = 0
         w, h = g._width, g._height
-        self._x = g.random(mx, w - mx) if w > 2 * mx else w / 2
-        self._y = g.random(my, h - my) if h > 2 * my else h / 2
+        import random as _rnd
+        self._x = _rnd.uniform(mx, w - mx) if w > 2 * mx else w / 2
+        self._y = _rnd.uniform(my, h - my) if h > 2 * my else h / 2
 
     def wrap_x(self):
         """If actor leaves left/right edge, appear on the opposite side."""
@@ -879,9 +896,10 @@ def _draw_actor_info_overlay():
             cmds.append(("circle", (ex, ey, 3.0)))
 
         # facing tick: short cyan line along actor.angle
+        # Convention matches forward() and Polar: (sin, -cos) => 0deg = up.
         angle_rad = _math.radians(actor._angle)
-        fx = x + _math.cos(angle_rad) * 14.0
-        fy = y + _math.sin(angle_rad) * 14.0
+        fx = x + _math.sin(angle_rad) * 14.0
+        fy = y - _math.cos(angle_rad) * 14.0
         cmds.append(("no_fill", ()))
         cmds.append(("stroke", (100, 200, 255)))
         cmds.append(("stroke_width", (2,)))

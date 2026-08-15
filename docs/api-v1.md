@@ -133,6 +133,39 @@ permanent.
   exist — use `actor.collides_with(other)`), duplicate `id: "debug"` category
   key in `graphicsDocs.ts`.
 
+## 2026-08-14: namespace-collision cleanup + strict fill colors
+
+### Breaking (shimmed — old spelling raises a friendly error)
+- **`graphics.random(low, high)` removed.** Use the Python standard library:
+  `import random` then `random.uniform(lo, hi)`. Accessing
+  `graphics.random` raises a friendly `migration.removed` error pointing at
+  the stdlib spellings. `random_color()`, `randint()`, `pick()` remain.
+- **`graphics.inspect(x)` renamed to `peek(x)`.** Old spelling raises a
+  friendly `migration.renamed` error.
+- **`debug.range(lo, hi)` renamed to `debug.between(lo, hi)`.**
+- **`debug.set(data)` renamed to `debug.members(data)`.**
+
+### Fixed
+- `fill()` / `stroke()` / `background()` silently turned unknown color
+  names (typos) and hex strings into white. They now resolve through the strict
+  `_to_rgb` path: unknown names raise the friendly `badColor` error and
+  `#rrggbb` hex strings work, matching `Colors.*`, `lerp`,
+  `create_sprite`, and the documented contract.
+
+## 2026-08-14: pos/vel are real getter methods (decision: parens = computed)
+
+### Changed (no behavior break for the documented spelling)
+- `actor.pos` / `actor.vel` were implemented as MigrationProxy *properties*
+  (a property returning a callable proxy). They are now **real getter methods**:
+  `def pos(self)` / `def vel(self)` returning a fresh computed Vector2.
+- Because they are real methods, they now appear in `ACTOR_METHODS`, so the
+  linter's `W_MethodNotCalled` rule flags `actor.pos` (missing parens) exactly
+  like `actor.draw`. The API snapshot classifies them as methods, not properties.
+- `actor.pos = v` / `actor.vel = v` still raise the friendly migration error
+  pointing at `set_pos(v)`/`set_vel(v)` (via `__setattr__`).
+- `Actor(pos=..., vel=...)` constructor kwargs now route through
+  `set_pos`/`set_vel` (previously they hit the property shim setter).
+
 ## Version
 
 **1.0** — stable API surface snapshot at `tests/unit/api-surface.json`.

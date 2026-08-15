@@ -138,7 +138,7 @@ expected_funcs = {
     "push", "pop", "translate", "rotate", "scale",
     "image",
     "run", "stop", "frame_rate",
-    "random", "random_color",
+    "random_color",
     "lerp", "darker", "lighter", "saturated", "desaturated",
     "create_sprite", "get_pixel", "set_pixel", "palette_swap", "flood_fill",
     "darken", "lighten", "saturate", "desaturate",
@@ -487,6 +487,34 @@ test("fill(gray) queues gray rgb", cmd() == ("fill", (128, 128, 128)))
 
 reset(); g.fill((255, 0, 128))
 test("fill(tuple) queues correct rgb", cmd() == ("fill", (255, 0, 128)))
+
+# --- strict color validation (typos raise, hex works, fill() == no_fill) ---
+
+reset(); g.fill()
+test("fill() with no args queues no_fill (alias)", cmd()[0] == "no_fill")
+
+reset(); g.fill("#ff0000")
+test("fill('#ff0000') parses hex to red", cmd() == ("fill", (255, 0, 0)))
+
+reset(); g.fill("#00ff00")
+test("fill('#00ff00') parses hex to green", cmd() == ("fill", (0, 255, 0)))
+
+reset()
+try:
+    g.fill("blu")
+    test("fill('blu') typo raises FriendlyError", False)
+except FriendlyError as e:
+    test("fill('blu') typo raises FriendlyError",
+         e.message_key == "friendlyError.naming.badColor")
+    test("fill('blu') badColor carries the typo", e.message_args.get("color") == "blu")
+
+reset()
+try:
+    g.stroke("reed")
+    test("stroke('reed') typo raises FriendlyError", False)
+except FriendlyError as e:
+    test("stroke('reed') typo raises FriendlyError",
+         e.message_key == "friendlyError.naming.badColor")
 
 reset(); g.stroke(None)
 test("stroke(None) queues no_stroke", cmd()[0] == "no_stroke")
@@ -1512,28 +1540,30 @@ test("actor.vel().x matches _vx", a_v.vel().x == 3)
 a_v.set_vel(Vector2(5, 6))
 test("actor.set_vel(v) sets _vx/_vy", a_v._vx == 5 and a_v._vy == 6)
 
-# --- Migration shims: old pos/vel spellings raise ---
+# --- pos/vel are getter methods: parens required, assignment must use set_pos/set_vel ---
 
-print("\n=== Runtime: Actor.pos / Actor.vel migration shims ===")
+print("\n=== Runtime: Actor.pos() / Actor.vel() getter methods ===")
 
 reset()
 a_shim = Actor(); a_shim._x = 1; a_shim._y = 2
-try:
-    _ = a_shim.pos.x
-    test("bare actor.pos.x raises FriendlyError", False)
-except FriendlyError as e:
-    test("bare actor.pos.x raises FriendlyError", e.message_key == "friendlyError.migration.renamed")
+test("actor.pos() is callable", callable(a_shim.pos))
+test("actor.pos() returns a fresh Vector2 each call", a_shim.pos() == a_shim.pos())
+# A getter recomputes from _x/_y — mutating the returned vector must NOT mutate the actor.
+v = a_shim.pos()
+v.x = 999
+test("actor.pos() returns a computed copy (mutation isolated)", a_shim._x == 1)
+test("actor.pos() reflects live _x/_y", a_shim.pos().x == 1)
 try:
     a_shim.pos = Vector2(9, 9)
     test("actor.pos = v raises FriendlyError", False)
-except FriendlyError:
-    test("actor.pos = v raises FriendlyError", True)
+except FriendlyError as e:
+    test("actor.pos = v raises FriendlyError", e.message_key == "friendlyError.migration.renamed")
 try:
     a_shim.vel = Vector2(9, 9)
     test("actor.vel = v raises FriendlyError", False)
-except FriendlyError:
-    test("actor.vel = v raises FriendlyError", True)
-test("actor.pos() still callable (shim call-through)", a_shim.pos().x == 1)
+except FriendlyError as e:
+    test("actor.vel = v raises FriendlyError", e.message_key == "friendlyError.migration.renamed")
+test("actor.pos() still works after failed assignment", a_shim.pos().x == 1)
 
 
 # --- Actor anchors fall back to image dimensions when no collider ---
@@ -2458,7 +2488,7 @@ from graphics._manifest import ACTOR_METHODS as _am
 # Must include core instance methods
 for _m in ("draw", "move", "forward", "bounce", "die", "update", "rotate",
            "wrap", "wrap_x", "wrap_y", "in_bounds", "is_alive", "keep_in_bounds",
-           "distance_to", "collides_with", "collides_any", "reset"):
+           "distance_to", "collides_with", "collides_any", "reset", "pos", "vel"):
     test(f"ACTOR_METHODS has '{_m}'", _m in _am)
 
 # Must NOT include static methods or properties

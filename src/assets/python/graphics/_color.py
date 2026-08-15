@@ -96,14 +96,18 @@ def _to_rgb(c):
 
 
 def _resolve_color(r, g=None, b=None):
-    """Returns an (r, g, b) tuple from various input forms."""
-    if isinstance(r, tuple):
-        return (int(r[0]), int(r[1]), int(r[2]))
-    if isinstance(r, str):
-        return COLOR_NAMES.get(r.lower(), (255, 255, 255))
-    if g is None:
+    """Returns an (r, g, b) tuple from various input forms.
+
+    Single-input forms (a color name, hex string, tuple, or gray value)
+    delegate to the strict _to_rgb so typos raise a friendly badColor error
+    and "#rrggbb" hex strings work — the same contract as Colors.*, lerp,
+    create_sprite, and the docs. Three-number r, g, b passes through directly.
+    """
+    if g is not None or b is not None:
+        return (int(r), int(g), int(b))
+    if isinstance(r, (int, float)) and not isinstance(r, bool):
         return (int(r), int(r), int(r))
-    return (int(r), int(g), int(b))
+    return _to_rgb(r)
 
 
 def _rgb_to_hsl(r, g, b):

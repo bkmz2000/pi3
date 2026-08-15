@@ -83,7 +83,7 @@ const runnerState = {
   interrupt: jest.fn(async () => {}),
   lint: jest.fn(async () => []),
   clear: jest.fn(),
-  _appendOutput: jest.fn(),
+  appendOutput: jest.fn(),
   pushErrorCard: jest.fn(),
 };
 

@@ -66,7 +66,7 @@ type RunnerState = {
   debugScrubIndex: number | null;
 
   _onMessage: (msg: WorkerEvent) => void;
-  _appendOutput: (kind: "stdout" | "stderr", text: string) => void;
+  appendOutput: (kind: "stdout" | "stderr", text: string) => void;
   _bumpEpoch: () => void;
   setRunning: (running: boolean) => void;
   setPaused: (paused: boolean) => void;
@@ -133,7 +133,7 @@ export const useRunnerStore = create<RunnerState>((set) => ({
     set({ screenshots: [] });
   },
 
-  _appendOutput: (kind, text) =>
+  appendOutput: (kind, text) =>
     set((s) => ({ output: [...s.output, { kind, text }] })),
 
   setLintErrors: (errors) => set({ lintErrors: errors }),
@@ -145,11 +145,11 @@ export const useRunnerStore = create<RunnerState>((set) => ({
         break;
       }
       case "stdout": {
-        useRunnerStore.getState()._appendOutput("stdout", msg.text);
+        useRunnerStore.getState().appendOutput("stdout", msg.text);
         break;
       }
       case "stderr": {
-        useRunnerStore.getState()._appendOutput("stderr", msg.text);
+        useRunnerStore.getState().appendOutput("stderr", msg.text);
         break;
       }
       case "result": {
@@ -454,9 +454,9 @@ function flushNow() {
   // Each batch renders as its own block <div>, so a single trailing newline
   // is redundant and would show as a blank line between batches.
   if (stdoutLines.length)
-    store._appendOutput("stdout", stdoutLines.join("").replace(/\n$/, ""));
+    store.appendOutput("stdout", stdoutLines.join("").replace(/\n$/, ""));
   if (stderrLines.length)
-    store._appendOutput("stderr", stderrLines.join("").replace(/\n$/, ""));
+    store.appendOutput("stderr", stderrLines.join("").replace(/\n$/, ""));
 }
 
 function scheduleFlush() {
@@ -490,9 +490,9 @@ function scheduleFlush() {
     const store = useRunnerStore.getState();
     // See flushNow: join verbatim, drop the redundant trailing newline.
     if (stdoutLines.length)
-      store._appendOutput("stdout", stdoutLines.join("").replace(/\n$/, ""));
+      store.appendOutput("stdout", stdoutLines.join("").replace(/\n$/, ""));
     if (stderrLines.length)
-      store._appendOutput("stderr", stderrLines.join("").replace(/\n$/, ""));
+      store.appendOutput("stderr", stderrLines.join("").replace(/\n$/, ""));
   });
 }
 
@@ -809,7 +809,7 @@ export function runChecker(
 }
 
 export function useRunner() {
-  const { ready, running, output, clear, pushErrorCard, inputPrompt, respondToInput, canvasActive, canvasWidth, canvasHeight, canvasScale, lintErrors, _appendOutput, applySuggestion, watches, paused, speed, setPaused, setSpeed, frameHistory, scrubIndex, scrubTo } =
+  const { ready, running, output, clear, pushErrorCard, inputPrompt, respondToInput, canvasActive, canvasWidth, canvasHeight, canvasScale, lintErrors, appendOutput, applySuggestion, watches, paused, speed, setPaused, setSpeed, frameHistory, scrubIndex, scrubTo } =
     useRunnerStore();
 
   useEffect(() => {
@@ -1079,7 +1079,7 @@ export function useRunner() {
     lintErrors,
     captureScreenshot,
     requestCompletions,
-    _appendOutput,
+    appendOutput,
     applySuggestion,
     pushErrorCard,
     watches,

@@ -18,7 +18,7 @@ export function useRunButton(options: UseRunButtonOptions = {}) {
   const saveCurrentProject = useIde((s) => s.saveCurrentProject);
   const enableLinting = useIde((s) => s.enableLinting);
 
-  const { running, run, interrupt, lint, clear, _appendOutput, pushErrorCard } = useRunner();
+  const { running, run, interrupt, lint, clear, appendOutput, pushErrorCard } = useRunner();
 
   const isStartingRef = useRef(false);
 
@@ -47,7 +47,7 @@ export function useRunButton(options: UseRunButtonOptions = {}) {
       
       clear();  // Clear previous output
       if (enableLinting) {
-        _appendOutput("stdout", t('console.checking'));
+        appendOutput("stdout", t('console.checking'));
         const diagnostics: LintDiagnostic[] = await lint(code, filename);
 
         // Smart blocking: grammar/syntax errors block, naming/type/logic don't
@@ -59,7 +59,7 @@ export function useRunButton(options: UseRunButtonOptions = {}) {
         );
 
         if (blockingErrors.length > 0) {
-          _appendOutput("stderr", t('console.foundErrors', { count: blockingErrors.length }));
+          appendOutput("stderr", t('console.foundErrors', { count: blockingErrors.length }));
           return;
         }
 
@@ -108,14 +108,14 @@ export function useRunButton(options: UseRunButtonOptions = {}) {
         }
 
         if (nonBlockingErrors.length > 0) {
-          _appendOutput("stdout", t('console.foundNonBlocking', { count: nonBlockingErrors.length }));
+          appendOutput("stdout", t('console.foundNonBlocking', { count: nonBlockingErrors.length }));
         }
 
         const warnings = diagnostics.filter((d) => d.severity === "warning");
         if (warnings.length > 0 && nonBlockingErrors.length === 0) {
-          _appendOutput("stdout", t('console.foundWarnings', { count: warnings.length }));
+          appendOutput("stdout", t('console.foundWarnings', { count: warnings.length }));
         } else if (warnings.length === 0 && nonBlockingErrors.length === 0) {
-          _appendOutput("stdout", t('console.noErrors'));
+          appendOutput("stdout", t('console.noErrors'));
         }
       }
       options.onBeforeRun?.();
@@ -123,7 +123,7 @@ export function useRunButton(options: UseRunButtonOptions = {}) {
     } finally {
       isStartingRef.current = false;
     }
-  }, [running, project, currentFile, dirtyFiles, lint, clear, _appendOutput, pushErrorCard, run, interrupt, saveCurrentProject, markClean, options, t, enableLinting]);
+  }, [running, project, currentFile, dirtyFiles, lint, clear, appendOutput, pushErrorCard, run, interrupt, saveCurrentProject, markClean, options, t, enableLinting]);
 
   return {
     running,

@@ -25,7 +25,7 @@ const runnerState = {
   interrupt: jest.fn<() => Promise<void>>().mockResolvedValue(undefined),
   lint: jest.fn<(code: string, filename: string) => Promise<LintDiagnostic[]>>().mockResolvedValue([]),
   clear: jest.fn(),
-  _appendOutput: jest.fn(),
+  appendOutput: jest.fn(),
   pushErrorCard: jest.fn(),
 };
 
@@ -121,7 +121,7 @@ describe('linting enabled', () => {
 
     await act(async () => { await result.current.handleRunToggle(); });
 
-    expect(runnerState._appendOutput).toHaveBeenCalledWith('stdout', 'No errors found. Starting...');
+    expect(runnerState.appendOutput).toHaveBeenCalledWith('stdout', 'No errors found. Starting...');
     expect(runnerState.run).toHaveBeenCalled();
   });
 
@@ -133,7 +133,7 @@ describe('linting enabled', () => {
 
     await act(async () => { await result.current.handleRunToggle(); });
 
-    expect(runnerState._appendOutput).toHaveBeenCalledWith('stdout', '1 warning(s). Starting anyway...');
+    expect(runnerState.appendOutput).toHaveBeenCalledWith('stdout', '1 warning(s). Starting anyway...');
     expect(runnerState.run).toHaveBeenCalled();
   });
 
@@ -145,7 +145,7 @@ describe('linting enabled', () => {
 
     await act(async () => { await result.current.handleRunToggle(); });
 
-    expect(runnerState._appendOutput).toHaveBeenCalledWith('stderr', 'Found 1 error(s) — fix them before running');
+    expect(runnerState.appendOutput).toHaveBeenCalledWith('stderr', 'Found 1 error(s) — fix them before running');
     expect(runnerState.run).not.toHaveBeenCalled();
   });
 

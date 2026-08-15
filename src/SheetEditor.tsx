@@ -6,7 +6,7 @@ import type { SheetSprites } from "./state/IdeState";
 import {
   Pencil, Eraser, PaintBucket, Undo2, Redo2, Grid2x2,
   Maximize, PanelRight, Square, Circle, Spline,
-  MousePointer2, SunDim, Sun, LayoutGrid, Stamp, Library, Wand2,
+  MousePointer2, SunDim, Sun, LayoutGrid, Stamp, Library, Wand2, X,
 } from "lucide-react";
 import {
   ACTOR_RESERVED, connectedBounds, padBoundsToGrid,
@@ -81,8 +81,8 @@ function ColorPicker({ color, secondaryColor, onColor, onSecondary, onClose, the
     const [r1, g1, b1] = hexToRgb(color);
     const [r2, g2, b2] = hexToRgb(secondaryColor);
     return Array.from({ length: 10 }, (_, i) => {
-      const t = i / 9;
-      return rgbToHex(lerpCh(r1, r2, t), lerpCh(g1, g2, t), lerpCh(b1, b2, t));
+      const f = i / 9;
+      return rgbToHex(lerpCh(r1, r2, f), lerpCh(g1, g2, f), lerpCh(b1, b2, f));
     });
   }, [color, secondaryColor]);
 
@@ -1097,7 +1097,7 @@ export default function SheetEditor({ onClose, initialSprite }: { onClose: () =>
 
       {/* ── Header ── */}
       <header style={{ height: 44, display: "flex", alignItems: "center", gap: 2, padding: "0 10px", background: panelHeader, borderBottom: `1px solid ${panelBorder}`, flexShrink: 0 }}>
-        <span style={{ fontWeight: 700, fontSize: "12.5px", color: accent, marginRight: 2, flexShrink: 0 }}>{t('sheetEditor.title')}</span>
+        <span style={{ fontWeight: 700, fontSize: "12.5px", color: panelTxt, marginRight: 2, flexShrink: 0 }}>{t('sheetEditor.title')}</span>
         <div style={{ width: 1, height: 18, background: "rgba(148,210,216,0.22)", margin: "0 5px", flexShrink: 0 }} />
         <button title={t('sheetEditor.library')} onClick={() => setShowLibrary(true)}
           style={{ all: "unset", display: "flex", alignItems: "center", justifyContent: "center", gap: 5, width: "auto", padding: "0 8px", height: 28, borderRadius: 5, cursor: "pointer", color: panelTxtMute, flexShrink: 0, fontSize: 11, fontFamily: fontUI }}>
@@ -1111,21 +1111,22 @@ export default function SheetEditor({ onClose, initialSprite }: { onClose: () =>
         <button onClick={() => setPanelOpen((p) => !p)} title={t('sheetEditor.togglePanel')} style={{ all: "unset", display: "flex", alignItems: "center", justifyContent: "center", width: 30, height: 28, borderRadius: 5, cursor: "pointer", color: panelOpen ? teal : panelTxtMute, background: panelOpen ? `${teal}11` : "transparent", flexShrink: 0 }}>
           <PanelRight size={18} /></button>
         <div style={{ display: "flex", alignItems: "center", gap: 0, flexShrink: 0 }}>
-          <button onClick={() => setShowGrid((g) => !g)} title={`Grid: ${showGrid ? "on" : "off"}`}
+          <button onClick={() => setShowGrid((g) => !g)} title={showGrid ? t('sheetEditor.gridOn') : t('sheetEditor.gridOff')}
             style={{ all: "unset", display: "flex", alignItems: "center", justifyContent: "center", width: 28, height: 28, borderRadius: 5, cursor: "pointer", color: showGrid ? teal : panelTxtMute, background: showGrid ? `${teal}11` : "transparent" }}>
             <Grid2x2 size={16} /></button>
           {showGrid && <>
-            <button onClick={() => setGridSize((g) => prevGridSize(g))} title="Grid smaller"
+            <button onClick={() => setGridSize((g) => prevGridSize(g))} title={t('sheetEditor.gridSmaller')}
               style={{ all: "unset", display: "flex", alignItems: "center", justifyContent: "center", width: 16, height: 24, cursor: "pointer", color: panelTxtMute, fontSize: 14, fontFamily: fontUI }}>−</button>
             <span style={{ fontSize: 10, color: teal, fontFamily: fontMono, minWidth: 30, textAlign: "center" }}>{gridSize}px</span>
-            <button onClick={() => setGridSize((g) => nextGridSize(g))} title="Grid larger"
+            <button onClick={() => setGridSize((g) => nextGridSize(g))} title={t('sheetEditor.gridLarger')}
               style={{ all: "unset", display: "flex", alignItems: "center", justifyContent: "center", width: 16, height: 24, cursor: "pointer", color: panelTxtMute, fontSize: 14, fontFamily: fontUI }}>+</button>
           </>}
         </div>
         <button onClick={fitToView} title={t('sheetEditor.fitCanvas')} style={{ all: "unset", display: "flex", alignItems: "center", justifyContent: "center", width: 30, height: 28, borderRadius: 5, cursor: "pointer", color: panelTxtMute, flexShrink: 0 }}>
           <Maximize size={18} /></button>
         <div style={{ flex: 1 }} />
-        <button onClick={onClose} style={{ all: "unset", padding: "4px 12px", borderRadius: 4, border: `1px solid ${panelBorder}`, cursor: "pointer", color: panelTxtMute, fontSize: 11, fontFamily: fontUI, flexShrink: 0 }}>{t('sheetEditor.close')}</button>
+        <button title={t('sheetEditor.close')} onClick={onClose} style={{ all: "unset", display: "flex", alignItems: "center", justifyContent: "center", width: 26, height: 26, borderRadius: 4, cursor: "pointer", color: panelTxtMute, flexShrink: 0 }}>
+          <X size={14} /></button>
       </header>
 
       {/* ── Main row ── */}
@@ -1329,7 +1330,7 @@ export default function SheetEditor({ onClose, initialSprite }: { onClose: () =>
         </div>
         <div style={{ width: 1, height: 18, background: "rgba(148,210,216,0.22)", margin: "0 5px", flexShrink: 0 }} />
         {(() => { const [r1,g1,b1] = hexToRgb(color); const [r2,g2,b2] = hexToRgb(secondaryColor); const eP = lerpOverride ?? color;
-          return <div style={{ display: "flex", gap: 2, marginRight: 8, flexShrink: 0 }}>{Array.from({ length: 10 }, (_, i) => { const t = i/9; const c = rgbToHex(lerpCh(r1,r2,t), lerpCh(g1,g2,t), lerpCh(b1,b2,t)); const isA = c === eP && (lerpOverride !== null || i === 0);
+          return <div style={{ display: "flex", gap: 2, marginRight: 8, flexShrink: 0 }}>{Array.from({ length: 10 }, (_, i) => { const f = i/9; const c = rgbToHex(lerpCh(r1,r2,f), lerpCh(g1,g2,f), lerpCh(b1,b2,f)); const isA = c === eP && (lerpOverride !== null || i === 0);
             return <button key={i} title={c} onClick={() => setLerpOverride(c)} style={{ width: 12, height: 20, borderRadius: 2, cursor: "pointer", padding: 0, background: c, border: `1.5px solid ${isA ? "rgba(255,255,255,0.55)" : "transparent"}`, position: "relative", zIndex: 0, flexShrink: 0 }} />;
           })}</div>; })()}
         <div style={{ width: 1, height: 18, background: "rgba(148,210,216,0.22)", margin: "0 5px", flexShrink: 0 }} />

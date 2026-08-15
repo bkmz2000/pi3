@@ -594,39 +594,68 @@ def height() -> int:
 # === DRAWING ===
 
 
-def circle(x, y, r) -> None:
-    _state._draw_commands.append(("circle", (float(x), float(y), float(r))))
-
-
-def rect(x, y, w, h) -> None:
-    _state._draw_commands.append(("rect", (float(x), float(y), float(w), float(h))))
-
-
-def ellipse(x, y, w, h=None) -> None:
-    if h is None:
-        h = w
-    _state._draw_commands.append(("ellipse", (float(x), float(y), float(w), float(h))))
-
-
 def _is_point_like(v) -> bool:
     return isinstance(v, Vector2) or (isinstance(v, (tuple, list)) and len(v) == 2)
 
 
+def _raise_point_or_coords(name, forms, *args) -> None:
+    raise FriendlyError(
+        "friendlyError.apiMisuse.pointOrCoords",
+        {"name": name, "forms": forms, "args": ", ".join(repr(v) for v in args if v is not None)},
+    )
+
+
+def circle(a, b=None, c=None) -> None:
+    """circle(x, y, r) or circle(p, r) with p as (x, y) tuple / Vector2."""
+    if c is None:
+        if not _is_point_like(a) or b is None:
+            _raise_point_or_coords("circle", "(x, y, r) / (p, r)", a, b)
+        p = Vector2(a)
+        x, y, r = p.x, p.y, b
+    else:
+        x, y, r = a, b, c
+    _state._draw_commands.append(("circle", (float(x), float(y), float(r))))
+
+
+def rect(a, b, c, d=None) -> None:
+    """rect(x, y, w, h) or rect(p, w, h) with p as (x, y) tuple / Vector2."""
+    if d is None:
+        if not _is_point_like(a):
+            _raise_point_or_coords("rect", "(x, y, w, h) / (p, w, h)", a, b, c)
+        p = Vector2(a)
+        x, y, w, h = p.x, p.y, b, c
+    else:
+        x, y, w, h = a, b, c, d
+    _state._draw_commands.append(("rect", (float(x), float(y), float(w), float(h))))
+
+
+def ellipse(a, b=None, c=None, d=None) -> None:
+    """ellipse(x, y, w, h=w) or ellipse(p, w, h=w) with p as (x, y) tuple / Vector2."""
+    forms = "(x, y, w, h=w) / (p, w, h=w)"
+    if _is_point_like(a):
+        if b is None:
+            _raise_point_or_coords("ellipse", forms, a)
+        p = Vector2(a)
+        x, y, w = p.x, p.y, b
+        h = c if c is not None else w
+    else:
+        if c is None:
+            _raise_point_or_coords("ellipse", forms, a, b)
+        x, y, w = a, b, c
+        h = d if d is not None else w
+    _state._draw_commands.append(("ellipse", (float(x), float(y), float(w), float(h))))
+
+
 def line(x1, y1, x2=None, y2=None) -> None:
     """line(x1, y1, x2, y2) or line(p1, p2) with (x, y) tuples / Vector2."""
+    forms = "(x1, y1, x2, y2) / (p1, p2)"
     if x2 is None and y2 is None:
         if not (_is_point_like(x1) and _is_point_like(y1)):
-            raise FriendlyError(
-                "friendlyError.apiMisuse.lineNeedsPointsOrCoords",
-                {"args": ", ".join(repr(v) for v in (x1, y1))},
-            )
+            _raise_point_or_coords("line", forms, x1, y1)
         p1, p2 = Vector2(x1), Vector2(y1)
         x1, y1, x2, y2 = p1.x, p1.y, p2.x, p2.y
     elif x2 is None or y2 is None:
-        raise FriendlyError(
-            "friendlyError.apiMisuse.lineNeedsPointsOrCoords",
-            {"args": ", ".join(repr(v) for v in (x1, y1, x2, y2) if v is not None)},
-        )
+        _raise_point_or_coords("line", forms, x1, y1, x2, y2)
     _state._draw_commands.append(("line", (float(x1), float(y1), float(x2), float(y2))))
 
 
@@ -676,7 +705,15 @@ def spline(points, tension: float = 0.5) -> None:
     _state._draw_commands.append(("spline", (flat, t)))
 
 
-def point(x, y) -> None:
+def point(a, b=None) -> None:
+    """point(x, y) or point(p) with p as (x, y) tuple / Vector2."""
+    if b is None:
+        if not _is_point_like(a):
+            _raise_point_or_coords("point", "(x, y) / (p)", a)
+        p = Vector2(a)
+        x, y = p.x, p.y
+    else:
+        x, y = a, b
     _state._draw_commands.append(("point", (float(x), float(y))))
 
 
@@ -766,7 +803,13 @@ def pop() -> None:
     _state._draw_commands.append(("pop", ()))
 
 
-def translate(x, y) -> None:
+def translate(x, y=None) -> None:
+    """translate(x, y) or translate(p) with p as (x, y) tuple / Vector2."""
+    if y is None:
+        if not _is_point_like(x):
+            _raise_point_or_coords("translate", "(x, y) / (p)", x)
+        p = Vector2(x)
+        x, y = p.x, p.y
     _state._draw_commands.append(("translate", (float(x), float(y))))
 
 
@@ -781,8 +824,9 @@ def scale(x, y=None) -> None:
 
 
 @contextmanager
-def translated(dx, dy):
+def translated(dx, dy=None):
     """`with translated(dx, dy):` — push, translate, run the block, pop.
+    Also accepts a single point: `with translated(p):`.
 
         with translated(100, 50):
             circle(0, 0, 10)   # drawn at (100, 50)
@@ -851,10 +895,16 @@ class Stamp:
         self._prev_commands = None
         return False
 
-    def draw(self, x=0, y=0, angle=0):
-        if isinstance(x, Actor):
-            actor = x
+    def draw(self, a=0, b=0, angle=0):
+        """draw(x, y, angle=0), draw(p, angle=0) with p as (x, y) tuple / Vector2, or draw(actor)."""
+        if isinstance(a, Actor):
+            actor = a
             x, y, angle = actor.x, actor.y, actor.angle
+        elif _is_point_like(a):
+            p = Vector2(a)
+            x, y, angle = p.x, p.y, b
+        else:
+            x, y = a, b
         push()
         translate(x, y)
         rotate(angle)

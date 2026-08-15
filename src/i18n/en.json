@@ -1198,7 +1198,7 @@
       "fallback": "The API was used in a way that isn't supported.",
       "polylineNotIterable": "{{name}}() needs a list of points, but you passed a {{type}}.",
       "polylineBadPoint": "{{name}}() point at index {{index}} is not an (x, y) pair — got {{value}}.",
-      "lineNeedsPointsOrCoords": "line() needs either 4 numbers (x1, y1, x2, y2) or 2 points (p1, p2) — got {{args}}.",
+      "pointOrCoords": "{{name}}() needs one of the forms {{forms}} — got {{args}}.",
       "shapeRandomFailed": "Couldn't pick {{requested}} random point(s) inside this shape — only found {{found}}. If you passed an area, make sure it overlaps the shape."
     },
     "internal": {

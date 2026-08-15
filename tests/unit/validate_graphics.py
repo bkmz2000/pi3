@@ -525,14 +525,62 @@ test("background(tuple) queues correctly", cmd() == ("background", (50, 60, 70))
 reset(); g.circle(10, 20, 30)
 test("circle queues circle cmd", cmd() == ("circle", (10.0, 20.0, 30.0)))
 
+reset(); g.circle((10, 20), 30)
+test("circle(p, r) with tuple queues the same cmd", cmd() == ("circle", (10.0, 20.0, 30.0)))
+
+reset(); g.circle(g.Vector2(10, 20), 30)
+test("circle(p, r) with Vector2 queues the same cmd", cmd() == ("circle", (10.0, 20.0, 30.0)))
+
+try:
+    g.circle(10, 20)
+    test("circle(x, y) missing r raises FriendlyError", False)
+except FriendlyError as e:
+    test("circle(x, y) missing r raises FriendlyError", e.message_key == "friendlyError.apiMisuse.pointOrCoords")
+
+try:
+    g.circle((10, 20))
+    test("circle(p) alone missing r raises FriendlyError", False)
+except FriendlyError as e:
+    test("circle(p) alone missing r raises FriendlyError", e.message_key == "friendlyError.apiMisuse.pointOrCoords")
+
 reset(); g.rect(1, 2, 3, 4)
 test("rect queues rect cmd", cmd() == ("rect", (1.0, 2.0, 3.0, 4.0)))
+
+reset(); g.rect((1, 2), 3, 4)
+test("rect(p, w, h) with tuple queues the same cmd", cmd() == ("rect", (1.0, 2.0, 3.0, 4.0)))
+
+reset(); g.rect(g.Vector2(1, 2), 3, 4)
+test("rect(p, w, h) with Vector2 queues the same cmd", cmd() == ("rect", (1.0, 2.0, 3.0, 4.0)))
+
+try:
+    g.rect(1, 2, 3)
+    test("rect(x, y, w) missing h raises FriendlyError", False)
+except FriendlyError as e:
+    test("rect(x, y, w) missing h raises FriendlyError", e.message_key == "friendlyError.apiMisuse.pointOrCoords")
 
 reset(); g.ellipse(5, 5, 20)
 test("ellipse with no h defaults to w", cmd() == ("ellipse", (5.0, 5.0, 20.0, 20.0)))
 
 reset(); g.ellipse(5, 5, 20, 10)
 test("ellipse(x,y,w,h) queues correctly", cmd() == ("ellipse", (5.0, 5.0, 20.0, 10.0)))
+
+reset(); g.ellipse((5, 5), 20)
+test("ellipse(p, w) with no h defaults to w", cmd() == ("ellipse", (5.0, 5.0, 20.0, 20.0)))
+
+reset(); g.ellipse(g.Vector2(5, 5), 20, 10)
+test("ellipse(p, w, h) with Vector2 queues correctly", cmd() == ("ellipse", (5.0, 5.0, 20.0, 10.0)))
+
+try:
+    g.ellipse(5, 5)
+    test("ellipse(x, y) missing w raises FriendlyError", False)
+except FriendlyError as e:
+    test("ellipse(x, y) missing w raises FriendlyError", e.message_key == "friendlyError.apiMisuse.pointOrCoords")
+
+try:
+    g.ellipse((5, 5))
+    test("ellipse(p) missing w raises FriendlyError", False)
+except FriendlyError as e:
+    test("ellipse(p) missing w raises FriendlyError", e.message_key == "friendlyError.apiMisuse.pointOrCoords")
 
 reset(); g.line(0, 0, 10, 10)
 test("line queues line cmd", cmd() == ("line", (0.0, 0.0, 10.0, 10.0)))
@@ -547,16 +595,28 @@ try:
     g.line(1, 2)
     test("line(number, number) raises FriendlyError", False)
 except FriendlyError as e:
-    test("line(number, number) raises FriendlyError", e.message_key == "friendlyError.apiMisuse.lineNeedsPointsOrCoords")
+    test("line(number, number) raises FriendlyError", e.message_key == "friendlyError.apiMisuse.pointOrCoords")
 
 try:
     g.line(0, 0, 10)
     test("line(x1, y1, x2) missing y2 raises FriendlyError", False)
 except FriendlyError as e:
-    test("line(x1, y1, x2) missing y2 raises FriendlyError", e.message_key == "friendlyError.apiMisuse.lineNeedsPointsOrCoords")
+    test("line(x1, y1, x2) missing y2 raises FriendlyError", e.message_key == "friendlyError.apiMisuse.pointOrCoords")
 
 reset(); g.point(5, 7)
 test("point queues point cmd", cmd() == ("point", (5.0, 7.0)))
+
+reset(); g.point((5, 7))
+test("point(p) with tuple queues the same cmd", cmd() == ("point", (5.0, 7.0)))
+
+reset(); g.point(g.Vector2(5, 7))
+test("point(p) with Vector2 queues the same cmd", cmd() == ("point", (5.0, 7.0)))
+
+try:
+    g.point(5)
+    test("point(number) alone raises FriendlyError", False)
+except FriendlyError as e:
+    test("point(number) alone raises FriendlyError", e.message_key == "friendlyError.apiMisuse.pointOrCoords")
 
 reset(); g.text("hi", 5, 10)
 test("text(s,x,y) queues text cmd", cmd() == ("text", ("hi", 5.0, 10.0)))
@@ -583,6 +643,18 @@ test("push/translate/rotate/pop queued in order",
 test("translate args", cs[1] == ("translate", (5.0, 10.0)))
 test("rotate arg", cs[2] == ("rotate", (45.0,)))
 
+reset(); g.translate((5, 10))
+test("translate(p) with tuple queues the same cmd", cmd() == ("translate", (5.0, 10.0)))
+
+reset(); g.translate(g.Vector2(5, 10))
+test("translate(p) with Vector2 queues the same cmd", cmd() == ("translate", (5.0, 10.0)))
+
+try:
+    g.translate(5)
+    test("translate(number) alone raises FriendlyError", False)
+except FriendlyError as e:
+    test("translate(number) alone raises FriendlyError", e.message_key == "friendlyError.apiMisuse.pointOrCoords")
+
 reset(); g.scale(2)
 test("scale(2) queues (2.0, 2.0)", cmd() == ("scale", (2.0, 2.0)))
 
@@ -597,6 +669,11 @@ with g.translated(5, 10):
 test("translated() queues push/translate/pop",
      [c[0] for c in cmds()] == ["push", "translate", "pop"])
 test("translated() translate args", cmds()[1] == ("translate", (5.0, 10.0)))
+
+reset()
+with g.translated((5, 10)):
+    pass
+test("translated(p) with tuple queues the same translate cmd", cmds()[1] == ("translate", (5.0, 10.0)))
 
 reset()
 with g.rotated(45):
@@ -2536,6 +2613,16 @@ test("Stamp.draw(x, y) queues push/translate/rotate/fill/circle/pop",
      [c[0] for c in g._draw_commands] == ["push", "translate", "rotate", "fill", "circle", "pop"])
 test("Stamp.draw(x, y) translates to the given position",
      g._draw_commands[1] == ("translate", (50.0, 60.0)))
+
+reset()
+_stamp.draw((50, 60), 30)
+test("Stamp.draw(p, angle) with tuple translates and rotates",
+     g._draw_commands[1] == ("translate", (50.0, 60.0)) and g._draw_commands[2] == ("rotate", (30.0,)))
+
+reset()
+_stamp.draw(g.Vector2(50, 60))
+test("Stamp.draw(p) with Vector2 defaults angle to 0",
+     g._draw_commands[1] == ("translate", (50.0, 60.0)) and g._draw_commands[2] == ("rotate", (0.0,)))
 
 reset()
 _stamp_actor = Actor(); _stamp_actor._x = 7; _stamp_actor._y = 8; _stamp_actor._angle = 15

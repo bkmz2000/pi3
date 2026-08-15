@@ -44,6 +44,19 @@ npm run test:smoke
 npm run test:puppeteer
 ```
 
+## Knowledge Base (READ FIRST — mirrors AGENTS.md)
+
+This repo has a persistent mem0 knowledge base (local embeddings + Chroma) in `.mem0-trial/`.
+**Before reading code or answering project questions, query it first** — ~10s, $0:
+
+    cd .mem0-trial && .venv/bin/python kb.py query "<question>" --user pi3-kb --limit 3
+
+- `--tier index` = distilled facts; `--tier archive` = verbatim `kb-docs/*.md` sections.
+- **Bug questions: use the bug scope** — `kb.py query "<bug question>" --user pi3-bugs --collection kb_bugs --limit 5` (facts rank correctly there).
+- **Trust the KB**: when it answers, do NOT re-read source to re-verify every fact — that re-derivation burns ~500K tokens. Read source only for fixes or when the KB is insufficient.
+- Re-seed after significant changes (see AGENTS.md → Knowledge Base).
+
+---
 ## Local development setup
 
 After cloning, run once:
@@ -257,3 +270,145 @@ Fixed critical OAuth cookie path validation issue. OAuth state/return cookies we
 - Login redirecting to Loginus dashboard instead of app callback
 - Logout validation errors with OAuth provider
 - Infinite redirect loops during authentication
+
+---
+
+## Linter (Python-based)
+
+Pure-Python linting runs inside Pyodide when the user clicks **Run** (not while typing).
+
+### Checks Performed
+
+| Code | Severity | Description |
+|------|----------|-------------|
+| E999 | error | Syntax error (missing colons, unclosed brackets, unterminated strings, etc.) |
+| E101 | error | Indentation contains tabs |
+| E111 | error | Indentation not multiple of 4 |
+| E225 | error | Unsupported operand types (e.g. `3 + "2"`) |
+| E225Call | error | Method call argument type mismatch (e.g. `list.append("str")` when list is `list[int]`) |
+| E303 | error | Too many blank lines (>4) |
+| E501 | error | Line too long (>100 chars) |
+| F401 | error | Imported but unused |
+| F821 | error | Undefined name |
+| W001 | warning | Variable assigned but never used |
+| W002 | warning | Non-descriptive variable name (`data`, `value`, `temp`, `result`, `thing`, `stuff`) |
+| W003 | warning | Gibberish name (5+ chars, vowel ratio < 0.2) |
+| W004 | warning | Similar name to existing variable (Levenshtein distance 1, >=3 chars) |
+| W005 | warning | Variable type reassignment (e.g. `int` then `str`) |
+
+Errors (E/F codes) **block execution**; warnings (W codes) are shown but do not block. The linter also has a W_MethodNotCalled rule (e.g. `apple.draw` without `()`) via `ACTOR_METHODS` in `_manifest.py`.
+
+### Type Checking
+Uses Python's `ast`: binary op mismatches (`3 + "2"`), `Literal` value validation, method-call argument types (`arr.append("4")`). Star-import aware: `from graphics import *` is recognized; known symbols are not flagged.
+
+### Translation
+Diagnostics carry `{code, messageKey, messageArgs, row, column, endRow, endColumn, severity}`. Message keys (`linter.E999`, `linter.E225`, `linter.W001`, ...) are rendered via i18next (en/ru). See `src/assets/python/linter.py`.
+
+---
+
+## Editor Features
+
+- **Indentation guides**: `indentationGuideField` StateField in `src/editor/theme.ts` colors each 4-space level (1-4 `#e0f2fe`, 5-8 `#bae6fd`, 9-12 `#7dd3fc`, 13-16 `#38bdf8`, 17-20 `#0ea5e9`, 21+ `#0284c7`).
+- **Soft wrap**: `EditorView.lineWrapping` — no horizontal scrolling.
+- **File management**: auto-save on run; auto-save every 60 s while dirty (`useAutoSave.ts`); Ctrl+S saves all dirty files; delete confirmation via `window.confirm()` (`FileBar.tsx`).
+- **Console panel**: resizeable (bottom or right via settings), copy/clear buttons, input prompt support, running indicator.
+- **Service worker**: `public/sw.js` caches Pyodide (cache name `webide-v6`; auto-invalidated on version change). DocsPanel is lazy-loaded via `React.lazy()`.
+
+---
+
+## Graphics API (student-facing)
+
+**The canonical reference is `docs/reference/04-graphics-module.md`** (verified against HEAD) plus the changelog in `docs/api-v1.md`. The library lives in `src/assets/python/graphics/`; `__all__` (~110 names) is pinned by `_manifest.py EXPORTED_NAMES` and `tests/unit/api-surface.json`.
+
+Key facts agents must not get wrong:
+- **Input is polling-based** — `Mouse.pressed`, `Keyboard.w.down`. There are **no event decorators** (`@g.on_key_press`, `@g.every` never shipped).
+- **Velocity is NOT auto-applied** — call `actor.move()` each frame; `forward(d)` steps along `angle` (0° = up).
+- **`pos`/`vel` are getter methods** (`actor.pos()`, `actor.vel()`) — computed fresh each call, parens required; set with `set_pos(v)`/`set_vel(v)`. `actor.pos = v` raises a friendly migration error. Anchors are methods too (`actor.center()`, `Window.center()`).
+- **`g.rect` is top-left anchored; `Actor.Rect` is center-anchored**.
+- `graphics` exports `random_color` and `peek`; stdlib `random` is the way to get random floats. `pi3.debug` exports `between` and `members` (not `range`/`set`).
+- `Timer.done()` → `Timer.is_done()`; `Light.radius/flicker/shade` are attributes now.
+- `show()` paints a still picture once (counterpart to `run()`).
+
+### Actor API (quick summary)
+`Actor` (sealed after construction — declare custom attrs in constructor kwargs or `init()`), `Rect`/`Circle` (center-origin, auto-configure colliders), `Group`, `Collider`. Movement: `move()`, `forward(d)`, `move_to`, `point_towards`, `rotate`, `set_pos/set_vel`. Collision: `collider.set_circle/set_rect`, `collides_with`, `collides_any`. Lifecycle hooks: `init()`, `update()`, `draw()`, `die()`, `is_alive()`.
+
+### pi3.testing (teacher generator API)
+`from pi3.testing import *` — deterministic tests seeded by problem slug. Recipes: `Literal`, `Compute(fn, args)`, `Integer`, `Float`, `Choice`, `String`, `Permutation`, `Sample`, `UniqueSample`. Tiers `Example`/`Easy`/`Medium`/`Hard`; combine with `+` and `*`; `.with_solution(fn)`. API frozen by `tests/unit/testing-api-surface.json`.
+
+### pi3.debug (algorithm visualization)
+`array`, `grid`, `text`, `stack`, `queue`, `members`, `show()` + selectors `between`, `singles`, `cell`, `label`, `named`. (Named `between`/`members` rather than `range`/`set` to avoid shadowing builtins.)
+
+---
+
+## Architecture: Runner (internals)
+
+### Event Flow
+`RunnerProvider.tsx` wires window mouse/keyboard listeners → `postMessage({cmd:"event"})` → `worker.ts` calls `graphics._inject_event(kind, data)` → sets polling flags on `_state`.
+
+### Lint Flow
+Run click → `handleRunToggle()` → `lint(code, filename)` → worker → `pyodide.runPython(lint)` → diagnostics → console. Errors abort the run; warnings only print a count.
+
+### Run Flow
+Save-if-dirty → `clear()` console → lint (abort on errors) → `run(files, assets, entry)` → assets as ImageBitmaps (main thread) → worker writes files to Pyodide FS → `pyodide.runPythonAsync()` → stdout/stderr streamed back (rAF-batched).
+
+### Interrupt Mechanism (two-tier)
+1. `SharedArrayBuffer(1)` byte=2 fast signal (needs COOP/COEP headers — set in dev `vite.config.ts` and prod `server/index.ts`).
+2. `postMessage({cmd:"interrupt"})` → `graphics.stop()` + `graphics._clear()` → `interrupt_ack`.
+
+### Loop Generation Invalidation
+`_loop_generation` **always increments** (+3 per run, never resets). Stale tick callbacks compare and skip, preventing old ticks firing in new runs. `_reset_run_state()` must NOT bump it (A2 invariant).
+
+### Key State Clearing (before each run)
+`Actor._registry` + `_id_counter` reset; `_draw_commands` cleared; `_loop_generation` bumped; canvas size applied AFTER setup so `g.size()` takes effect. Stopping no longer clears the console.
+
+### Asset Loading
+SVG sprites can't be decoded by `createImageBitmap` in the worker → ImageBitmaps are created in the **main thread** (`new Image()` + canvas) and transferred. ImageBitmaps never cross into Python — only metadata (name, w, h) + RGBA buffers.
+
+---
+
+## Sprite Editor
+
+`SheetEditor.tsx` is the pixel sprite editor (replaced the old Konva vector editor). Tools: pencil, eraser, fill, line, rect, ellipse, region, select, tile (stamp), wand. Sweetie 16 palette (must match `COLOR_NAMES`), brush sizes 1/2/4/8, undo/redo (`makeUndoStack`, Ctrl+Z / Ctrl+Y), grid sizes 1..128. Sheet is 512×512, sprites are regions, animation strips are horizontal rows.
+
+---
+
+## Instructor Sharing System
+
+Privacy-first code sharing for instructor oversight. No accounts required for basic flow; data stored in SQLite.
+- Student clicks "Share with teacher" → `POST /api/projects/:id/share`.
+- Instructor dashboard at `/teacher` (or `/teacher/projects/:projectId`).
+- Comments are **anchored to content, not line numbers** — store an `anchor` string; on display, find the first line containing it. If not found → "orphaned" (instructor can reattach).
+- Security: OAuth school accounts or password "outsider" accounts; project access only for owner + explicitly shared teachers; teacher dashboard requires teacher role.
+
+---
+
+## Common Pitfalls (students' code)
+
+- Override `draw()` / `update()` on Actor subclasses — called automatically each frame.
+- Collision needs `collider.set_circle(r)` or `.set_rect(w,h)` first; `Rect`/`Circle` auto-configure.
+- `Rect`/`Circle`: `(x, y)` is the **center**, not top-left.
+- Angle 0 = **up** (`actor.forward(d)`); 90° = right; clockwise on screen.
+- Velocity is NOT auto-applied — call `actor.move()` each frame.
+- Actor kwargs: known names go through property setters; unknown kwargs become plain attrs (typo risk) — but post-construction new attrs raise a friendly sealed-attr error; declare in `init()`.
+- Sheet animations: `actor.image = assets.sheet.player` → animate via `actor.walk.tick()`, not `actor.image.walk.tick()`.
+- `fill(None)` == `no_fill()`.
+- ZIP export loses non-file data (tilemaps, animations, sounds, sheet).
+
+---
+
+## Agent Instructions (working on this codebase)
+
+1. **ALWAYS** run `npm run lint` after making changes
+2. **ALWAYS** run `npm test` for unit tests after changes
+3. **ALWAYS** run `npm run test:puppeteer` for E2E tests
+4. **NEVER** commit without verifying tests pass
+5. **UPDATE** the docs (CLAUDE.md, docs/reference/04-graphics-module.md, api-v1.md) with significant API/architectural changes
+6. **RESPECT** React 19 compiler constraints
+7. **MAINTAIN** backward compatibility for student projects
+8. **QUERY THE KB FIRST** (see Knowledge Base section) — do not re-derive facts from source
+9. **WRITE BACK EVERY IMPORTANT FINDING** — if you make a design decision, discover a bug or quirk, learn something non-obvious, or fix anything a future agent would need to know, persist it: (a) add/update the relevant section in `CLAUDE.md` or `docs/` for architectural/API facts, and (b) seed the knowledge base so the next session gets it for free:
+
+       cd .mem0-trial && .venv/bin/python kb.py index kb-docs/*.md --user pi3-kb --batch 2
+
+   Prefer `kb.py archive` (free, raw sections) for bulk material and `kb.py index` (dsv4-flash extraction) for distilled facts. Do not let a finding die in this conversation — the KB is the project's long-term memory.
+

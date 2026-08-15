@@ -1,6 +1,9 @@
 # pi3 Documentation
 
-**[CLAUDE.md](../CLAUDE.md) is the authoritative quick-reference for architecture, commands, and conventions.** The files below are deeper-dive references.
+**[CLAUDE.md](../CLAUDE.md) is the canonical, source-of-truth guide** for architecture, commands,
+conventions, the student graphics API, linter, runner internals, sprite editor, instructor
+sharing, common pitfalls, and agent instructions. **[AGENTS.md](../AGENTS.md) is a thin entry
+point** that points here and carries the Knowledge Base (mem0) instructions.
 
 ---
 
@@ -11,29 +14,24 @@
 | [api-v1.md](api-v1.md) | Graphics API changelog (authoritative; updated with every API change) |
 | [pre-launch-smoke.md](pre-launch-smoke.md) | Manual smoke-test checklist |
 | [audit-baseline.md](audit-baseline.md) | Phase-0 test baseline snapshot (historical record) |
+| [doctrine.md](doctrine.md) | Safety & Privacy doctrine (Core / institutional / public) |
+| [design-language.md](design-language.md) | Visual/UX tokens and idioms |
+| [ROADMAP.md](ROADMAP.md) | Shipped / in-progress / planned features |
+| [reconciliation-phase0-findings.md](reconciliation-phase0-findings.md) | Historical branch reconciliation record |
+| [compete-design-deviations.md](compete-design-deviations.md) | Compete-mode vs design-language deviations |
 
----
+## `reference/` — live module specs (verified against HEAD)
 
-## `reference/` — archived module specs
+| Doc | Status |
+|-----|--------|
+| 02 | [State Management](reference/02-state-management.md) | Corrected 2026-08-14 (PanelId, WorkerEvent list, severity). |
+| 04 | [Graphics Module](reference/04-graphics-module.md) | Corrected 2026-08-14 (`__all__`, Polar, Timer, anchors, velocity, Light attrs). **Canonical graphics API reference.** |
+| 06 | [Storage & Persistence](reference/06-storage.md) | Corrected 2026-08-14 (save route, autosave, session prefix). |
+| 08 | [Sheet Editor (pixel)](reference/08-sprite-editor.md) | Accurate. |
 
-All 14 numbered docs have been moved to `reference/`. They were written **2026-04-30** and predate the API-v1 rework, error system, decomposition, and pixel editor. **Two were rewritten and are still accurate; two more were rewritten but have since drifted again — see notes.**
-
-| # | Doc | Status |
-|---|-----|--------|
-| 01 | [Project Overview](reference/01-project-overview.md) | Archived — verify before use |
-| 02 | [State Management](reference/02-state-management.md) | Rewritten 2026-06-13, drifted since — lists 6 of the 23 current `src/state/` files (missing live-session/presence/pendingSession modules). Verify before use. |
-| 03 | [Runner Module](reference/03-runner-module.md) | Archived — verify before use |
-| 04 | [Graphics Module](reference/04-graphics-module.md) | Rewritten 2026-06-13, drifted since — no mention of `Line`/`Polygon`/`Spline`/`show()`/`texture()` (all shipped after). Verify before use. |
-| 05 | [UI Components](reference/05-ui-components.md) | Archived — verify before use |
-| 06 | [Storage & Persistence](reference/06-storage.md) | **Rewritten — accurate** |
-| 07 | [Linter](reference/07-linter.md) | Archived — verify before use |
-| 08 | [Sheet Editor (pixel)](reference/08-sprite-editor.md) | **Rewritten — accurate** |
-| 09 | [PWA & Service Worker](reference/09-pwa.md) | Archived — verify before use |
-| 10 | [Hooks](reference/10-hooks.md) | Archived — verify before use |
-| 11 | [Internationalization](reference/11-i18n.md) | Archived — verify before use |
-| 12 | [Code Editor](reference/12-code-editor.md) | Archived — verify before use |
-| 13 | [Python Assets](reference/13-python-assets.md) | Archived — verify before use |
-| 14 | [Pedagogy](reference/14-pedagogy.md) | Archived — verify before use |
+> Archived reference docs (01, 03, 05, 07, 09-14) and the `graphics-api-design.md` draft were
+> **deleted 2026-08-14** — they predated the API-v1 rework and duplicated live content. Their
+> unique content was folded into [CLAUDE.md](../CLAUDE.md).
 
 ---
 
@@ -49,11 +47,9 @@ All 14 numbered docs have been moved to `reference/`. They were written **2026-0
 
 ### Data flow
 
-```
-User types → CodeMirror → useEditor.changeFile → dirtyFiles
-Run click  → useRunnerStore → WorkerCommand → Pyodide → WorkerEvent → output
-Save       → useIde.saveCurrentProject → API → IndexedDB cache
-```
+    User types -> CodeMirror -> useEditor.changeFile -> dirtyFiles
+    Run click  -> useRunnerStore -> WorkerCommand -> Pyodide -> WorkerEvent -> output
+    Save       -> useIde.saveCurrentProject -> API -> IndexedDB cache
 
 ### Key source locations
 
@@ -74,4 +70,4 @@ Save       → useIde.saveCurrentProject → API → IndexedDB cache
 
 ---
 
-*Index updated 2026-07-30. CLAUDE.md is the single authoritative source for day-to-day codebase orientation.*
+*Index updated 2026-08-14. CLAUDE.md is the single authoritative source for day-to-day codebase orientation.*

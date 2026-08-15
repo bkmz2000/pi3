@@ -93,7 +93,7 @@ Asset/tilemap/sound mutations also auto-assign a session ID via `ensureSessionId
 
 ```typescript
 type IdeState = {
-  activePanel: PanelId;               // "projects" | "settings" | "docs" | "examples" | null
+  activePanel: PanelId;               // "projects" | "settings" | "docs" | "examples" | "problems" | "live" | null
   projects: Record<string, Project>;  // built-in examples
   userProjects: ApiProject[];         // server-fetched list
   loading: boolean;
@@ -182,15 +182,23 @@ interface RunnerState {
 
 ```typescript
 { type: "ready" }
-{ type: "start" }
+{ type: "start"; canvasActive: boolean }
 { type: "stdout"; text: string }
 { type: "stderr"; text: string }
-{ type: "result" }
-{ type: "error"; error: string }
-{ type: "runtime_error"; structured: RuntimeError }
+{ type: "result"; keepCanvas?: boolean }
+{ type: "error"; payload: { message: string; stack?: string; phase?: "init" | "exec" | "worker" } }
+{ type: "runtime_error"; error: RuntimeError }
 { type: "input_request"; prompt: string }
-{ type: "lint"; diagnostics: LintDiagnostic[] }
+{ type: "lint"; diagnostics: LintDiagnostic[]; reqId: number }
+{ type: "complete"; completions: JediCompletion[]; reqId: number }
 { type: "interrupt_ack" }
+{ type: "canvas_resize"; width: number; height: number }
+{ type: "sound"; action: "play" | "pause" | "loop" | "stop" | "volume"; name: string; value?: number }
+{ type: "screenshot"; reqId: number; blob: Blob | null }
+{ type: "watch"; values: { label: string; value: string }[]; frame: number }
+{ type: "frame_history"; frames: { frame: number; blob: Blob; watches: { label: string; value: string }[] }[] }
+{ type: "debug_frame"; frame: DebugFrame }
+{ type: "generator_result" | "generator_error" | "reference_result" | "reference_error" | "checker_result" | "checker_error"; reqId: number; ... }
 ```
 
 ### `LintDiagnostic`
@@ -204,7 +212,7 @@ interface LintDiagnostic {
   column: number;
   endRow: number;
   endColumn: number;
-  severity: "error";
+  severity: "error" | "warning";
 }
 ```
 

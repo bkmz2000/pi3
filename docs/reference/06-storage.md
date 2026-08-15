@@ -18,7 +18,7 @@ The app uses three persistence layers in priority order:
 
 ## Server API (primary)
 
-**Route:** `POST /api/projects/:id/content` (`saveProjectContent` in `src/state/api.ts`)
+**Route:** `PUT /api/projects/:id/save` (`saveProjectContent` in `src/state/api.ts`)
 
 Payload:
 ```typescript
@@ -153,7 +153,7 @@ Used when the user edits an example or is not logged in. Writes to `localStorage
 
 **File:** `src/hooks/useAutoSave.ts`
 
-- Debounced: 2 s after last edit, then every 30 s while dirty
+- Debounced: 3 s after last change (DEBOUNCE_MS), then every 60 s while dirty (AUTO_SAVE_INTERVAL = 60000)
 - Calls `useIde.getState().saveCurrentProject()`
 - Only fires when `dirtyFiles.size > 0`
 - Clears dirty set with `markClean(keys)` on success (key-specific, race-safe)
@@ -165,12 +165,12 @@ Used when the user edits an example or is not logged in. Writes to `localStorage
 **File:** `src/state/sessionId.ts`
 
 ```typescript
-EXAMPLE_SESSION_PREFIX = "example:"
+EXAMPLE_SESSION_PREFIX = "__example_session_"
 isExampleSessionId(id) → boolean
 exampleNameFromSessionId(id) → string
 ```
 
-A `currentProjectId` starting with `"example:"` triggers the anon-stash path in `saveCurrentProject`. Real server projects have numeric IDs assigned by the API.
+A `currentProjectId` starting with `"__example_session_"` triggers the anon-stash path in `saveCurrentProject`. Real server projects have numeric IDs assigned by the API.
 
 ---
 

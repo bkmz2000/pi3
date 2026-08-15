@@ -167,10 +167,10 @@ Each key access returns a `_Key` with `.pressed`, `.down`, `.released`.
 ```python
 Window.width       # canvas width
 Window.height      # canvas height
-Window.top_left    # AnchorPoint(0, 0, "left", "top")
-Window.top_right   # AnchorPoint(width, 0, "right", "top")
-Window.center      # AnchorPoint(width/2, height/2, "center", "middle")
-# also: top, bottom, left, right, bottom_left, bottom_right
+Window.top_left()    # AnchorPoint(0, 0, "left", "top")  # method since 2026-07-31
+Window.top_right()   # AnchorPoint(width, 0, "right", "top")
+Window.center()      # AnchorPoint(width/2, height/2, "center", "middle")
+# also: top(), bottom(), left(), right(), bottom_left(), bottom_right()
 ```
 
 ---
@@ -181,13 +181,12 @@ Window.center      # AnchorPoint(width/2, height/2, "center", "middle")
 |------|-----------|-------------|
 | `clamp` | `clamp(value, lo, hi)` | Clamp to range |
 | `randint` | `randint(a, b) → int` | Random integer a..b inclusive |
-| `random` | `random(low, high=None) → float` | Random float 0..low or low..high |
 | `pick` | `pick(seq)` | Random item from sequence |
 | `random_color` | `random_color() → tuple` | Random palette color |
 | `noise` | `noise(x, y, scale=0.1, seed=0) → float` | Smooth value noise in [0, 1] |
 | `Vector2` | `Vector2(x, y)` | 2D vector |
 | `Point` | `Point(x, y)` | Alias for Vector2 |
-| `Polar` | `Polar(angle, length)` | Polar → cartesian |
+| `Polar` | `Polar(magnitude, angle_degrees)` | Polar → cartesian; 0° = north (up), 90° = east, clockwise |
 | `AnchorPoint` | — | Canvas anchor with alignment hints for text/say |
 
 ---
@@ -264,7 +263,7 @@ class Player(Actor):
 | Name | Type | Notes |
 |------|------|-------|
 | `x`, `y` | float | Position |
-| `vx`, `vy` | float | Velocity (applied each tick) |
+| `vx`, `vy` | float | Velocity — NOT applied automatically; call `actor.move()` each frame to step position by vx/vy |
 | `angle` | float | Degrees |
 | `scale` | float | Uniform draw scale |
 | `flip_x`, `flip_y` | bool | Mirror on draw |
@@ -305,7 +304,7 @@ actor.hide()           # invisible + non-collidable
 actor.ghost()          # visible but non-collidable
 actor.bring_to_front() # move to end of draw order
 actor.send_to_back()
-actor.point_to(x, y)  # rotate to face coordinate
+actor.point_towards(x, y)  # rotate to face coordinate (NOT point_to)
 actor.collides_with(other) → bool
 actor.collides_any(group) → Actor | None  # first hit in group
 actor.draw()           # override to draw custom shapes
@@ -401,8 +400,8 @@ light = Light(ambient=(40, 40, 60), radius=200, mode="hsl")
 light.add_obstacles(level.areas.walls)  # Group, list, or single Actor
 light.add_source(torch)   # Actor, Group, (x, y) tuple, or Vector2
 light.shade("warm")       # "neutral" | "warm" | "cool" | "moonlight" | "candle"
-light.flicker(True)
-light.radius(250)
+light.flicker = True
+light.radius = 250
 
 # In draw(): call last so it composites over everything
 light.draw()
@@ -424,8 +423,8 @@ light.draw()
 ## Utility types
 
 ```python
-Timer(seconds)          # tick-based countdown; .expired, .reset()
-State()                 # dynamic SimpleNamespace for game state
+Timer(s=, ms=)          # countdown; .left(), .elapsed(), .is_done(), .restart(s=, ms=)
+State(**kwargs)         # dynamic mutable namespace; e.g. State(score=0, lives=3)
 Sound                   # audio clip: .play(), .loop(), .pause(), .stop(), .set_volume(v)
 ```
 
@@ -436,19 +435,19 @@ Sound                   # audio clip: .play(), .loop(), .pause(), .stop(), .set_
 ```python
 "_version",
 "size", "width", "height",
-"circle", "rect", "ellipse", "line", "point",
+"circle", "rect", "ellipse", "line", "point", "polyline", "polygon", "spline",
 "text", "text_size", "text_align", "say",
 "fill", "no_fill", "stroke", "no_stroke", "stroke_width",
-"background", "image",
+"background", "image", "push", "pop", "translate", "rotate", "scale",
 "frame_rate", "frame_count",
-"random", "random_color",
-"clamp", "randint", "pick",
+"random_color",
+"clamp", "randint", "pick", "translated", "rotated", "scaled", "Stamp",
 "Colors", "AnchorPoint",
 "lerp", "darker", "lighter", "saturated", "desaturated",
 "Sprite", "PixelView", "create_sprite", "get_pixel", "set_pixel",
 "palette_swap", "flood_fill",
 "darken", "lighten", "saturate", "desaturate",
-"Vector2", "Point", "Polar",
+"Vector2", "Point", "Polar", "Line", "Polygon", "Spline",
 "Mouse", "Keyboard", "Window",
 "Actor", "Rect", "Circle", "Group", "Collider",
 "Camera",
@@ -457,8 +456,8 @@ Sound                   # audio clip: .play(), .loop(), .pause(), .stop(), .set_
 "Light",
 "Animation",
 "SheetAnimation", "SpriteEntry", "SheetNamespace", "AnimationController",
-"Timer", "State",
-"run", "stop",
+"Timer", "State", "peek", "watch",
+"run", "stop", "show",
 "assets", "sheet",
 ```
 

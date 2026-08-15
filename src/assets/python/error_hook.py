@@ -121,6 +121,51 @@ def _is_library_frame(stripped: str) -> bool:
     return stripped.startswith("File ") and any(p in stripped for p in _SKIP_PATHS)
 
 
+_FILE_LINE_RE = re.compile(r'(\s*File ")([^"]+)(", line )(\d+)(, in )(.*)')
+
+
+def _adjust_traceback(raw: str, filename: str, line_offset: int) -> str:
+    """Correct frame line numbers for the plain-script runner's harness.
+
+    worker.ts's runScript compiles the student's code as part of one larger
+    unit — `import ...` / `async def __run(): <student code>` / a module-level
+    `try: await __run() except ...` — under the student's own filename so real
+    frames aren't mistaken for library noise. Two harness artifacts still need
+    stripping out here:
+
+    - The module-level frame (`in <module>`) is always the harness's own —
+      every student statement lives inside `__run`, so a frame reporting
+      `<module>` for our filename can only be an import line or the
+      `await __run()` call, never anything the student wrote.
+    - Every other frame for our filename has `line_offset` extra lines above
+      it (the harness preamble) that don't exist in the student's file, so
+      that constant gets subtracted back out.
+    """
+    if not line_offset:
+        return raw
+    lines = raw.split("\n")
+    out: list[str] = []
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        m = _FILE_LINE_RE.match(line)
+        if m and m.group(2) == filename:
+            func_name = m.group(6)
+            if func_name == "<module>":
+                i += 1
+                if i < len(lines) and not lines[i].strip().startswith("File ") and lines[i].strip():
+                    i += 1
+                continue
+            raw_lineno = int(m.group(4))
+            corrected = max(1, raw_lineno - line_offset)
+            out.append(f"{m.group(1)}{m.group(2)}{m.group(3)}{corrected}{m.group(5)}{func_name}")
+            i += 1
+            continue
+        out.append(line)
+        i += 1
+    return "\n".join(out)
+
+
 def _clean_traceback(raw: str) -> str:
     """Filter library/internal frames from traceback, keeping only user code lines.
 
@@ -318,7 +363,7 @@ def _extract_user_names(code: str) -> set[str]:
 
 
 def classify_error(
-    exc: Exception, user_code: str, filename: str
+    exc: Exception, user_code: str, filename: str, line_offset: int = 0
 ) -> dict:
     """
     Classify a Python exception into a structured error dict matching the
@@ -327,12 +372,17 @@ def classify_error(
     Returns a dict suitable for JSON serialization and posting as a
     'runtime_error' worker event.
 
+    `line_offset`: for the plain-script runner, how many harness-only lines
+    precede the student's code in the compiled unit (see _adjust_traceback).
+    Zero for every other caller — the graphics/canvas path compiles the
+    student's code as its own unit with no such wrapper.
+
     Outer catch-all: if the classifier itself crashes (e.g. a broken enrichment
     escapes the inner _safe guards), returns the internal error card instead of
     propagating — so the student always gets a card, never a raw double-traceback.
     """
     try:
-        return _classify_error_inner(exc, user_code, filename)
+        return _classify_error_inner(exc, user_code, filename, line_offset)
     except Exception as _clf_err:
         import traceback as _tb
         _raw = _tb.format_exc()
@@ -350,12 +400,12 @@ def classify_error(
 
 
 def _classify_error_inner(
-    exc: Exception, user_code: str, filename: str
+    exc: Exception, user_code: str, filename: str, line_offset: int = 0
 ) -> dict:
     # FriendlyError: key/args already computed by the library; pass straight through.
     if isinstance(exc, FriendlyError):
         raw_tb = traceback.format_exception(type(exc), exc, exc.__traceback__)
-        raw = "".join(raw_tb)
+        raw = _adjust_traceback("".join(raw_tb), filename, line_offset)
         key_parts = exc.message_key.split(".")
         # key format: friendlyError.<category>.<name>  →  extract category
         category = key_parts[1] if len(key_parts) >= 2 else "api-misuse"
@@ -383,7 +433,7 @@ def _classify_error_inner(
 
     # Full traceback for the "show details" expand/collapse
     raw_tb = traceback.format_exception(type(exc), exc, exc.__traceback__)
-    raw = "".join(raw_tb)
+    raw = _adjust_traceback("".join(raw_tb), filename, line_offset)
     clean_raw = _clean_traceback(raw)
 
     # Extract the problematic token and compute suggestions

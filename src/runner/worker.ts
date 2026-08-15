@@ -661,6 +661,9 @@ from graphics import _state as _gs
 _gs._debug_slots.clear()
 _gs._debug_frames.clear()
 _gs._debug_fresh_slots.clear()
+_gs._debug_line_offset = 0
+_gs._watches.clear()
+_gs._watch_last_sent = 0.0
 `);
 
   await p.runPythonAsync(`
@@ -930,20 +933,27 @@ except SyntaxError as _se:
     : '    pass'; // a program of nothing but star-imports still needs a body
 
   // Build async wrapper with error_hook integration (no re-raise — JS reads _last_structured_error)
-  const asyncCode = `
+  // `preamble` is compiled as part of the same unit as the user's code (see the
+  // `filename` option below), so its own lines would otherwise show up as bogus
+  // extra frames in a traceback. `preambleLines` is how many lines precede the
+  // user's (reindented) body — error_hook subtracts it back out so locations
+  // and "File ..., line N" text match what the student actually wrote.
+  const preamble = `
 import error_hook
 import json as _json
 ${starImports}
 
 async def __run():
-${indented}
+`;
+  const preambleLines = preamble.split('\n').length - 1;
+  const asyncCode = `${preamble}${indented}
 
 _errored = False
 try:
     await __run()
 except Exception as _err:
     _errored = True
-    _structured = error_hook.classify_error(_err, ${JSON.stringify(code)}, ${JSON.stringify(filename)})
+    _structured = error_hook.classify_error(_err, ${JSON.stringify(code)}, ${JSON.stringify(filename)}, ${preambleLines})
     _last_structured_error = _structured
 `;
 
@@ -952,10 +962,16 @@ from graphics import _state as _gs
 _gs._debug_slots.clear()
 _gs._debug_frames.clear()
 _gs._debug_fresh_slots.clear()
+_gs._debug_line_offset = ${preambleLines}
+_gs._watches.clear()
+_gs._watch_last_sent = 0.0
 `);
 
   post({ type: "start", canvasActive: wantsMatplotlibCanvas });
-  await p.runPythonAsync(asyncCode);
+  // Compile under the student's real filename (default is the synthetic
+  // "<exec>", which error_hook's library-frame filter would otherwise mistake
+  // every user frame for harness noise — see error_hook.py's _SKIP_PATHS).
+  await p.runPythonAsync(asyncCode, { filename });
 
   // Check for structured error
   const structuredJs = p.globals.get("_last_structured_error");

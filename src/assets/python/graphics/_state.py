@@ -52,3 +52,9 @@ tick_proxy = None
 _debug_slots: dict = {}         # {(filename, lineno): slot_dict}
 _debug_frames: list = []        # list of captured frames (each sent to JS individually)
 _debug_fresh_slots: set = set() # slots registered since last show()
+# Set by worker.ts's plain-script runner before each run: how many harness-only
+# lines precede student code in that run's compiled unit (0 for the graphics
+# path, which compiles student code as its own unit with no such wrapper).
+# _register() subtracts this so reported/looked-up line numbers match the
+# file actually written to Pyodide's FS (which linecache reads from).
+_debug_line_offset: int = 0

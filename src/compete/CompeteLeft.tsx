@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import CodeMirror, { type ReactCodeMirrorRef } from "@uiw/react-codemirror";
 import { python } from "@codemirror/lang-python";
 import { EditorView } from "@codemirror/view";
-import { githubLight, githubDark } from "@uiw/codemirror-theme-github";
+import { getCmTheme } from "../editor/cmTheme";
 import { useThemeStore } from "../state/useTheme";
 import { ErrorCard } from "../components/ConsolePanel";
 import type { ExampleRun } from "./types";
@@ -48,9 +48,8 @@ export default function CompeteLeft({
   exampleRuns: ExampleRun[];
 }) {
   const theme = useThemeStore((s) => s.theme);
-  const themeId = useThemeStore((s) => s.themeId);
   const { t } = useTranslation();
-  const cmTheme = themeId === 'midnight' ? githubDark : githubLight;
+  const cmTheme = getCmTheme(theme);
   const cmRef = useRef<ReactCodeMirrorRef>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -129,8 +128,8 @@ export default function CompeteLeft({
             cursor: running || submitting ? 'default' : 'pointer',
             padding: '4px 14px',
             borderRadius: theme.radiusButton,
-            background: theme.submitBg,
-            color: theme.submitTxt,
+            background: theme.primaryBg,
+            color: theme.primaryTxt,
             fontFamily: theme.fontUI,
             fontSize: 12.5,
             fontWeight: 700,

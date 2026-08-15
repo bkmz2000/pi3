@@ -37,7 +37,7 @@ import ForkDialog from "./components/dialogs/ForkDialog";
 import { useThemeStore } from "./state/useTheme";
 import { ToastContainer } from "./components/ToastContainer";
 import { SaveErrorIndicator } from "./components/SaveErrorIndicator";
-import { githubLight, githubDark } from "@uiw/codemirror-theme-github";
+import { getCmTheme } from "./editor/cmTheme";
 import { readAnonStash, clearAnonStash } from "./utils/anonStash";
 
 function SessionChecker() {
@@ -225,7 +225,7 @@ function AppInner() {
   const showConsole = !showConsoleOnRun || running;
   const theme = useThemeStore((s) => s.theme);
   const fontSize = useThemeStore((s) => s.fontSize);
-  const cmTheme = theme.name === "Midnight" ? githubDark : githubLight;
+  const cmTheme = getCmTheme(theme);
 
   const [showForkDialog, setShowForkDialog] = useState(false);
   const [fileComments, setFileComments] = useState<ApiComment[]>([]);
@@ -343,7 +343,7 @@ function AppInner() {
         }
       }
     }
-  }, [currentProjectId, dirtyFiles, saveCurrentProject, markClean]);
+  }, [currentProjectId, dirtyFiles, saveCurrentProject, markClean, setShowForkDialog]);
 
   useEffect(() => {
     window.addEventListener("keydown", handleSave);

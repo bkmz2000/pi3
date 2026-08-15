@@ -1,4 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import { useThemeStore } from "../state/useTheme";
 
 type Props = {
@@ -48,6 +49,7 @@ export class ErrorBoundary extends Component<Props, State> {
 // eslint-disable-next-line react-refresh/only-export-components
 function Fallback({ label, error, onReset }: { label?: string; error: Error; onReset: () => void }) {
   const theme = useThemeStore((s) => s.theme);
+  const { t } = useTranslation();
   return (
     <div role="alert" style={{
       flex: 1,
@@ -56,10 +58,10 @@ function Fallback({ label, error, onReset }: { label?: string; error: Error; onR
       background: theme.surface, color: theme.appTxt,
     }}>
       <div style={{ fontSize: 16, fontWeight: 600 }}>
-        {label ? `${label} crashed` : "Something went wrong"}
+        {label ? t('errorBoundary.labelCrashed', { label }) : t('errorBoundary.genericTitle')}
       </div>
       <div style={{ fontSize: 13, opacity: 0.8, maxWidth: 480, textAlign: "center" }}>
-        Your work in other parts of the app is safe. Try again, or reload the page.
+        {t('errorBoundary.body')}
       </div>
       <pre style={{
         fontSize: 11, opacity: 0.7, maxWidth: 600, maxHeight: 120,
@@ -68,8 +70,8 @@ function Fallback({ label, error, onReset }: { label?: string; error: Error; onR
         whiteSpace: "pre-wrap", wordBreak: "break-word",
       }}>{String(error?.message ?? error)}</pre>
       <div style={{ display: "flex", gap: 8 }}>
-        <button onClick={onReset} style={btn(theme)}>Try again</button>
-        <button onClick={() => location.reload()} style={btn(theme)}>Reload page</button>
+        <button onClick={onReset} style={btn(theme)}>{t('errorBoundary.tryAgain')}</button>
+        <button onClick={() => location.reload()} style={btn(theme)}>{t('errorBoundary.reloadPage')}</button>
       </div>
     </div>
   );

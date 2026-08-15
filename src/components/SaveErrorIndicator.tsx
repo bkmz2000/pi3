@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { useIde, useEditor, isExampleSessionId } from '../state/IdeState';
 
 function CloudIcon() {
@@ -44,6 +45,7 @@ function Chip({ icon, text, bg }: { icon: 'cloud' | 'local'; text: string; bg: s
 }
 
 export function SaveErrorIndicator() {
+  const { t } = useTranslation();
   const saveError = useIde((s) => s.saveError);
   const isSaving = useIde((s) => s.isSaving);
   const currentProjectId = useEditor((s) => s.currentProjectId);
@@ -52,15 +54,15 @@ export function SaveErrorIndicator() {
   if (!currentProjectId) return null;
 
   if (isSaving) {
-    return <Chip icon="cloud" text="Saving…" bg="rgba(0,0,0,0.45)" />;
+    return <Chip icon="cloud" text={t('saveIndicator.saving')} bg="rgba(0,0,0,0.45)" />;
   }
 
   if (saveError?.kind === 'auth') {
-    return <Chip icon="local" text="Saved locally — sign in to sync" bg="#b07100" />;
+    return <Chip icon="local" text={t('saveIndicator.savedLocallySignIn')} bg="#b07100" />;
   }
 
   if (saveError?.kind === 'network') {
-    return <Chip icon="local" text="Saved offline — will sync when online" bg="#c0392b" />;
+    return <Chip icon="local" text={t('saveIndicator.savedOfflineWillSync')} bg="#c0392b" />;
   }
 
   if (saveError?.kind === 'quota') {
@@ -73,14 +75,14 @@ export function SaveErrorIndicator() {
 
   if (isExampleSessionId(currentProjectId)) {
     if (dirtyFiles.size > 0) {
-      return <Chip icon="local" text="Local only — Ctrl+S to save" bg="rgba(80,80,80,0.7)" />;
+      return <Chip icon="local" text={t('saveIndicator.localOnly')} bg="rgba(80,80,80,0.7)" />;
     }
     return null;
   }
 
   // Named project, clean
   if (dirtyFiles.size === 0) {
-    return <Chip icon="cloud" text="Saved" bg="rgba(30,120,70,0.85)" />;
+    return <Chip icon="cloud" text={t('saveIndicator.saved')} bg="rgba(30,120,70,0.85)" />;
   }
 
   return null;

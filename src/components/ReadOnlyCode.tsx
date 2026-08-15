@@ -3,7 +3,7 @@ import CodeMirror, { type ReactCodeMirrorRef } from '@uiw/react-codemirror';
 import { python } from '@codemirror/lang-python';
 import { EditorState } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
-import { githubLight, githubDark } from '@uiw/codemirror-theme-github';
+import { getCmTheme } from '../editor/cmTheme';
 import { useThemeStore } from '../state/useTheme';
 
 /**
@@ -22,7 +22,7 @@ export function ReadOnlyCode({
 }) {
   const theme = useThemeStore((s) => s.theme);
   const fontSize = useThemeStore((s) => s.fontSize);
-  const cmTheme = theme.name === 'Midnight' ? githubDark : githubLight;
+  const cmTheme = getCmTheme(theme);
   const editorRef = useRef<ReactCodeMirrorRef>(null);
 
   const extensions = useMemo(() => [

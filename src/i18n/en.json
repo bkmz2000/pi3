@@ -100,6 +100,7 @@
     "languageHint": "Interface and documentation language",
     "theme": "Theme",
     "fontSize": "Font Size",
+    "pixelsUnit": "{{n}} pixels",
     "console": "Console",
     "autoHideConsole": "Auto-hide when idle",
     "autoHideConsoleHint": "Show console only while the project is running",
@@ -1268,7 +1269,11 @@
     "nameRules": "Lowercase letters, digits, underscores only",
     "nameReserved": "Reserved name (used by Actor)",
     "nameTaken": "Name already used",
-    "regionOverlaps": "Overlaps existing sprite \"{{name}}\""
+    "regionOverlaps": "Overlaps existing sprite \"{{name}}\"",
+    "gridOn": "Grid: on",
+    "gridOff": "Grid: off",
+    "gridSmaller": "Grid smaller",
+    "gridLarger": "Grid larger"
   },
   "tileEditor": {
     "title": "Tilemap Editor",
@@ -1298,6 +1303,11 @@
     },
     "ctaStart": "Start free",
     "openInEditor": "Open in editor",
+    "debugDemo": {
+      "searchWindow": "search window",
+      "mid": "mid",
+      "loHi": "lo, hi"
+    },
     "noAccount": "No account needed to try it — the button below drops you straight into the editor.",
     "hero": {
       "title": "Real Python. Right next to what it draws.",
@@ -1509,5 +1519,51 @@
         "blurb": "Collect every coin before the slime catches you."
       }
     }
+  },
+  "saveIndicator": {
+    "saving": "Saving…",
+    "savedLocallySignIn": "Saved locally — sign in to sync",
+    "savedOfflineWillSync": "Saved offline — will sync when online",
+    "localOnly": "Local only — Ctrl+S to save",
+    "saved": "Saved"
+  },
+  "errorBoundary": {
+    "genericTitle": "Something went wrong",
+    "labelCrashed": "{{label}} crashed",
+    "body": "Your work in other parts of the app is safe. Try again, or reload the page.",
+    "tryAgain": "Try again",
+    "reloadPage": "Reload page"
+  },
+  "importProblems": {
+    "title": "Import problems from JSON",
+    "idFieldRequired": "Each problem must have a string \"id\" field.",
+    "invalidJson": "Invalid JSON.",
+    "networkError": "Network error",
+    "dropReplace": "Drop another file to replace",
+    "dropOrBrowse": "Drop JSON file or click to browse",
+    "arrayHint": "Array of problem objects or a single problem",
+    "foundPrefix": "Found",
+    "problemsWord": "problem",
+    "problemsWord_plural": "problems",
+    "usableTests": "usable tests",
+    "options": "Options",
+    "titleLanguage": "Title language",
+    "langRussian": "Russian",
+    "langEnglish": "English",
+    "overwriteLabel": "Overwrite existing problems (same slug)",
+    "rawLatexHint": "Statements are imported as raw LaTeX and may need editing in the problem form.",
+    "imported": "imported",
+    "skippedExists": "skipped (exists)",
+    "errors": "errors",
+    "cancel": "Cancel",
+    "importing": "Importing…",
+    "importCount": "Import {{count}} problem",
+    "importCount_plural": "Import {{count}} problems",
+    "done": "Done"
+  },
+  "frameControls": {
+    "previousFrame": "Previous frame",
+    "nextFrame": "Next frame",
+    "playPause": "Play / pause"
   }
 }

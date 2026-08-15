@@ -178,7 +178,7 @@ export default function CanvasWindow() {
         width: `${visualW}px`,
         height: `${visualH + 30}px`, // +30 for title bar
         background: theme.canvasFrame,
-        borderRadius: theme.radiusCard,
+        borderRadius: theme.radiusWindow,
         boxShadow:
           "0 14px 40px rgba(0,0,0,0.28), 0 2px 6px rgba(0,0,0,0.12)",
         border: `1px solid ${theme.canvasBorder}`,
@@ -218,8 +218,8 @@ export default function CanvasWindow() {
           style={{
             padding: "1px 7px",
             borderRadius: 999,
-            background: running ? theme.successPill : theme.chip,
-            color: running ? theme.successPillTxt : theme.consoleTxtMute,
+            background: running ? theme.canvasLiveBg : theme.chip,
+            color: running ? theme.canvasLiveTxt : theme.consoleTxtMute,
             fontSize: 10,
             fontWeight: theme.weightUI + 100,
             textTransform: "uppercase",

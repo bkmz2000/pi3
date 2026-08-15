@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 export default function LoadingScreen() {
   const { t } = useTranslation();
   return (
-    <div className="fixed inset-0 bg-cyan-950 flex flex-col items-center justify-center z-50">
+    <div className="fixed inset-0 bg-neutral-950 flex flex-col items-center justify-center z-50">
       <div className="text-6xl font-bold text-white mb-8 relative">
         <span className="text-8xl font-mono">pi</span>
         <sup className="text-4xl font-mono absolute top-0">3</sup>

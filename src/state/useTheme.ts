@@ -59,8 +59,6 @@ export interface Theme {
   runBg: string;
   runTxt: string;
   stopBg: string;
-  submitBg: string;
-  submitTxt: string;
 
   canvasFrame: string;
   canvasBorder: string;
@@ -70,6 +68,8 @@ export interface Theme {
   canvasBg: string;
   canvasOverlay: string;
   canvasHintTxt: string;
+  canvasLiveBg: string;
+  canvasLiveTxt: string;
   canvasStar: string;
   canvasRock: string;
   canvasShip: string;
@@ -104,9 +104,9 @@ const BASE = {
   fontMono: "'JetBrains Mono', ui-monospace, monospace",
   weightUI: 500,
   weightHeader: 700,
-  radiusWindow: 4,
+  radiusWindow: 10,
   radiusCard: 2,
-  radiusButton: 2,
+  radiusButton: 6,
   radiusTab: "3px 3px 0 0",
   fsCode: 13,
   lhCode: 22,
@@ -164,8 +164,6 @@ const THEMES: Record<ThemeId, Theme> = {
     runBg: "#34a853",
     runTxt: "#ffffff",
     stopBg: "#ef4444",
-    submitBg: "#2563eb",
-    submitTxt: "#ffffff",
     canvasFrame: "#0a3d44",
     canvasBorder: "rgba(255,255,255,0.10)",
     canvasTitle: "#0a3d44",
@@ -174,6 +172,8 @@ const THEMES: Record<ThemeId, Theme> = {
     canvasBg: "#072428",
     canvasOverlay: "rgba(7,36,40,0.7)",
     canvasHintTxt: "#fffaf0",
+    canvasLiveBg: "rgba(126,224,168,0.20)",
+    canvasLiveTxt: "#7ee0a8",
     canvasStar: "#5fd4dc",
     canvasRock: "#7a8696",
     canvasShip: "#fffaf0",
@@ -241,8 +241,6 @@ const THEMES: Record<ThemeId, Theme> = {
     runBg: "#7ed3a4",
     runTxt: "#062a26",
     stopBg: "#ff8b8b",
-    submitBg: "#3b82f6",
-    submitTxt: "#ffffff",
     canvasFrame: "#031518",
     canvasBorder: "rgba(255,255,255,0.06)",
     canvasTitle: "#031518",
@@ -251,6 +249,8 @@ const THEMES: Record<ThemeId, Theme> = {
     canvasBg: "#021012",
     canvasOverlay: "rgba(2,16,18,0.7)",
     canvasHintTxt: "#e8f2f4",
+    canvasLiveBg: "rgba(126,224,168,0.20)",
+    canvasLiveTxt: "#7ee0a8",
     canvasStar: "#5fd4dc",
     canvasRock: "#5b8489",
     canvasShip: "#fff8ec",

@@ -153,7 +153,7 @@ export default function LivePanel({ onClose }: { onClose: () => void }) {
         ) : !inSession ? (
           <>
             <div style={{ fontSize: 12.5, color: theme.panelTxtMute }}>{t('session.notInSession')}</div>
-            <button type="button" disabled={busy} onClick={handleStart} style={btn(theme.accent, '#fff')}>
+            <button type="button" disabled={busy} onClick={handleStart} style={btn(theme.primaryBg, theme.primaryTxt)}>
               {busy ? t('session.starting') : t('session.start')}
             </button>
           </>

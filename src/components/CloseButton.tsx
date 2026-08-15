@@ -1,12 +1,14 @@
+import { useTranslation } from "react-i18next";
 import { Icon } from "./Icons";
 import type { Theme } from "../state/useTheme";
 
 export function CloseButton({ theme, onClose }: { theme: Theme; onClose: () => void }) {
+  const { t } = useTranslation();
   return (
     <button
       type="button"
       onClick={onClose}
-      aria-label="Close"
+      aria-label={t('sideMenu.close')}
       style={{
         display: "flex",
         alignItems: "center",

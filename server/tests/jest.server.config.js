@@ -2,6 +2,8 @@
 export default {
   preset: 'ts-jest/presets/default-esm',
   testEnvironment: 'node',
+  // Cap worker count to bound memory (see jest.config.cjs for rationale).
+  maxWorkers: 4,
   extensionsToTreatAsEsm: ['.ts'],
   setupFiles: ['<rootDir>/server/tests/server.setup.js'],
   moduleNameMapper: {

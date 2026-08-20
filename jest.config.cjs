@@ -2,6 +2,11 @@
 const config = {
   preset: 'ts-jest',
   testEnvironment: 'jsdom',
+  // Cap worker count: each worker process runs a full jsdom + ts-jest
+  // context (~250-350 MB each). Without a cap Jest spawns one per CPU
+  // core and a dev machine can blow past 8-14 GB; 4 workers stays well
+  // under ~1-2 GB per `npm run test:ci` run.
+  maxWorkers: 4,
   setupFilesAfterEnv: ['<rootDir>/jest.setup.ts'],
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',

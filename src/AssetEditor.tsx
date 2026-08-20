@@ -4,7 +4,7 @@ import { useThemeStore } from "./state/useTheme";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 
 const TileEditor = lazy(() => import("./TileEditor"));
-const SheetEditor = lazy(() => import("./SheetEditor"));
+const KidSheetEditor = lazy(() => import("./KidSheetEditor"));
 
 export type AssetEditorMode = 'tilemap' | 'sheet';
 
@@ -46,7 +46,7 @@ export default function AssetEditor({
         >
           <Suspense fallback={null}>
             {mode === 'sheet' && (
-              <SheetEditor onClose={onClose} initialSprite={sheetInitialSprite} />
+              <KidSheetEditor onClose={onClose} initialSprite={sheetInitialSprite} />
             )}
             {mode === 'tilemap' && (
               <TileEditor

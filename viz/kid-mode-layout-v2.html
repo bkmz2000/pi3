@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kid mode — layout v2 (bottom dock)</title>
+<style>
+  :root { color-scheme: dark; --bg:#0d1116; --surface:#131a24; --panel:#161d29; --border:#26303f; --txt:#e8edf5; --mute:#8b98ab; --accent:#4c9aff; --accent-ink:#0b1220; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--txt); font-family:system-ui,sans-serif; font-size:13px; }
+  .app { display:flex; flex-direction:column; height:100vh; }
+  /* top bar: identity + exits only */
+  .top { height:44px; display:flex; align-items:center; gap:8px; padding:0 12px; background:var(--panel); border-bottom:1px solid var(--border); flex-shrink:0; }
+  .top .name { height:28px; width:120px; padding:0 8px; border-radius:6px; border:1px solid var(--border); background:var(--bg); color:var(--txt); }
+  .top .spacer { flex:1; }
+  .iconbtn { width:30px; height:30px; border-radius:6px; border:1px solid transparent; background:transparent; color:var(--mute); display:flex; align-items:center; justify-content:center; cursor:pointer; }
+  .primary { height:28px; padding:0 14px; border-radius:6px; border:none; background:var(--accent); color:var(--accent-ink); font-weight:700; font-size:12px; cursor:pointer; display:flex; align-items:center; gap:6px; }
+  .main { flex:1; display:flex; min-height:0; }
+  /* canvas area */
+  .canvas { flex:1; position:relative; background:#08141b; display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .sheet { position:relative; width:420px; height:420px; border:1px solid var(--border); border-radius:8px; background:repeating-conic-gradient(rgba(255,255,255,.05) 0% 25%, transparent 0% 50%); background-size:16px 16px; }
+  .grid { position:absolute; inset:0; background-image:linear-gradient(to right, rgba(255,255,255,.14) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,.14) 1px, transparent 1px); background-size:calc(100%/64) calc(100%/64); pointer-events:none; border-radius:8px; }
+  /* a little placeholder drawing so the canvas reads as a sprite */
+  .sprite { position:absolute; left:180px; top:170px; width:60px; height:60px; background:radial-gradient(circle at 50% 35%, #73eff7 35%, #38b764 80%, #257179 100%); image-rendering:pixelated; }
+  /* zoom overlay at canvas corner */
+  .zoom { position:absolute; right:14px; bottom:14px; display:flex; flex-direction:column; gap:4px; background:var(--panel); border:1px solid var(--border); border-radius:8px; padding:4px; }
+  .zoom button { width:28px; height:28px; border-radius:6px; border:none; background:transparent; color:var(--txt); font-size:14px; cursor:pointer; }
+  /* right panel: accordion */
+  .side { width:264px; flex-shrink:0; display:flex; flex-direction:column; background:var(--panel); border-left:1px solid var(--border); }
+  .acc { border-bottom:1px solid var(--border); }
+  .acc summary { list-style:none; cursor:pointer; padding:10px 12px; font-size:11px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; color:var(--mute); display:flex; align-items:center; gap:8px; }
+  .acc summary::after { content:"▾"; margin-left:auto; color:var(--mute); }
+  .acc[open] summary::after { content:"▴"; }
+  .acc-body { padding:0 12px 12px; }
+  .palette { display:grid; grid-template-columns:repeat(8,1fr); gap:4px; }
+  .sw { height:22px; border-radius:5px; border:none; cursor:pointer; }
+  .mix { display:flex; gap:4px; margin-top:8px; }
+  .mix button { flex:1; height:20px; border-radius:4px; border:none; cursor:pointer; }
+  .chiprow { display:flex; gap:5px; flex-wrap:wrap; }
+  .chip { height:30px; padding:0 10px; border-radius:7px; border:1px solid var(--border); background:var(--bg); color:var(--txt); font-size:12px; cursor:pointer; display:flex; align-items:center; gap:5px; }
+  .chip.on { border-color:var(--accent); color:var(--accent); }
+  .film { display:flex; gap:5px; flex-wrap:wrap; margin-top:8px; }
+  .fr { width:42px; height:42px; border-radius:6px; border:2px solid var(--border); background:repeating-conic-gradient(rgba(255,255,255,.06) 0% 25%, transparent 0% 50%); background-size:8px 8px; cursor:pointer; }
+  .fr.on { border-color:var(--accent); }
+  .sizes { display:flex; gap:5px; margin-top:6px; }
+  /* bottom dock */
+  .dock { height:58px; flex-shrink:0; display:flex; align-items:center; gap:6px; padding:0 14px; background:var(--panel); border-top:1px solid var(--border); }
+  .dock .tool { width:40px; height:40px; border-radius:9px; border:1px solid var(--border); background:var(--bg); color:var(--txt); display:flex; align-items:center; justify-content:center; cursor:pointer; }
+  .dock .tool.on { background:var(--accent); color:var(--accent-ink); border-color:var(--accent); }
+  .dock .sep { width:1px; height:30px; background:var(--border); margin:0 4px; }
+  .brush { display:flex; align-items:center; gap:4px; }
+  .brush button { width:30px; height:30px; border-radius:6px; border:1px solid var(--border); background:var(--bg); color:var(--txt); font-size:12px; font-weight:700; cursor:pointer; }
+  .brush button.on { border-color:var(--accent); color:var(--accent); }
+  .dock .lbl { font-size:10px; color:var(--mute); margin-right:2px; }
+  .onion-legend { font-size:10px; color:var(--mute); margin-left:8px; display:flex; gap:8px; align-items:center; }
+  .dot { width:9px; height:9px; border-radius:3px; display:inline-block; }
+  .hint { position:absolute; left:14px; bottom:14px; font-size:10px; color:rgba(255,255,255,.5); }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="top">
+    <input class="name" value="hero" aria-label="Sprite name">
+    <span style="font-size:11px;color:var(--mute)">sprite</span>
+    <div class="spacer"></div>
+    <button class="iconbtn" title="Play">▶</button>
+    <button class="primary">✓ Done</button>
+    <button class="iconbtn" title="Close">✕</button>
+  </div>
+  <div class="main">
+    <div class="canvas">
+      <div class="sheet">
+        <div class="grid"></div>
+        <div class="sprite"></div>
+      </div>
+      <div class="hint">zoom 100% · onion: blue outline = previous, pink = next</div>
+      <div class="zoom">
+        <button>＋</button>
+        <button>－</button>
+      </div>
+    </div>
+    <div class="side">
+      <details class="acc" open>
+        <summary>Colors</summary>
+        <div class="acc-body">
+          <div class="palette" id="pal"></div>
+          <div class="mix"><button style="background:#ef7d57"></button><button style="background:#ffcd75"></button><button style="background:#f4d39a"></button><button style="background:#e8b37c"></button><button style="background:#d18f63"></button><button style="background:#b16a4c"></button><button style="background:#8f4a3b"></button><button style="background:#6e322f"></button></div>
+          <div class="chiprow" style="margin-top:8px"><button class="chip" style="height:26px;padding:0 8px">My colors</button></div>
+        </div>
+      </details>
+      <details class="acc" open>
+        <summary>Frames · idle</summary>
+        <div class="acc-body">
+          <div class="chiprow"><button class="chip on">idle (3)</button><button class="chip">run (2)</button><button class="chip">＋ New</button><button class="chip">Rename</button></div>
+          <div class="film">
+            <div class="fr on"></div><div class="fr"></div><div class="fr"></div>
+          </div>
+          <div class="chiprow" style="margin-top:8px"><button class="chip">＋ Add</button><button class="chip">Copy</button><button class="chip">Del</button></div>
+        </div>
+      </details>
+      <details class="acc">
+        <summary>Canvas size</summary>
+        <div class="acc-body"><div class="sizes"><button class="chip">16</button><button class="chip">32</button><button class="chip on">64</button><button class="chip">128</button></div></div>
+      </details>
+    </div>
+  </div>
+  <div class="dock">
+    <button class="tool on" title="Pencil (B)">✏️</button>
+    <button class="tool" title="Eraser (E)">🧽</button>
+    <button class="tool" title="Fill (G)">🪣</button>
+    <button class="tool" title="Pick (I)">🎯</button>
+    <div class="sep"></div>
+    <button class="tool" title="Line (L)">╱</button>
+    <button class="tool" title="Rectangle (R)">▭</button>
+    <button class="tool" title="Circle (C)">◯</button>
+    <div class="sep"></div>
+    <span class="lbl">Brush</span>
+    <div class="brush"><button>1</button><button class="on">3</button><button>5</button></div>
+    <div class="sep"></div>
+    <button class="iconbtn" title="Undo (Ctrl+Z)">↶</button>
+    <button class="iconbtn" title="Redo (Ctrl+Y)">↷</button>
+    <button class="iconbtn" title="Clear frame">⌫</button>
+    <div class="sep"></div>
+    <button class="iconbtn" title="Grid">▦</button>
+    <button class="iconbtn" title="Onion skin" style="color:var(--accent)">◎</button>
+    <span class="onion-legend"><span class="dot" style="background:#41a6f6"></span>prev <span class="dot" style="background:#ff7fa8"></span>next</span>
+    <div style="flex:1"></div>
+    <button class="iconbtn" title="Play">▶</button>
+  </div>
+</div>
+<script>
+(function () {
+  var PAL = ['#1a1c2c','#5d275d','#b13e53','#ef7d57','#ffcd75','#a7f070','#38b764','#257179','#29366f','#3b5dc9','#41a6f6','#73eff7','#f4f4f4','#94b0c2','#566c86','#333c57'];
+  var box = document.getElementById('pal');
+  for (var i=0;i<PAL.length;i++) {
+    var b = document.createElement('button');
+    b.className = 'sw';
+    b.style.background = PAL[i];
+    if (i===3) b.style.outline = '2px solid var(--accent)';
+    box.appendChild(b);
+  }
+  var tools = document.querySelectorAll('.dock .tool');
+  for (var i=0;i<tools.length;i++) tools[i].addEventListener('click', function(){
+    for (var j=0;j<tools.length;j++) tools[j].classList.remove('on');
+    this.classList.add('on');
+  });
+})();
+</script>
+</body>
+</html>

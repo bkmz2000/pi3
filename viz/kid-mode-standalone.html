@@ -1,0 +1,858 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sprite editor — kid mode (v5)</title>
+<style>
+  :root { color-scheme: dark; --background:#0e1116; --foreground:#e8edf5; --card:#161b24; --card-foreground:#e8edf5; --muted-foreground:#8b98ab; --border:#2a3342; --primary:#4c9aff; --primary-foreground:#0b1220; }
+  body { margin:0; padding:14px; background:var(--background); font-family:system-ui,sans-serif; color:var(--foreground); }
+  #kid-editor { display:flex; flex-direction:column; gap:10px; padding:2px; }
+  #kid-editor .kd-tools { display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
+  #kid-editor .kd-tool { width:42px; height:42px; border-radius:10px; border:1px solid var(--border); background:var(--card); color:var(--foreground); cursor:pointer; display:flex; align-items:center; justify-content:center; }
+  #kid-editor .kd-tool.on { background:var(--primary); color:var(--primary-foreground); border-color:var(--primary); }
+  #kid-editor .kd-btn { height:34px; padding:0 12px; border-radius:8px; border:1px solid var(--border); background:var(--card); color:var(--foreground); font-size:13px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; }
+  #kid-editor .kd-btn.on { border-color:var(--primary); color:var(--primary); background:color-mix(in srgb, var(--primary) 12%, transparent); }
+  #kid-editor .kd-btn svg { flex:none; }
+  #kid-editor .kd-main { display:flex; gap:14px; flex-wrap:wrap; align-items:flex-start; }
+  #kid-editor .kd-canvas-wrap { position:relative; display:inline-block; }
+  #kid-editor #kd-canvas { display:block; image-rendering:pixelated; border:1px solid var(--border); border-radius:8px; touch-action:none; user-select:none; cursor:crosshair; background-image:repeating-conic-gradient(light-dark(rgba(0,0,0,.08), rgba(255,255,255,.12)) 0% 25%, transparent 0% 50%); background-size:16px 16px; }
+  #kid-editor .kd-grid { position:absolute; inset:1px; pointer-events:none; border-radius:8px; background-image:linear-gradient(to right, light-dark(rgba(0,0,0,.16), rgba(255,255,255,.18)) 1px, transparent 1px), linear-gradient(to bottom, light-dark(rgba(0,0,0,.16), rgba(255,255,255,.18)) 1px, transparent 1px); }
+  #kid-editor .kd-ghost { position:absolute; display:none; pointer-events:none; border:1px solid rgba(255,255,255,.75); box-shadow:0 0 0 1px rgba(0,0,0,.5); border-radius:2px; }
+  #kid-editor .kd-canvas-col { display:flex; flex-direction:column; gap:4px; align-items:flex-start; }
+  #kid-editor .kd-onion-legend { font-size:11px; color:var(--muted-foreground); display:flex; gap:5px; align-items:center; }
+  #kid-editor .kd-onion-legend .dot { width:10px; height:10px; border-radius:3px; display:inline-block; }
+  #kid-editor .kd-sel { position:absolute; inset:1px; border:2px dashed var(--primary); border-radius:6px; pointer-events:none; display:none; }
+  #kid-editor .kd-side { display:flex; flex-direction:column; gap:10px; min-width:220px; flex:1; max-width:320px; }
+  #kid-editor .kd-group { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:8px; }
+  #kid-editor .kd-title { font-size:11px; font-weight:600; letter-spacing:.04em; text-transform:uppercase; color:var(--muted-foreground); margin:0 0 6px; display:flex; align-items:center; gap:6px; }
+  #kid-editor .kd-palette { display:grid; grid-template-columns:repeat(8,1fr); gap:4px; }
+  #kid-editor .kd-swatch { height:26px; border-radius:6px; border:2px solid transparent; cursor:pointer; padding:0; }
+  #kid-editor .kd-swatch.on { border-color:var(--primary); box-shadow:0 0 0 2px color-mix(in srgb, var(--primary) 30%, transparent); }
+  #kid-editor .kd-custom .kd-swatch { width:34px; height:34px; }
+  #kid-editor .kd-current { width:26px; height:26px; border-radius:6px; border:2px solid var(--primary); flex:none; }
+  #kid-editor .kd-custom { display:flex; gap:4px; flex-wrap:wrap; margin-top:6px; }
+  #kid-editor .kd-custom-label { font-size:11px; color:var(--muted-foreground); margin-top:6px; }
+  #kid-editor .kd-mixer { border:1px solid var(--border); border-radius:8px; padding:6px; margin-top:6px; }
+  #kid-editor .kd-mixer-row { display:flex; gap:6px; align-items:center; margin:4px 0; flex-wrap:wrap; }
+  #kid-editor .kd-slot { width:24px; height:24px; border-radius:6px; border:2px solid var(--border); cursor:pointer; background:repeating-conic-gradient(rgba(0,0,0,.2) 0% 25%, transparent 25% 50%); background-size:6px 6px; padding:0; }
+  #kid-editor .kd-slot.pick { border-color:var(--primary); box-shadow:0 0 0 2px color-mix(in srgb, var(--primary) 35%, transparent); }
+  #kid-editor .kd-ramp { display:flex; gap:3px; margin:4px 0; }
+  #kid-editor .kd-ramp .kd-swatch { flex:1; height:24px; min-width:0; }
+  #kid-editor .kd-sizes { display:flex; gap:6px; flex-wrap:wrap; }
+  #kid-editor .kd-size { height:30px; min-width:40px; padding:0 8px; border-radius:7px; border:1px solid var(--border); background:var(--card); color:var(--foreground); font-size:13px; cursor:pointer; }
+  #kid-editor .kd-size.on { border-color:var(--primary); color:var(--primary); background:color-mix(in srgb, var(--primary) 12%, transparent); }
+  #kid-editor .kd-anims { display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+  #kid-editor .kd-anim { height:30px; padding:0 10px; border-radius:7px; border:1px solid var(--border); background:var(--card); color:var(--foreground); font-size:13px; cursor:pointer; }
+  #kid-editor .kd-anim.on { border-color:var(--primary); color:var(--primary); background:color-mix(in srgb, var(--primary) 12%, transparent); }
+  #kid-editor .kd-anim-actions { display:flex; gap:6px; margin-top:6px; flex-wrap:wrap; }
+  #kid-editor .kd-frames { display:flex; gap:6px; align-items:center; flex-wrap:wrap; min-height:44px; }
+  #kid-editor .kd-frame { width:40px; height:40px; image-rendering:pixelated; border:2px solid var(--border); border-radius:6px; cursor:pointer; padding:0; background-image:repeating-conic-gradient(light-dark(rgba(0,0,0,.08), rgba(255,255,255,.12)) 0% 25%, transparent 0% 50%); background-size:8px 8px; }
+  #kid-editor .kd-frame.on { border-color:var(--primary); }
+  #kid-editor .kd-frame.drag { opacity:.45; }
+  #kid-editor .kd-frame.over { border-color:var(--primary); box-shadow:0 0 0 2px color-mix(in srgb, var(--primary) 30%, transparent); }
+  #kid-editor .kd-preview { width:128px; height:128px; image-rendering:pixelated; border:1px solid var(--border); border-radius:8px; display:block; background-image:repeating-conic-gradient(light-dark(rgba(0,0,0,.08), rgba(255,255,255,.12)) 0% 25%, transparent 0% 50%); background-size:12px 12px; }
+  #kid-editor .kd-caption { font-size:11px; color:var(--muted-foreground); margin-top:4px; }
+  #kid-editor .kd-modal { position:fixed; inset:0; background:rgba(0,0,0,.55); display:flex; align-items:center; justify-content:center; z-index:10; }
+  #kid-editor .kd-modal[hidden] { display:none; }
+  #kid-editor .kd-modal-box { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:14px 16px; max-width:340px; width:100%; }
+  #kid-editor .kd-input { height:34px; padding:0 10px; border-radius:8px; border:1px solid var(--border); background:var(--background); color:var(--foreground); width:100%; box-sizing:border-box; margin-bottom:8px; font-size:14px; }
+  #kid-editor .kd-msg { font-size:12px; color:var(--muted-foreground); margin:0 0 8px; min-height:14px; }
+  #kid-editor .kd-toast { position:fixed; bottom:26px; left:50%; transform:translateX(-50%); background:var(--primary); color:var(--primary-foreground); padding:8px 16px; border-radius:999px; font-size:13px; font-weight:600; z-index:30; opacity:0; transition:opacity .15s; pointer-events:none; }
+  #kid-editor .kd-toast.show { opacity:1; }
+</style>
+</head>
+<body>
+<div id="kid-editor">
+  <div class="kd-tools">
+    <button class="kd-tool on" data-tool="pencil" title="Pencil (B) — hold Shift to draw a straight line"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.8 2.8 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg></button>
+    <button class="kd-tool" data-tool="eraser" title="Eraser (E) — hold Shift for a straight line"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21"/><path d="M22 21H7"/><path d="m5 11 9 9"/></svg></button>
+    <button class="kd-tool" data-tool="fill" title="Fill (G)"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m19 11-8-8-8.6 8.6a2 2 0 0 0 0 2.8l5.2 5.2c.8.8 2 .8 2.8 0L19 11Z"/><path d="m5 2 5 5"/><path d="M2 13h15"/><path d="M22 20a2 2 0 1 1-4 0c0-1.6 1.7-2.4 2-4 .3 1.6 2 2.4 2 4Z"/></svg></button>
+    <button class="kd-tool" data-tool="pick" title="Pick color (I)"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 2 4 4L10 18l-4 4-4-4 4-4L18 2Z"/><path d="M6 14l4 4"/></svg></button>
+    <button class="kd-tool" data-tool="line" title="Line (L)"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 19 19 5"/></svg></button>
+    <button class="kd-tool" data-tool="rect" title="Rectangle (R)"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="7" width="16" height="12" rx="2"/></svg></button>
+    <button class="kd-tool" data-tool="circle" title="Circle (C)"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/></svg></button>
+    <span style="width:8px"></span>
+    <span class="kd-caption" style="margin:0">Brush:</span>
+    <button class="kd-btn" data-brush="1">1</button>
+    <button class="kd-btn on" data-brush="3">3</button>
+    <button class="kd-btn" data-brush="5">5</button>
+    <span style="flex:1"></span>
+    <button class="kd-btn on" id="kd-grid" title="Toggle grid"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 3v18"/></svg>Grid</button>
+    <button class="kd-btn on" id="kd-onion" title="Onion skin — blue outline = previous frame, pink outline = next frame (only where pixels moved)"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="8" opacity=".55"/><circle cx="12" cy="12" r="11" opacity=".3"/></svg>Onion</button>
+    <button class="kd-btn" id="kd-zoomout" title="Zoom out"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14" opacity="0"/><path d="M5 12h14"/></svg></button>
+    <span class="kd-caption" id="kd-zoomlabel" style="min-width:38px; text-align:center; margin:0">100%</span>
+    <button class="kd-btn" id="kd-zoomin" title="Zoom in"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
+    <button class="kd-btn" id="kd-undo" title="Undo (Ctrl+Z)"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5v0a5.5 5.5 0 0 1-5.5 5.5H11"/></svg>Undo</button>
+    <button class="kd-btn" id="kd-redo" title="Redo (Ctrl+Y)"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></svg>Redo</button>
+    <button class="kd-btn" id="kd-clear" title="Clear this frame"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>Clear</button>
+    <button class="kd-btn" id="kd-play" title="Play the animation"><span id="kd-ico-play"><svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M6 4.5v15a1 1 0 0 0 1.5.87l12-7.5a1 1 0 0 0 0-1.74l-12-7.5A1 1 0 0 0 6 4.5Z"/></svg></span><span id="kd-ico-pause" style="display:none"><svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg></span>Play</button>
+  </div>
+  <div class="kd-main">
+    <div class="kd-canvas-col">
+      <div class="kd-canvas-wrap">
+        <canvas id="kd-canvas"></canvas>
+        <div class="kd-grid" id="kd-grid"></div>
+        <div class="kd-sel" id="kd-sel"></div>
+        <div class="kd-ghost" id="kd-ghost"></div>
+      </div>
+      <div class="kd-onion-legend" id="kd-onion-legend" hidden><span class="dot" style="background:#41a6f6"></span> outline = previous frame&nbsp;&nbsp;<span class="dot" style="background:#ff7fa8"></span> outline = next frame</div>
+    </div>
+    <div class="kd-side">
+      <div class="kd-group">
+        <p class="kd-title">Colors <span style="flex:1"></span> <span class="kd-caption" style="margin:0">current</span> <span class="kd-current" id="kd-current"></span></p>
+        <div class="kd-palette" id="kd-palette"></div>
+        <button class="kd-btn" id="kd-mix-toggle" style="width:100%; justify-content:center; margin-top:6px;"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/><circle cx="12" cy="12" r="3.5"/></svg>Mix colors</button>
+        <div class="kd-mixer" id="kd-mixer" hidden>
+          <div class="kd-mixer-row">
+            <span class="kd-caption" style="margin:0">1st color</span>
+            <button class="kd-slot" id="kd-slot-a" title="Pick the 1st color"></button>
+            <span class="kd-caption" style="margin:0">2nd color</span>
+            <button class="kd-slot" id="kd-slot-b" title="Pick the 2nd color"></button>
+            <span class="kd-caption" id="kd-mix-hint" style="margin:0"></span>
+          </div>
+          <div class="kd-ramp" id="kd-ramp"></div>
+        </div>
+        <p class="kd-custom-label" id="kd-custom-label" hidden>My colors</p>
+        <div class="kd-custom" id="kd-custom"></div>
+      </div>
+      <div class="kd-group">
+        <p class="kd-title">Canvas size</p>
+        <div class="kd-sizes" id="kd-sizes"></div>
+      </div>
+      <div class="kd-group">
+        <p class="kd-title">Animations</p>
+        <div class="kd-anims" id="kd-anims"></div>
+        <div class="kd-anim-actions">
+          <button class="kd-btn" id="kd-anim-add" title="Add a new animation"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>New</button>
+          <button class="kd-btn" id="kd-anim-rename" title="Rename this animation"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.8 2.8 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>Rename</button>
+          <button class="kd-btn" id="kd-anim-del" title="Delete this animation"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>Delete</button>
+        </div>
+      </div>
+      <div class="kd-group">
+        <p class="kd-title" id="kd-frames-title">Frames <span class="kd-caption" style="margin:0">(drag to reorder)</span></p>
+        <div class="kd-frames" id="kd-frames"></div>
+        <div style="display:flex; gap:6px; margin-top:6px; flex-wrap:wrap">
+          <button class="kd-btn" id="kd-add" title="Add a new frame"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Add</button>
+          <button class="kd-btn" id="kd-dup" title="Copy this frame"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>Copy</button>
+          <button class="kd-btn" id="kd-del" title="Delete this frame"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>Del</button>
+        </div>
+      </div>
+      <div class="kd-group">
+        <p class="kd-title">Preview</p>
+        <canvas class="kd-preview" id="kd-preview"></canvas>
+      </div>
+    </div>
+  </div>
+  <div class="kd-modal" id="kd-modal" hidden>
+    <div class="kd-modal-box">
+      <p style="font-size:14px; margin:0 0 4px;" id="kd-modal-title">Change canvas size?</p>
+      <p class="kd-caption" style="margin:0 0 12px;">Your drawing keeps its look — choose how.</p>
+      <div style="display:flex; gap:8px; flex-wrap:wrap">
+        <button class="kd-btn" id="kd-scale" style="border-color:var(--primary); color:var(--primary);">Scale drawing</button>
+        <button class="kd-btn" id="kd-keep">Keep as-is</button>
+        <button class="kd-btn" id="kd-cancel">Cancel</button>
+      </div>
+    </div>
+  </div>
+  <div class="kd-modal" id="kd-name-modal" hidden>
+    <div class="kd-modal-box">
+      <p style="font-size:14px; margin:0 0 8px;" id="kd-name-title">Animation name</p>
+      <input class="kd-input" id="kd-name-input" type="text" placeholder="e.g. walk" maxlength="24">
+      <p class="kd-msg" id="kd-name-msg"></p>
+      <div style="display:flex; gap:8px; justify-content:flex-end">
+        <button class="kd-btn" id="kd-name-cancel">Cancel</button>
+        <button class="kd-btn" id="kd-name-ok" style="border-color:var(--primary); color:var(--primary);">OK</button>
+      </div>
+    </div>
+  </div>
+  <div class="kd-toast" id="kd-toast"></div>
+</div>
+<script>
+(function () {
+  var root = document.getElementById('kid-editor');
+  var SIZES = [16, 32, 64, 128];
+  var SIZE = 64;
+  var PAL = [['#1a1c2c','shadow'],['#5d275d','wine'],['#b13e53','red'],['#ef7d57','orange'],['#ffcd75','yellow'],['#a7f070','lime'],['#38b764','green'],['#257179','teal'],['#29366f','navy'],['#3b5dc9','blue'],['#41a6f6','sky'],['#73eff7','cyan'],['#f4f4f4','white'],['#94b0c2','silver'],['#566c86','gray'],['#333c57','dark']];
+  function hex2rgb(h) { return [parseInt(h.slice(1,3),16), parseInt(h.slice(3,5),16), parseInt(h.slice(5,7),16), 255]; }
+  function rgb2css(c) { return 'rgb(' + c[0] + ',' + c[1] + ',' + c[2] + ')'; }
+  function mixRGB(a, b, t) { return [Math.round(a[0]+(b[0]-a[0])*t), Math.round(a[1]+(b[1]-a[1])*t), Math.round(a[2]+(b[2]-a[2])*t), 255]; }
+  function sameRGB(a, b) { return a[0]===b[0]&&a[1]===b[1]&&a[2]===b[2]; }
+  var SHAPES = { line: 1, rect: 1, circle: 1 };
+  var anims = { idle: [new Uint8ClampedArray(SIZE*SIZE*4)] };
+  var active = 'idle';
+  var fi = 0, tool = 'pencil', sel = hex2rgb(PAL[3][0]), brush = 3, painting = false, playing = null, undos = [], redos = [], pendingSize = null, pendingName = null, shapeStart = null, shapeEnd = null, shiftLine = null;
+  var showGrid = true, onion = true, zoom = 1, allSelected = false, clip = null;
+  var mixOpen = false, mixA = null, mixB = null, pickSlot = 'A';
+  var customColors = [];
+  var main = root.querySelector('#kd-canvas'), mctx = main.getContext('2d');
+  var prev = root.querySelector('#kd-preview'), pctx = prev.getContext('2d');
+  var grid = root.querySelector('#kd-grid');
+  var ghost = root.querySelector('#kd-ghost');
+  var selOverlay = root.querySelector('#kd-sel');
+  var frameBox = root.querySelector('#kd-frames');
+  var toastEl = root.querySelector('#kd-toast'), toastTimer = null;
+  function toast(msg) {
+    toastEl.textContent = msg;
+    toastEl.classList.add('show');
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(function() { toastEl.classList.remove('show'); }, 1200);
+  }
+  function frames() { return anims[active]; }
+  function cur() { return frames()[fi]; }
+  function idx(x,y) { return (y*SIZE+x)*4; }
+  function set(x,y,c) { var i=idx(x,y), b=cur(); b[i]=c[0]; b[i+1]=c[1]; b[i+2]=c[2]; b[i+3]=c[3]; }
+  function px(x,y) { var i=idx(x,y), b=cur(); return [b[i],b[i+1],b[i+2],b[i+3]]; }
+  function pushUndo() { undos.push({ anim: active, idx: fi, data: Array.from(cur()) }); if (undos.length>40) undos.shift(); redos = []; }
+  function outlineGhost(src, fill, a) {
+    var curB = cur();
+    var changed = new Uint8Array(SIZE*SIZE);
+    for (var y=0;y<SIZE;y++) for (var x=0;x<SIZE;x++) {
+      var i = (y*SIZE+x)*4;
+      if (src[i+3] > 0 && (src[i]!==curB[i] || src[i+1]!==curB[i+1] || src[i+2]!==curB[i+2] || src[i+3]!==curB[i+3])) {
+        changed[y*SIZE+x] = 1;
+      }
+    }
+    var off = document.createElement('canvas');
+    off.width = SIZE; off.height = SIZE;
+    var octx = off.getContext('2d');
+    var img = octx.createImageData(SIZE, SIZE);
+    for (var y=0;y<SIZE;y++) for (var x=0;x<SIZE;x++) {
+      if (!changed[y*SIZE+x]) continue;
+      var boundary = (x===0 || !changed[y*SIZE+x-1]) ||
+                     (x===SIZE-1 || !changed[y*SIZE+x+1]) ||
+                     (y===0 || !changed[(y-1)*SIZE+x]) ||
+                     (y===SIZE-1 || !changed[(y+1)*SIZE+x]);
+      if (boundary) {
+        var i = (y*SIZE+x)*4;
+        img.data[i] = fill[0]; img.data[i+1] = fill[1]; img.data[i+2] = fill[2]; img.data[i+3] = Math.round(a*255);
+      }
+    }
+    octx.putImageData(img, 0, 0);
+    mctx.drawImage(off, 0, 0);
+  }
+  function renderBase() {
+    mctx.clearRect(0, 0, SIZE, SIZE);
+    var off = document.createElement('canvas');
+    off.width = SIZE; off.height = SIZE;
+    off.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(cur()), SIZE, SIZE), 0, 0);
+    mctx.drawImage(off, 0, 0);
+    if (onion) {
+      if (fi > 0) outlineGhost(frames()[fi-1], [65,166,246], 0.85);
+      if (fi < frames().length - 1) outlineGhost(frames()[fi+1], [255,127,168], 0.85);
+    }
+  }
+  function drawAll() {
+    renderBase();
+    pctx.putImageData(new ImageData(new Uint8ClampedArray(cur()), SIZE, SIZE), 0, 0);
+    drawChips();
+    syncCurrent();
+  }
+  function drawChips() {
+    var ch = frameBox.querySelectorAll('.kd-frame');
+    for (var i=0;i<ch.length;i++) {
+      if (i < frames().length) {
+        ch[i].getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(frames()[i]), SIZE, SIZE), 0, 0);
+        ch[i].classList.toggle('on', i === fi);
+      }
+    }
+  }
+  function fillBlock(buf, x, y, c, r) {
+    var h = Math.floor(r/2);
+    for (var dy=-h; dy<=h; dy++) for (var dx=-h; dx<=h; dx++) {
+      var X=x+dx, Y=y+dy;
+      if (X>=0&&X<SIZE&&Y>=0&&Y<SIZE) {
+        var i=(Y*SIZE+X)*4;
+        buf[i]=c[0]; buf[i+1]=c[1]; buf[i+2]=c[2]; buf[i+3]=c[3];
+      }
+    }
+  }
+  function plotLine(buf, x0, y0, x1, y1, c, r) {
+    var dx = Math.abs(x1-x0), sx = x0<x1?1:-1;
+    var dy = -Math.abs(y1-y0), sy = y0<y1?1:-1;
+    var err = dx+dy;
+    while (true) {
+      fillBlock(buf, x0, y0, c, r);
+      if (x0===x1 && y0===y1) break;
+      var e2 = 2*err;
+      if (e2 >= dy) { err += dy; x0 += sx; }
+      if (e2 <= dx) { err += dx; y0 += sy; }
+    }
+  }
+  function plotEllipse(buf, cx, cy, rx, ry, c, r) {
+    if (rx < 0.5 && ry < 0.5) { fillBlock(buf, Math.round(cx), Math.round(cy), c, r); return; }
+    var steps = Math.max(8, Math.round(Math.PI * (rx + ry)));
+    for (var t=0; t<steps; t++) {
+      var ang = 2*Math.PI*t/steps;
+      fillBlock(buf, Math.round(cx + rx*Math.cos(ang)), Math.round(cy + ry*Math.sin(ang)), c, r);
+    }
+  }
+  function outlineInto(buf, a, b, c, r, kind) {
+    if (!b) { fillBlock(buf, a.x, a.y, c, r); return; }
+    if (kind === 'line') { plotLine(buf, a.x, a.y, b.x, b.y, c, r); return; }
+    if (kind === 'rect') {
+      var x0=Math.min(a.x,b.x), x1=Math.max(a.x,b.x), y0=Math.min(a.y,b.y), y1=Math.max(a.y,b.y);
+      plotLine(buf, x0, y0, x1, y0, c, r);
+      plotLine(buf, x0, y1, x1, y1, c, r);
+      plotLine(buf, x0, y0, x0, y1, c, r);
+      plotLine(buf, x1, y0, x1, y1, c, r);
+      return;
+    }
+    if (kind === 'circle') {
+      var cx=(a.x+b.x)/2, cy=(a.y+b.y)/2, rx=Math.abs(b.x-a.x)/2, ry=Math.abs(b.y-a.y)/2;
+      plotEllipse(buf, cx, cy, rx, ry, c, r);
+    }
+  }
+  function clampCell(x, y) {
+    return { x: Math.max(0, Math.min(SIZE-1, x)), y: Math.max(0, Math.min(SIZE-1, y)) };
+  }
+  function flood(x,y,fill) {
+    var b = cur(), target = px(x,y);
+    if (target[0]===fill[0]&&target[1]===fill[1]&&target[2]===fill[2]&&target[3]===fill[3]) return;
+    var stack = [[x,y]], seen = new Uint8Array(SIZE*SIZE);
+    while (stack.length) {
+      var p = stack.pop(), px2 = p[0], py = p[1], i = idx(px2,py);
+      if (px2<0||px2>=SIZE||py<0||py>=SIZE||seen[i/4]) continue;
+      seen[i/4] = 1;
+      if (b[i]!==target[0]||b[i+1]!==target[1]||b[i+2]!==target[2]||b[i+3]!==target[3]) continue;
+      b[i]=fill[0]; b[i+1]=fill[1]; b[i+2]=fill[2]; b[i+3]=fill[3];
+      stack.push([px2+1,py],[px2-1,py],[px2,py+1],[px2,py-1]);
+    }
+  }
+  function paintAt(x,y) {
+    if (tool==='pencil') set(x,y,sel);
+    else if (tool==='eraser') set(x,y,[0,0,0,0]);
+  }
+  function stroke(x,y) {
+    if (tool==='fill') { flood(x,y,sel); }
+    else if (tool==='pick') {
+      var c = px(x,y);
+      if (c[3] > 0) { sel = [c[0],c[1],c[2],255]; syncSel(); }
+      tool = 'pencil'; syncTools();
+    } else {
+      var r = Math.floor(brush/2);
+      for (var dy=-r; dy<=r; dy++) for (var dx=-r; dx<=r; dx++) {
+        var X=x+dx, Y=y+dy;
+        if (X>=0&&X<SIZE&&Y>=0&&Y<SIZE) paintAt(X,Y);
+      }
+    }
+  }
+  function cellOf(e) {
+    var rect = main.getBoundingClientRect();
+    var sx = rect.width/SIZE, sy = rect.height/SIZE;
+    return [Math.floor((e.clientX-rect.left)/sx), Math.floor((e.clientY-rect.top)/sy)];
+  }
+  function overlayOutlineToMain(a, b, kind, color) {
+    var pb = new Uint8ClampedArray(cur());
+    outlineInto(pb, a, b, color, brush, kind);
+    var wasErase = tool === 'eraser';
+    mctx.globalCompositeOperation = wasErase ? 'destination-out' : 'source-over';
+    mctx.fillStyle = wasErase ? 'rgba(0,0,0,1)' : rgb2css(color);
+    for (var y=0;y<SIZE;y++) for (var x=0;x<SIZE;x++) {
+      var i=(y*SIZE+x)*4;
+      if (pb[i]!==cur()[i]||pb[i+1]!==cur()[i+1]||pb[i+2]!==cur()[i+2]||pb[i+3]!==cur()[i+3]) {
+        mctx.fillRect(x, y, 1, 1);
+      }
+    }
+    mctx.globalCompositeOperation = 'source-over';
+  }
+  function updateGhost(e) {
+    if (tool !== 'pencil' && tool !== 'eraser') { ghost.style.display = 'none'; return; }
+    var rect = main.getBoundingClientRect();
+    var sx = rect.width/SIZE;
+    var c = cellOf(e);
+    if (c[0]<0||c[0]>=SIZE||c[1]<0||c[1]>=SIZE) { ghost.style.display = 'none'; return; }
+    ghost.style.display = 'block';
+    ghost.style.left = (c[0]*sx+1)+'px';
+    ghost.style.top = (c[1]*sx+1)+'px';
+    ghost.style.width = (brush*sx)+'px';
+    ghost.style.height = (brush*sx)+'px';
+  }
+  function renderShapePreview() {
+    if (!shapeStart && !shiftLine) return;
+    renderBase();
+    if (shiftLine) {
+      var a = clampCell(shiftLine.x, shiftLine.y);
+      var b = shapeEnd ? clampCell(shapeEnd.x, shapeEnd.y) : null;
+      overlayOutlineToMain(a, b, 'line', tool === 'eraser' ? [0,0,0,0] : sel);
+    } else if (shapeStart) {
+      var a2 = clampCell(shapeStart.x, shapeStart.y);
+      var b2 = shapeEnd ? clampCell(shapeEnd.x, shapeEnd.y) : null;
+      overlayOutlineToMain(a2, b2, tool, sel);
+    }
+  }
+  main.addEventListener('pointerdown', function(e) {
+    e.preventDefault();
+    try { main.setPointerCapture(e.pointerId); } catch (err) {}
+    var c = cellOf(e);
+    if (c[0]<0||c[0]>=SIZE||c[1]<0||c[1]>=SIZE) return;
+    if (allSelected && tool !== 'pick') { allSelected = false; updateSel(); }
+    if ((tool === 'pencil' || tool === 'eraser') && e.shiftKey) {
+      pushUndo();
+      shiftLine = { x: c[0], y: c[1] };
+      shapeEnd = null;
+      painting = true;
+      renderShapePreview();
+      return;
+    }
+    if (SHAPES[tool]) {
+      pushUndo();
+      shapeStart = { x: c[0], y: c[1] };
+      shapeEnd = null;
+      painting = true;
+      renderShapePreview();
+      return;
+    }
+    if (tool!=='pick') pushUndo();
+    stroke(c[0],c[1]);
+    painting = true;
+    drawAll();
+  });
+  main.addEventListener('pointermove', function(e) {
+    if (!painting) { updateGhost(e); return; }
+    var c = cellOf(e);
+    if (shiftLine || shapeStart) {
+      if (c[0]>=0&&c[0]<SIZE&&c[1]>=0&&c[1]<SIZE) shapeEnd = { x: c[0], y: c[1] };
+      renderShapePreview();
+      return;
+    }
+    if (c[0]<0||c[0]>=SIZE||c[1]<0||c[1]>=SIZE) return;
+    stroke(c[0],c[1]);
+    drawAll();
+  });
+  main.addEventListener('pointerup', function() {
+    if (shiftLine || shapeStart) {
+      var kind = shiftLine ? 'line' : tool;
+      var color = shiftLine ? (tool === 'eraser' ? [0,0,0,0] : sel) : sel;
+      var a = shiftLine ? clampCell(shiftLine.x, shiftLine.y) : clampCell(shapeStart.x, shapeStart.y);
+      var b = shapeEnd ? clampCell(shapeEnd.x, shapeEnd.y) : null;
+      outlineInto(cur(), a, b, color, brush, kind);
+      shapeStart = null; shiftLine = null; shapeEnd = null;
+      painting = false;
+      drawAll();
+      return;
+    }
+    painting = false;
+  });
+  main.addEventListener('pointerleave', function() { ghost.style.display = 'none'; });
+  var tools = root.querySelectorAll('.kd-tool');
+  function syncTools() {
+    for (var i=0;i<tools.length;i++) tools[i].classList.toggle('on', tools[i].getAttribute('data-tool')===tool);
+  }
+  for (var i=0;i<tools.length;i++) {
+    tools[i].addEventListener('click', function() {
+      tool = this.getAttribute('data-tool');
+      syncTools();
+    });
+  }
+  var brushes = root.querySelectorAll('[data-brush]');
+  for (var j=0;j<brushes.length;j++) {
+    brushes[j].addEventListener('click', function() {
+      brush = parseInt(this.getAttribute('data-brush'),10);
+      for (var k=0;k<brushes.length;k++) brushes[k].classList.toggle('on', brushes[k]===this);
+    });
+  }
+  root.querySelector('#kd-grid').addEventListener('click', function() {
+    showGrid = !showGrid;
+    grid.style.display = showGrid ? '' : 'none';
+    this.classList.toggle('on', showGrid);
+  });
+  root.querySelector('#kd-onion').addEventListener('click', function() {
+    onion = !onion;
+    this.classList.toggle('on', onion);
+    root.querySelector('#kd-onion-legend').hidden = !onion;
+    renderBase();
+  });
+  var ZOOMS = [1, 1.5, 2, 3, 4];
+  function applyZoom() {
+    var px = Math.min(SIZE*8*zoom, 1280);
+    main.style.width = px+'px'; main.style.height = px+'px';
+    root.querySelector('#kd-zoomlabel').textContent = Math.round(zoom*100) + '%';
+  }
+  root.querySelector('#kd-zoomin').addEventListener('click', function() {
+    var i = ZOOMS.indexOf(zoom);
+    if (i < ZOOMS.length-1) { zoom = ZOOMS[i+1]; applyZoom(); }
+  });
+  root.querySelector('#kd-zoomout').addEventListener('click', function() {
+    var i = ZOOMS.indexOf(zoom);
+    if (i > 0) { zoom = ZOOMS[i-1]; applyZoom(); }
+  });
+  function doUndo() {
+    if (!undos.length) return;
+    var e = undos.pop();
+    if (anims[e.anim] && anims[e.anim][e.idx]) {
+      redos.push({ anim: e.anim, idx: e.idx, data: Array.from(anims[e.anim][e.idx]) });
+      anims[e.anim][e.idx].set(e.data);
+      if (e.anim === active) { if (e.idx === fi) drawAll(); else rebuildChips(); }
+    }
+  }
+  function doRedo() {
+    if (!redos.length) return;
+    var e = redos.pop();
+    if (anims[e.anim] && anims[e.anim][e.idx]) {
+      undos.push({ anim: e.anim, idx: e.idx, data: Array.from(anims[e.anim][e.idx]) });
+      anims[e.anim][e.idx].set(e.data);
+      if (e.anim === active) { if (e.idx === fi) drawAll(); else rebuildChips(); }
+    }
+  }
+  root.querySelector('#kd-undo').addEventListener('click', doUndo);
+  root.querySelector('#kd-redo').addEventListener('click', doRedo);
+  function updateSel() { selOverlay.style.display = allSelected ? 'block' : 'none'; }
+  function copyAll() {
+    if (!frames().length) return;
+    clip = { data: Array.from(cur()) };
+    toast('Copied');
+  }
+  function pasteAll() {
+    if (!clip) return;
+    pushUndo();
+    cur().set(clip.data);
+    allSelected = false; updateSel();
+    drawAll();
+    toast('Pasted');
+  }
+  document.addEventListener('keydown', function(e) {
+    var t = e.target;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return;
+    var mod = e.ctrlKey || e.metaKey;
+    var k = e.key.toLowerCase();
+    if (mod && k === 'z') { e.preventDefault(); if (e.shiftKey) doRedo(); else doUndo(); }
+    else if (mod && k === 'y') { e.preventDefault(); doRedo(); }
+    else if (mod && k === 's') { e.preventDefault(); toast('Saved!'); }
+    else if (mod && k === 'a') { e.preventDefault(); allSelected = !allSelected; updateSel(); }
+    else if (mod && k === 'c') { e.preventDefault(); copyAll(); }
+    else if (mod && k === 'v') { e.preventDefault(); pasteAll(); }
+    else if (k === 'escape') { allSelected = false; updateSel(); }
+    else if (!mod) {
+      if (k === 'b') tool = 'pencil';
+      else if (k === 'e') tool = 'eraser';
+      else if (k === 'g') tool = 'fill';
+      else if (k === 'i') tool = 'pick';
+      else if (k === 'l') tool = 'line';
+      else if (k === 'r') tool = 'rect';
+      else if (k === 'c') tool = 'circle';
+      else return;
+      syncTools();
+    }
+  });
+  root.querySelector('#kd-clear').addEventListener('click', function() {
+    pushUndo();
+    cur().fill(0);
+    drawAll();
+  });
+  var paletteBox = root.querySelector('#kd-palette');
+  function buildPalette() {
+    for (var i=0;i<PAL.length;i++) {
+      (function(i){
+        var b = document.createElement('button');
+        b.className = 'kd-swatch';
+        b.style.background = PAL[i][0];
+        b.title = PAL[i][1];
+        b.addEventListener('click', function() {
+          sel = hex2rgb(PAL[i][0]);
+          if (mixOpen) {
+            if (pickSlot === 'A') { mixA = sel; pickSlot = 'B'; renderMixer(); }
+            else { mixB = sel; pickSlot = 'A'; renderMixer(); }
+          } else {
+            syncSel(); syncCurrent();
+          }
+        });
+        paletteBox.appendChild(b);
+      })(i);
+    }
+    syncSel();
+  }
+  function syncSel() {
+    var sw = paletteBox.querySelectorAll('.kd-swatch');
+    for (var i=0;i<sw.length;i++) {
+      var c = hex2rgb(PAL[i][0]);
+      sw[i].classList.toggle('on', c[0]===sel[0]&&c[1]===sel[1]&&c[2]===sel[2]);
+    }
+  }
+  function syncCurrent() {
+    root.querySelector('#kd-current').style.background = rgb2css(sel);
+  }
+  var mixer = root.querySelector('#kd-mixer');
+  function renderMixer() {
+    root.querySelector('#kd-slot-a').style.background = mixA ? rgb2css(mixA) : '';
+    root.querySelector('#kd-slot-b').style.background = mixB ? rgb2css(mixB) : '';
+    root.querySelector('#kd-slot-a').classList.toggle('pick', pickSlot==='A');
+    root.querySelector('#kd-slot-b').classList.toggle('pick', pickSlot==='B');
+    var hint = root.querySelector('#kd-mix-hint');
+    var ramp = root.querySelector('#kd-ramp');
+    ramp.innerHTML = '';
+    if (mixA && mixB) {
+      hint.textContent = '';
+      for (var i=0;i<10;i++) {
+        (function(i){
+          var c = mixRGB(mixA, mixB, i/9);
+          var b = document.createElement('button');
+          b.className = 'kd-swatch';
+          b.style.background = rgb2css(c);
+          b.title = 'Mixed color';
+          b.addEventListener('click', function() { sel = c; addCustom(c); syncSel(); syncCurrent(); });
+          ramp.appendChild(b);
+        })(i);
+      }
+    } else {
+      hint.textContent = pickSlot==='A' ? 'Pick the 1st color from the palette' : 'Pick the 2nd color from the palette';
+    }
+  }
+  root.querySelector('#kd-mix-toggle').addEventListener('click', function() {
+    mixOpen = !mixOpen;
+    mixer.hidden = !mixOpen;
+    this.classList.toggle('on', mixOpen);
+    if (mixOpen) renderMixer();
+  });
+  root.querySelector('#kd-slot-a').addEventListener('click', function() { pickSlot = 'A'; renderMixer(); });
+  root.querySelector('#kd-slot-b').addEventListener('click', function() { pickSlot = 'B'; renderMixer(); });
+  function isPaletteColor(c) {
+    for (var i=0;i<PAL.length;i++) {
+      var p = hex2rgb(PAL[i][0]);
+      if (sameRGB(p, c)) return true;
+    }
+    return false;
+  }
+  function addCustom(c) {
+    if (isPaletteColor(c)) return;
+    for (var i=0;i<customColors.length;i++) if (sameRGB(customColors[i], c)) return;
+    customColors.push(c);
+    if (customColors.length > 12) customColors.shift();
+    renderCustom();
+  }
+  var customBox = root.querySelector('#kd-custom');
+  function renderCustom() {
+    var label = root.querySelector('#kd-custom-label');
+    label.hidden = customColors.length === 0;
+    customBox.innerHTML = '';
+    for (var i=0;i<customColors.length;i++) {
+      (function(i){
+        var b = document.createElement('button');
+        b.className = 'kd-swatch';
+        b.style.background = rgb2css(customColors[i]);
+        b.title = 'My color';
+        b.addEventListener('click', function() { sel = customColors[i]; syncSel(); syncCurrent(); });
+        customBox.appendChild(b);
+      })(i);
+    }
+  }
+  var sizeBox = root.querySelector('#kd-sizes');
+  function buildSizeChips() {
+    for (var i=0;i<SIZES.length;i++) {
+      (function(s){
+        var b = document.createElement('button');
+        b.className = 'kd-size';
+        b.setAttribute('data-size', String(s));
+        b.textContent = s;
+        b.title = s + ' x ' + s;
+        b.addEventListener('click', function() {
+          var ns = parseInt(this.getAttribute('data-size'),10);
+          if (ns !== SIZE) askResize(ns);
+        });
+        sizeBox.appendChild(b);
+      })(SIZES[i]);
+    }
+    rebuildSizeChips();
+  }
+  function rebuildSizeChips() {
+    var ch = sizeBox.querySelectorAll('.kd-size');
+    for (var i=0;i<ch.length;i++) ch[i].classList.toggle('on', parseInt(ch[i].getAttribute('data-size'),10)===SIZE);
+  }
+  var animBox = root.querySelector('#kd-anims');
+  function rebuildAnims() {
+    animBox.innerHTML = '';
+    var names = Object.keys(anims);
+    for (var i=0;i<names.length;i++) {
+      (function(n){
+        var b = document.createElement('button');
+        b.className = 'kd-anim';
+        b.setAttribute('data-anim', n);
+        b.textContent = n + ' (' + anims[n].length + ')';
+        b.title = 'Animation ' + n + ' — ' + anims[n].length + ' frames';
+        b.addEventListener('click', function() {
+          active = n;
+          fi = Math.min(fi, anims[n].length - 1);
+          if (playing) stopPlay();
+          rebuildAnims(); rebuildChips(); drawAll();
+        });
+        animBox.appendChild(b);
+      })(names[i]);
+    }
+    var ch = animBox.querySelectorAll('.kd-anim');
+    for (var j=0;j<ch.length;j++) ch[j].classList.toggle('on', ch[j].getAttribute('data-anim')===active);
+    root.querySelector('#kd-frames-title').innerHTML = 'Frames · ' + active + ' <span class="kd-caption" style="margin:0">(drag to reorder)</span>';
+  }
+  var dragIdx = null, overIdx = null, dragStart = null, dragMoved = false, suppressClick = false;
+  function rebuildChips() {
+    frameBox.innerHTML = '';
+    var f = frames();
+    for (var i=0;i<f.length;i++) {
+      (function(i){
+        var c = document.createElement('canvas');
+        c.className = 'kd-frame';
+        c.width = SIZE; c.height = SIZE;
+        c.title = 'Frame ' + (i+1);
+        c.addEventListener('click', function() {
+          if (suppressClick) { suppressClick = false; return; }
+          fi = i; if (playing) stopPlay(); drawAll();
+        });
+        c.addEventListener('pointerdown', function(e) {
+          dragIdx = i; overIdx = null; dragMoved = false; dragStart = { x: e.clientX, y: e.clientY };
+          c.classList.add('drag');
+          e.preventDefault();
+        });
+        c.addEventListener('pointermove', function(e) {
+          if (dragIdx == null) return;
+          if (dragStart && (Math.abs(e.clientX-dragStart.x) + Math.abs(e.clientY-dragStart.y)) > 4) dragMoved = true;
+        });
+        c.addEventListener('pointerenter', function() {
+          if (dragIdx != null && dragIdx !== i) {
+            overIdx = i;
+            var ch = frameBox.querySelectorAll('.kd-frame');
+            for (var k=0;k<ch.length;k++) ch[k].classList.toggle('over', k === overIdx && dragIdx !== k);
+          }
+        });
+        c.addEventListener('pointerup', finishDrag);
+        frameBox.appendChild(c);
+      })(i);
+    }
+    drawChips();
+  }
+  function finishDrag() {
+    if (dragIdx != null && overIdx != null && overIdx !== dragIdx && dragMoved) {
+      var f = frames();
+      var item = f.splice(dragIdx, 1)[0];
+      f.splice(overIdx, 0, item);
+      fi = overIdx;
+      suppressClick = true;
+      rebuildChips(); rebuildAnims(); drawAll();
+    }
+    dragIdx = null; overIdx = null; dragMoved = false; dragStart = null;
+    var ch = frameBox.querySelectorAll('.kd-frame');
+    for (var k=0;k<ch.length;k++) ch[k].classList.remove('drag', 'over');
+  }
+  document.addEventListener('pointerup', finishDrag);
+  function stopPlay() {
+    if (playing) { clearInterval(playing); playing = null; }
+    root.querySelector('#kd-ico-play').style.display = '';
+    root.querySelector('#kd-ico-pause').style.display = 'none';
+  }
+  root.querySelector('#kd-play').addEventListener('click', function() {
+    if (playing) { stopPlay(); return; }
+    root.querySelector('#kd-ico-play').style.display = 'none';
+    root.querySelector('#kd-ico-pause').style.display = '';
+    playing = setInterval(function() {
+      if (frames().length < 2) return;
+      fi = (fi + 1) % frames().length;
+      drawAll();
+    }, 250);
+  });
+  root.querySelector('#kd-add').addEventListener('click', function() {
+    pushUndo();
+    frames().push(new Uint8ClampedArray(SIZE*SIZE*4));
+    fi = frames().length - 1;
+    rebuildChips(); rebuildAnims(); drawAll();
+  });
+  root.querySelector('#kd-dup').addEventListener('click', function() {
+    pushUndo();
+    frames().splice(fi+1, 0, new Uint8ClampedArray(cur()));
+    fi = fi + 1;
+    rebuildChips(); rebuildAnims(); drawAll();
+  });
+  root.querySelector('#kd-del').addEventListener('click', function() {
+    if (frames().length < 2) return;
+    pushUndo();
+    frames().splice(fi, 1);
+    fi = Math.min(fi, frames().length - 1);
+    rebuildChips(); rebuildAnims(); drawAll();
+  });
+  var modal = root.querySelector('#kd-modal');
+  function askResize(ns) {
+    pendingSize = ns;
+    root.querySelector('#kd-modal-title').textContent = 'Change canvas size to ' + ns + ' x ' + ns + '?';
+    modal.hidden = false;
+  }
+  function hideModal() { modal.hidden = true; pendingSize = null; }
+  root.querySelector('#kd-scale').addEventListener('click', function() { if (pendingSize) doResize(pendingSize, true); });
+  root.querySelector('#kd-keep').addEventListener('click', function() { if (pendingSize) doResize(pendingSize, false); });
+  root.querySelector('#kd-cancel').addEventListener('click', hideModal);
+  var nameModal = root.querySelector('#kd-name-modal');
+  var nameInput = root.querySelector('#kd-name-input');
+  function showNameModal(title, prefill, mode) {
+    pendingName = mode;
+    root.querySelector('#kd-name-title').textContent = title;
+    nameInput.value = prefill || '';
+    root.querySelector('#kd-name-msg').textContent = '';
+    nameModal.hidden = false;
+    nameInput.focus();
+  }
+  function hideNameModal() { nameModal.hidden = true; pendingName = null; }
+  function commitName() {
+    var val = nameInput.value.trim();
+    if (!val) { root.querySelector('#kd-name-msg').textContent = 'Type a name first.'; return; }
+    if (pendingName === 'add') {
+      if (anims[val]) { root.querySelector('#kd-name-msg').textContent = 'An animation named "' + val + '" already exists.'; return; }
+      anims[val] = [new Uint8ClampedArray(SIZE*SIZE*4)];
+      active = val; fi = 0;
+      hideNameModal(); rebuildAnims(); rebuildChips(); drawAll();
+    } else if (pendingName === 'rename') {
+      if (anims[val] && val !== active) { root.querySelector('#kd-name-msg').textContent = 'An animation named "' + val + '" already exists.'; return; }
+      if (val !== active) { anims[val] = anims[active]; delete anims[active]; active = val; }
+      hideNameModal(); rebuildAnims(); rebuildChips(); drawAll();
+    }
+  }
+  root.querySelector('#kd-anim-add').addEventListener('click', function() { showNameModal('New animation', '', 'add'); });
+  root.querySelector('#kd-anim-rename').addEventListener('click', function() { showNameModal('Rename animation', active, 'rename'); });
+  root.querySelector('#kd-anim-del').addEventListener('click', function() {
+    var names = Object.keys(anims);
+    if (names.length < 2) return;
+    delete anims[active];
+    active = Object.keys(anims)[0];
+    fi = 0;
+    rebuildAnims(); rebuildChips(); drawAll();
+  });
+  root.querySelector('#kd-name-ok').addEventListener('click', commitName);
+  root.querySelector('#kd-name-cancel').addEventListener('click', hideNameModal);
+  nameInput.addEventListener('keydown', function(e) { if (e.key === 'Enter') commitName(); });
+  function scaleFrame(buf, ns, doScale) {
+    var nb = new Uint8ClampedArray(ns*ns*4);
+    if (doScale) {
+      for (var y=0;y<ns;y++) for (var x=0;x<ns;x++) {
+        var sx = Math.floor(x*SIZE/ns), sy = Math.floor(y*SIZE/ns);
+        var si = (sy*SIZE+sx)*4, di = (y*ns+x)*4;
+        nb[di]=buf[si]; nb[di+1]=buf[si+1]; nb[di+2]=buf[si+2]; nb[di+3]=buf[si+3];
+      }
+    } else {
+      var mw = Math.min(SIZE, ns), mh = Math.min(SIZE, ns);
+      for (var y=0;y<mh;y++) for (var x=0;x<mw;x++) {
+        var si = (y*SIZE+x)*4, di = (y*ns+x)*4;
+        nb[di]=buf[si]; nb[di+1]=buf[si+1]; nb[di+2]=buf[si+2]; nb[di+3]=buf[si+3];
+      }
+    }
+    return nb;
+  }
+  function doResize(ns, doScale) {
+    var names = Object.keys(anims);
+    for (var a=0;a<names.length;a++) {
+      var nf = [];
+      for (var i=0;i<anims[names[a]].length;i++) nf.push(scaleFrame(anims[names[a]][i], ns, doScale));
+      anims[names[a]] = nf;
+    }
+    SIZE = ns;
+    fi = Math.min(fi, frames().length - 1);
+    undos = []; redos = [];
+    main.width = SIZE; main.height = SIZE;
+    prev.width = SIZE; prev.height = SIZE;
+    applyZoom();
+    rebuildSizeChips(); rebuildAnims(); rebuildChips(); drawAll();
+    hideModal();
+  }
+  main.width = SIZE; main.height = SIZE;
+  prev.width = SIZE; prev.height = SIZE;
+  applyZoom();
+  root.querySelector('#kd-onion-legend').hidden = !onion;
+  buildPalette(); buildSizeChips(); rebuildAnims(); rebuildChips(); drawAll();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,32 @@
+{
+  "passed": 4,
+  "failed": 0,
+  "skipped": 1,
+  "tests": [
+    {
+      "name": "Open sprite editor",
+      "passed": true,
+      "error": null
+    },
+    {
+      "name": "Drawing tools functionality",
+      "passed": true,
+      "error": null
+    },
+    {
+      "name": "Fill color toggle functionality",
+      "skipped": true,
+      "reason": "color picker popover, not a toggle button"
+    },
+    {
+      "name": "Tool switching",
+      "passed": true,
+      "error": null
+    },
+    {
+      "name": "Sprite edit persistence",
+      "passed": true,
+      "error": null
+    }
+  ]
+}

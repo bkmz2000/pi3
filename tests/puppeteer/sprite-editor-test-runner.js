@@ -1,8 +1,11 @@
 #!/usr/bin/env node
 
 /**
- * Sprite Editor Test Runner for Web IDE
- * Uses proper wait utilities instead of fixed timeouts
+ * Sprite Editor E2E Test Runner (current pixel sheet editor).
+ *
+ * Opens the sheet editor via Projects panel → "New sprite" (+), then
+ * exercises tool selection and pointer drawing on the pixel canvas.
+ * Uses proper wait utilities instead of fixed timeouts.
  */
 
 import puppeteer from 'puppeteer';
@@ -22,7 +25,7 @@ import {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-const DEV_SERVER_URL = 'http://localhost:5173';
+const DEV_SERVER_URL = process.env.PUPPETEER_URL || 'http://localhost:5173';
 
 const testResults = {
   passed: 0,
@@ -49,24 +52,82 @@ function skipTestResult(name, reason) {
   console.log(`⏭️  ${name} (skipped: ${reason})`);
 }
 
+async function openSheetEditor(page) {
+  // Projects panel → Sprites section "+" (title="New sprite").
+  await page.evaluate(() => {
+    const btn = document.querySelector('button[aria-label="Projects"]');
+    if (btn) btn.click();
+  });
+  await waitForFn(page, async () => {
+    return await page.evaluate(() => {
+      const region = document.querySelector('div[role="region"]');
+      return !!region && (region.getAttribute('style') || '').includes('left: 60');
+    });
+  }, { timeout: 5000 });
+  await sleep(500);
+
+  const plusClicked = await page.evaluate(() => {
+    const btn = document.querySelector('button[title="New sprite"]');
+    if (btn) { btn.click(); return true; }
+    return false;
+  });
+  if (!plusClicked) throw new Error('New sprite button not found');
+  await waitForFn(page, async () => {
+    return await page.evaluate(() => document.querySelectorAll('canvas').length > 0);
+  }, { timeout: 10000 });
+  await sleep(800);
+}
+
+async function closeSheetEditor(page) {
+  await page.evaluate(() => {
+    const btn = document.querySelector('button[title="Close"]');
+    if (btn) btn.click();
+  });
+  await sleep(800);
+  // Close the Projects panel too.
+  await page.evaluate(() => {
+    const region = document.querySelector('div[role="region"]');
+    if (region) {
+      const btn = region.querySelector('button[title="Close"]');
+      if (btn) btn.click();
+    }
+  });
+  await sleep(500);
+}
+
+async function selectTool(page, title) {
+  const btn = await waitForElement(page, `button[title="${title}"]`, { timeout: 5000 });
+  await btn.click();
+  await sleep(200);
+}
+
+async function dragOnCanvas(page, x1, y1, x2, y2) {
+  const canvas = await waitForElement(page, 'canvas', { timeout: 5000 });
+  const box = await canvas.boundingBox();
+  if (!box) throw new Error('canvas has no bounding box');
+  await page.mouse.move(box.x + x1, box.y + y1);
+  await page.mouse.down();
+  await page.mouse.move(box.x + x2, box.y + y2, { steps: 8 });
+  await page.mouse.up();
+  await sleep(300);
+}
+
 async function runTests() {
   console.log('🚀 Starting Sprite Editor E2E tests...');
-  console.log(`📡 Using dev server: ${DEV_SERVER_URL}`);
+  console.log(`📡 Target: ${DEV_SERVER_URL}`);
 
   let browser = null;
 
   try {
-    console.log('🐶 Launching browser...');
     browser = await puppeteer.launch({
       headless: true,
       devtools: false,
       defaultViewport: { width: 1280, height: 800 },
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
     });
 
     const page = await browser.newPage();
 
-    // Capture page errors
     page.on('error', err => console.error('Page error:', err));
     page.on('console', msg => {
       if (msg.type() === 'error') console.log('Browser console error:', msg.text());
@@ -74,348 +135,117 @@ async function runTests() {
 
     console.log(`🌐 Navigating to ${DEV_SERVER_URL}...`);
     try {
-      await page.goto(DEV_SERVER_URL, { waitUntil: 'networkidle0', timeout: DEFAULT_TIMEOUT });
+      await page.goto(DEV_SERVER_URL, { waitUntil: 'domcontentloaded', timeout: DEFAULT_TIMEOUT });
     } catch (navError) {
       throw new Error(`Failed to navigate to ${DEV_SERVER_URL}: ${navError.message}`);
     }
     await sleep(2000);
 
-    // Check if page loaded successfully and we have content
-    const pageTitle = await page.title();
-    console.log(`✅ Page loaded. Title: "${pageTitle}"`);
-
-    // Wait for app to be ready
-    try {
-      await waitForFn(
-        page,
-        () => page.evaluate(() => document.querySelector('[class*="App"], [class*="ide"], .cm-editor') !== null),
-        { timeout: 5000, errorMessage: 'App UI did not render' }
-      );
-      console.log('✅ App UI ready');
-    } catch (err) {
-      const html = await page.content();
-      console.log('⚠️ App UI check failed, page content preview:', html.substring(0, 500));
-      throw err;
-    }
+    // Wait for the IDE (Run button enabled means Pyodide loaded).
+    await waitForFn(page, async () => {
+      return await page.evaluate(() => {
+        const btn = document.querySelector('button[aria-label="Run"]');
+        return !!btn && !btn.disabled;
+      });
+    }, { timeout: 60000 });
 
     console.log('\n=== Running Sprite Editor Tests ===\n');
 
-    // Test: Open sprite editor from assets panel
-    console.log('1. Open sprite editor from assets panel');
+    // Test 1: Open sheet editor
+    console.log('1. Open sheet editor from Projects panel');
     try {
-      // Find and click Assets button with multiple strategies
-      const { clicked, buttons } = await page.evaluate(() => {
-        const allButtons = document.querySelectorAll('button');
-        let target = null;
-
-        // Try aria-label first
-        for (const btn of allButtons) {
-          if (btn.getAttribute('aria-label')?.toLowerCase().includes('asset')) {
-            target = btn;
-            break;
-          }
-        }
-
-        // Try text content
-        if (!target) {
-          for (const btn of allButtons) {
-            if (btn.textContent?.toLowerCase().includes('asset')) {
-              target = btn;
-              break;
-            }
-          }
-        }
-
-        const btnList = Array.from(allButtons).map(b => ({
-          text: b.textContent?.trim().substring(0, 30),
-          ariaLabel: b.getAttribute('aria-label'),
-          id: b.id
-        }));
-
-        if (target) {
-          target.click();
-          return { clicked: true, buttons: btnList };
-        } else {
-          return { clicked: false, buttons: btnList };
-        }
-      });
-
-      console.log('   📋 Button search results:', { clicked, buttonCount: buttons.length });
-      console.log('   📋 Available buttons:', buttons);
-
-      if (!clicked) {
-        throw new Error(`Assets button not found among ${buttons.length} buttons`);
-      }
-
-      console.log('   ✅ Assets button clicked');
-      
-      await waitForFn(
-        page,
-        () => page.evaluate(() => {
-          const panel = document.querySelector('[aria-label="Assets"]');
-          if (!panel) return false;
-          const style = window.getComputedStyle(panel);
-          return style.display !== 'none' && style.visibility !== 'hidden';
-        }),
-        { timeout: 5000, errorMessage: 'Assets panel not visible' }
-      );
-      
-      console.log('✅ Assets panel opened successfully');
-
-      const newSpriteButton = await findButton(page, 'New sprite');
-      if (!newSpriteButton) throw new Error('New sprite button not found');
-
-      console.log('🎨 Clicking New sprite button...');
-      await newSpriteButton.click();
-      
-      await waitForElement(page, '[aria-label="Sprite Editor"]', { timeout: 5000 });
-      
-      console.log('✅ Sprite Editor opened successfully');
-      
-      // Check for canvas
-      await waitForElement(page, '[aria-label="Sprite Editor"] canvas', { timeout: 5000 });
-      console.log('🎨 Canvas found in sprite editor');
-      
-      // Close sprite editor
-      const closeButton = await waitForElement(
-        page,
-        '[aria-label="Sprite Editor"] button[aria-label="Close"]',
-        { timeout: 5000 }
-      );
-      await closeButton.click();
-      await sleep(500);
-      
-      // Close assets panel
-      const assetsCloseButton = await waitForElement(
-        page,
-        '[aria-label="Assets"] button[aria-label="Close"]',
-        { timeout: 5000 }
-      );
-      await assetsCloseButton.click();
-      await sleep(500);
-      
-      addTestResult('Open sprite editor from assets panel', true);
+      await openSheetEditor(page);
+      const hasCanvas = await page.evaluate(() => document.querySelectorAll('canvas').length > 0);
+      if (!hasCanvas) throw new Error('sheet editor canvas not found');
+      await closeSheetEditor(page);
+      addTestResult('Open sprite editor', true);
     } catch (error) {
-      addTestResult('Open sprite editor from assets panel', false, error);
+      addTestResult('Open sprite editor', false, error);
     }
 
-    // Test: Drawing tools functionality
+    // Test 2: Drawing tools (pencil, rect, ellipse, line) + undo/redo
     console.log('\n2. Drawing tools functionality');
     try {
-      await page.click('button[aria-label="Assets"]');
-      
-      await waitForFn(
-        page,
-        () => page.evaluate((s) => !!document.querySelector(s), '[aria-label="Assets"]'),
-        { timeout: 5000, errorMessage: 'Assets panel did not open' }
-      );
-      
-      const newSpriteButton = await findButton(page, 'New sprite');
-      if (!newSpriteButton) throw new Error('New sprite button not found');
-      await newSpriteButton.click();
-      
-      await waitForElement(page, '[aria-label="Sprite Editor"]', { timeout: 5000 });
-      
-      // Test rectangle tool
-      console.log('   🟦 Testing rectangle tool...');
-      const rectTool = await waitForElement(page, '[aria-label="Sprite Editor"] button[title="Rectangle"]', { timeout: 5000 });
-      await rectTool.click();
-      
-      const canvas = await waitForElement(page, '[aria-label="Sprite Editor"] canvas', { timeout: 5000 });
-      const canvasBox = await canvas.boundingBox();
-      
-      await page.mouse.move(canvasBox.x + 50, canvasBox.y + 50);
-      await page.mouse.down();
-      await page.mouse.move(canvasBox.x + 150, canvasBox.y + 100);
-      await page.mouse.up();
-      
-      console.log('   ✅ Rectangle drawn');
-      
-      // Test ellipse tool
-      console.log('   ⭕ Testing ellipse tool...');
-      const ellipseTool = await waitForElement(page, '[aria-label="Sprite Editor"] button[title="Ellipse"]', { timeout: 5000 });
-      await ellipseTool.click();
-      
-      await page.mouse.move(canvasBox.x + 200, canvasBox.y + 50);
-      await page.mouse.down();
-      await page.mouse.move(canvasBox.x + 300, canvasBox.y + 100);
-      await page.mouse.up();
-      
-      console.log('   ✅ Ellipse drawn');
-      
-      // Test line tool
-      console.log('   📏 Testing line tool...');
-      const lineTool = await waitForElement(page, '[aria-label="Sprite Editor"] button[title="Line"]', { timeout: 5000 });
-      await lineTool.click();
-      
-      await page.mouse.move(canvasBox.x + 50, canvasBox.y + 150);
-      await page.mouse.down();
-      await page.mouse.move(canvasBox.x + 150, canvasBox.y + 200);
-      await page.mouse.up();
-      
-      console.log('   ✅ Line drawn');
-      
-      // Test undo
-      console.log('   ↩️ Testing undo...');
-      const undoButton = await waitForElement(page, '[aria-label="Sprite Editor"] button[title="Undo"]', { timeout: 5000 });
-      await undoButton.click();
-      console.log('   ✅ Undo performed');
-      
-      // Test redo
-      console.log('   ↪️ Testing redo...');
-      const redoButton = await waitForElement(page, '[aria-label="Sprite Editor"] button[title="Redo"]', { timeout: 5000 });
-      await redoButton.click();
-      console.log('   ✅ Redo performed');
-      
-      // Close
-      const closeBtn = await waitForElement(page, '[aria-label="Sprite Editor"] button[aria-label="Close"]', { timeout: 5000 });
-      await closeBtn.click();
-      await sleep(500);
-      
-      const assetsCloseBtn = await waitForElement(page, '[aria-label="Assets"] button[aria-label="Close"]', { timeout: 5000 });
-      await assetsCloseBtn.click();
-      await sleep(500);
-      
+      await openSheetEditor(page);
+
+      console.log('   ✏️ Pencil stroke...');
+      await selectTool(page, 'Pencil');
+      await dragOnCanvas(page, 40, 40, 90, 90);
+
+      console.log('   🟦 Rect...');
+      await selectTool(page, 'Rect');
+      await dragOnCanvas(page, 120, 40, 220, 100);
+
+      console.log('   ⭕ Ellipse...');
+      await selectTool(page, 'Ellipse');
+      await dragOnCanvas(page, 260, 40, 360, 100);
+
+      console.log('   📏 Line...');
+      await selectTool(page, 'Line');
+      await dragOnCanvas(page, 40, 160, 140, 220);
+
+      console.log('   ↩️ Undo (Ctrl+Z) / ↪️ Redo (Ctrl+Y)...');
+      // Undo/redo are keyboard shortcuts in the current editor.
+      await page.keyboard.down('Control');
+      await page.keyboard.press('z');
+      await page.keyboard.up('Control');
+      await sleep(300);
+      await page.keyboard.down('Control');
+      await page.keyboard.press('y');
+      await page.keyboard.up('Control');
+      await sleep(300);
+
+      await closeSheetEditor(page);
       addTestResult('Drawing tools functionality', true);
     } catch (error) {
       addTestResult('Drawing tools functionality', false, error);
     }
 
-    // Test: Fill color toggle — SKIPPED.
-    // The UI this test was written against had a dedicated "Enable fill" /
-    // "Disable fill" toggle button next to a <input type="color"> that gained
-    // a `disabled` attribute when fill was off. The current sprite editor
-    // uses a color-picker popover with a "none / transparent" swatch as the
-    // disable mechanism — no toggle button, no disabled color input.
-    // TODO: rewrite to use the popover flow (click fill-color-button, then the
-    // "none / transparent" swatch in fill-color-popover) and assert on the
-    // fill button's preview swatch.
-    skipTestResult('Fill color toggle functionality', 'tests removed UI (no fill toggle button)');
+    // Test 3: Fill color toggle — SKIPPED.
+    // The current editor uses a color-picker popover with a "none /
+    // transparent" swatch as the disable mechanism, not a toggle button.
+    skipTestResult('Fill color toggle functionality', 'color picker popover, not a toggle button');
 
-    // Test: Polygon tool with keyboard shortcuts
-    console.log('\n4. Polygon tool with keyboard shortcuts');
+    // Test 4: Tool switching does not crash the editor
+    console.log('\n4. Tool switching');
     try {
-      await page.click('button[aria-label="Assets"]');
-      
-      await waitForFn(
-        page,
-        () => page.evaluate((s) => !!document.querySelector(s), '[aria-label="Assets"]'),
-        { timeout: 5000, errorMessage: 'Assets panel did not open' }
-      );
-      
-      const newSpriteButton = await findButton(page, 'New sprite');
-      if (!newSpriteButton) throw new Error('New sprite button not found');
-      
-      await newSpriteButton.click();
-      await waitForElement(page, '[aria-label="Sprite Editor"]', { timeout: 5000 });
-      
-      const polygonTool = await waitForElement(page, '[aria-label="Sprite Editor"] button[title="Polygon"]', { timeout: 5000 });
-      await polygonTool.click();
-      
-      const canvas = await waitForElement(page, '[aria-label="Sprite Editor"] canvas', { timeout: 5000 });
-      const canvasBox = await canvas.boundingBox();
-      
-      console.log('   🔺 Drawing polygon vertices...');
-      
-      await page.mouse.click(canvasBox.x + 100, canvasBox.y + 100);
-      await sleep(100);
-      await page.mouse.click(canvasBox.x + 150, canvasBox.y + 100);
-      await sleep(100);
-      await page.mouse.click(canvasBox.x + 125, canvasBox.y + 150);
-      await sleep(100);
-      
-      console.log('   ✅ Polygon vertices added');
-      
-      console.log('   ⌨️ Pressing Enter to close polygon...');
-      await page.keyboard.press('Enter');
-      await sleep(300);
-      
-      console.log('   ✅ Polygon closed with Enter key');
-      
-      // Close
-      const closeBtn = await waitForElement(page, '[aria-label="Sprite Editor"] button[aria-label="Close"]', { timeout: 5000 });
-      await closeBtn.click();
-      await sleep(500);
-      
-      const assetsCloseBtn = await waitForElement(page, '[aria-label="Assets"] button[aria-label="Close"]', { timeout: 5000 });
-      await assetsCloseBtn.click();
-      await sleep(500);
-      
-      addTestResult('Polygon tool with keyboard shortcuts', true);
+      await openSheetEditor(page);
+      for (const t of ['Pencil', 'Eraser', 'Fill', 'Line', 'Rect', 'Ellipse', 'Select / Move']) {
+        await selectTool(page, t);
+      }
+      // Draw one pixel with the pencil to confirm the canvas stays live.
+      await selectTool(page, 'Pencil');
+      await dragOnCanvas(page, 50, 50, 55, 55);
+      await closeSheetEditor(page);
+      addTestResult('Tool switching', true);
     } catch (error) {
-      addTestResult('Polygon tool with keyboard shortcuts', false, error);
+      addTestResult('Tool switching', false, error);
     }
 
-    // Test: Save sprite functionality
-    console.log('\n5. Save sprite functionality');
+    // Test 5: Sprite edits persist after closing (sheet pixels survive)
+    console.log('\n5. Sprite edit persistence');
     try {
-      await page.click('button[aria-label="Assets"]');
-      
-      await waitForFn(
-        page,
-        () => page.evaluate((s) => !!document.querySelector(s), '[aria-label="Assets"]'),
-        { timeout: 5000, errorMessage: 'Assets panel did not open' }
-      );
-      
-      const newSpriteButton = await findButton(page, 'New sprite');
-      if (!newSpriteButton) throw new Error('New sprite button not found');
-      
-      await newSpriteButton.click();
-      await waitForElement(page, '[aria-label="Sprite Editor"]', { timeout: 5000 });
-      
-      // Draw a rectangle
-      const rectTool = await waitForElement(page, '[aria-label="Sprite Editor"] button[title="Rectangle"]', { timeout: 5000 });
-      await rectTool.click();
-      
-      const canvas = await waitForElement(page, '[aria-label="Sprite Editor"] canvas', { timeout: 5000 });
-      const canvasBox = await canvas.boundingBox();
-      
-      await page.mouse.move(canvasBox.x + 50, canvasBox.y + 50);
-      await page.mouse.down();
-      await page.mouse.move(canvasBox.x + 150, canvasBox.y + 100);
-      await page.mouse.up();
-      
-      console.log('   ✅ Shape drawn for saving');
-      
-      // Set sprite name
-      const nameInput = await waitForElement(page, '[aria-label="Sprite Editor"] input', { timeout: 5000 });
-      await nameInput.click({ clickCount: 3 });
-      await page.keyboard.press('Delete');
-      await page.keyboard.type('test-sprite-' + Date.now());
-      
-      console.log('   📝 Sprite name set');
-      
-      // Save the sprite — the current editor uses data-testid="save-svg-button"
-      // (saves as SVG, not PNG; PR-era name kept for the test description).
-      const saveButton = await waitForElement(
-        page,
-        '[aria-label="Sprite Editor"] [data-testid="save-svg-button"]',
-        { timeout: 5000 },
-      );
-      await saveButton.click();
-      
-      // Wait for sprite editor to close (indicates save was successful)
-      await waitForFn(
-        page,
-        () => page.evaluate(() => {
-          const editor = document.querySelector('[aria-label="Sprite Editor"]');
-          if (!editor) return true;
-          const style = window.getComputedStyle(editor);
-          return style.display === 'none' || style.visibility === 'hidden';
-        }),
-        { timeout: 5000, errorMessage: 'Sprite Editor did not close after save' }
-      );
-      
-      console.log('   ✅ Sprite saved as PNG');
-      
-      // Close assets panel
-      const assetsCloseBtn = await waitForElement(page, '[aria-label="Assets"] button[aria-label="Close"]', { timeout: 5000 });
-      await assetsCloseBtn.click();
-      await sleep(500);
-      
-      addTestResult('Save sprite functionality', true);
+      await openSheetEditor(page);
+      await selectTool(page, 'Pencil');
+      await dragOnCanvas(page, 60, 60, 120, 120);
+      await closeSheetEditor(page);
+
+      // Re-open: the pixels should still be there (sheet persisted to store).
+      await openSheetEditor(page);
+      const pixelSet = await page.evaluate(() => {
+        const c = document.querySelector('canvas');
+        if (!c || !c.width) return -1;
+        const ctx = c.getContext('2d');
+        const data = ctx.getImageData(0, 0, c.width, c.height).data;
+        let set = 0;
+        for (let i = 3; i < data.length; i += 4) if (data[i] > 0) set++;
+        return set;
+      });
+      await closeSheetEditor(page);
+      if (pixelSet <= 0) throw new Error('no pixels persisted after re-open');
+      addTestResult('Sprite edit persistence', true);
     } catch (error) {
-      addTestResult('Save sprite functionality', false, error);
+      addTestResult('Sprite edit persistence', false, error);
     }
 
     // Summary

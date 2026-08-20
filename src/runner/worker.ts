@@ -32,15 +32,19 @@ let rewindBytes = 0;
 let lastWatchValues: { label: string; value: string }[] = [];
 let rewindLastCapture = 0;
 let stepBlobPending = false;
+// Capture rewind frames ONLY while the user is debugging (paused/stepping).
+// A running game loop otherwise pays a canvas encode up to 20x/sec forever.
+let rewindDebugging = false;
 
 function maybeCaptureRewindFrame(frameNum: number) {
-  if (!rewindArmed || !offscreen) return;
+  if (!rewindArmed || !rewindDebugging || !offscreen) return;
   const now = Date.now();
   if (now - rewindLastCapture < REWIND_INTERVAL_MS) return;
   rewindLastCapture = now;
   const capturedFrame = frameNum;
-  // PNG encode — measured ~6x faster than WebP q0.8 for typical scenes,
-  // and the rewind capture runs up to 20x/sec while a game loop is live.
+  // PNG encode — measured ~6x faster than WebP q0.8 for typical scenes;
+  // captures only happen while paused/stepping (rewindDebugging), so an
+  // infinite game loop no longer pays a 20x/sec encode for the whole run.
   offscreen.convertToBlob({ type: "image/png" })
     .then((blob) => {
       const bytes = blob.size;
@@ -63,6 +67,7 @@ function clearRewindBuf() {
   rewindBytes = 0;
   rewindLastCapture = 0;
   stepBlobPending = false;
+  rewindDebugging = false;
 }
 
 function post(e: WorkerEvent) {
@@ -1095,15 +1100,23 @@ self.onmessage = async (e: MessageEvent<WorkerCommand>) => {
   } else if (msg.cmd === "pause") {
     if (!pyodide) return;
     try { pyodide.runPython("import graphics; graphics._pause()"); } catch { /* ignore */ }
+    // Enter debug mode: capture the frozen frame now so the scrubber has a
+    // starting point without waiting for the first step.
+    rewindDebugging = true;
+    let pausedFrame = -1;
+    try { pausedFrame = pyodide.runPython("import graphics; graphics.frame_count") as number; } catch { /* ignore */ }
+    maybeCaptureRewindFrame(pausedFrame);
     if (rewindBuf.length > 0) {
       post({ type: "frame_history", frames: rewindBuf.map(({ frame, blob, watches }) => ({ frame, blob, watches })) });
     }
   } else if (msg.cmd === "resume") {
     if (!pyodide) return;
     try { pyodide.runPython("import graphics; graphics._resume()"); } catch { /* ignore */ }
+    rewindDebugging = false;
   } else if (msg.cmd === "step") {
     if (!pyodide) return;
     try { pyodide.runPython("import graphics; graphics._step()"); } catch { /* ignore */ }
+    rewindDebugging = true;
     stepBlobPending = true;
   } else if (msg.cmd === "set_speed") {
     if (!pyodide) return;

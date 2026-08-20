@@ -149,7 +149,6 @@ if (typeof globalThis.TextEncoder === 'undefined') {
       const buf = Buffer.from(input ?? '', 'utf-8');
       return new Uint8Array(buf);
     }
-     // eslint-disable-next-line @typescript-eslint/no-unused-vars
      encodeInto(_src: string, _dest: Uint8Array): { read: number; written: number } {
        return { read: 0, written: 0 };
      }

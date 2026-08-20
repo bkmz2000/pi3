@@ -101,7 +101,7 @@ export function ErrorCard({ error }: { error: RuntimeError }) {
           lineHeight: 1.45,
         }}
       >
-        {error.messageKey ? t(error.messageKey, error.messageArgs) : error.message}
+        {error.messageKey ? t(error.messageKey, error.messageArgs ?? {}) : error.message}
       </div>
 
       {/* Batch mode: per-error listing */}
@@ -457,7 +457,7 @@ export default function ConsolePanel({ onRight = false }: { onRight?: boolean })
         if (l.kind === "error_card") {
           const title = l.error.titleKey ? t(l.error.titleKey) : (l.error.title ?? "");
           const message = l.error.messageKey
-            ? t(l.error.messageKey, l.error.messageArgs)
+            ? t(l.error.messageKey, l.error.messageArgs ?? {})
             : (l.error.message ?? "");
           return `[${title}] ${message}`;
         }

@@ -1,33 +1,29 @@
 /**
- * Tests for worker reset behavior.
+ * Wires validate_worker_reset.py into the Jest pipeline.
  *
- * Tests that:
- * 1. frame_count restarts at 0 on subsequent runs
- * 2. Handlers from prior runs don't leak into new runs
- * 3. Loop generation increments monotonically
+ * Executes the REAL graphics._reset_run_state()/_clear() against the A2
+ * invariant (_reset_run_state must NOT bump _loop_generation) and the
+ * per-run reset semantics. Used to be an expect(true) placeholder.
  */
+import { execSync } from 'child_process';
+import { resolve } from 'path';
 
-describe('Worker reset behavior', () => {
-  // These tests verify the Python graphics._reset_run_state() function behavior
-  // They are integration tests that should run with the full test suite
+const ROOT = resolve(__dirname, '../..');
+const SCRIPT = resolve(__dirname, 'validate_worker_reset.py');
 
-  it('should reset frame_count on each run', () => {
-    // Test: run twice, second run should see frame_count starting at 0
-    // This is verified in the integration test suite with actual Python execution
-    expect(true).toBe(true);
-  });
-
-  it('should prevent prior-run handlers from firing', () => {
-    // Test: register a handler in one run, then run again
-    // The old handler should not fire because _loop_generation changed
-    // This is verified in the Puppeteer E2E tests
-    expect(true).toBe(true);
-  });
-
-  it('should maintain monotonic loop generation', () => {
-    // Test: _loop_generation should never be 0 or reset
-    // Each run increments it by 1
-    // The _tick() function checks if _loop_generation != my_generation and returns early
-    expect(true).toBe(true);
-  });
+test('validate_worker_reset.py: graphics reset invariants hold', () => {
+  let output = '';
+  try {
+    output = execSync('python3 "' + SCRIPT + '"', {
+      cwd: ROOT,
+      env: { ...process.env, PYTHONPATH: resolve(ROOT, 'src/assets/python') },
+      encoding: 'utf8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+  } catch (err: unknown) {
+    const e = err as { stdout?: string; stderr?: string; message?: string };
+    const combined = [e.stdout, e.stderr, e.message].filter(Boolean).join('\n');
+    throw new Error('validate_worker_reset.py failed:\n' + combined);
+  }
+  expect(output).toMatch(/ALL TESTS PASSED/);
 });

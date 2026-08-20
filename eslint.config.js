@@ -6,7 +6,7 @@ import tseslint from 'typescript-eslint'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  globalIgnores(['dist', '.tsbuild', 'coverage']),
+  globalIgnores(['dist', 'dist-server', '.tsbuild', 'coverage']),
   {
     files: ['**/*.{ts,tsx}'],
     extends: [
@@ -23,6 +23,8 @@ export default defineConfig([
       // v7 rules that flag intentional patterns used throughout this codebase
       'react-hooks/set-state-in-effect': 'off',
       'react-hooks/refs': 'off',
+      // Conventional: parameters prefixed with _ are intentionally unused.
+      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
     },
   },
 ])

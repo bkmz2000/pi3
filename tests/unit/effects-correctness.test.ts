@@ -1,63 +1,55 @@
+/**
+ * Effect-correctness guards (real source assertions).
+ *
+ * These used to be expect(true) documentation placeholders. The invariants
+ * they describe are statically checkable, so we assert them directly against
+ * the source: no react-hooks/exhaustive-deps suppression in the guarded
+ * files, and the dependency arrays the fixes introduced are present.
+ */
+import { readFileSync } from 'fs';
+import { resolve } from 'path';
+
+const ROOT = resolve(__dirname, '../..');
+const read = (rel: string) => readFileSync(resolve(ROOT, rel), 'utf8');
+
 describe('Effect correctness', () => {
   describe('TeacherProjectView comment-dispatch effect', () => {
-    it('should have correct dependency array - verifies effect deps', () => {
-      // This test verifies that the comment-dispatch effect in TeacherProjectView
-      // is removed in favor of the deps-correct effect in the comments load handler.
-      // The test passes if no eslint-disable comments exist for exhaustive-deps
-      // in the TeacherProjectView comment effects.
+    it('has no exhaustive-deps suppression', () => {
+      const src = read('src/components/teacher/TeacherProjectView.tsx');
+      expect(src).not.toContain('react-hooks/exhaustive-deps');
+    });
 
-      // Effect correctness is verified by:
-      // 1. The old effect at lines 172-176 is removed (no missing deps)
-      // 2. Comment dispatch happens inside the getComments().then() handler
-      // 3. Dependencies are correctly specified: [projectId, currentFile]
-      expect(true).toBe(true);
+    it('loads comments with the [projectId, currentFile] dependency array', () => {
+      const src = read('src/components/teacher/TeacherProjectView.tsx');
+      // The comments effect dispatches the CodeMirror effect inside .then(),
+      // keyed on the exact pair that drives re-loads.
+      const m = src.match(/getComments\(projectId, currentFile\)[\s\S]{0,400}?\}, \[projectId, currentFile\]\);/);
+      expect(m).not.toBeNull();
     });
   });
 
-  describe('SpriteEditor fill/stroke effect', () => {
-    it('should include shapes in dependency array', () => {
-      // The fill/stroke effect derives from shapes array
-      // When shapes change (e.g., user edits a shape property), the toolbar
-      // values should update to reflect the new properties
-      //
-      // Previously had: // eslint-disable-next-line react-hooks/exhaustive-deps
-      // with deps: [selectedIds]
-      //
-      // Fixed by adding shapes to deps: [selectedIds, shapes]
-      // This ensures when a shape is edited externally, the toolbar updates
-      expect(true).toBe(true);
+  describe('SheetEditor (ex-SpriteEditor) effects', () => {
+    it('has no react-hooks/exhaustive-deps suppression', () => {
+      const src = read('src/SheetEditor.tsx');
+      // Allowed suppressions here are react-hooks/immutability for imperative
+      // overlay positioning — NOT exhaustive-deps.
+      const depsSuppressions = src.match(/eslint-disable-next-line[^\n]*exhaustive-deps/g) || [];
+      expect(depsSuppressions).toEqual([]);
     });
-  });
 
-  describe('SpriteEditor image load effect', () => {
-    it('should not leak async operations on unmount', () => {
-      // The image load effect previously used setTimeout(..., 0) without cleanup
-      // This could cause state updates after component unmount
-      //
-      // Fixed by:
-      // 1. Removing setTimeout deferral
-      // 2. Adding isMounted flag in cleanup
-      // 3. Checking isMounted before state updates in async completion
-      //
-      // When component unmounts while fetch is in flight:
-      // - The cleanup sets isMounted = false
-      // - The promise resolves but we return early (if (!isMounted) return)
-      // - No state update happens after unmount
-      expect(true).toBe(true);
+    it('unmounts listeners with cleanup (scroll/resize)', () => {
+      const src = read('src/SheetEditor.tsx');
+      // The canvas-rect invalidation effect removes both listeners in its
+      // cleanup function — no leak across mounts.
+      expect(src).toMatch(/removeEventListener\("scroll", inv\)/);
+      expect(src).toMatch(/removeEventListener\("resize", inv\)/);
     });
-  });
 
-  describe('Rapid sprite reopen scenario', () => {
-    it('should load correct sprite when reopening rapidly', () => {
-      // Scenario: User opens sprite A, then quickly opens sprite B
-      //
-      // Before fix: Async fetch for A might still be in flight when B is opened
-      // State update from A could overwrite B's data
-      //
-      // After fix: Each reopen triggers a new effect
-      // The previous effect's isMounted flag prevents stale state updates
-      // Only the most recent sprite load updates state
-      expect(true).toBe(true);
+    it('recomputes the undo stack once per mount', () => {
+      const src = read('src/SheetEditor.tsx');
+      // undoHistRef is seeded once with an empty dep array — a remount
+      // (rapid reopen) gets a fresh, correct stack.
+      expect(src).toMatch(/makeUndoStack\(\); \}, \[\]\)/);
     });
   });
 });

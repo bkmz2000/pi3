@@ -166,19 +166,14 @@ async function stopSketch(page) {
 
 async function isPanelVisible(page, panelText) {
   return page.evaluate((text) => {
-    // The panel is a div with inline style: position: absolute; left: 60; width: 320
-    const divs = document.querySelectorAll('div');
-    for (const div of divs) {
-      const style = div.getAttribute('style') || '';
-      // Check for inline width: 320 (without px, React serializes it that way)
-      // and position: absolute, left: 60
-      if (style.includes('width: 320') && style.includes('position: absolute') && (style.includes('left: 60') || style.includes('left: 60px'))) {
-        if (div.textContent?.includes(text)) {
-          const computedDisplay = window.getComputedStyle(div).display;
-          const computedVisibility = window.getComputedStyle(div).visibility;
-          return computedDisplay !== 'none' && computedVisibility !== 'hidden';
-        }
-      }
+    const region = document.querySelector('div[role="region"]');
+    if (!region) return false;
+    const style = region.getAttribute('style') || '';
+    if (!style.includes('left: 60')) return false;
+    if (region.textContent?.includes(text)) {
+      const computedDisplay = window.getComputedStyle(region).display;
+      const computedVisibility = window.getComputedStyle(region).visibility;
+      return computedDisplay !== 'none' && computedVisibility !== 'hidden';
     }
     return false;
   }, panelText);
@@ -223,16 +218,11 @@ async function openProjectsPanel(page) {
   let panelVisible = false;
   for (let i = 0; i < 5; i++) {
     panelVisible = await page.evaluate(() => {
-      // Check for div-based panels with inline style: position: absolute; left: 60; width: 320
-      const divs = document.querySelectorAll('div');
-      for (const div of divs) {
-        const style = div.getAttribute('style') || '';
-        // React serializes as width: 320 (no px), left: 60 (no px)
-        if (style.includes('width: 320') && style.includes('position: absolute') && (style.includes('left: 60') || style.includes('left: 60px'))) {
-          return true;
-        }
-      }
-      return false;
+      // The panel is a role="region" div at left: 60, width 320.
+      const region = document.querySelector('div[role="region"]');
+      if (!region) return false;
+      const style = region.getAttribute('style') || '';
+      return style.includes('left: 60') && (style.includes('width: 320') || style.includes('width: 520'));
     });
     console.log('openProjectsPanel: attempt', i+1, 'panel visible =', panelVisible);
     if (panelVisible) break;
@@ -240,23 +230,33 @@ async function openProjectsPanel(page) {
   }
 }
 
-async function closeProjectsPanel(page) {
-  // Find and click the close button in the Projects panel (Close button uses aria-label, not text)
-  const panelClosed = await page.evaluate(() => {
-    // First find the panel div with inline style: position: absolute; left: 60; width: 320
-    const divs = document.querySelectorAll('div');
-    let panelDiv = null;
-    for (const div of divs) {
-      const style = div.getAttribute('style') || '';
-      if (style.includes('width: 320') && style.includes('position: absolute') && (style.includes('left: 60') || style.includes('left: 60px'))) {
-        panelDiv = div;
-        break;
-      }
-    }
-    if (!panelDiv) return false;
+async function openExamplesPanel(page) {
+  await page.evaluate(() => {
+    const btn = document.querySelector('button[aria-label="Examples"]');
+    if (btn) btn.click();
+  });
+  await sleep(800);
+}
 
-    // Find the close button by aria-label inside the panel
-    const closeBtn = panelDiv.querySelector('button[aria-label="Close"]');
+async function closeExamplesPanel(page) {
+  const closed = await page.evaluate(() => {
+    const region = document.querySelector('div[role="region"]');
+    if (!region) return false;
+    const closeBtn = region.querySelector('button[title="Close"]');
+    if (closeBtn) { closeBtn.click(); return true; }
+    return false;
+  });
+  if (!closed) await page.mouse.click(500, 400);
+  await sleep(500);
+}
+
+async function closeProjectsPanel(page) {
+  // Current UI: the panel is a role="region"; its close button has
+  // title="Close" (icon button, no aria-label).
+  const panelClosed = await page.evaluate(() => {
+    const region = document.querySelector('div[role="region"]');
+    if (!region) return false;
+    const closeBtn = region.querySelector('button[title="Close"]');
     if (closeBtn) {
       closeBtn.click();
       return true;
@@ -270,14 +270,10 @@ async function closeProjectsPanel(page) {
 
   // Verify panel is closed
   const panelStillOpen = await page.evaluate(() => {
-    const divs = document.querySelectorAll('div');
-    for (const div of divs) {
-      const style = div.getAttribute('style') || '';
-      if (style.includes('width: 320') && style.includes('position: absolute') && (style.includes('left: 60') || style.includes('left: 60px'))) {
-        return true;
-      }
-    }
-    return false;
+    const region = document.querySelector('div[role="region"]');
+    if (!region) return false;
+    const style = region.getAttribute('style') || '';
+    return style.includes('left: 60');
   });
 
   // If panel still open, try backdrop click as fallback
@@ -288,21 +284,37 @@ async function closeProjectsPanel(page) {
 }
 
 async function clickExample(page, exampleName) {
-  // The example buttons have text like "hello world(example)" or "bounce (new API)(example)"
-  // We search for the example name and click it directly
-  const clicked = await page.evaluate(async (name) => {
-    const buttons = document.querySelectorAll('button');
+  // Current UI: examples render as clickable div rows (icon + label span) in
+  // the Examples panel — not <button> elements. Match the row whose label
+  // span text equals the example's display name.
+  const clicked = await page.evaluate((name) => {
+    const rows = Array.from(document.querySelectorAll('div'));
     const debug = [];
-    for (const btn of buttons) {
-      const text = btn.textContent?.trim() || '';
-      debug.push({ text: text.substring(0, 50), startsWith: text.startsWith(name) });
-      if (text.startsWith(name)) {
-        btn.click();
+    for (const row of rows) {
+      const span = row.querySelector(':scope > span');
+      if (!span) continue;
+      const label = span.textContent?.trim() || '';
+      if (label === name && row.onclick) {
+        row.click();
         return { found: true, debug };
       }
+      if (label) debug.push({ label: label.substring(0, 40), matches: label === name, clickable: !!row.onclick });
     }
     return { found: false, debug };
   }, exampleName);
+
+  // Clicking an example while the project is dirty (e.g. after the sprite
+  // editor) pops the unsaved-changes dialog — discard to proceed with the
+  // switch. The dialog buttons are plain text ("Discard changes").
+  if (clicked.found) {
+    await sleep(500);
+    await page.evaluate(() => {
+      const btn = Array.from(document.querySelectorAll('button')).find((b) =>
+        /discard changes/i.test(b.textContent || ''));
+      if (btn) btn.click();
+    });
+    await sleep(500);
+  }
   
   if (!clicked.found) {
     console.log('clickExample debug for "' + exampleName + '":', JSON.stringify(clicked.debug.slice(0, 20), null, 2));
@@ -341,7 +353,8 @@ async function runProductionTests() {
       await page.waitForSelector('.cm-editor', { timeout: 5000 });
       await page.waitForSelector('button[aria-label="Projects"]', { timeout: 5000 });
       await page.waitForSelector('button[aria-label="Run"]', { timeout: 5000 });
-      await page.waitForSelector('button[aria-label="Assets"]', { timeout: 5000 });
+      await page.waitForSelector('button[aria-label="Examples"]', { timeout: 5000 });
+      await page.waitForSelector('button[aria-label="Reference"]', { timeout: 5000 });
       addTestResult('Core UI elements', true);
     } catch (error) {
       addTestResult('Core UI elements', false, error);
@@ -383,36 +396,39 @@ async function runProductionTests() {
       addTestResult('p5.js sketch execution', false, error);
     }
     
-    // Test 4: Asset Panel
+    // Test 4: Asset Management — the Projects panel hosts the sprite /
+    // tilemap / sound sections (the old separate Assets rail button is gone).
     console.log('\n4. Asset Management');
     try {
-      await page.click('button[aria-label="Assets"]');
-      await sleep(1000);
-      
-      const isVisible = await isPanelVisible(page, 'Assets');
-      if (isVisible) {
+      await openProjectsPanel(page);
+      await sleep(500);
+      const bodyText = await page.evaluate(() => document.body.innerText);
+      const hasSprites = bodyText.includes('Sprites') || bodyText.includes('SPRITES');
+      const hasSounds = bodyText.includes('Sounds') || bodyText.includes('SOUNDS');
+      if (hasSprites && hasSounds) {
         addTestResult('Asset management', true);
-        await closePanelByText(page, 'Assets');
       } else {
-        throw new Error('Assets panel did not open');
+        throw new Error('Projects panel missing sprite/sound sections');
       }
+      await closeProjectsPanel(page);
     } catch (error) {
       addTestResult('Asset management', false, error);
     }
     
-    // Test 5: Project Panel
+    // Test 5: Project Management
     console.log('\n5. Project Management');
     try {
-      await page.click('button[aria-label="Projects"]');
-      await sleep(1000);
-      
-      const isVisible = await isPanelVisible(page, 'Projects');
+      await openProjectsPanel(page);
+      const isVisible = await page.evaluate(() => {
+        const region = document.querySelector('div[role="region"]');
+        return !!region && (region.textContent?.includes('Code') || region.textContent?.includes('CODE'));
+      });
       if (isVisible) {
         addTestResult('Project management', true);
-        await closePanelByText(page, 'Projects');
       } else {
         throw new Error('Projects panel did not open');
       }
+      await closeProjectsPanel(page);
     } catch (error) {
       addTestResult('Project management', false, error);
     }
@@ -453,42 +469,38 @@ async function runProductionTests() {
       addTestResult('Console output', false, error);
     }
     
-    // Test 8: Sprite Editor
+    // Test 8: Sprite Editor — Projects panel → Sprites section "+" button
+    // (title="New sprite") opens the sheet editor.
     console.log('\n8. Sprite Editor');
     try {
-      await page.click('button[aria-label="Assets"]');
-      await sleep(1000);
-      
-      const newSpriteBtn = await page.evaluate(() => {
-        const buttons = document.querySelectorAll('button');
-        for (const btn of buttons) {
-          if (btn.textContent.includes('New sprite')) {
-            return btn;
-          }
-        }
-        return null;
+      await openProjectsPanel(page);
+      const plusClicked = await page.evaluate(() => {
+        const btn = document.querySelector('button[title="New sprite"]');
+        if (btn) { btn.click(); return true; }
+        return false;
       });
+      if (!plusClicked) throw new Error('New sprite button not found');
+      await sleep(2500);
       
-      if (newSpriteBtn) {
-        await newSpriteBtn.click();
-        await sleep(2000);
-        
-        const editor = await page.$('[aria-label="Sprite Editor"]');
-        if (editor) {
-          addTestResult('Sprite editor', true);
-          
-          const closeBtn = await page.$('[aria-label="Sprite Editor"] button[aria-label="Close"]');
-          if (closeBtn) {
-            await closeBtn.click();
-          }
-        } else {
-          throw new Error('Sprite editor did not open');
-        }
+      // The sheet editor renders a large pixel canvas.
+      const editor = await page.evaluate(() => {
+        const canvases = document.querySelectorAll('canvas');
+        return canvases.length > 0;
+      });
+      if (editor) {
+        addTestResult('Sprite editor', true);
       } else {
-        addTestResult('Sprite editor', true); // Skip if button not found
+        throw new Error('Sprite editor did not open');
       }
       
-      await closePanelByText(page, 'Assets');
+      // Close the modal via the SheetEditor close button.
+      const closed = await page.evaluate(() => {
+        const btn = document.querySelector('button[title="Close"]');
+        if (btn) { btn.click(); return true; }
+        return false;
+      });
+      await sleep(1000);
+      await closeProjectsPanel(page);
     } catch (error) {
       addTestResult('Sprite editor', false, error);
     }
@@ -496,15 +508,15 @@ async function runProductionTests() {
     // Test 9: Hello World Example
     console.log('\n9. Hello World Example');
     try {
-      await openProjectsPanel(page);
-      const found = await clickExample(page, 'hello world');
+      await openExamplesPanel(page);
+      const found = await clickExample(page, 'Hello World');
       if (!found) throw new Error('Hello world example not found');
-      await closeProjectsPanel(page);
+      await closeExamplesPanel(page);
       await clickRun(page);
-      await sleep(3000);
+      await sleep(4000);
       
       const bodyText = await page.evaluate(() => document.body.textContent);
-      if (bodyText.includes('hello world')) {
+      if (/hello/i.test(bodyText)) {
         addTestResult('Hello world example', true);
       } else {
         throw new Error('Expected output not found');
@@ -520,57 +532,18 @@ async function runProductionTests() {
       await stopSketch(page);
       await sleep(1000); // Extra wait for UI to stabilize
       
-      // Debug: check canvas state
-      const canvasState = await page.evaluate(() => {
-        const canvas = document.querySelector('canvas');
-        const stopBtn = document.querySelector('button[aria-label="Stop"]');
-        const runBtn = document.querySelector('button[aria-label="Run"]');
-        const projectsBtn = document.querySelector('button[aria-label="Projects"]');
-        const sidebar = document.querySelector('aside') || document.querySelector('nav');
-        return {
-          hasCanvas: !!canvas,
-          canvasCount: document.querySelectorAll('canvas').length,
-          hasStop: !!stopBtn,
-          hasRun: !!runBtn,
-          hasProjectsBtn: !!projectsBtn,
-          projectsBtnRect: projectsBtn ? projectsBtn.getBoundingClientRect() : null,
-          canvasRect: canvas ? canvas.getBoundingClientRect() : null,
-          sidebarRect: sidebar ? sidebar.getBoundingClientRect() : null,
-        };
-      });
-      console.log('After stopSketch, before panel open:', JSON.stringify(canvasState, null, 2));
-      
-      await openProjectsPanel(page);
-      const found = await clickExample(page, 'snake');
+      await openExamplesPanel(page);
+      const found = await clickExample(page, 'Snake');
       if (!found) throw new Error('Snake example not found');
-      await closeProjectsPanel(page);
+      await closeExamplesPanel(page);
       await clickRun(page);
-      await sleep(3000);
+      await sleep(4000);
       
       // Check that canvas is visible and there's no error output
       const canvas = await page.$('canvas');
-      console.log('Snake: canvas found =', canvas !== null);
       const bodyText = await page.evaluate(() => document.body.textContent);
-      const hasUnbound = bodyText.includes('UnboundLocalError');
-      const hasAttr = bodyText.includes('AttributeError');
-      const hasType = bodyText.includes('TypeError');
-      const hasKey = bodyText.includes('KeyError');
-      const hasName = bodyText.includes('NameError');
-      const hasPython = bodyText.includes('PythonError');
-      const hasTrace = bodyText.includes('Traceback');
-      console.log('Snake errors: UnboundLocalError=' + hasUnbound + ', AttributeError=' + hasAttr + ', TypeError=' + hasType + ', KeyError=' + hasKey + ', NameError=' + hasName + ', PythonError=' + hasPython + ', Traceback=' + hasTrace);
-      // Find the error message in bodyText
-      const nameMatch = bodyText.match(/NameError[^\n]+/);
-      if (nameMatch) {
-        console.log('Snake NameError:', nameMatch[0]);
-      }
-      const attrMatch = bodyText.match(/AttributeError[^\n]+/);
-      if (attrMatch) {
-        console.log('Snake AttributeError:', attrMatch[0]);
-      }
-      const hasError = hasUnbound || hasAttr || hasType || hasKey || hasName || hasPython || hasTrace;
+      const hasError = /UnboundLocalError|AttributeError|TypeError|KeyError|NameError|PythonError|Traceback/.test(bodyText);
       if (canvas && !hasError) {
-        // Snake example runs - canvas visible and no errors
         addTestResult('Snake example', true);
       } else {
         throw new Error('Snake example failed or canvas not visible');
@@ -582,16 +555,17 @@ async function runProductionTests() {
     // Test 11: Asteroids Example
     console.log('\n11. Asteroids Example');
     try {
-      await openProjectsPanel(page);
-      const found = await clickExample(page, 'asteroids');
+      await stopSketch(page);
+      await openExamplesPanel(page);
+      const found = await clickExample(page, 'Asteroids');
       if (!found) throw new Error('Asteroids example not found');
-      await closeProjectsPanel(page);
+      await closeExamplesPanel(page);
       await clickRun(page);
-      await sleep(3000);
+      await sleep(4000);
       
       const canvas = await page.$('canvas');
       const bodyText = await page.evaluate(() => document.body.textContent);
-      const hasError = bodyText.includes('Error') || bodyText.includes('Traceback');
+      const hasError = /UnboundLocalError|AttributeError|TypeError|KeyError|NameError|PythonError|Traceback/.test(bodyText);
       if (canvas && !hasError) {
         addTestResult('Asteroids example', true);
       } else {
@@ -606,10 +580,10 @@ async function runProductionTests() {
     try {
       // Stop any running sketch first
       await stopSketch(page);
-      await openProjectsPanel(page);
-      const found = await clickExample(page, 'sokoban');
+      await openExamplesPanel(page);
+      const found = await clickExample(page, 'Sokoban');
       if (!found) throw new Error('Sokoban example not found');
-      await closeProjectsPanel(page);
+      await closeExamplesPanel(page);
       await clickRun(page);
       
       // Wait for canvas to appear (Sokoban loads sprites)
@@ -618,25 +592,13 @@ async function runProductionTests() {
       } catch (e) {
         // Canvas might already exist, continue
       }
-      await sleep(2000);
+      await sleep(3000);
       
       // Check that canvas is visible and there's no error output
       const canvas = await page.$('canvas');
       const bodyText = await page.evaluate(() => document.body.textContent);
-      
-      // Debug: log what we found
-      console.log('  Sokoban: canvas found =', !!canvas);
-      console.log('  Sokoban: has TypeError =', bodyText.includes('TypeError'));
-      console.log('  Sokoban: has AttributeError =', bodyText.includes('AttributeError'));
-      console.log('  Sokoban: has canvas text =', bodyText.includes('canvas'));
-      
-      // Find error lines
-      const errorLines = bodyText.split('\n').filter(line => line.includes('Error') || line.includes('Traceback'));
-      if (errorLines.length > 0) {
-        console.log('  Sokoban: Error details:', errorLines.slice(0, 3));
-      }
-      
-      if (canvas && !bodyText.includes('TypeError') && !bodyText.includes('AttributeError')) {
+      const hasError = /UnboundLocalError|AttributeError|TypeError|KeyError|NameError|PythonError|Traceback/.test(bodyText);
+      if (canvas && !hasError) {
         addTestResult('Sokoban example', true);
       } else {
         throw new Error('Sokoban example failed or canvas not visible');

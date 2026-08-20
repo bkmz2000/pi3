@@ -39,9 +39,11 @@ npm run test:server:ci
 # Run a single unit test file
 npx jest tests/unit/SpriteEditor.polygon.test.tsx
 
-# E2E (Puppeteer, requires running app)
-npm run test:smoke
-npm run test:puppeteer
+# E2E (Puppeteer, builds + serves + runs all suites; requires chromium)
+npm run test:e2e       # full gate (smoke + production + sprite)
+npm run test:e2e:smoke # fast smoke-only gate
+npm run test:puppeteer # production suite against a running app
+npm run test:smoke     # smoke suite against a running app
 ```
 
 ## Knowledge Base (READ FIRST — mirrors AGENTS.md)
@@ -105,16 +107,42 @@ tier of tests, bump the relevant threshold slot **in the same PR**, so the diff
 shows the gain and CI prevents later regression. A feature PR that drops the
 test ratio of the area it touches turns CI red — by design, this is what keeps
 tests in sync with feature velocity. Frontend uses per-path slots
-(`./src/state/`, `./src/runner/`) checked independently of `global`.
+(`./src/state/`, `./src/utils/`, `./src/hooks/`, `./src/runner/`) checked
+independently of `global` — a new untested hook drops its bucket and turns CI
+red (this bit us: useOnlineSync/usePointerScrub shipped with no tests and the
+hooks bucket failed until they got suites).
 
 **Where tests live.**
 - Frontend unit (jsdom): `tests/unit/**/*.test.{ts,tsx}`. Mocks in
   `tests/unit/__mocks__/` (konva, react-konva, useUser).
 - Server/API (node, in-memory SQLite): `server/tests/**/*.test.ts`; DB harness
   in `server/tests/setup.ts`.
+- Production app assembly: `server/tests/app-assembly.test.ts` imports the real
+  `server/index.ts` (under `VERCEL=1` + `NODE_ENV=test` to skip listen/initDb)
+  and verifies the full wiring: CORS allowlist, global CSRF gate, COOP/COEP
+  headers (SharedArrayBuffer interrupt), SPA fallback, health/config endpoints,
+  error handler. This file used to be 0% covered — the whole production wiring
+  was untested.
+- Python-side validation (no Pyodide): `tests/unit/validate_*.py` run through
+  Jest wrappers (`graphicsPython.test.ts`, `linterAccuracy.test.ts`, etc.).
+  `validate_linter.py` executes the real `linter.py` against student-code
+  snippets — it caught a real bug: `"=" * 20` / `[0] * 10` (valid Python
+  sequence repetition) were wrongly flagged E225 because the Mult special-case
+  was dead code below an `if op_name in {"Add", ..., "Mult", ...}` set.
 - E2E (Puppeteer, needs running app): `tests/puppeteer/`. Shared helpers in
-  `test-utils.js`. `test:smoke`'s entrypoint is `tests/puppeteer/ide-smoke-test.js`;
-  not wired into the automated `make test` gate — run manually.
+  `test-utils.js`. Three suites: `ide-smoke-test.js` (P0 cold-boot/run/dirty/
+  stash cases), `production-test-suite.js` (12 checks: run, examples, panels,
+  sprite editor, error handling), `sprite-editor-test-runner.js` (sheet editor
+  drawing tools + persistence). NOT part of `make test` (the pre-push gate stays
+  unit/server-only); run via `make e2e` / `npm run test:e2e`
+  (`scripts/run-e2e.sh`: build → serve → all suites → teardown, exits non-zero
+  on failure) or `make docker-e2e` (`scripts/test-docker.sh`, app in a
+  container, host-side puppeteer). `E2E_SMOKE_ONLY=1` gives a fast smoke gate.
+  Notes: the served app must be the *institutional* profile (IDE, not the public
+  landing) — the runner builds with `VITE_DEPLOYMENT_PROFILE=institutional` —
+  and the server needs `APP_BASE_URL` set to the gate's port or every API call
+  from the page is CORS-rejected (this silently broke the whole suite at one
+  point: the page loaded but Pyodide never initialized).
 
 **Testing the worker without Pyodide.** `src/runner/WorkerInterface.ts` defines
 typed `WorkerCommand`/`WorkerEvent` unions. Test `RunnerProvider` /
@@ -123,8 +151,9 @@ real worker or WASM load required. This is the intended pattern for runner-layer
 unit tests.
 
 The phased test backlog (foundation regression net → state/runner units → E2E
-for big features) is in the strategy plan
-`~/.claude/plans/have-a-look-bright-honey.md`.
+for big features) lives in the `~/.claude/plans/` directory (the historical
+file `have-a-look-bright-honey.md` was never created under that name — see
+the audit plans, e.g. `audit-the-frontend-of-functional-sifakis.md`).
 
 ## Doctrine
 
@@ -259,7 +288,7 @@ Update procedure:
 
 All library-raised teaching errors now use structured i18n keys through `FriendlyError` (`src/assets/python/graphics/_errors.py`). The frontend renders all text through i18next for bilingual support.
 
-- **error_hook.py** — Classifies Python exceptions into structured `{messageKey, messageArgs, titleKey}` dicts. No longer produces English prose.
+- **error_hook.py** — Classifies Python exceptions into structured `{messageKey, messageArgs, titleKey}` dicts. No longer produces English prose. Parses real operators (`+` `-` `*` `/` `//` `%` `**`) from "unsupported operand type(s)" messages, plus not-iterable/subscript/item-assign keys, and generic `types.genericError` / `logic.genericError` fallbacks (with `{details}`) so every error renders friendly text — never the old `badOperator` with `op="?"` ("Can't ? a  with a .") or a bare `(None, {})` raw fallback. `logic.indexOutOfRange` is used when the message has no numeric index (Python's "list index out of range" carries none — `msg.split()[-1]` = "range" was gibberish).
 - **syntax_hints.py** — Shared pattern engine for syntax error classification (smart quotes, empty imports, missing dots, homoglyphs, etc.). Called by both `linter.py` and `error_hook.py`.
 - **ALL_MESSAGE_KEYS** in `_errors.py` — Registry of every i18n key the Python side can emit. Enforced by `tests/unit/friendlyErrorI18n.test.ts`.
 - **Key files**: `_errors.py`, `error_hook.py`, `syntax_hints.py`, `linter.py`, `en.json`, `ru.json`, `WorkerInterface.ts`, `ConsolePanel.tsx`, `useRunButton.ts`
@@ -284,7 +313,7 @@ Pure-Python linting runs inside Pyodide when the user clicks **Run** (not while 
 | E999 | error | Syntax error (missing colons, unclosed brackets, unterminated strings, etc.) |
 | E101 | error | Indentation contains tabs |
 | E111 | error | Indentation not multiple of 4 |
-| E225 | error | Unsupported operand types (e.g. `3 + "2"`) |
+| E225 | error | Unsupported operand types (e.g. `3 + "2"`). Sequence repetition (`"=" * 20`, `[0] * 10`) is allowed — only genuinely mismatched Mult operands (str*float, list*str, ...) are flagged |
 | E225Call | error | Method call argument type mismatch (e.g. `list.append("str")` when list is `list[int]`) |
 | E303 | error | Too many blank lines (>4) |
 | E501 | error | Line too long (>100 chars) |
@@ -411,4 +440,3 @@ Privacy-first code sharing for instructor oversight. No accounts required for ba
        cd .mem0-trial && .venv/bin/python kb.py index kb-docs/*.md --user pi3-kb --batch 2
 
    Prefer `kb.py archive` (free, raw sections) for bulk material and `kb.py index` (dsv4-flash extraction) for distilled facts. Do not let a finding die in this conversation — the KB is the project's long-term memory.
-

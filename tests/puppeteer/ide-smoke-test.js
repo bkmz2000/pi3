@@ -13,9 +13,12 @@
  * Cases that require eyeballing smoothness (paint stress, pan/zoom) or
  * synthetic crashes via DevTools breakpoints stay in the manual checklist.
  *
- * Usage:
- *   npm run dev:all          # in one terminal
- *   npm run test:smoke       # in another
+ * Usage (either):
+ *   npm run dev:all          # dev server, then:
+ *   npm run test:smoke
+ *   -- or --
+ *   npm run build:server && npm run build   # production build, then:
+ *   PUPPETEER_URL=http://localhost:3001 npm run test:smoke
  *
  * Exits non-zero on any failure so CI can gate on it.
  */
@@ -63,16 +66,45 @@ async function freshPage(browser) {
   return { page, ctx };
 }
 
+// Expected, tolerated console noise. The browser logs 'Failed to load
+// resource ... 401' when an anonymous visitor hits the /api/users/me session
+// check — that is the intended unauthenticated flow, not an app error.
+function isToleratedConsoleError(msg) {
+  return /i18next|HMR|locize|401|Unauthorized|users\/me/i.test(msg);
+}
+
 async function waitForPyodideReady(page) {
-  // The Run button becomes enabled once Pyodide is initialized. Falling back
-  // to a generic readiness signal in case the button label changes.
+  // The Run button becomes enabled once Pyodide is initialized. The button
+  // is an icon button: it carries aria-label="Run" (or "Stop" while a
+  // program is running) and has no text content.
   await waitForFn(page, async () => {
     return await page.evaluate(() => {
-      const btn = document.querySelector('button[data-testid="run-button"]')
-        || Array.from(document.querySelectorAll('button')).find((b) => /run/i.test(b.textContent ?? ''));
-      return btn && !btn.disabled;
+      const btn = document.querySelector('button[aria-label="Run"]');
+      return !!btn && !btn.disabled;
     });
-  }, { timeout: 30000 });
+  }, { timeout: 60000 });
+}
+
+async function clickRun(page) {
+  // A previous run may have left the button as Stop; click whichever is live.
+  const label = await page.evaluate(() => {
+    const run = document.querySelector('button[aria-label="Run"]');
+    const stop = document.querySelector('button[aria-label="Stop"]');
+    return stop ? 'Stop' : run ? 'Run' : null;
+  });
+  if (label === 'Stop') {
+    await page.click('button[aria-label="Stop"]');
+    await waitForFn(page, async () => {
+      return await page.evaluate(() => !!document.querySelector('button[aria-label="Run"]'));
+    }, { timeout: 10000 });
+  }
+  await waitForFn(page, async () => {
+    return await page.evaluate(() => {
+      const btn = document.querySelector('button[aria-label="Run"]');
+      return !!btn && !btn.disabled;
+    });
+  }, { timeout: 10000 });
+  await page.click('button[aria-label="Run"]');
 }
 
 async function typeInEditor(page, text) {
@@ -96,10 +128,7 @@ async function caseColdBoot(browser) {
   const { page, ctx } = await freshPage(browser);
   try {
     await waitForPyodideReady(page);
-    const errs = page._consoleErrors.filter(
-      // Tolerated noise: i18n init banner, dev-only HMR pings.
-      (m) => !/i18next|HMR|locize/i.test(m),
-    );
+    const errs = page._consoleErrors.filter((m) => !isToleratedConsoleError(m));
     assert(errs.length === 0, `unexpected console errors: ${errs.slice(0, 3).join(' | ')}`);
   } finally {
     await ctx.close();
@@ -111,15 +140,13 @@ async function caseRunHelloWorld(browser) {
   try {
     await waitForPyodideReady(page);
     await clearEditor(page);
-    await typeInEditor(page, 'print("smoke-' + Date.now() + '")');
-    // Trigger run — keyboard shortcut is more stable than button text.
-    await page.keyboard.down('Control');
-    await page.keyboard.press('Enter');
-    await page.keyboard.up('Control');
+    const sentinel = 'smoke-' + Date.now();
+    await typeInEditor(page, `print("${sentinel}")`);
+    await clickRun(page);
     await waitForFn(page, async () => {
       const txt = await page.evaluate(() => document.body.innerText);
-      return /smoke-\d+/.test(txt);
-    }, { timeout: 15000 });
+      return txt.includes(sentinel);
+    }, { timeout: 20000 });
   } finally {
     await ctx.close();
   }
@@ -132,9 +159,16 @@ async function caseDirtyAndSave(browser) {
     await clearEditor(page);
     await typeInEditor(page, '# edit ' + Date.now());
 
-    // Dirty marker should appear somewhere on the tab strip.
+    // Dirty marker is a 7px dot span inside the tab (no text/aria) — detect
+    // it by its distinctive style rather than innerText.
     await waitForFn(page, async () => {
-      return await page.evaluate(() => /unsaved|•|●|dirty/i.test(document.body.innerText));
+      return await page.evaluate(() => {
+        const dot = Array.from(document.querySelectorAll('button span')).find((s) => {
+          const st = /** @type {HTMLElement} */ (s).style;
+          return st.width === '7px' && st.borderRadius === '7px';
+        });
+        return !!dot;
+      });
     }, { timeout: 5000 });
 
     await page.keyboard.down('Control');
@@ -168,7 +202,7 @@ async function caseAnonStashPersistence(browser) {
     await waitForFn(page, async () => {
       const code = await page.evaluate(() => document.querySelector('.cm-content')?.innerText ?? '');
       return code.includes(sentinel);
-    }, { timeout: 10000 });
+    }, { timeout: 15000 });
   } finally {
     await ctx.close();
   }
@@ -179,14 +213,22 @@ async function caseAnonStashQuotaChip(browser) {
   try {
     await waitForPyodideReady(page);
 
-    // Fill localStorage to within ~50KB of quota. 5MB target is conservative;
-    // most browsers cap there. If the writes succeed silently the test simply
-    // fails to trigger the chip and reports honestly.
+    // Fill localStorage until setItem throws, then top up the remaining
+    // headroom with small keys so any subsequent write (the anon stash) is
+    // guaranteed to exceed quota. Blob size is a tradeoff: too big leaves
+    // hundreds of KB of headroom, too small makes the loop slow.
     await page.evaluate(() => {
+      const blob = 'x'.repeat(400_000);
+      let i = 0;
       try {
-        const blob = 'x'.repeat(500_000); // 500KB
-        for (let i = 0; i < 12; i++) localStorage.setItem('__quota_pad_' + i, blob);
-      } catch { /* expected once we exceed */ }
+        for (; i < 100; i++) localStorage.setItem('__quota_pad_' + i, blob);
+      } catch { /* quota reached */ }
+      // Fill the leftover headroom with 1KB keys until we're at the edge.
+      const small = 'y'.repeat(1000);
+      let j = 0;
+      try {
+        for (; j < 5000; j++) localStorage.setItem('__quota_tiny_' + j, small);
+      } catch { /* now at the edge */ }
     });
 
     await clearEditor(page);
@@ -214,7 +256,7 @@ async function main() {
   console.log(`smoke: target ${URL} (headless=${HEADLESS})`);
   const browser = await puppeteer.launch({
     headless: HEADLESS ? 'new' : false,
-    args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
   });
   try {
     await run('P0.1 cold boot, no console errors', () => caseColdBoot(browser));

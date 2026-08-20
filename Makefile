@@ -12,11 +12,23 @@ DEPLOY_TARGET ?= $(if $(TURSO_DATABASE_URL),vercel,vps)
 # VPS defaults to institutional (skips landing); Vercel defaults to public.
 DEPLOYMENT_PROFILE ?= $(if $(filter vercel,$(DEPLOY_TARGET)),public,institutional)
 
-.PHONY: deploy vps vercel build push remote-deploy test install-hooks rollback
+.PHONY: deploy vps vercel build push remote-deploy test install-hooks rollback e2e e2e-smoke docker-e2e
 
 test:
 	docker build -f Dockerfile.test -t pi3-test:latest .
 	docker run --rm pi3-test:latest
+
+# E2E gate: builds the app, serves it, and runs the Puppeteer suites.
+# Not part of `make test` (needs a chromium-capable environment); run
+# explicitly in CI or before releases. See scripts/run-e2e.sh.
+e2e:
+	scripts/run-e2e.sh
+
+e2e-smoke:
+	E2E_SMOKE_ONLY=1 scripts/run-e2e.sh
+
+docker-e2e:
+	scripts/test-docker.sh
 
 # Usage: make deploy        (auto-detect from .env)
 #        make deploy vps    (explicit VPS)

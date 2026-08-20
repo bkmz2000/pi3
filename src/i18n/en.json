@@ -1163,12 +1163,16 @@
     },
     "types": {
       "title": "Type mix-up",
-      "badOperator": "Can't {{op}} a {{left}} with a {{right}}.",
+      "badOperator": "Can't use {{op}} on a {{left}} and a {{right}}.",
       "wrongArgType": "{{func}}() expects {{expected}}, not {{found}}.",
       "badColorType": "Expected a color (tuple, hex string, or palette name), not {{type}}.",
       "notCallable": "You're using parentheses on something that isn't a function. Did you mean to access a property instead?",
       "missingArg": "Not enough information! {{details}}",
-      "wrongArgCount": "Wrong number of arguments: {{details}}"
+      "wrongArgCount": "Wrong number of arguments: {{details}}",
+      "notIterable": "'{{type}}' can't be looped over — it's not a list or other iterable.",
+      "notSubscriptable": "'{{type}}' can't be indexed with [ ]. Only lists, strings, and similar can.",
+      "notItemAssignable": "'{{type}}' doesn't support changing items with [ ] = ...",
+      "genericError": "Something is wrong with how a value is being used: {{details}}"
     },
     "grammar": {
       "title": "Grammar problem",
@@ -1192,7 +1196,10 @@
       "emptySequence": "pick() was called on an empty list — there's nothing to pick from.",
       "memoryError": "Your program ran out of memory. Try using smaller lists or fewer sprites.",
       "recursionError": "Your function called itself too many times — it went into an infinite loop!",
-      "assertionError": "An 'assert' check failed: {{message}}"
+      "assertionError": "An 'assert' check failed: {{message}}",
+      "indexOutOfRange": "You tried to reach a position that doesn't exist — the index is out of range.",
+      "noMoreItems": "You tried to take the next item, but there are no more items left.",
+      "genericError": "Something went wrong while running your program: {{details}}"
     },
     "apiMisuse": {
       "title": "API mistake",

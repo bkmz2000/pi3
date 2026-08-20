@@ -257,22 +257,56 @@ def _build_error_keys(
 
     if category == "types":
         clean = re.sub(r"<class '(\w+)'>", r"\1", msg)
-        if "unsupported operand type" in clean and "+" in clean:
-            m = re.search(r"unsupported operand type.*for\s+\+:\s*'(\w+)'\s+and\s+'(\w+)'", clean)
-            if m:
-                return ("friendlyError.types.badOperator", {"op": "+", "left": m.group(1), "right": m.group(2)})
-        if "can only concatenate" in clean:
-            m = re.search(r"can only concatenate (\w+) \(not \"(\w+)\"\)", clean)
-            if m:
-                return ("friendlyError.types.badOperator", {"op": "+", "left": m.group(1), "right": m.group(2)})
+
+        # Unsupported operand type(s) for <op>: '<left>' and '<right>'
+        # — covers +, -, *, /, //, %, ** (and the **/pow() dual-spelling).
+        m = re.search(
+            r"unsupported operand type\(s\) for (.+?):\s*'(\w+)'\s+and\s+'(\w+)'",
+            clean,
+        )
+        if m:
+            op_raw = m.group(1).strip()
+            # "** or pow()" is Python's spelling for exponentiation.
+            op = "**" if "**" in op_raw or "pow" in op_raw else op_raw
+            return ("friendlyError.types.badOperator", {"op": op, "left": m.group(2), "right": m.group(3)})
+
+        # can't multiply sequence by non-int of type '<t>'  (list * str etc.)
+        m = re.search(r"can't multiply sequence by non-int of type '([^']+)'", clean)
+        if m:
+            return ("friendlyError.types.badOperator", {"op": "*", "left": "sequence", "right": m.group(1)})
+
+        # can only concatenate str (not "int") to str
+        m = re.search(r"can only concatenate (\w+) \(not \"(\w+)\"\)", clean)
+        if m:
+            return ("friendlyError.types.badOperator", {"op": "+", "left": m.group(1), "right": m.group(2)})
+
+        # '<type>' object is not iterable  (sum(5), for x in 3, ...)
+        m = re.search(r"'([^']+)' object is not iterable", clean)
+        if m:
+            return ("friendlyError.types.notIterable", {"type": m.group(1)})
+
+        # '<type>' object does not support item assignment / is not subscriptable
+        m = re.search(r"'([^']+)' object is not subscriptable", clean)
+        if m:
+            return ("friendlyError.types.notSubscriptable", {"type": m.group(1)})
+        m = re.search(r"'([^']+)' object does not support item assignment", clean)
+        if m:
+            return ("friendlyError.types.notItemAssignable", {"type": m.group(1)})
+
         if "object is not callable" in clean:
             return ("friendlyError.types.notCallable", {})
+
         if "missing" in clean and "required positional argument" in clean:
             return ("friendlyError.types.missingArg", {"details": clean.strip().split('\n')[-1]})
         if "takes" in clean and "argument" in clean and "given" in clean:
             return ("friendlyError.types.wrongArgCount", {"details": clean.strip().split('\n')[-1]})
-        return ("friendlyError.types.badOperator", {"op": "?", "left": "", "right": ""})
+        # Wrong arg count with a different wording (e.g. int() can't convert
+        # non-string with explicit base) — surface the raw explanation.
+        if "argument" in clean and ("explicit base" in clean or "expected" in clean):
+            return ("friendlyError.types.wrongArgCount", {"details": clean.strip().split('\n')[-1]})
 
+        # Generic TypeError fallback — never emit op="?" (renders "Can't ? ...").
+        return ("friendlyError.types.genericError", {"details": clean.strip()})
     if category == "grammar":
         if "expected ':'" in msg or "expected ':'" in str(exc):
             return ("friendlyError.grammar.missingColon", {})
@@ -301,8 +335,14 @@ def _build_error_keys(
         if isinstance(exc, ZeroDivisionError):
             return ("friendlyError.logic.zeroDivision", {})
         if isinstance(exc, IndexError):
-            pos = msg.split()[-1] if msg.split() else "?"
-            return ("friendlyError.logic.indexError", {"index": pos})
+            # "list index out of range" carries no index — msg.split()[-1] is
+            # literally the word "range", which rendered as gibberish
+            # ("reach position range"). Extract a real numeric index when the
+            # message has one, otherwise use the plain key.
+            m = re.search(r"index (\d+) (?:is )?out of range", msg)
+            if m:
+                return ("friendlyError.logic.indexError", {"index": m.group(1)})
+            return ("friendlyError.logic.indexOutOfRange", {})
         if isinstance(exc, ValueError):
             return ("friendlyError.logic.valueError", {})
         if isinstance(exc, MemoryError):
@@ -311,7 +351,12 @@ def _build_error_keys(
             return ("friendlyError.logic.recursionError", {})
         if isinstance(exc, AssertionError):
             return ("friendlyError.logic.assertionError", {"message": msg.split('\n')[-1]})
-        return (None, {})
+        if isinstance(exc, StopIteration):
+            # next() found no more items — a common "nothing left to take" case.
+            return ("friendlyError.logic.noMoreItems", {})
+        # Generic logic fallback — keeps the card readable for RuntimeError,
+        # OverflowError, etc.
+        return ("friendlyError.logic.genericError", {"details": msg.strip()})
 
     if category == "api-misuse":
         return ("friendlyError.apiMisuse.fallback", {})

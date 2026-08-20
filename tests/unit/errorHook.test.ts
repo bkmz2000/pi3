@@ -1,18 +1,18 @@
 /**
- * Wires validate_linter.py into the Jest pipeline.
+ * Wires validate_error_hook.py into the Jest pipeline.
  *
- * Executes the REAL src/assets/python/linter.py against the snippets that used
- * to be documented-only placeholders here (string/list repetition, W005
- * reassignment). Mirrors graphicsPython.test.ts: Python runs standalone with
- * PYTHONPATH set; Jest fails loudly when any assertion breaks.
+ * Executes the REAL error_hook.classify_error against a matrix of student
+ * exceptions and asserts the structured keys/args — guarding the gibberish
+ * regressions (operator parsing, not-iterable, index-out-of-range, generic
+ * fallbacks). Mirrors graphicsPython.test.ts: Python runs standalone.
  */
 import { execSync } from 'child_process';
 import { resolve } from 'path';
 
 const ROOT = resolve(__dirname, '../..');
-const SCRIPT = resolve(__dirname, 'validate_linter.py');
+const SCRIPT = resolve(__dirname, 'validate_error_hook.py');
 
-test('validate_linter.py: linter accuracy assertions pass', () => {
+test('validate_error_hook.py: friendly-error classifier assertions pass', () => {
   let output = '';
   try {
     output = execSync('python3 "' + SCRIPT + '"', {
@@ -24,7 +24,7 @@ test('validate_linter.py: linter accuracy assertions pass', () => {
   } catch (err: unknown) {
     const e = err as { stdout?: string; stderr?: string; message?: string };
     const combined = [e.stdout, e.stderr, e.message].filter(Boolean).join('\n');
-    throw new Error('validate_linter.py failed:\n' + combined);
+    throw new Error('validate_error_hook.py failed:\n' + combined);
   }
   expect(output).toMatch(/ALL TESTS PASSED/);
 });

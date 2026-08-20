@@ -248,6 +248,10 @@ ALL_MESSAGE_KEYS = [
     "friendlyError.types.notCallable",
     "friendlyError.types.missingArg",
     "friendlyError.types.wrongArgCount",
+    "friendlyError.types.notIterable",
+    "friendlyError.types.notSubscriptable",
+    "friendlyError.types.notItemAssignable",
+    "friendlyError.types.genericError",
     # Grammar
     "friendlyError.grammar.title",
     "friendlyError.grammar.syntaxError",
@@ -267,7 +271,10 @@ ALL_MESSAGE_KEYS = [
     "friendlyError.logic.memoryError",
     "friendlyError.logic.recursionError",
     "friendlyError.logic.assertionError",
+    "friendlyError.logic.indexOutOfRange",
+    "friendlyError.logic.genericError",
     "friendlyError.logic.emptySequence",
+    "friendlyError.logic.noMoreItems",
     "friendlyError.logic.spriteNoFrames",
     # API misuse
     "friendlyError.apiMisuse.title",

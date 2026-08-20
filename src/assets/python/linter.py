@@ -430,7 +430,33 @@ def _check_binary_op_types(code: str, tree: ast.Module) -> list[dict]:
                                 node.col_offset,
                             )
                         )
+                elif op_name == "Mult":
+                    # Sequence repetition is valid Python and common in student
+                    # code ("=" * 20 for a divider line, [0] * 10 for a grid).
+                    # Allow str*int, int*str, list*int, int*list; still flag
+                    # genuinely mismatched operands like str*list or float*str.
+                    if not (left_type in NUM_LIKE and right_type in NUM_LIKE):
+                        if not (
+                            (left_type in STR_LIKE and right_type in INT_LIKE)
+                            or (left_type in INT_LIKE and right_type in STR_LIKE)
+                            or (left_type in LIST_LIKE and right_type in INT_LIKE)
+                            or (left_type in INT_LIKE and right_type in LIST_LIKE)
+                        ):
+                            self.diagnostics.append(
+                                _make_diagnostic(
+                                    "E225",
+                                    "linter.E225",
+                                    {
+                                        "op": op_symbol,
+                                        "left": left_type,
+                                        "right": right_type,
+                                    },
+                                    node.lineno,
+                                    node.col_offset,
+                                )
+                            )
                 elif not (left_type in NUM_LIKE and right_type in NUM_LIKE):
+                    # Sub / Mod / Pow remain numeric-only.
                     self.diagnostics.append(
                         _make_diagnostic(
                             "E225",
@@ -440,28 +466,6 @@ def _check_binary_op_types(code: str, tree: ast.Module) -> list[dict]:
                             node.col_offset,
                         )
                     )
-
-            elif op_name == "Mult":
-                if not (left_type in NUM_LIKE and right_type in NUM_LIKE):
-                    if not (
-                        (left_type in STR_LIKE and right_type in INT_LIKE)
-                        or (left_type in INT_LIKE and right_type in STR_LIKE)
-                        or (left_type in LIST_LIKE and right_type in INT_LIKE)
-                        or (left_type in INT_LIKE and right_type in LIST_LIKE)
-                    ):
-                        self.diagnostics.append(
-                            _make_diagnostic(
-                                "E225",
-                                "linter.E225",
-                                {
-                                    "op": op_symbol,
-                                    "left": left_type,
-                                    "right": right_type,
-                                },
-                                node.lineno,
-                                node.col_offset,
-                            )
-                        )
 
             elif op_name in {"Eq", "NotEq", "Lt", "LtE", "Gt", "GtE"}:
                 incompatible = (left_type in NUM_LIKE and right_type in STR_LIKE) or (

@@ -115,6 +115,42 @@ test("name -> naming.undefined", res["messageKey"] == "friendlyError.naming.unde
 res = classify("attr", lambda: [1, 2].foo)
 test("attr -> naming.noAttribute", res["messageKey"] == "friendlyError.naming.noAttribute")
 
+print("Traceback cleanup — CPython 3.13 caller-frame highlight lines")
+# 3.13 adds a "~~~~^^" line under the call site in caller frames. When a
+# library frame is stripped from the details view, that line must go with it
+# instead of floating orphaned before the next frame (regression: real user
+# card showed a stray "~~~~^^" between 'Traceback' and the last frame).
+tb_313 = (
+    'Traceback (most recent call last):\n'
+    '  File "pyodide/.../graphics/__init__.py", line 1203, in _run\n'
+    '    main()\n'
+    '    ~~~~^^\n'
+    '  File "main.py", line 16, in tick\n'
+    '    state.tick_count += 1\n'
+    '    ^^^^^^^^^^^^^^^^\n'
+    "AttributeError: 'State' object has no attribute 'tick_count'. Did you mean: 'tickcount'?\n"
+)
+clean = error_hook._clean_traceback(tb_313)
+test("3.13: library frame + its highlight both dropped", "graphics/__init__.py" not in clean and "~~~~^^" not in clean, clean)
+test("3.13: user frame kept", 'File "main.py", line 16, in tick' in clean, clean)
+test("3.13: error-frame caret kept", "^^^^^^^^^^^^^^^^" in clean, clean)
+test("3.13: 'Did you mean' message kept", "Did you mean: 'tickcount'?" in clean, clean)
+# The plain-script runner path (line_offset > 0) strips the harness's own
+# <module> frame; its highlight must not leak either.
+tb_adj = (
+    'Traceback (most recent call last):\n'
+    '  File "main.py", line 56, in <module>\n'
+    '    await __run()\n'
+    '    ~~~~~~~~~~~~~\n'
+    '  File "main.py", line 16, in tick\n'
+    '    state.tick_count += 1\n'
+    '    ^^^^^^^^^^^^^^^^\n'
+    "AttributeError: 'State' object has no attribute 'tick_count'. Did you mean: 'tickcount'?\n"
+)
+adjusted = error_hook._adjust_traceback(tb_adj, "main.py", 6)
+test("3.13: <module> frame stripped, highlight dropped with it", "await __run()" not in adjusted and "~~~~~~~~~~~~~" not in adjusted, adjusted)
+test("3.13: adjusted user frame keeps caret", "^^^^^^^^^^^^^^^^" in adjusted, adjusted)
+
 if errors == 0:
     print("ALL TESTS PASSED")
     sys.exit(0)

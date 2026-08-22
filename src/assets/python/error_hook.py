@@ -155,6 +155,11 @@ def _adjust_traceback(raw: str, filename: str, line_offset: int) -> str:
                 i += 1
                 if i < len(lines) and not lines[i].strip().startswith("File ") and lines[i].strip():
                     i += 1
+                # CPython 3.13+: caller frames carry an extra highlight line
+                # (e.g. "    ~~~~^^") under the call site. Drop it with its
+                # frame, otherwise it floats orphaned in the details view.
+                if i < len(lines) and lines[i].strip()[:1] in ("~", "^"):
+                    i += 1
                 continue
             raw_lineno = int(m.group(4))
             corrected = max(1, raw_lineno - line_offset)
@@ -182,6 +187,11 @@ def _clean_traceback(raw: str) -> str:
             i += 1
             # Drop the source-context line that follows the File line
             if i < len(lines) and not lines[i].strip().startswith("File ") and lines[i].strip():
+                i += 1
+            # CPython 3.13+: caller frames carry an extra highlight line
+            # (e.g. "    ~~~~^^") under the call site. Drop it with its
+            # frame, otherwise it floats orphaned in the details view.
+            if i < len(lines) and lines[i].strip()[:1] in ("~", "^"):
                 i += 1
             continue
         out.append(line)

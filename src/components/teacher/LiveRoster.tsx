@@ -122,7 +122,7 @@ export function LiveRoster({ groupId }: { groupId: string }) {
               aria-hidden
               style={{
                 width: 8, height: 8, borderRadius: 99,
-                background: m.idle ? theme.panelTxtMute : '#7ec98f',
+                background: m.idle ? theme.panelTxtMute : theme.successPillTxt,
                 flexShrink: 0,
               }}
             />

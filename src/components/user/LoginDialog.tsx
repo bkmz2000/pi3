@@ -202,11 +202,11 @@ export function LoginDialog({ open, onClose }: LoginDialogProps) {
                       <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
                         <span style={{
                           width: 26, height: 26, borderRadius: 999,
-                          background: c.bg, color: '#fff',
+                          background: c.bg, color: theme.primaryTxt,
                           display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                           flexShrink: 0,
                         }}>
-                          <Icon name={r.icon} size={13} color="#fff" />
+                          <Icon name={r.icon} size={13} color={theme.primaryTxt} />
                         </span>
                         <div>
                           <div style={{ fontSize: 13, fontWeight: 700, color: theme.panelTxt }}>{r.title}</div>
@@ -216,10 +216,10 @@ export function LoginDialog({ open, onClose }: LoginDialogProps) {
                           <span style={{
                             position: 'absolute', top: 6, right: 6,
                             width: 16, height: 16, borderRadius: 999,
-                            background: c.bg, color: '#fff',
+                            background: c.bg, color: theme.primaryTxt,
                             display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                           }}>
-                            <Icon name="check" size={9} color="#fff" />
+                            <Icon name="check" size={9} color={theme.primaryTxt} />
                           </span>
                         )}
                       </div>

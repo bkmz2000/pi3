@@ -140,6 +140,15 @@ export function IconWarn({ size = 22, ...rest }: IconProps) {
   );
 }
 
+export function IconAlert({ size = 22, ...rest }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...s(rest)}>
+      <path d="M12 8v5M12 16.5v.5" />
+      <path d="M8.1 3.5h7.8L20.5 8.1v7.8l-4.6 4.6H8.1L3.5 15.9V8.1L8.1 3.5Z" />
+    </svg>
+  );
+}
+
 export function IconCursor({ size = 22, ...rest }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" {...s(rest)}>
@@ -326,6 +335,7 @@ export type IconName =
   | "import"
   | "export"
   | "warn"
+  | "alert"
   | "cursor"
   | "square"
   | "circle"
@@ -370,6 +380,7 @@ export function Icon({ name, ...props }: IconProps & { name: IconName }) {
     case "import": return <IconImport {...props} />;
     case "export": return <IconExport {...props} />;
     case "warn": return <IconWarn {...props} />;
+    case "alert": return <IconAlert {...props} />;
     case "cursor": return <IconCursor {...props} />;
     case "square": return <IconSquare {...props} />;
     case "circle": return <IconCircle {...props} />;

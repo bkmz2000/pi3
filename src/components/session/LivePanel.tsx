@@ -160,7 +160,7 @@ export default function LivePanel({ onClose }: { onClose: () => void }) {
         ) : (
           <>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span aria-hidden style={{ width: 8, height: 8, borderRadius: 99, background: '#7ec98f' }} />
+              <span aria-hidden style={{ width: 8, height: 8, borderRadius: 99, background: theme.successPillTxt }} />
               <span style={{ fontSize: 12.5, fontWeight: 700, color: theme.panelTxt }}>
                 {role === 'starter' ? t('session.hosting') : t('session.joined')}
               </span>
@@ -170,10 +170,10 @@ export default function LivePanel({ onClose }: { onClose: () => void }) {
               </span>
             </div>
             <div style={{ display: 'flex', gap: 6 }}>
-              <button type="button" onClick={handleCopy} style={{ ...btn(theme.accent, '#fff'), flex: 1 }}>
+              <button type="button" onClick={handleCopy} style={{ ...btn(theme.accent, theme.primaryTxt), flex: 1 }}>
                 {copied ? t('session.copied') : t('session.copyLink')}
               </button>
-              <button type="button" onClick={leave} style={btn(theme.stopBg, '#fff')}>
+              <button type="button" onClick={leave} style={btn(theme.stopBg, theme.primaryTxt)}>
                 {t('session.leave')}
               </button>
             </div>
@@ -218,7 +218,7 @@ export default function LivePanel({ onClose }: { onClose: () => void }) {
             >
               <span aria-hidden style={{
                 width: 8, height: 8, borderRadius: 99, flexShrink: 0,
-                background: m.idle ? theme.panelTxtMute : '#7ec98f',
+                background: m.idle ? theme.panelTxtMute : theme.successPillTxt,
               }} />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 13, fontWeight: 600, color: theme.panelTxt }}>{label}</div>

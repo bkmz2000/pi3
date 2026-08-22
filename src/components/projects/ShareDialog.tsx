@@ -4,6 +4,7 @@ import { useThemeStore } from '../../state/useTheme';
 import { searchUsers, shareProjectWithUser, type UserSearchResult } from '../../state/api';
 import { Icon } from '../Icons';
 import { HandleAvatar } from '../user/HandleAvatar';
+import { Modal } from '../Modal';
 
 interface ShareDialogProps {
   open: boolean;
@@ -72,46 +73,8 @@ export function ShareDialog({ open, onClose, projectId, projectName }: ShareDial
   const roleColor = (r: string) => r === 'teacher' ? theme.runBg : theme.accent;
 
   return (
-    <div
-      onClick={onClose}
-      style={{
-        position: 'fixed', inset: 0, zIndex: 50,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        background: 'rgba(0,0,0,0.5)',
-      }}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          width: 440,
-          background: theme.surfacePanel,
-          border: `1px solid ${theme.panelBorder}`,
-          borderRadius: 8,
-          boxShadow: theme.shadowWindow,
-          fontFamily: theme.fontUI,
-          color: theme.panelTxt,
-        }}
-      >
-        <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '14px 18px',
-          borderBottom: `1px solid ${theme.panelBorder}`,
-        }}>
-          <span style={{ fontWeight: 700, fontSize: 14 }}>{t('projects.shareTitle')}</span>
-          <button
-            type="button" onClick={onClose}
-            style={{
-              all: 'unset', cursor: 'pointer',
-              width: 26, height: 26, borderRadius: 5,
-              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-              color: theme.panelTxtMute,
-            }}
-          >
-            <Icon name="close" size={15} color="currentColor" />
-          </button>
-        </div>
-
-        <div style={{ padding: '14px 18px' }}>
+    <Modal title={t('projects.shareTitle')} onClose={onClose} width={440} zIndex={50}>
+      <div style={{ padding: '14px 18px' }}>
           <p style={{ marginTop: 0, marginBottom: 12, fontSize: 12.5, color: theme.panelTxtMute }}>
             {t('projects.shareSubtitle', { name: '' })}
             <strong style={{ color: theme.panelTxt }}>{projectName}</strong>
@@ -312,7 +275,6 @@ export function ShareDialog({ open, onClose, projectId, projectName }: ShareDial
             </button>
           </div>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

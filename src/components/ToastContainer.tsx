@@ -27,7 +27,7 @@ export function ToastContainer() {
             borderRadius: 6,
             fontSize: 13,
             color: theme.surfacePanel,
-            background: toast.type === 'error' ? '#e05' : toast.type === 'success' ? '#2d5' : theme.accent,
+            background: toast.type === 'error' ? theme.errorChipBg : toast.type === 'success' ? theme.runBg : theme.accent,
             boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
             minWidth: 200,
             maxWidth: 300,

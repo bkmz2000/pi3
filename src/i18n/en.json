@@ -228,6 +228,7 @@
     "errorFormat": "  {{message}} ({{line}})"
   },
   "linter": {
+    "firstRunNotice": "Lint hints are on! They point out mistakes while you type — you can switch them off in Settings.",
     "E999": "Syntax error",
     "E999Colon": "Syntax error: expected ':'",
     "E999Unclosed": "Syntax error: unclosed bracket or parenthesis",

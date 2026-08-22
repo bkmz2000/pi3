@@ -658,7 +658,7 @@ function SettingsPanel({
                 fontSize: 13,
                 textAlign: "center",
                 background: i18n.language === l.id ? theme.accent : theme.chip,
-                color: i18n.language === l.id ? "#fff" : theme.panelTxt,
+                color: i18n.language === l.id ? theme.primaryTxt : theme.panelTxt,
                 transition: "background 0.15s",
               }}
             >
@@ -684,7 +684,7 @@ function SettingsPanel({
                 fontSize: 13,
                 textAlign: "center",
                 background: themeId === th.id ? theme.accent : theme.chip,
-                color: themeId === th.id ? "#fff" : theme.panelTxt,
+                color: themeId === th.id ? theme.primaryTxt : theme.panelTxt,
                 transition: "background 0.15s",
               }}
             >

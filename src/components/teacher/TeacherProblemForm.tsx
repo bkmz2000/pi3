@@ -64,11 +64,12 @@ function validateForm(f: FormState, t: (k: string) => string): string | null {
 // ---- Icons ----
 
 function StarIcon({ filled }: { filled: boolean }) {
+  const theme = useThemeStore((s) => s.theme);
   return (
     <svg width="13" height="13" viewBox="0 0 24 24" style={{ display: 'block' }}>
       <path
         d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01z"
-        fill={filled ? '#f0b429' : '#6f8a90'}
+        fill={filled ? theme.warnLine : theme.panelTxtMute}
         opacity={filled ? 1 : 0.45}
       />
     </svg>
@@ -123,7 +124,7 @@ function FieldLabel({ label, required }: { label: string; required?: boolean }) 
   return (
     <div style={{ fontSize: 12, color: theme.panelTxtMute, display: 'block', marginBottom: 6 }}>
       {label}
-      {required && <span style={{ color: '#ff7a7a', marginLeft: 3 }}>*</span>}
+      {required && <span style={{ color: theme.errorLine, marginLeft: 3 }}>*</span>}
     </div>
   );
 }
@@ -308,7 +309,7 @@ function TestCaseCard({
             alignItems: 'center',
             padding: 4,
             borderRadius: 4,
-            color: hoverRemove ? '#ff7a7a' : theme.panelTxtMute,
+            color: hoverRemove ? theme.errorLine : theme.panelTxtMute,
           }}
         >
           <IconTrash size={14} color="currentColor" />
@@ -984,7 +985,7 @@ export default function TeacherProblemForm() {
             padding: '2px 9px',
             borderRadius: 999,
             background: 'rgba(255,77,77,0.13)',
-            color: '#ff7a7a',
+            color: theme.errorLine,
             maxWidth: 320,
             overflow: 'hidden',
             textOverflow: 'ellipsis',
@@ -1094,7 +1095,7 @@ export default function TeacherProblemForm() {
                 {showDot && (
                   <span
                     aria-label={t('teacher.tabHasErrors')}
-                    style={{ width: 6, height: 6, borderRadius: '50%', background: '#ff7a7a', display: 'inline-block' }}
+                    style={{ width: 6, height: 6, borderRadius: '50%', background: theme.errorLine, display: 'inline-block' }}
                   />
                 )}
               </button>

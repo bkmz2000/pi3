@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useThemeStore } from '../../state/useTheme';
+import { Modal } from '../Modal';
 
 interface ImportTestRow {
   tier: number;
@@ -100,19 +101,6 @@ export default function ImportProblemsModal({ onClose, onImported }: Props) {
     }
   };
 
-  const card: React.CSSProperties = {
-    background: theme.surfacePanel,
-    border: `0.5px solid ${theme.panelBorder}`,
-    borderRadius: 12,
-    overflow: 'hidden',
-    width: 560,
-    maxWidth: '95vw',
-    maxHeight: '85vh',
-    display: 'flex',
-    flexDirection: 'column',
-    boxShadow: '0 24px 48px rgba(0,0,0,0.5)',
-  };
-
   const btn = (primary: boolean, disabled = false): React.CSSProperties => ({
     all: 'unset' as const,
     cursor: disabled ? 'default' : 'pointer',
@@ -132,42 +120,20 @@ export default function ImportProblemsModal({ onClose, onImported }: Props) {
   const totalTests = problems ? problems.reduce((s, p) => s + usableTestCount(p), 0) : 0;
 
   return (
-    <div
-      style={{
-        position: 'fixed', inset: 0,
-        background: 'rgba(0,0,0,0.6)',
-        backdropFilter: 'blur(3px)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        zIndex: 100,
-      }}
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
-    >
-      <div style={card}>
-        {/* Header */}
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 10,
-          padding: '14px 18px',
-          borderBottom: `0.5px solid ${theme.panelBorder}`,
-          flexShrink: 0,
-        }}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={theme.primaryBg} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
-          </svg>
-          <span style={{ fontSize: 14, fontWeight: 600, color: theme.panelTxt }}>{t('importProblems.title')}</span>
-          <div style={{ flex: 1 }} />
-          <button
-            onClick={onClose}
-            style={{
-              all: 'unset', cursor: 'pointer',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              width: 26, height: 26, borderRadius: 6,
-              color: theme.panelTxtMute, fontSize: 18, lineHeight: 1,
-            }}
-          >
-            ×
-          </button>
-        </div>
-
+    <>
+      <Modal
+        title={
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={theme.primaryBg} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
+            </svg>
+            <span>{t('importProblems.title')}</span>
+          </span>
+        }
+        onClose={onClose}
+        width={560}
+        zIndex={100}
+      >
         {/* Scrollable body */}
         <div style={{ flex: 1, overflowY: 'auto', padding: 18, display: 'flex', flexDirection: 'column', gap: 16 }}>
 
@@ -208,7 +174,7 @@ export default function ImportProblemsModal({ onClose, onImported }: Props) {
           )}
 
           {parseError && (
-            <div style={{ padding: '8px 12px', borderRadius: 8, background: 'rgba(255,77,77,0.12)', border: '0.5px solid rgba(255,100,100,0.3)', color: '#ff7a7a', fontSize: 13 }}>
+            <div style={{ padding: '8px 12px', borderRadius: 8, background: 'rgba(255,77,77,0.12)', border: '0.5px solid rgba(255,100,100,0.3)', color: theme.errorLine, fontSize: 13 }}>
               {parseError}
             </div>
           )}
@@ -314,7 +280,7 @@ export default function ImportProblemsModal({ onClose, onImported }: Props) {
                   background: result.imported > 0 ? 'rgba(52,211,153,0.12)' : theme.surface,
                   border: `0.5px solid ${result.imported > 0 ? 'rgba(52,211,153,0.3)' : theme.panelBorder}`,
                 }}>
-                  <div style={{ fontSize: 22, fontWeight: 700, color: result.imported > 0 ? '#5fd6a0' : theme.panelTxtMute }}>
+                  <div style={{ fontSize: 22, fontWeight: 700, color: result.imported > 0 ? theme.successPillTxt : theme.panelTxtMute }}>
                     {result.imported}
                   </div>
                   <div style={{ fontSize: 11, color: theme.panelTxtMute, marginTop: 2 }}>{t('importProblems.imported')}</div>
@@ -324,7 +290,7 @@ export default function ImportProblemsModal({ onClose, onImported }: Props) {
                   background: result.skipped > 0 ? 'rgba(240,180,41,0.10)' : theme.surface,
                   border: `0.5px solid ${result.skipped > 0 ? 'rgba(240,180,41,0.25)' : theme.panelBorder}`,
                 }}>
-                  <div style={{ fontSize: 22, fontWeight: 700, color: result.skipped > 0 ? '#f0b429' : theme.panelTxtMute }}>
+                  <div style={{ fontSize: 22, fontWeight: 700, color: result.skipped > 0 ? theme.warnLine : theme.panelTxtMute }}>
                     {result.skipped}
                   </div>
                   <div style={{ fontSize: 11, color: theme.panelTxtMute, marginTop: 2 }}>{t('importProblems.skippedExists')}</div>
@@ -334,7 +300,7 @@ export default function ImportProblemsModal({ onClose, onImported }: Props) {
                   background: result.errors.length > 0 ? 'rgba(255,77,77,0.10)' : theme.surface,
                   border: `0.5px solid ${result.errors.length > 0 ? 'rgba(255,100,100,0.25)' : theme.panelBorder}`,
                 }}>
-                  <div style={{ fontSize: 22, fontWeight: 700, color: result.errors.length > 0 ? '#ff7a7a' : theme.panelTxtMute }}>
+                  <div style={{ fontSize: 22, fontWeight: 700, color: result.errors.length > 0 ? theme.errorLine : theme.panelTxtMute }}>
                     {result.errors.length}
                   </div>
                   <div style={{ fontSize: 11, color: theme.panelTxtMute, marginTop: 2 }}>{t('importProblems.errors')}</div>
@@ -358,7 +324,7 @@ export default function ImportProblemsModal({ onClose, onImported }: Props) {
                       borderBottom: i < result.errors.length - 1 ? `0.5px solid ${theme.panelBorder}` : 'none',
                       fontSize: 12,
                     }}>
-                      <span style={{ fontFamily: theme.fontMono, color: '#ff7a7a', flexShrink: 0 }}>{e.id}</span>
+                      <span style={{ fontFamily: theme.fontMono, color: theme.errorLine, flexShrink: 0 }}>{e.id}</span>
                       <span style={{ color: theme.panelTxtMute }}>{e.reason}</span>
                     </div>
                   ))}
@@ -406,9 +372,9 @@ export default function ImportProblemsModal({ onClose, onImported }: Props) {
             <button style={btn(true)} onClick={onClose}>{t('importProblems.done')}</button>
           )}
         </div>
-      </div>
+      </Modal>
 
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-    </div>
+    </>
   );
 }

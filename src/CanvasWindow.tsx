@@ -452,7 +452,7 @@ export default function CanvasWindow() {
                 left: "50%",
                 transform: "translateX(-50%)",
                 background: "rgba(0,0,0,0.75)",
-                color: "#ffe040",
+                color: theme.canvasHintTxt,
                 fontFamily: theme.fontUI,
                 fontSize: 11,
                 fontWeight: 700,

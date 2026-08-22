@@ -141,7 +141,7 @@ def _check_blank_lines(code: str, tree: ast.Module) -> list[dict]:
             for l in range(current_end, next_start - 1):
                 if l < len(lines) and not lines[l].strip():
                     diagnostics.append(
-                        _make_diagnostic("E303", "linter.E303", {"count": blank_count}, l + 1)
+                        _make_diagnostic("E303", "linter.E303", {"count": blank_count}, l + 1, severity="warning")
                     )
                     break
 
@@ -1099,13 +1099,13 @@ def _annotate_diagnostics(diagnostics, tree, scope_tracker):
     _CATEGORY_MAP = {
         "E101": "grammar",
         "E111": "grammar",
-        "E303": "grammar",
+        "E303": "style",
         "E999": "grammar",
         "E225": "types",
         "E225Call": "types",
         "F401": "naming",
         "F821": "naming",
-        "E501": "grammar",
+        "E501": "style",
         "W001": "naming",
         "W002": "naming",
         "W003": "naming",

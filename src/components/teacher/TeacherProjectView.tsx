@@ -304,7 +304,7 @@ export default function TeacherProjectView() {
               <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f}</span>
               {fileCommentCounts[f] > 0 && (
                 <span style={{
-                  fontSize: 10, fontWeight: 700, background: '#e05560', color: '#fff',
+                  fontSize: 10, fontWeight: 700, background: theme.errorChipBg, color: theme.errorChipTxt,
                   borderRadius: 99, padding: '1px 5px', flexShrink: 0,
                 }}>
                   {fileCommentCounts[f]}

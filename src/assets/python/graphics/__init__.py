@@ -629,8 +629,12 @@ def circle(a, b=None, c=None) -> None:
     _state._draw_commands.append(("circle", (float(x), float(y), float(r))))
 
 
-def rect(a, b, c, d=None) -> None:
-    """rect(x, y, w, h) or rect(p, w, h) with p as (x, y) tuple / Vector2."""
+def rect(a, b, c, d=None, *, center=False) -> None:
+    """rect(x, y, w, h) or rect(p, w, h) with p as (x, y) tuple / Vector2.
+
+    The top-left corner lands at (x, y) by default. Pass center=True to
+    anchor at the rectangle's center instead (the Rect actor's convention).
+    """
     if d is None:
         if not _is_point_like(a):
             _raise_point_or_coords("rect", "(x, y, w, h) / (p, w, h)", a, b, c)
@@ -638,6 +642,8 @@ def rect(a, b, c, d=None) -> None:
         x, y, w, h = p.x, p.y, b, c
     else:
         x, y, w, h = a, b, c, d
+    if center:
+        x, y = x - w / 2, y - h / 2
     _state._draw_commands.append(("rect", (float(x), float(y), float(w), float(h))))
 
 
@@ -740,9 +746,16 @@ def text(s: Any, x_or_anchor, y=None, *, padding: int = 6) -> None:
         _state._draw_commands.append(("text", (str(s), float(x_or_anchor), float(y))))
 
 
-def say(s: Any, anchor, *, padding: int = 8) -> None:
-    """Draw a speech bubble with a tail pointing at anchor."""
-    _state._draw_commands.append(("say", (str(s), float(anchor.x), float(anchor.y), anchor.h_align, anchor.v_align, int(padding))))
+def say(s: Any, x_or_anchor, y=None, *, padding: int = 8) -> None:
+    """say(text, anchor) or say(text, x, y).
+
+    Draw a speech bubble with a tail pointing at the anchor — or at the
+    point (x, y) when given as plain coordinates.
+    """
+    if isinstance(x_or_anchor, AnchorPoint):
+        _state._draw_commands.append(("say", (str(s), float(x_or_anchor.x), float(x_or_anchor.y), x_or_anchor.h_align, x_or_anchor.v_align, int(padding))))
+    else:
+        _state._draw_commands.append(("say", (str(s), float(x_or_anchor), float(y), "center", "bottom", int(padding))))
 
 
 def text_size(n) -> None:

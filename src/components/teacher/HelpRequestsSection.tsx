@@ -14,7 +14,7 @@ export function HelpRequestsSection() {
         <span style={{ flex: 1, fontWeight: 700, fontSize: 15, color: theme.panelTxt }}>
           {t('teacher.helpRequests')}
           {helpRequests.length > 0 && (
-            <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 700, background: theme.tabDirty, color: '#fff', borderRadius: 99, padding: '1px 7px' }}>
+            <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 700, background: theme.tabDirty, color: theme.primaryTxt, borderRadius: 99, padding: '1px 7px' }}>
               {helpRequests.length}
             </span>
           )}
@@ -28,7 +28,7 @@ export function HelpRequestsSection() {
           ↻
         </button>
       </div>
-      {error && <div role="alert" aria-live="polite" style={{ fontSize: 12, color: '#e05', marginBottom: 8 }}>{error}</div>}
+      {error && <div role="alert" aria-live="polite" style={{ fontSize: 12, color: theme.errorLine, marginBottom: 8 }}>{error}</div>}
       {helpRequests.length === 0 ? (
         <div style={{ padding: '32px 0', textAlign: 'center', color: theme.panelTxtMute, fontSize: 14 }}>{t('teacher.noHelpRequests')}</div>
       ) : (

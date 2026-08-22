@@ -580,6 +580,12 @@ test("rect(p, w, h) with tuple queues the same cmd", cmd() == ("rect", (1.0, 2.0
 reset(); g.rect(g.Vector2(1, 2), 3, 4)
 test("rect(p, w, h) with Vector2 queues the same cmd", cmd() == ("rect", (1.0, 2.0, 3.0, 4.0)))
 
+reset(); g.rect(10, 20, 30, 40, center=True)
+test("rect(center=True) shifts to top-left by half size", cmd() == ("rect", (-5.0, 0.0, 30.0, 40.0)))
+
+reset(); g.rect((10, 20), 30, 40, center=True)
+test("rect(p, w, h, center=True) shifts the point form too", cmd() == ("rect", (-5.0, 0.0, 30.0, 40.0)))
+
 try:
     g.rect(1, 2, 3)
     test("rect(x, y, w) missing h raises FriendlyError", False)
@@ -755,6 +761,12 @@ reset(); g.say("Hello", g.Window.top_left())
 cs = cmds()
 test("say() queues a 'say' command", len(cs) == 1 and cs[0][0] == "say")
 test("say() command has string first", cs[0][1][0] == "Hello")
+
+reset(); g.say("Hi", 100, 200)
+cs = cmds()
+test("say(text, x, y) queues a 'say' command", len(cs) == 1 and cs[0][0] == "say")
+test("say(text, x, y) keeps the text first", cs[0][1][0] == "Hi")
+test("say(text, x, y) passes coords + default align", cs[0][1][1:5] == (100.0, 200.0, "center", "bottom"))
 
 
 # --- Keyboard ---

@@ -350,7 +350,7 @@ function ProjectShareActions() {
               padding: '4px 10px', borderRadius: 5,
               fontSize: 12, fontWeight: 600,
               background: isPending ? theme.tabDirty : theme.railActiveBg,
-              color: isPending ? '#fff' : theme.panelTxt,
+              color: isPending ? theme.primaryTxt : theme.panelTxt,
             }}
           >
             {isPending ? `✋ ${t('teacher.helpRequested')}` : `✋ ${t('teacher.iNeedHelp')}`}
@@ -383,7 +383,7 @@ function ProjectShareActions() {
               style={{
                 all: 'unset', width: 140, fontSize: 12,
                 padding: '3px 8px', borderRadius: 4,
-                border: `1px solid ${shareError ? '#e05' : theme.panelBorder}`,
+                border: `1px solid ${shareError ? theme.errorLine : theme.panelBorder}`,
                 background: theme.surface, color: theme.panelTxt,
                 fontFamily: theme.fontUI,
               }}

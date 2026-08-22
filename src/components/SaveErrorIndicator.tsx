@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { useIde, useEditor, isExampleSessionId } from '../state/IdeState';
+import { useThemeStore } from '../state/useTheme';
 
 function CloudIcon() {
   return (
@@ -19,6 +20,7 @@ function DeviceIcon() {
 }
 
 function Chip({ icon, text, bg }: { icon: 'cloud' | 'local'; text: string; bg: string }) {
+  const theme = useThemeStore((s) => s.theme);
   return (
     <div style={{
       position: 'fixed',
@@ -32,7 +34,7 @@ function Chip({ icon, text, bg }: { icon: 'cloud' | 'local'; text: string; bg: s
       borderRadius: 20,
       fontSize: 12,
       fontWeight: 500,
-      color: '#fff',
+      color: theme.errorChipTxt,
       background: bg,
       boxShadow: '0 1px 6px rgba(0,0,0,0.22)',
       pointerEvents: 'none',
@@ -46,6 +48,7 @@ function Chip({ icon, text, bg }: { icon: 'cloud' | 'local'; text: string; bg: s
 
 export function SaveErrorIndicator() {
   const { t } = useTranslation();
+  const theme = useThemeStore((s) => s.theme);
   const saveError = useIde((s) => s.saveError);
   const isSaving = useIde((s) => s.isSaving);
   const currentProjectId = useEditor((s) => s.currentProjectId);
@@ -58,19 +61,19 @@ export function SaveErrorIndicator() {
   }
 
   if (saveError?.kind === 'auth') {
-    return <Chip icon="local" text={t('saveIndicator.savedLocallySignIn')} bg="#b07100" />;
+    return <Chip icon="local" text={t('saveIndicator.savedLocallySignIn')} bg={theme.tabDirty} />;
   }
 
   if (saveError?.kind === 'network') {
-    return <Chip icon="local" text={t('saveIndicator.savedOfflineWillSync')} bg="#c0392b" />;
+    return <Chip icon="local" text={t('saveIndicator.savedOfflineWillSync')} bg={theme.errorChipBg} />;
   }
 
   if (saveError?.kind === 'quota') {
-    return <Chip icon="local" text={saveError.message} bg="#c0392b" />;
+    return <Chip icon="local" text={saveError.message} bg={theme.errorChipBg} />;
   }
 
   if (saveError?.kind === 'payload') {
-    return <Chip icon="local" text={saveError.message} bg="#c0392b" />;
+    return <Chip icon="local" text={saveError.message} bg={theme.errorChipBg} />;
   }
 
   if (isExampleSessionId(currentProjectId)) {

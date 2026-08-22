@@ -376,7 +376,7 @@ export function GroupsSection() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <label style={{ fontSize: 12, color: theme.panelTxtMute }}>{t('teacher.groupName')}</label>
             <input style={inputStyle(theme)} autoFocus placeholder={t('teacher.groupNamePlaceholder')} value={newName} onChange={(e) => setNewName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleCreate()} />
-            {error && <div role="alert" aria-live="polite" style={{ fontSize: 12, color: '#e05' }}>{error}</div>}
+            {error && <div role="alert" aria-live="polite" style={{ fontSize: 12, color: theme.errorLine }}>{error}</div>}
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <button type="button" onClick={() => { setShowCreate(false); setNewName(''); setError(null); }} style={btnSecondary(theme)}>{t('teacher.cancel')}</button>
               <button type="button" onClick={handleCreate} disabled={submitting} style={btnPrimary(theme)}>{submitting ? t('teacher.creating') : t('teacher.create')}</button>

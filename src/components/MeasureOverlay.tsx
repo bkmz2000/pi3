@@ -101,7 +101,7 @@ export function MeasureOverlay({
     position: "absolute",
     fontFamily: theme.fontMono,
     fontSize: 10,
-    color: "#fff",
+    color: theme.canvasHintTxt,
     background: "rgba(0,0,0,0.72)",
     padding: "1px 4px",
     borderRadius: 3,
@@ -120,10 +120,10 @@ export function MeasureOverlay({
           <line key={`yt${y}`} y1={toDispY(y)} y2={toDispY(y)} x1={major ? 0 : RULER * 0.45} x2={RULER} stroke={tickColor} strokeWidth={1} />
         ))}
         {xTicks.filter((tk) => tk.major && tk.x > 0).map(({ x }) => (
-          <text key={`xl${x}`} x={toDispX(x) + 2} y={RULER - 3} fill="#fff" fontSize={8} fontFamily={theme.fontMono}>{Math.round(x)}</text>
+          <text key={`xl${x}`} x={toDispX(x) + 2} y={RULER - 3} fill={theme.canvasHintTxt} fontSize={8} fontFamily={theme.fontMono}>{Math.round(x)}</text>
         ))}
         {yTicks.filter((tk) => tk.major && tk.y > 0).map(({ y }) => (
-          <text key={`yl${y}`} x={RULER + 2} y={toDispY(y) + 3} fill="#fff" fontSize={8} fontFamily={theme.fontMono}>{Math.round(y)}</text>
+          <text key={`yl${y}`} x={RULER + 2} y={toDispY(y) + 3} fill={theme.canvasHintTxt} fontSize={8} fontFamily={theme.fontMono}>{Math.round(y)}</text>
         ))}
         {cursor && (
           <>

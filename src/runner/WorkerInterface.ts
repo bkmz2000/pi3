@@ -61,6 +61,7 @@ export type ErrorCategory =
   | "naming"
   | "types"
   | "grammar"
+  | "style"
   | "missing"
   | "logic"
   | "api-misuse"

@@ -82,7 +82,7 @@ export function ToggleRow({
             width: 18,
             height: 18,
             borderRadius: 999,
-            background: "#fff",
+            background: theme.surface,
             boxShadow: "0 1px 3px rgba(0,0,0,0.25)",
             transition: "left 0.18s",
           }}

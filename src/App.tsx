@@ -17,6 +17,7 @@ import CanvasWindow from "./CanvasWindow";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import LoadingScreen from "./components/LoadingScreen";
 import ConsolePanel from "./components/ConsolePanel";
+import { useToasts } from "./state/useToasts";
 import { setCommentsEffect } from "./editor/comments";
 import { ProjectsPage } from "./components/projects";
 import TeacherDashboard from "./components/teacher/TeacherDashboard";
@@ -222,6 +223,8 @@ function AppInner() {
   const showConsoleOnRun = useIde((s) => s.showConsoleOnRun);
   const enableAutocomplete = useIde((s) => s.enableAutocomplete);
   const consoleOnRight = useIde((s) => s.consoleOnRight);
+  const enableLinting = useIde((s) => s.enableLinting);
+  const { show: showToast } = useToasts();
   const showConsole = !showConsoleOnRun || running;
   const theme = useThemeStore((s) => s.theme);
   const fontSize = useThemeStore((s) => s.fontSize);
@@ -233,6 +236,16 @@ function AppInner() {
   const [anchorY, setAnchorY] = useState<number | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
   const editorRef = useRef<ReactCodeMirrorRef>(null);
+
+  // First-run lint notice: once per browser, tell the student hints are on
+  // (and where the toggle lives). Only fires when linting is enabled.
+  useEffect(() => {
+    if (!enableLinting) return;
+    if (localStorage.getItem("pi3_lintNoticeShown")) return;
+    localStorage.setItem("pi3_lintNoticeShown", "1");
+    showToast(t("linter.firstRunNotice"), "info", 6000);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enableLinting]);
 
   // Feed the teacher live-roster: pings project id + file + cursor line every
   // few seconds while the user is actively editing.
@@ -398,8 +411,8 @@ function AppInner() {
         >
           {authError !== null && (
             <div style={{
-              background: '#dc2626',
-              color: 'white',
+              background: theme.errorChipBg,
+              color: theme.errorChipTxt,
               padding: '10px 16px',
               display: 'flex',
               alignItems: 'center',

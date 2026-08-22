@@ -82,7 +82,9 @@ export const useIde = create<IdeState>((set, get) => ({
   showHitboxes: localStorage.getItem("pi3_showHitboxes") === "true",
   showActorInfo: localStorage.getItem("pi3_showActorInfo") === "true",
   showConsoleOnRun: localStorage.getItem("pi3_showConsoleOnRun") === "true",
-  enableLinting: localStorage.getItem("pi3_enableLinting") === "true",
+  // Default ON: fresh students should get lint hints immediately. Only an
+  // explicit opt-out (set via the settings toggle) flips it off.
+  enableLinting: localStorage.getItem("pi3_enableLinting") !== "false",
   enableAutocomplete: localStorage.getItem("pi3_enableAutocomplete") !== "false",
   consoleOnRight: localStorage.getItem("pi3_consoleOnRight") === "true",
   loadingProjectContent: false,

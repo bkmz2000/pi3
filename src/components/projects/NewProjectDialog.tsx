@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useThemeStore } from '../../state/useTheme';
-import { Icon } from '../Icons';
+import { Modal } from '../Modal';
 
 interface NewProjectDialogProps {
   open: boolean;
@@ -37,47 +37,8 @@ export function NewProjectDialog({ open, onClose, onCreate }: NewProjectDialogPr
   };
 
   return (
-    <div
-      onClick={onClose}
-      style={{
-        position: "fixed", inset: 0, zIndex: 50,
-        display: "flex", alignItems: "center", justifyContent: "center",
-        background: "rgba(0,0,0,0.5)",
-      }}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          width: 400,
-          background: theme.surfacePanel,
-          border: `1px solid ${theme.panelBorder}`,
-          borderRadius: 8,
-          boxShadow: theme.shadowWindow,
-          fontFamily: theme.fontUI,
-          color: theme.panelTxt,
-        }}
-      >
-        <div style={{
-          display: "flex", alignItems: "center", justifyContent: "space-between",
-          padding: "16px 20px",
-          borderBottom: `1px solid ${theme.panelBorder}`,
-        }}>
-          <span style={{ fontWeight: 700, fontSize: 15 }}>{t('sideMenu.createProject')}</span>
-          <button
-            type="button"
-            onClick={onClose}
-            style={{
-              all: "unset", cursor: "pointer",
-              width: 28, height: 28, borderRadius: 6,
-              display: "inline-flex", alignItems: "center", justifyContent: "center",
-              color: theme.panelTxtMute,
-            }}
-          >
-            <Icon name="close" size={16} color="currentColor" />
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit} style={{ padding: "16px 20px" }}>
+    <Modal title={t('sideMenu.createProject')} onClose={onClose} width={400} zIndex={50}>
+      <form onSubmit={handleSubmit} style={{ padding: "16px 20px" }}>
           <div style={{ marginBottom: 12 }}>
             <label style={{
               display: "block", marginBottom: 6,
@@ -170,7 +131,6 @@ export function NewProjectDialog({ open, onClose, onCreate }: NewProjectDialogPr
             </button>
           </div>
         </form>
-      </div>
-    </div>
+    </Modal>
   );
 }

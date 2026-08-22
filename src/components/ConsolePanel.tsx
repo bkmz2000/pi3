@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Icon } from "./Icons";
+import { Icon, type IconName } from "./Icons";
 import { useRunner, useRunnerStore, type WatchEntry } from "../runner/RunnerProvider";
 import { useThemeStore } from "../state/useTheme";
 import type { RuntimeError } from "../runner/WorkerInterface";
@@ -25,35 +25,33 @@ function BlinkDot({ color, delay = 0 }: { color: string; delay?: number }) {
 const MIN_SIZE = 80;
 const MAX_SIZE = 700;
 
-// ── Category icons and colors for error cards ──
+// ── Severity axes ────────────────────────────────────────────
+// The design language defines two problem severities: error (red) and
+// warning (amber). Categories that break or block execution land on the
+// error axis; soft findings (style, naming) land on the warning axis.
+const ERROR_CATEGORIES = new Set(["grammar", "types", "missing", "internal", "api-misuse"]);
 
-const CATEGORY_ICONS: Record<string, string> = {
-  naming: "🔤",
-  types: "🔀",
-  grammar: "📝",
-  missing: "🔍",
-  logic: "🧮",
-  "api-misuse": "🔧",
-  internal: "⚙️",
-};
-
-const CATEGORY_COLORS: Record<string, { bg: string; border: string; text: string }> = {
-  naming: { bg: "#fef3c7", border: "#f59e0b", text: "#92400e" },
-  types: { bg: "#fce7f3", border: "#ec4899", text: "#9d174d" },
-  grammar: { bg: "#fee2e2", border: "#ef4444", text: "#991b1b" },
-  missing: { bg: "#e0e7ff", border: "#6366f1", text: "#3730a3" },
-  logic: { bg: "#f3e8ff", border: "#a855f7", text: "#6b21a8" },
-  "api-misuse": { bg: "#fce7f3", border: "#ec4899", text: "#9d174d" },
-  internal: { bg: "#f1f5f9", border: "#94a3b8", text: "#334155" },
-};
+function cardSeverity(error: RuntimeError): "error" | "warning" {
+  if (error.isBlocking) return "error";
+  return ERROR_CATEGORIES.has(error.category) ? "error" : "warning";
+}
 
 export function ErrorCard({ error }: { error: RuntimeError }) {
   const { t } = useTranslation();
   const { applySuggestion } = useRunner();
   const [showRaw, setShowRaw] = useState(false);
   const [appliedTokens, setAppliedTokens] = useState<Set<string>>(new Set());
-  const colors = CATEGORY_COLORS[error.category] ?? CATEGORY_COLORS.logic;
-  const icon = CATEGORY_ICONS[error.category] ?? "❗";
+  const theme = useThemeStore((s) => s.theme);
+  const severity = cardSeverity(error);
+  const accent = severity === "error" ? theme.errorLine : theme.warnLine;
+  const icon: IconName = severity === "error" ? "alert" : "warn";
+  const colors = {
+    bg: theme.chip,
+    border: accent,
+    text: theme.panelTxt,
+    codeBg: theme.consoleBg,
+    chipTxt: theme.errorChipTxt,
+  };
 
   const handleApply = (token: string, replacement: string) => {
     applySuggestion(token, replacement);
@@ -65,16 +63,17 @@ export function ErrorCard({ error }: { error: RuntimeError }) {
       style={{
         background: colors.bg,
         border: `1px solid ${colors.border}`,
-        borderRadius: 6,
+        borderLeft: `3px solid ${colors.border}`,
+        borderRadius: theme.radiusCard,
         padding: "10px 12px",
         marginTop: 6,
-        fontFamily: "system-ui, sans-serif",
+        fontFamily: theme.fontUI,
       }}
       data-error-card
     >
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-        <span style={{ fontSize: 16 }}>{icon}</span>
+        <Icon name={icon} size={15} color={accent} />
         <span
           style={{
             fontSize: 12.5,
@@ -87,7 +86,7 @@ export function ErrorCard({ error }: { error: RuntimeError }) {
           {error.titleKey ? t(error.titleKey) : error.title}
         </span>
         {error.isBlocking && (
-          <span style={{ fontSize: 10, color: colors.text, opacity: 0.6, marginLeft: "auto" }}>
+          <span style={{ fontSize: 10, color: accent, opacity: 0.8, marginLeft: "auto" }}>
             {t("friendlyError.blocksRunning")}
           </span>
         )}
@@ -112,7 +111,7 @@ export function ErrorCard({ error }: { error: RuntimeError }) {
               key={i}
               style={{
                 padding: "6px 10px",
-                background: "rgba(0,0,0,0.05)",
+                background: colors.codeBg,
                 borderRadius: 4,
               }}
             >
@@ -158,7 +157,7 @@ export function ErrorCard({ error }: { error: RuntimeError }) {
                           padding: "1px 8px",
                           borderRadius: 10,
                           background: colors.border,
-                          color: "#fff",
+                          color: colors.chipTxt,
                           fontSize: 10.5,
                           fontWeight: 500,
                           cursor: "pointer",
@@ -198,7 +197,7 @@ export function ErrorCard({ error }: { error: RuntimeError }) {
           style={{
             marginTop: 8,
             padding: "6px 10px",
-            background: "rgba(0,0,0,0.05)",
+            background: colors.codeBg,
             borderRadius: 4,
             fontFamily: "'JetBrains Mono', ui-monospace, monospace",
             fontSize: 11.5,
@@ -232,7 +231,7 @@ export function ErrorCard({ error }: { error: RuntimeError }) {
                   padding: "2px 10px",
                   borderRadius: 12,
                   background: colors.border,
-                  color: "#fff",
+                  color: colors.chipTxt,
                   fontSize: 11.5,
                   fontWeight: 500,
                   cursor: "pointer",
@@ -253,7 +252,7 @@ export function ErrorCard({ error }: { error: RuntimeError }) {
           style={{
             marginTop: 8,
             padding: "5px 8px",
-            background: "rgba(0,0,0,0.05)",
+            background: colors.codeBg,
             borderRadius: 4,
             fontSize: 11,
             fontFamily: "'JetBrains Mono', ui-monospace, monospace",
@@ -290,8 +289,7 @@ export function ErrorCard({ error }: { error: RuntimeError }) {
           gap: 4,
           marginTop: 8,
           fontSize: 11,
-          color: colors.text,
-          opacity: 0.65,
+          color: theme.panelTxtMute,
         }}
       >
         <span style={{ fontSize: 10 }}>{showRaw ? "▾" : "▸"}</span>
@@ -303,7 +301,7 @@ export function ErrorCard({ error }: { error: RuntimeError }) {
           style={{
             margin: "6px 0 0",
             padding: "8px 10px",
-            background: "rgba(0,0,0,0.06)",
+            background: colors.codeBg,
             borderRadius: 4,
             fontSize: 11,
             fontFamily: "'JetBrains Mono', monospace",
@@ -368,7 +366,7 @@ function WatchPanel({ watches, rewinding, theme }: { watches: WatchEntry[]; rewi
       }}
     >
       {rewinding && (
-        <div style={{ padding: "1px 14px 2px", fontFamily: theme.fontUI, fontSize: 10, fontWeight: 600, color: "#ffe040", letterSpacing: 0.3 }}>
+        <div style={{ padding: "1px 14px 2px", fontFamily: theme.fontUI, fontSize: 10, fontWeight: 600, color: theme.canvasHintTxt, letterSpacing: 0.3 }}>
           REWIND
         </div>
       )}

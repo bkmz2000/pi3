@@ -378,12 +378,12 @@ function ScreenshotsSection({ theme, currentProjectId }: { theme: Theme; current
                 all: 'unset', cursor: busy ? 'default' : 'pointer',
                 padding: '8px 20px', borderRadius: 6,
                 background: lightboxSnap.id === coverId ? theme.accent : theme.runBg,
-                color: '#fff', fontFamily: theme.fontUI, fontSize: 13, fontWeight: 600,
+                color: theme.primaryTxt, fontFamily: theme.fontUI, fontSize: 13, fontWeight: 600,
                 display: 'flex', alignItems: 'center', gap: 8,
                 opacity: busy ? 0.5 : 1,
               }}
             >
-              <Icon name="camera" size={14} color="#fff" />
+              <Icon name="camera" size={14} color={theme.primaryTxt} />
               {lightboxSnap.id === coverId
                 ? t('canvas.setAsCover') + ' ✓'
                 : t('canvas.setAsCover')}
@@ -432,7 +432,7 @@ function ScreenshotThumb({ snap, isCover, canPersist, busy, theme, onSetCover, o
           position: 'absolute', top: 2, left: 2,
           background: theme.accent, borderRadius: 3,
           padding: '1px 4px', fontSize: 8, fontWeight: 700,
-          color: '#fff', fontFamily: theme.fontUI, pointerEvents: 'none',
+          color: theme.primaryTxt, fontFamily: theme.fontUI, pointerEvents: 'none',
           textTransform: 'uppercase', letterSpacing: '0.04em',
         }}>
           cover
@@ -452,8 +452,8 @@ function ScreenshotThumb({ snap, isCover, canPersist, busy, theme, onSetCover, o
             flexDirection: 'column', gap: 2,
           }}
         >
-          <Icon name="camera" size={16} color="#fff" />
-          <span style={{ fontSize: 8, color: '#fff', fontFamily: theme.fontUI, fontWeight: 700, letterSpacing: '0.02em' }}>
+          <Icon name="camera" size={16} color={theme.primaryTxt} />
+          <span style={{ fontSize: 8, color: theme.primaryTxt, fontFamily: theme.fontUI, fontWeight: 700, letterSpacing: '0.02em' }}>
             {t('canvas.setAsCover')}
           </span>
         </button>
@@ -578,7 +578,7 @@ function SwitcherAction({
       style={{
         all: 'unset', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8,
         padding: '5px 10px', width: '100%', boxSizing: 'border-box',
-        color: danger ? '#ef4444' : theme.panelTxt, fontFamily: theme.fontUI, fontSize: 12,
+        color: danger ? theme.errorLine : theme.panelTxt, fontFamily: theme.fontUI, fontSize: 12,
       }}>
       <Icon name={icon} size={13} color="currentColor" />
       <span>{label}</span>
@@ -668,7 +668,7 @@ function IconButton({
       style={{
         all: 'unset', cursor: 'pointer', width: 20, height: 20, borderRadius: 3,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        color: danger ? '#ef4444' : theme.panelTxtMute,
+        color: danger ? theme.errorLine : theme.panelTxtMute,
       }}>
       <Icon name={icon} size={12} color="currentColor" />
     </button>

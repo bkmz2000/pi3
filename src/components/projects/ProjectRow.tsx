@@ -54,6 +54,7 @@ function GradientThumb({ id, width, height }: { id: string; width: number; heigh
 
 function ProjectThumb({ project, width, height }: { project: Project; width: number; height: number }) {
   const [failed, setFailed] = useState(false);
+  const theme = useThemeStore((s) => s.theme);
   if (project.thumbnail_updated_at && !failed) {
     return (
       <img
@@ -63,7 +64,7 @@ function ProjectThumb({ project, width, height }: { project: Project; width: num
         onError={() => setFailed(true)}
         style={{
           width, height, borderRadius: 6, flexShrink: 0,
-          objectFit: 'cover', background: '#000', imageRendering: 'pixelated',
+          objectFit: 'cover', background: theme.canvasBg, imageRendering: 'pixelated',
         }}
         alt=""
       />

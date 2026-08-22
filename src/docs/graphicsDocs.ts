@@ -1280,6 +1280,24 @@ export const DOCS: DocCategory[] = [
           { name: "scale", type: "number", optional: true, default: "1.0", en: "Uniform draw scale. 2.0 draws at double size. Does not affect the collider.", ru: "Масштаб отрисовки. 2.0 — двойной размер. На коллайдер не влияет." },
           { name: "flip_x", type: "bool", optional: true, default: "False", en: "Mirror the sprite horizontally on draw.", ru: "Зеркально отобразить спрайт по горизонтали." },
           { name: "flip_y", type: "bool", optional: true, default: "False", en: "Mirror the sprite vertically on draw.", ru: "Зеркально отобразить спрайт по вертикали." },
+          { name: "width", type: "number", optional: true, en: "Explicit on-screen width override. Without it, width is computed as sprite width × scale.", ru: "Явное переопределение ширины на экране. Без него width вычисляется как ширина спрайта × scale." },
+          { name: "height", type: "number", optional: true, en: "Explicit on-screen height override. Without it, height is computed as sprite height × scale.", ru: "Явное переопределение высоты на экране. Без него height вычисляется как высота спрайта × scale." },
+        ],
+      },
+      {
+        id: "actor_size",
+        name: "Actor size",
+        signature: "actor.width / actor.height",
+        en: "The actor's on-screen size in pixels. For actors with a sprite image this is the sprite's natural size multiplied by scale — changing actor.scale updates width/height automatically. Circle actors report their bounding box (2 × radius).",
+        ru: "Размер актора на экране в пикселях. Для акторов со спрайтом это естественный размер спрайта, умноженный на scale — изменение actor.scale автоматически обновляет width/height. Акторы Circle сообщают свою ограничивающую рамку (2 × radius).",
+        example: "# Bounce a ball off the window edges using its real size\nif ball.x < ball.width / 2 or ball.x > width() - ball.width / 2:\n    ball.vx = -ball.vx",
+        advanced: {
+          en: "`width`/`height` are computed live, so `actor.scale = 2` is reflected immediately and `flip_x`/`flip_y` do not change them. Set them explicitly (constructor kwarg `width=`, `height=`, or direct assignment) to override the computed value. Without an image and without an explicit value they read `0`.",
+          ru: "`width`/`height` вычисляются на лету, поэтому `actor.scale = 2` отражается сразу, а `flip_x`/`flip_y` их не меняют. Явное значение (аргумент конструктора `width=`, `height=` или прямое присваивание) переопределяет вычисленное значение. Без изображения и без явного значения они равны `0`.",
+        },
+        params: [
+          { name: "actor.width", type: "number", en: "On-screen width: sprite width × scale, or the explicit value if set.", ru: "Ширина на экране: ширина спрайта × scale, либо явно заданное значение." },
+          { name: "actor.height", type: "number", en: "On-screen height: sprite height × scale, or the explicit value if set.", ru: "Высота на экране: высота спрайта × scale, либо явно заданное значение." },
         ],
       },
       {

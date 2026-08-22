@@ -1,6 +1,6 @@
 {
   "_comment": "API v1 surface snapshot. Regenerated when __all__ or public surfaces change. Update procedure: run `npm run test:snapshot` to verify; if CI fails, update this file and docs/api-v1.md together.",
-  "_version": "1.0",
+  "_version": "1.1",
   "__all__": [
     "_version", "size", "width", "height",
     "circle", "rect", "ellipse", "line", "point",
@@ -40,7 +40,7 @@
     "watch"
   ],
   "Actor": {
-    "properties": ["x", "y", "angle", "vx", "vy", "visible", "scale", "flip_x", "flip_y", "image", "collider"],
+    "properties": ["x", "y", "angle", "vx", "vy", "visible", "scale", "flip_x", "flip_y", "image", "collider", "width", "height"],
     "methods": ["init", "update", "draw", "move", "forward", "move_to", "rotate", "point_towards", "pos", "vel", "die", "is_alive", "wrap", "wrap_x", "wrap_y", "in_bounds", "bounce", "keep_in_bounds", "distance_to", "random_position"],
     "anchors": ["center", "top", "bottom", "left", "right", "top_left", "top_right", "bottom_left", "bottom_right"]
   },

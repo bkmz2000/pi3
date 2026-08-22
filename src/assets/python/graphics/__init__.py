@@ -35,7 +35,7 @@ from graphics._lighting_helpers import (
     _flicker_value, _ray_rect, _ray_circle, _obstacle_rect, _compute_visibility_polygon,
 )
 
-_version = "1.0"
+_version = "1.1"
 
 
 def __getattr__(name):

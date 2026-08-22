@@ -316,6 +316,65 @@ class Actor:
     def collidable(self):
         return self.collider.shape is not None
 
+    # --- size: width / height (on-screen size, scale-aware) ---
+
+    def _image_size(self):
+        """Natural (unscaled) size of self.image as (w, h), or None.
+
+        Mirrors the resolution in Actor.draw: Sprite → itself,
+        SpriteEntry/SheetAnimation → default frame, asset dict → declared size.
+        """
+        img = self.image
+        if img is None:
+            return None
+        import graphics as _g
+        if isinstance(img, _g.Sprite):
+            return img.width, img.height
+        if isinstance(img, (_g.SpriteEntry, _g.SheetAnimation)):
+            sprite = img._default_sprite()
+            if sprite is not None:
+                return sprite.width, sprite.height
+            return None
+        if isinstance(img, dict):
+            w = img.get("width")
+            h = img.get("height")
+            if w and h:
+                return float(w), float(h)
+            return None
+        return None
+
+    @property
+    def width(self):
+        """On-screen width: explicit value if set, else sprite width × scale."""
+        try:
+            return object.__getattribute__(self, '_w')
+        except AttributeError:
+            pass
+        size = self._image_size()
+        if size is not None:
+            return size[0] * object.__getattribute__(self, 'scale')
+        return 0.0
+
+    @width.setter
+    def width(self, value):
+        object.__setattr__(self, '_w', float(value))
+
+    @property
+    def height(self):
+        """On-screen height: explicit value if set, else sprite height × scale."""
+        try:
+            return object.__getattribute__(self, '_h')
+        except AttributeError:
+            pass
+        size = self._image_size()
+        if size is not None:
+            return size[1] * object.__getattribute__(self, 'scale')
+        return 0.0
+
+    @height.setter
+    def height(self, value):
+        object.__setattr__(self, '_h', float(value))
+
     # --- anchor points (depend on collider shape for sizing) ---
 
     def _half_size(self):
@@ -752,10 +811,10 @@ class Rect(Actor):
 
     def __init__(self, x=0, y=0, width=60, height=40, color="white",
                  stroke_color=None, stroke_width=0, **kwargs):
-        # Pre-set Rect attrs before super().__init__() so init() can access them
-        # and _sealed check finds them already in __dict__.
-        object.__setattr__(self, 'width', float(width))
-        object.__setattr__(self, 'height', float(height))
+        # Pre-set Rect attrs before super().__init__() so init() can access them.
+        # width/height are Actor properties — store the explicit size in _w/_h.
+        object.__setattr__(self, '_w', float(width))
+        object.__setattr__(self, '_h', float(height))
         object.__setattr__(self, 'color', color)
         object.__setattr__(self, 'stroke_color', stroke_color)
         object.__setattr__(self, 'stroke_width', float(stroke_width))
@@ -806,6 +865,32 @@ class Circle(Actor):
         object.__setattr__(self, 'stroke_width', float(stroke_width))
         super().__init__(x=x, y=y, **kwargs)
         self.collider.set_circle(self.radius)
+
+    @property
+    def width(self):
+        """Bounding-box width (2 × radius); an explicit value wins if set."""
+        try:
+            return object.__getattribute__(self, '_w')
+        except AttributeError:
+            pass
+        return 2.0 * object.__getattribute__(self, 'radius')
+
+    @width.setter
+    def width(self, value):
+        object.__setattr__(self, '_w', float(value))
+
+    @property
+    def height(self):
+        """Bounding-box height (2 × radius); an explicit value wins if set."""
+        try:
+            return object.__getattribute__(self, '_h')
+        except AttributeError:
+            pass
+        return 2.0 * object.__getattribute__(self, 'radius')
+
+    @height.setter
+    def height(self, value):
+        object.__setattr__(self, '_h', float(value))
 
     def draw(self):
         if not self._alive or not self._visible:

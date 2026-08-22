@@ -243,7 +243,7 @@ for m in expected_actor_methods:
     test(f"Actor.{m}() exists", m in actor_methods)
 
 # Check Actor has expected properties
-expected_actor_props = {"x", "y", "angle", "vx", "vy", "visible", "collidable", "future_state"}
+expected_actor_props = {"x", "y", "angle", "vx", "vy", "visible", "collidable", "future_state", "width", "height"}
 # Properties look like methods with @property decorator in AST
 for prop in expected_actor_props:
     test(f"Actor.{prop} property", prop in actor_methods)
@@ -904,6 +904,60 @@ ci = Circle(0, 0, 25)
 test("Circle auto collider shape == 'circle'", ci.collider.shape == "circle")
 test("Circle auto collider radius == 25", ci.collider.radius == 25)
 test("Circle.collidable is True", ci.collidable)
+
+
+# --- Actor.width / Actor.height (scale-aware on-screen size) ---
+
+reset()
+spr = g.create_sprite(10, 20)
+a = Actor(image=spr)
+test("Actor.width from Sprite", a.width == 10)
+test("Actor.height from Sprite", a.height == 20)
+a.scale = 2
+test("Actor.width tracks scale", a.width == 20)
+test("Actor.height tracks scale", a.height == 40)
+a.scale = 1
+a.flip_x = True
+test("flip_x does not change width", a.width == 10)
+a.flip_x = False
+
+anim = g.SheetAnimation([spr])
+entry = g.SpriteEntry("ball", {"idle": anim})
+a2 = Actor(image=entry)
+test("Actor.width from SpriteEntry", a2.width == 10)
+test("Actor.height from SpriteEntry", a2.height == 20)
+a2.scale = 3
+test("Actor.width from SpriteEntry tracks scale", a2.width == 30)
+test("Actor.height from SpriteEntry tracks scale", a2.height == 60)
+
+# Explicit override wins (constructor kwarg + later assignment)
+a3 = Actor(image=spr, width=42, height=24)
+test("explicit width kwarg wins", a3.width == 42)
+test("explicit height kwarg wins", a3.height == 24)
+a3.width = 100
+test("post-construction width assignment works", a3.width == 100)
+test("post-construction height assignment keeps override", a3.height == 24)
+
+# dict asset path (declared size)
+a4 = Actor(image={"width": 16, "height": 8})
+test("Actor.width from dict asset", a4.width == 16)
+test("Actor.height from dict asset", a4.height == 8)
+
+# No image, no explicit -> 0
+b = Actor()
+test("Actor.width is 0 without image", b.width == 0)
+test("Actor.height is 0 without image", b.height == 0)
+
+# Rect / Circle semantics preserved
+r2 = Rect(0, 0, 60, 40)
+test("Rect.width preserved", r2.width == 60)
+test("Rect.height preserved", r2.height == 40)
+ci2 = Circle(0, 0, 25)
+test("Circle.width == 2 * radius", ci2.width == 50)
+test("Circle.height == 2 * radius", ci2.height == 50)
+ci2.radius = 30
+test("Circle.width tracks radius", ci2.width == 60)
+test("Circle.height tracks radius", ci2.height == 60)
 
 
 # --- Collision detection ---

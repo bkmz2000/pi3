@@ -67,20 +67,14 @@ import ProjectExplorer from '../../src/ProjectExplorer';
 
 const baseProps = {
   onClose: jest.fn(),
+  onOpenLibrary: jest.fn(),
   setEditorMode: jest.fn(),
   onOpenSheetSprite: jest.fn(),
   setEditingTilemap: jest.fn(),
-  onOpenUserProject: jest.fn(),
-  onNewProject: jest.fn(),
-  onImport: jest.fn(),
-  onDeleteProject: jest.fn(),
-  onExportProject: jest.fn(),
   userProjects: [
     { id: 'p1', name: 'my-game', files: {}, assets: {} },
     { id: 'p2', name: 'asteroids', files: {}, assets: {} },
   ],
-  loading: false,
-  loadUserProjects: jest.fn(),
 };
 
 beforeEach(() => {
@@ -93,9 +87,16 @@ beforeEach(() => {
 });
 
 describe('ProjectExplorer', () => {
-  test('renders the project name in the switcher header', () => {
+  test('renders project identity without a project switcher', () => {
     render(<ProjectExplorer {...baseProps} />);
     expect(screen.getByText('my-game')).toBeTruthy();
+    expect(screen.getByText('Saved to your account')).toBeTruthy();
+  });
+
+  test('opens the single project library from the header', () => {
+    render(<ProjectExplorer {...baseProps} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Manage projects' }));
+    expect(baseProps.onOpenLibrary).toHaveBeenCalledTimes(1);
   });
 
   test('lists code files', () => {

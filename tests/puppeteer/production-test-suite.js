@@ -14,6 +14,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 const DEV_SERVER_URL = process.env.PUPPETEER_URL || 'http://localhost:5173';
+const EDITOR_URL = new URL('/ide', DEV_SERVER_URL).toString();
 
 const testResults = {
   passed: 0,
@@ -235,19 +236,15 @@ async function openExamplesPanel(page) {
     const btn = document.querySelector('button[aria-label="Examples"]');
     if (btn) btn.click();
   });
-  await sleep(800);
+  await page.waitForFunction(() =>
+    window.location.pathname === '/projects' && new URLSearchParams(window.location.search).get('tab') === 'examples',
+    { timeout: 5000 },
+  );
+  await page.waitForSelector('main', { timeout: 5000 });
 }
 
 async function closeExamplesPanel(page) {
-  const closed = await page.evaluate(() => {
-    const region = document.querySelector('div[role="region"]');
-    if (!region) return false;
-    const closeBtn = region.querySelector('button[title="Close"]');
-    if (closeBtn) { closeBtn.click(); return true; }
-    return false;
-  });
-  if (!closed) await page.mouse.click(500, 400);
-  await sleep(500);
+  // Selecting an example leaves the library and opens its draft in the editor.
 }
 
 async function closeProjectsPanel(page) {
@@ -284,42 +281,26 @@ async function closeProjectsPanel(page) {
 }
 
 async function clickExample(page, exampleName) {
-  // Current UI: examples render as clickable div rows (icon + label span) in
-  // the Examples panel — not <button> elements. Match the row whose label
-  // span text equals the example's display name.
+  // Examples are project rows in the unified library. Click the row containing
+  // the exact translated name and wait for its dedicated draft route.
   const clicked = await page.evaluate((name) => {
-    const rows = Array.from(document.querySelectorAll('div'));
-    const debug = [];
-    for (const row of rows) {
-      const span = row.querySelector(':scope > span');
-      if (!span) continue;
-      const label = span.textContent?.trim() || '';
-      if (label === name && row.onclick) {
-        row.click();
-        return { found: true, debug };
+    for (const article of document.querySelectorAll('article')) {
+      const labels = Array.from(article.querySelectorAll('span'));
+      if (!labels.some((label) => label.textContent?.trim() === name)) continue;
+      const button = article.querySelector('button');
+      if (button) {
+        button.click();
+        return true;
       }
-      if (label) debug.push({ label: label.substring(0, 40), matches: label === name, clickable: !!row.onclick });
     }
-    return { found: false, debug };
+    return false;
   }, exampleName);
 
-  // Clicking an example while the project is dirty (e.g. after the sprite
-  // editor) pops the unsaved-changes dialog — discard to proceed with the
-  // switch. The dialog buttons are plain text ("Discard changes").
-  if (clicked.found) {
-    await sleep(500);
-    await page.evaluate(() => {
-      const btn = Array.from(document.querySelectorAll('button')).find((b) =>
-        /discard changes/i.test(b.textContent || ''));
-      if (btn) btn.click();
-    });
-    await sleep(500);
+  if (clicked) {
+    await page.waitForFunction(() => window.location.pathname.startsWith('/ide/example/'), { timeout: 5000 });
+    await page.waitForSelector('.cm-editor', { timeout: 5000 });
   }
-  
-  if (!clicked.found) {
-    console.log('clickExample debug for "' + exampleName + '":', JSON.stringify(clicked.debug.slice(0, 20), null, 2));
-  }
-  return clicked.found;
+  return clicked;
 }
   
 async function runProductionTests() {
@@ -339,8 +320,8 @@ async function runProductionTests() {
     
     const page = await browser.newPage();
     
-    console.log(`🌐 Navigating to ${DEV_SERVER_URL}...`);
-    await page.goto(DEV_SERVER_URL, { waitUntil: 'domcontentloaded', timeout: 60000 });
+    console.log(`🌐 Navigating to ${EDITOR_URL}...`);
+    await page.goto(EDITOR_URL, { waitUntil: 'domcontentloaded', timeout: 60000 });
     
     await page.waitForSelector('#root', { timeout: 10000 });
     await sleep(3000);

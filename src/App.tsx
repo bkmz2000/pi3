@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Routes, Route, useParams } from "react-router-dom";
+import { Navigate, Routes, Route, useNavigate, useParams } from "react-router-dom";
 import CodeMirror, { type ReactCodeMirrorRef } from "@uiw/react-codemirror";
 import { setDiagnostics } from "@codemirror/lint";
 import { reconfigureGraphicsExtensions } from "./editor/graphicsCompletion";
 import { graphicsProfile } from "./editor/profiles";
 import Rail from "./SideMenu";
-import { useEditor, useIde } from "./state/IdeState";
-import { getProject, getComments, saveProjectContent, type ApiComment } from "./state/api";
+import { useEditor, useIde, isExampleSessionId, EXAMPLE_SESSION_PREFIX } from "./state/IdeState";
+import { getProject, getComments, type ApiComment } from "./state/api";
 import { projectStorage } from "./utils/storage";
 import { encodeSheet, decodeSheet } from "./state/sheetCodec";
 import { toEditorProject } from "./state/projectNormalization";
@@ -26,7 +26,6 @@ import TeacherProblemList from "./components/teacher/TeacherProblemList";
 import TeacherProblemForm from "./components/teacher/TeacherProblemForm";
 import CompetePage from "./compete/CompetePage";
 import { WelcomePage } from "./pages/WelcomePage";
-import { ExamplesGalleryPage } from "./pages/ExamplesGalleryPage";
 import { isInstitutional } from "./state/deploymentProfile";
 import { useUser } from "./state/useUser";
 import { usePresencePinger } from "./state/usePresencePinger";
@@ -74,70 +73,41 @@ function AnonStashLoader() {
   return null;
 }
 
-function ClaimOnLogin() {
-  const authState = useUser((s) => s.authState);
-  const changeCurrentProject = useEditor((s) => s.changeCurrentProject);
-  const forkExample = useIde((s) => s.forkExample);
-  const prevAuthState = useRef(authState);
-  const claimed = useRef(false);
-
-  useEffect(() => {
-    if (prevAuthState.current === 'logged_in' || authState !== 'logged_in') {
-      prevAuthState.current = authState;
-      return;
-    }
-    prevAuthState.current = authState;
-    if (claimed.current) return;
-    claimed.current = true;
-
-    const stash = readAnonStash();
-    if (!stash) return;
-
-    const exampleName = stash.exampleName || '';
-
-    // Real projects stored under __anon_real_project__<UUID>
-    if (exampleName.startsWith('__anon_real_project__')) {
-      const realProjectId = exampleName.slice('__anon_real_project__'.length);
-
-      // Push the stashed content to the existing project on the server
-      saveProjectContent(realProjectId, {
-        files: stash.project.files,
-        assets: stash.project.assets,
-        tilemaps: stash.project.tilemaps,
-        sounds: stash.project.sounds,
-        sheet: stash.project.sheet ? encodeSheet(stash.project.sheet) : undefined,
-        currentFile: Object.keys(stash.project.files)[0] || '',
-      }).then(() => {
-        changeCurrentProject(stash.project, realProjectId);
-        clearAnonStash();
-      }).catch(() => {});
-      return;
-    }
-
-    // Example projects: __example_session_<name>
-    const name = exampleName.replace(/^__example_session_/, '') || 'untitled';
-
-    forkExample(name, stash.project, `${name} (saved work)`).then((forked) => {
-      if (forked) {
-        changeCurrentProject(
-          { ...stash.project, name: forked.name },
-          forked.id,
-        );
-        clearAnonStash();
-      }
-    }).catch(() => {});
-  }, [authState]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  return null;
-}
-
 function ProjectLoader() {
-  const { projectId } = useParams<{ projectId: string }>();
+  const { projectId, exampleKey } = useParams<{ projectId?: string; exampleKey?: string }>();
   const changeCurrentProject = useEditor((s) => s.changeCurrentProject);
   const [loaded, setLoaded] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    setLoaded(false);
+    setError(null);
+
+    if (exampleKey) {
+      const name = decodeURIComponent(exampleKey);
+      const example = useIde.getState().projects[name];
+      if (example) {
+        changeCurrentProject(
+          {
+            ...example,
+            name: example.name ?? name,
+            files: { ...example.files },
+            assets: { ...example.assets },
+            tilemaps: { ...example.tilemaps },
+            sounds: { ...(example.sounds ?? {}) },
+          },
+          `${EXAMPLE_SESSION_PREFIX}${name}`,
+        );
+        localStorage.setItem('pi3_last_editor_path', `/ide/example/${encodeURIComponent(name)}`);
+      } else {
+        setError('example_not_found');
+      }
+      setLoaded(true);
+      return;
+    }
+
     if (!projectId) {
+      localStorage.setItem('pi3_last_editor_path', '/ide');
       setLoaded(true);
       return;
     }
@@ -163,6 +133,7 @@ function ProjectLoader() {
         // flat-buffer SheetData every consumer (editor, worker, exporter)
         // expects. Without this, sheet/sounds were silently dropped on load.
         changeCurrentProject(toEditorProject(apiProject), projectId);
+        localStorage.setItem('pi3_last_editor_path', `/ide/${projectId}`);
         setLoaded(true);
       } catch (apiErr) {
         if (cancelled) return;
@@ -186,9 +157,11 @@ function ProjectLoader() {
             );
           } else {
             console.error("Failed to load project, not in cache:", apiErr);
+            setError('project_not_found');
           }
         } catch (cacheErr) {
           console.error("Failed to load project from cache:", cacheErr);
+          setError('project_not_found');
         }
         setLoaded(true);
       }
@@ -197,14 +170,15 @@ function ProjectLoader() {
     loadFromApi();
 
     return () => { cancelled = true; };
-  }, [projectId, changeCurrentProject]);
+  }, [projectId, exampleKey, changeCurrentProject]);
 
-  return loaded;
+  return { loaded, error };
 }
 
 
 
 function AppInner() {
+  const navigate = useNavigate();
   useOnlineSync();
   const changeFile = useEditor((s) => s.changeFile);
   const currentFile = useEditor((s) => s.currentFile);
@@ -290,11 +264,11 @@ function AppInner() {
     }
   }, []);
 
-  const loaded = ProjectLoader();
+  const projectLoad = ProjectLoader();
 
   // Fetch when file/project changes
   useEffect(() => {
-    if (!currentProjectId || !currentFile) { setFileComments([]); return; }
+    if (!currentProjectId || isExampleSessionId(currentProjectId) || !currentFile) { setFileComments([]); return; }
     getComments(currentProjectId, currentFile)
       .then(rows => setFileComments(rows))
       .catch(() => {});
@@ -343,7 +317,7 @@ function AppInner() {
     if ((e.ctrlKey || e.metaKey) && e.key === "s") {
       e.preventDefault();
 
-      if (!currentProjectId && dirtyFiles.size > 0) {
+      if (dirtyFiles.size > 0 && authStateLive === 'logged_in' && (!currentProjectId || isExampleSessionId(currentProjectId))) {
         setShowForkDialog(true);
         return;
       }
@@ -356,7 +330,7 @@ function AppInner() {
         }
       }
     }
-  }, [currentProjectId, dirtyFiles, saveCurrentProject, markClean, setShowForkDialog]);
+  }, [currentProjectId, dirtyFiles, saveCurrentProject, markClean, setShowForkDialog, authStateLive]);
 
   useEffect(() => {
     window.addEventListener("keydown", handleSave);
@@ -370,11 +344,36 @@ function AppInner() {
       forked.id,
     );
     markClean();
+    clearAnonStash();
     setShowForkDialog(false);
+    navigate(`/ide/${forked.id}`, { replace: true });
   };
 
-  if (!loaded || !ready) {
+  if (!projectLoad.loaded || !ready) {
     return <LoadingScreen />;
+  }
+
+  if (projectLoad.error) {
+    return (
+      <div style={{
+        position: 'fixed', inset: 0, display: 'grid', placeItems: 'center',
+        background: theme.surface, color: theme.panelTxt, fontFamily: theme.fontUI,
+      }}>
+        <div style={{
+          width: 'min(440px, calc(100vw - 32px))', padding: 26, textAlign: 'center',
+          borderRadius: 10, border: `1px solid ${theme.panelBorder}`, background: theme.surfacePanel,
+        }}>
+          <div style={{ fontSize: 18, fontWeight: 750 }}>{t('projects.loadFailed')}</div>
+          <div style={{ marginTop: 8, fontSize: 13, color: theme.panelTxtMute }}>{t('projects.loadFailedHint')}</div>
+          <button type="button" onClick={() => navigate('/projects')} style={{
+            marginTop: 18, border: 0, borderRadius: 7, padding: '9px 16px', cursor: 'pointer',
+            background: theme.runBg, color: theme.runTxt, fontFamily: theme.fontUI, fontWeight: 700,
+          }}>
+            {t('projects.backToProjects')}
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -553,7 +552,6 @@ export default function App() {
     <>
       <SessionChecker />
       <AnonStashLoader />
-      <ClaimOnLogin />
       <Routes>
         <Route path="/projects" element={<ProjectsPage />} />
         <Route path="/teacher" element={<TeacherDashboard />} />
@@ -562,7 +560,8 @@ export default function App() {
         <Route path="/teacher/problems/new" element={<TeacherProblemForm />} />
         <Route path="/teacher/problems/:slug/edit" element={<TeacherProblemForm />} />
         <Route path="/compete/:slug" element={<CompetePage />} />
-        <Route path="/examples" element={<ExamplesGalleryPage />} />
+        <Route path="/examples" element={<Navigate to="/projects?tab=examples" replace />} />
+        <Route path="/ide/example/:exampleKey" element={<AppInner />} />
         <Route path="/ide/:projectId" element={<AppInner />} />
         <Route path="/ide" element={<AppInner />} />
         <Route path="/" element={isInstitutional() ? <AppInner /> : <WelcomePage />} />

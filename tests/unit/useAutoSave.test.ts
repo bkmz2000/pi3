@@ -1,7 +1,7 @@
 /**
  * useAutoSave: the two autosave paths — a 60s periodic fallback interval
  * (snapshot dirty set, save, markClean(snapshot) only on success) and a 3s
- * debounced save after edits on real (non-example) projects. Payload-class
+ * debounced save after edits on real projects and local drafts alike. Payload-class
  * save errors (413/validation) sticky-skip both paths so we don't retry on
  * every keystroke.
  *
@@ -133,19 +133,15 @@ describe('debounced save (3s after change)', () => {
     expect(editorState.markClean).toHaveBeenCalledWith(new Set(['main.py']));
   });
 
-  it('does not debounce while the project is an example session (interval still runs)', async () => {
+  it('debounces example-session changes into the local draft store', async () => {
     editorState.currentProjectId = '__example_session_flappy';
     const { rerender } = renderHook(() => useAutoSave());
     editorState.dirtyFiles = new Set(['main.py']);
     rerender();
 
-    // Past the 3s debounce window: the debounced save must NOT have fired.
     await act(async () => { jest.advanceTimersByTime(3000); });
-    expect(ideState.saveCurrentProject).not.toHaveBeenCalled();
-
-    // But the 60s periodic fallback still fires for example sessions.
-    await act(async () => { jest.advanceTimersByTime(57000); });
     expect(ideState.saveCurrentProject).toHaveBeenCalledTimes(1);
+    expect(editorState.markClean).toHaveBeenCalledWith(new Set(['main.py']));
   });
 
   it('resets the debounce on every change (typing burst saves once)', async () => {

@@ -36,6 +36,7 @@ export function createTestDb(): Database.Database {
       tilemaps TEXT NOT NULL DEFAULT '{}',
       animations TEXT NOT NULL DEFAULT '{}',
       sounds TEXT NOT NULL DEFAULT '{}',
+      sheet TEXT,
       current_file TEXT NOT NULL DEFAULT 'main.py',
       thumbnail BLOB,
       thumbnail_updated_at INTEGER,

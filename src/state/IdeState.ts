@@ -41,6 +41,7 @@ type IdeState = {
   projects: Record<string, Project>;
   userProjects: ApiProject[];
   loading: boolean;
+  projectError: string | null;
   showHitboxes: boolean;
   showActorInfo: boolean;
   showConsoleOnRun: boolean;
@@ -56,7 +57,7 @@ type IdeState = {
   togglePanel: (panel: Exclude<PanelId, null>) => void;
   closePanels: () => void;
   loadUserProjects: () => Promise<void>;
-  createNewProject: (name: string) => Promise<ApiProject>;
+  createNewProject: (name: string, description?: string) => Promise<ApiProject>;
   deleteUserProject: (id: string) => Promise<void>;
   renameUserProject: (id: string, newName: string) => Promise<void>;
   forkExample: (exampleName: string, exampleProject: Project, newName?: string) => Promise<ApiProject>;
@@ -79,6 +80,7 @@ export const useIde = create<IdeState>((set, get) => ({
   projects: Examples,
   userProjects: [],
   loading: false,
+  projectError: null,
   showHitboxes: localStorage.getItem("pi3_showHitboxes") === "true",
   showActorInfo: localStorage.getItem("pi3_showActorInfo") === "true",
   showConsoleOnRun: localStorage.getItem("pi3_showConsoleOnRun") === "true",
@@ -122,10 +124,10 @@ export const useIde = create<IdeState>((set, get) => ({
   },
 
   loadUserProjects: async () => {
-    set({ loading: true });
+    set({ loading: true, projectError: null });
     try {
       const userProjects = await getProjects();
-      set({ userProjects, loading: false, fromCache: false });
+      set({ userProjects, loading: false, fromCache: false, projectError: null });
       // Cache metadata in IndexedDB for offline fallback
       projectStorage.cacheProjectMeta(userProjects as unknown as Record<string, unknown>[]).catch(() => {});
     } catch (error) {
@@ -133,31 +135,57 @@ export const useIde = create<IdeState>((set, get) => ({
       // Fall back to IndexedDB cache
       try {
         const cached = await projectStorage.getCachedProjectMeta();
-        set({ userProjects: cached as unknown as ApiProject[], loading: false, fromCache: true });
+        set({
+          userProjects: cached as unknown as ApiProject[],
+          loading: false,
+          fromCache: true,
+          projectError: error instanceof Error ? error.message : "Failed to load projects",
+        });
       } catch {
-        set({ loading: false, fromCache: false });
+        set({
+          loading: false,
+          fromCache: false,
+          projectError: error instanceof Error ? error.message : "Failed to load projects",
+        });
       }
     }
   },
 
-  createNewProject: async (name: string) => {
-    const newProject = await apiCreateProject({
-      name,
-      files: { "main.py": '# New project\nprint("Hello World!")' },
-      assets: {},
-      tilemaps: {},
-    });
+  createNewProject: async (name: string, description?: string) => {
+    set({ loading: true, projectError: null });
+    try {
+      const newProject = await apiCreateProject({
+        name,
+        description,
+        files: { "main.py": '# New project\nprint("Hello World!")' },
+        assets: {},
+        tilemaps: {},
+        sounds: {},
+        currentFile: "main.py",
+      });
 
-    const { userProjects } = get();
-    set({ userProjects: [newProject, ...userProjects] });
-
-    return newProject;
+      const { userProjects } = get();
+      set({ userProjects: [newProject, ...userProjects], loading: false });
+      return newProject;
+    } catch (error) {
+      set({
+        loading: false,
+        projectError: error instanceof Error ? error.message : "Failed to create project",
+      });
+      throw error;
+    }
   },
 
   deleteUserProject: async (id: string) => {
-    await apiDeleteProject(id);
-    const { userProjects } = get();
-    set({ userProjects: userProjects.filter((p) => p.id !== id) });
+    set({ projectError: null });
+    try {
+      await apiDeleteProject(id);
+      const { userProjects } = get();
+      set({ userProjects: userProjects.filter((p) => p.id !== id) });
+    } catch (error) {
+      set({ projectError: error instanceof Error ? error.message : "Failed to delete project" });
+      throw error;
+    }
   },
 
   renameUserProject: async (id: string, newName: string) => {
@@ -177,6 +205,7 @@ export const useIde = create<IdeState>((set, get) => ({
       assets: exampleProject.assets,
       tilemaps: exampleProject.tilemaps,
       sounds: exampleProject.sounds,
+      sheet: exampleProject.sheet ? encodeSheet(exampleProject.sheet) : undefined,
       currentFile: exampleProject.currentFile,
     });
 

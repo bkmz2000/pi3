@@ -19,7 +19,7 @@ interface Project {
   tilemaps: string;
   animations: string;
   sounds: string;
-  sheet?: string | null;
+  sheet: string | null;
   current_file: string;
   version: number;
   created_at: number;
@@ -68,7 +68,7 @@ export function createProjectsRouter(): Router {
   });
 
   router.post('/', async (req: Request, res: Response): Promise<void> => {
-    const { name, description, files, assets, tilemaps, animations, sounds, currentFile } = req.body;
+    const { name, description, files, assets, tilemaps, animations, sounds, sheet, currentFile } = req.body;
     if (!name || typeof name !== 'string' || name.trim().length === 0) {
       res.status(400).json({ error: 'Bad Request', message: 'Project name is required' });
       return;
@@ -104,6 +104,7 @@ export function createProjectsRouter(): Router {
       tilemaps: JSON.stringify(tilemaps || {}),
       animations: JSON.stringify(animations || {}),
       sounds: JSON.stringify(sounds || {}),
+      sheet: sheet === undefined || sheet === null ? null : JSON.stringify(sheet),
       current_file: currentFile || 'main.py',
       version: 1,
       created_at: now,
@@ -111,11 +112,11 @@ export function createProjectsRouter(): Router {
     };
     try {
       await client.execute(
-        `INSERT INTO projects (id, user_id, name, description, is_public, files, assets, tilemaps, animations, sounds, current_file, version, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO projects (id, user_id, name, description, is_public, files, assets, tilemaps, animations, sounds, sheet, current_file, version, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [project.id, project.user_id, project.name, project.description, project.is_public,
          project.files, project.assets, project.tilemaps, project.animations, project.sounds,
-         project.current_file, project.version, project.created_at, project.updated_at],
+         project.sheet, project.current_file, project.version, project.created_at, project.updated_at],
       );
       res.status(201).json({
         ...project,
@@ -124,6 +125,7 @@ export function createProjectsRouter(): Router {
         tilemaps: JSON.parse(project.tilemaps || '{}'),
         animations: JSON.parse(project.animations || '{}'),
         sounds: JSON.parse(project.sounds || '{}'),
+        sheet: project.sheet ? JSON.parse(project.sheet) : undefined,
       });
     } catch (error) {
       console.error('Error creating project:', error);

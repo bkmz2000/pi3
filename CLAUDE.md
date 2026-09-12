@@ -181,7 +181,9 @@ In dev, Vite proxies `/api` to `:3001`. The `Cross-Origin-Opener-Policy` / `Cros
 | `/` | `AppInner` (institutional) / `WelcomePage` (public) | Landing or main IDE, profile-gated |
 | `/ide` | `AppInner` | Main IDE (no project) |
 | `/ide/:projectId` | `AppInner` | IDE loading a specific project |
-| `/projects` | `ProjectsPage` | User project list |
+| `/ide/example/:exampleKey` | `AppInner` | Editable local draft of a built-in example |
+| `/projects` | `ProjectsPage` | Unified project library: My projects, Examples, Shared with me |
+| `/examples` | redirect → `/projects?tab=examples` | Backward-compatible examples URL |
 | `/teacher` | `TeacherDashboard` | Teacher dashboard — live activity roster |
 | `/teacher/projects/:projectId` | `TeacherProjectView` | Teacher view of one student's project |
 | `/teacher/problems` | `TeacherProblemList` | Compete-mode problem list (teacher) |
@@ -193,7 +195,7 @@ In dev, Vite proxies `/api` to `:3001`. The `Cross-Origin-Opener-Policy` / `Cros
 - **`useTheme`** — Theme (Studio / Midnight / Daylight), font size. All UI uses `theme.xxx` inline style tokens. ~80 tokens in `src/state/useTheme.ts`.
 - **`useUser`** — Auth state (`loading` / `logged_out` / `logged_in`). Flow: localStorage token → `checkSession()` on mount → Bearer token on API calls.
 - **`useEditor`** (`IdeState.ts`) — Current project content (files, assets, currentFile), dirty tracking, file CRUD, save/fork/import/export. Built-in `Examples` map keyed by name.
-- **`useIde`** (`IdeState.ts`) — UI state: active panel, project list.
+- **`useIde`** (`IdeState.ts`) — UI state and the canonical account/shared project collection. `useProjects` is a facade over this collection; it must not create component-local project lists.
 - **`useRunnerStore`** (`RunnerProvider.tsx`) — Pyodide worker state: `ready`, `running`, `output`, `lintErrors`, canvas dimensions, `workerEpoch` (increments on hard-kill to force canvas remount).
 
 ### Python Runner (src/runner/)
@@ -203,7 +205,8 @@ The graphics library at `src/assets/python/graphics/` is a custom Python module 
 
 ### Panel System (src/SideMenu.tsx)
 Rail-based layout. Most panel content is inline in `SideMenu.tsx`; `DocsPanel` is a separate lazy component:
-- **Projects** — built-in examples + user projects list
+- **Project contents** — files, sprites, tilemaps, sounds, screenshots, and current project identity. Project switching/creation/import/export lives only on `/projects`.
+- **Examples rail action** — navigates to `/projects?tab=examples`; there is no separate editor examples panel.
 - **Assets** — built-in pack + user assets with asset editor button
 - **Settings** — theme, font size, console auto-hide, show hitboxes
 - **Docs** (`src/components/DocsPanel.tsx`) — bilingual API reference

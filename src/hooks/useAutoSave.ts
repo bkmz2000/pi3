@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { useEditor, useIde, isExampleSessionId } from "../state/IdeState";
+import { useEditor, useIde } from "../state/IdeState";
 
 const AUTO_SAVE_INTERVAL = 60000; // 1 minute
 const DEBOUNCE_MS = 3000;         // save 3s after last change on real projects
@@ -14,7 +14,9 @@ export function useAutoSave() {
   const saveError = useIde((s) => s.saveError);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Periodic fallback save (catches anything the debounce missed)
+  // Periodic fallback save (catches anything the debounce missed). Drafts and
+  // example sessions are persisted locally by saveCurrentProject(), never sent
+  // to the project API.
   useEffect(() => {
     if (!currentProjectId) return;
     if (saveError?.kind === "payload") return;
@@ -32,9 +34,10 @@ export function useAutoSave() {
     return () => clearInterval(interval);
   }, [currentProjectId, saveCurrentProject, markClean, saveError?.kind]);
 
-  // Debounced save triggered 3s after any change on a real (named) project
+  // Debounced save triggered 3s after any change. Real projects go to the API;
+  // drafts and example sessions go to local storage.
   useEffect(() => {
-    if (!currentProjectId || isExampleSessionId(currentProjectId)) return;
+    if (!currentProjectId) return;
     if (dirtyFiles.size === 0) return;
     if (saveError?.kind === "payload") return;
 

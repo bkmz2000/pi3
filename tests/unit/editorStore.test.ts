@@ -76,6 +76,19 @@ describe('file management', () => {
     useEditor.getState().changeCurrentFile('other.py');
     expect(useEditor.getState().currentFile).toBe('other.py');
   });
+
+  test('changeCurrentProject preserves a valid saved current file', () => {
+    useEditor.getState().changeCurrentProject({
+      name: 'two files',
+      files: { 'main.py': 'print(1)', 'game.py': 'print(2)' },
+      currentFile: 'game.py',
+      assets: {},
+      tilemaps: {},
+      sounds: {},
+    }, 'project-2');
+
+    expect(useEditor.getState().currentFile).toBe('game.py');
+  });
 });
 
 describe('asset / tilemap / sound / sheet ops', () => {

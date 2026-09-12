@@ -1,7 +1,9 @@
 import { useEffect, useState, lazy, Suspense } from "react";
+import { useNavigate } from "react-router-dom";
 import ProjectExplorer from "./ProjectExplorer";
 import { useTranslation } from "react-i18next";
 import { useIde, useEditor } from "./state/IdeState";
+import { isExampleSessionId } from "./state/sessionId";
 import { useRunner } from "./runner/RunnerProvider";
 import { useRunButton } from "./hooks/useRunButton";
 import { useProjects } from "./hooks/useProjects";
@@ -9,9 +11,7 @@ import { useAutoSave } from "./hooks/useAutoSave";
 import { usePanels } from "./hooks/usePanels";
 import { useThemeStore, type Theme, type ThemeId } from "./state/useTheme";
 import { useUser } from "./state/useUser";
-import { getProject } from "./state/api";
 import Backdrop from "./components/Backdrop";
-import ImportDialog from "./components/dialogs/ImportDialog";
 import { ThemedDialog } from "./components/ThemedDialog";
 import {
   Icon,
@@ -21,7 +21,6 @@ import { CloseButton } from "./components/CloseButton";
 import { ToggleRow } from "./components/ToggleRow";
 
 import AssetEditor, { type AssetEditorMode } from "./AssetEditor";
-import ExamplesPanel from "./ExamplesPanel";
 import ProblemsPanel from "./ProblemsPanel";
 import LivePanel from "./components/session/LivePanel";
 const DocsPanel = lazy(() => import("./components/DocsPanel"));
@@ -117,20 +116,16 @@ function RailButton({
 export default function Rail() {
   const { t } = useTranslation();
   const theme = useThemeStore((s) => s.theme);
+  const navigate = useNavigate();
   const currentProjectId = useEditor((s) => s.currentProjectId);
   const dirtyFiles = useEditor((s) => s.dirtyFiles);
-  const changeEditorCurrentProject = useEditor((s) => s.changeCurrentProject);
-  const exampleProjects = useIde((s) => s.projects);
   const saveCurrentProject = useIde((s) => s.saveCurrentProject);
-  const importProjectFromFile = useIde((s) => s.importProjectFromFile);
   const markClean = useEditor((s) => s.markClean);
 
   // Single unified launch point for sprite/animation/tilemap editing.
   const [editorMode, setEditorMode] = useState<AssetEditorMode | null>(null);
   const [editingSheetSprite, setEditingSheetSprite] = useState<string | null>(null);
   const [editingTilemap, setEditingTilemap] = useState<string | null>(null);
-  const [showImportDialog, setShowImportDialog] = useState(false);
-  const [alertMsg, setAlertMsg] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState<(() => Promise<void>) | null>(null);
   const [dirtySnapshot, setDirtySnapshot] = useState<Set<string> | null>(null);
 
@@ -162,11 +157,7 @@ export default function Rail() {
   }, [running]);
   const {
     userProjects,
-    loading,
     loadUserProjects,
-    handleNewProject,
-    handleDeleteProject,
-    downloadProject,
   } = useProjects();
   const { activePanel, isOpen, togglePanel, closePanels } = usePanels();
 
@@ -178,51 +169,11 @@ export default function Rail() {
     }
   }, [activePanel, loadUserProjects]);
 
-  const handleOpenUserProject = async (userProject: {
-    id: string;
-    name: string;
-    files: Record<string, string>;
-    assets: Record<string, string>;
-  }) => {
-    if (currentProjectId === userProject.id) return;
-
-    // Fetch full project data — the list endpoint doesn't include files/assets
-    const full = await getProject(userProject.id);
-    changeEditorCurrentProject(
-      {
-        files: full.files,
-        assets: full.assets,
-        tilemaps: full.tilemaps ?? {},
-      },
-      full.id,
-    );
-  };
-
-  const handleExportProject = async (id: string) => {
-    try {
-      await downloadProject(id);
-    } catch (error) {
-      console.error("Failed to export project:", error);
-      setAlertMsg(t('sideMenu.failedExport'));
-    }
-  };
-
-  const handleImportProject = async (file: File) => {
-    try {
-      const importedProject = await importProjectFromFile(file);
-      changeEditorCurrentProject(
-        {
-          files: importedProject.files,
-          assets: importedProject.assets,
-          tilemaps: importedProject.tilemaps ?? {},
-        },
-        importedProject.id,
-      );
-      setShowImportDialog(false);
-    } catch (error) {
-      console.error("Failed to import project:", error);
-      setAlertMsg(t('sideMenu.failedImport'));
-    }
+  const openProjectLibrary = (tab?: 'examples') => {
+    withUnsavedGuard(async () => {
+      closePanels();
+      navigate(tab === 'examples' ? '/projects?tab=examples' : '/projects');
+    });
   };
 
   const saveTilemap = useEditor((s) => s.saveTilemap);
@@ -232,25 +183,6 @@ export default function Rail() {
 
   return (
     <>
-      {alertMsg && (
-        <ThemedDialog title={t('sideMenu.close')} onClose={() => setAlertMsg(null)}>
-          <p style={{ margin: '0 0 16px', fontSize: 13, color: 'inherit' }}>{alertMsg}</p>
-          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-            <button
-              type="button"
-              onClick={() => setAlertMsg(null)}
-              style={{
-                all: 'unset', cursor: 'pointer',
-                padding: '7px 16px', borderRadius: 6,
-                background: theme.runBg, color: theme.runTxt,
-                fontSize: 13, fontWeight: 600,
-              }}
-            >
-              {t('sideMenu.ok')}
-            </button>
-          </div>
-        </ThemedDialog>
-      )}
       {pendingAction && (
         <ThemedDialog title={t('sideMenu.unsavedChangesTitle')} onClose={() => setPendingAction(null)}>
           <p style={{ margin: '0 0 16px', fontSize: 13, color: 'inherit' }}>
@@ -340,8 +272,8 @@ export default function Rail() {
         <RailButton
           icon="examples"
           label={t('examples.title', 'Examples')}
-          active={isOpen("examples")}
-          onClick={() => togglePanel("examples")}
+          active={false}
+          onClick={() => openProjectLibrary('examples')}
           theme={theme}
         />
 
@@ -457,32 +389,14 @@ export default function Rail() {
             zIndex: 10,
           }}
         >
-          {activePanel === "examples" && (
-            <ExamplesPanel
-              onClose={closePanels}
-              onOpen={(name) => {
-                withUnsavedGuard(async () => {
-                  const p = exampleProjects[name];
-                  if (p) changeEditorCurrentProject(p);
-                  closePanels();
-                });
-              }}
-            />
-          )}
           {activePanel === "projects" && (
             <ProjectExplorer
               onClose={closePanels}
+              onOpenLibrary={() => openProjectLibrary(isExampleSessionId(currentProjectId) ? 'examples' : undefined)}
               setEditorMode={setEditorMode}
               onOpenSheetSprite={(name) => { setEditingSheetSprite(name); setEditorMode('sheet'); }}
               setEditingTilemap={setEditingTilemap}
-              onOpenUserProject={(p) => withUnsavedGuard(() => handleOpenUserProject(p))}
-              onNewProject={() => withUnsavedGuard(async () => { handleNewProject(); closePanels(); })}
-              onImport={() => setShowImportDialog(true)}
-              onDeleteProject={handleDeleteProject}
-              onExportProject={handleExportProject}
               userProjects={userProjects}
-              loading={loading}
-              loadUserProjects={loadUserProjects}
             />
           )}
           {activePanel === "settings" && (
@@ -506,13 +420,6 @@ export default function Rail() {
             <LivePanel onClose={closePanels} />
           )}
         </div>
-      )}
-
-      {showImportDialog && (
-        <ImportDialog
-          onClose={() => setShowImportDialog(false)}
-          onImport={handleImportProject}
-        />
       )}
 
       <AssetEditor
@@ -788,4 +695,3 @@ function SettingsPanel({
     </>
   );
 }
-

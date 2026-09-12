@@ -17,6 +17,8 @@ const userState = {
 
 jest.mock('../../src/state/IdeState', () => ({
   useEditor: (selector: (s: unknown) => unknown) => selector(editorState),
+  isExampleSessionId: (id: string | null | undefined) =>
+    typeof id === 'string' && id.startsWith('__example_session_'),
 }));
 
 jest.mock('../../src/state/useUser', () => ({
@@ -77,6 +79,15 @@ describe('useTeacherShare', () => {
     renderHook(() => useTeacherShare());
     await act(async () => {});
     expect(getTeacherShare).not.toHaveBeenCalled();
+  });
+
+  it('skips server-only sharing for a local example draft', async () => {
+    editorState.currentProjectId = '__example_session_flappy';
+    const { result } = renderHook(() => useTeacherShare());
+    await act(async () => {});
+    await act(async () => { await result.current.share('teacher@example.org'); });
+    expect(getTeacherShare).not.toHaveBeenCalled();
+    expect(shareProject).not.toHaveBeenCalled();
   });
 
   it('clears data and records failure when the fetch rejects', async () => {

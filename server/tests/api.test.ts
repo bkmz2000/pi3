@@ -167,11 +167,17 @@ describe('Projects API', () => {
       .send({
         name: 'Content Project',
         files: { 'main.py': 'print("hello")', 'utils.py': 'def foo(): pass' },
+        sounds: { click: 'data:audio/wav;base64,AA==' },
+        sheet: { width: 16, height: 16, chunks: [], sprites: {} },
         currentFile: 'main.py',
       });
 
     expect(res.status).toBe(201);
     expect(res.body.name).toBe('Content Project');
+    expect(res.body.files).toEqual({ 'main.py': 'print("hello")', 'utils.py': 'def foo(): pass' });
+    expect(res.body.sounds).toEqual({ click: 'data:audio/wav;base64,AA==' });
+    expect(res.body.sheet).toEqual({ width: 16, height: 16, chunks: [], sprites: {} });
+    expect(res.body.current_file).toBe('main.py');
   });
 
   it('GET /api/projects/:id returns project with content', async () => {

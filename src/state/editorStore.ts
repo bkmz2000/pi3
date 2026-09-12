@@ -95,7 +95,9 @@ export const useEditor = create<EditorState>((set) => ({
   changeCurrentProject: (project, projectId) =>
     set({
       project,
-      currentFile: Object.keys(project.files)[0] ?? "",
+      currentFile: project.currentFile && project.files[project.currentFile] !== undefined
+        ? project.currentFile
+        : Object.keys(project.files)[0] ?? "",
       currentProjectId: projectId || null,
       dirtyFiles: new Set(),
     }),

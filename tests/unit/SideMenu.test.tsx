@@ -1,14 +1,20 @@
 /**
  * Rail (SideMenu) tests: rail button -> panel switch wiring, the unsaved-work
- * guard that intercepts a destructive action while files are dirty, and the
- * import/export handlers. Panel bodies (ProjectExplorer, ExamplesPanel,
- * ProblemsPanel, LivePanel, DocsPanel) are mocked as dumb stand-ins so this
+ * guard that intercepts leaving the editor while files are dirty. Panel bodies
+ * (ProjectExplorer, ProblemsPanel, LivePanel, DocsPanel) are mocked as dumb stand-ins so this
  * file stays focused on Rail's own switching/guard logic rather than each
  * panel's internals (those have their own test files).
  */
 import { describe, test, expect, jest, beforeEach } from '@jest/globals';
 import { render, screen, fireEvent, act } from '@testing-library/react';
 import React, { Suspense } from 'react';
+
+const navigateMock = jest.fn();
+
+jest.mock('react-router-dom', () => {
+  const actual = jest.requireActual('react-router-dom') as object;
+  return { ...actual, useNavigate: () => navigateMock };
+});
 
 const theme = {
   accent: '#4cf',
@@ -54,8 +60,11 @@ const ideState = {
     .mockResolvedValue({ id: 'imported-1', files: {}, assets: {} }),
   userProjects: [],
   loading: false,
+  projectError: null,
   loadUserProjects: jest.fn(),
+  createNewProject: jest.fn(),
   deleteUserProject: jest.fn(),
+  renameUserProject: jest.fn(),
   forkExample: jest.fn(),
   downloadProject: jest.fn<(id: string) => Promise<void>>().mockResolvedValue(undefined),
   activePanel: null as string | null,
@@ -131,18 +140,10 @@ jest.mock('../../src/ProjectExplorer', () => {
     __esModule: true,
     default: (props: {
       onClose: () => void;
-      onNewProject: () => void;
-      onImport: () => void;
-      onExportProject: (id: string) => void;
-      onOpenUserProject: (p: { id: string; name: string; files: Record<string, string>; assets: Record<string, string> }) => void;
+      onOpenLibrary: () => void;
     }) =>
       R.createElement('div', { 'data-testid': 'project-explorer' },
-        R.createElement('button', { onClick: props.onNewProject }, 'New Project'),
-        R.createElement('button', { onClick: props.onImport }, 'Import'),
-        R.createElement('button', { onClick: () => props.onExportProject('p1') }, 'Export'),
-        R.createElement('button', {
-          onClick: () => props.onOpenUserProject({ id: 'p2', name: 'other', files: {}, assets: {} }),
-        }, 'Open other project'),
+        R.createElement('button', { onClick: props.onOpenLibrary }, 'Manage projects'),
       ),
   };
 });
@@ -201,6 +202,7 @@ beforeEach(() => {
   clearMocks(runnerState);
   setThemeMock.mockClear();
   setFontSizeMock.mockClear();
+  navigateMock.mockClear();
   editorState.dirtyFiles = new Set<string>();
   ideState.activePanel = null;
   userState.user = null;
@@ -224,7 +226,7 @@ describe('Rail buttons', () => {
     expect(ideState.togglePanel).toHaveBeenCalledWith('projects');
 
     fireEvent.click(screen.getByTitle('Examples'));
-    expect(ideState.togglePanel).toHaveBeenCalledWith('examples');
+    expect(navigateMock).toHaveBeenCalledWith('/projects?tab=examples');
 
     fireEvent.click(screen.getByTitle('Settings'));
     expect(ideState.togglePanel).toHaveBeenCalledWith('settings');
@@ -267,76 +269,38 @@ describe('unsaved-work guard', () => {
 
   test('blocks a guarded action and shows the unsaved-changes dialog', () => {
     renderRail();
-    fireEvent.click(screen.getByText('New Project'));
+    fireEvent.click(screen.getByText('Manage projects'));
     expect(screen.getByText('Unsaved changes')).toBeTruthy();
     expect(editorState.changeCurrentProject).not.toHaveBeenCalled();
   });
 
   test('discard changes runs the pending action without saving', async () => {
     renderRail();
-    fireEvent.click(screen.getByText('New Project'));
+    fireEvent.click(screen.getByText('Manage projects'));
     await act(async () => {
       fireEvent.click(screen.getByText('Discard changes'));
     });
     expect(ideState.saveCurrentProject).not.toHaveBeenCalled();
     expect(editorState.markClean).toHaveBeenCalled();
-    expect(editorState.changeCurrentProject).toHaveBeenCalled();
+    expect(navigateMock).toHaveBeenCalledWith('/projects');
   });
 
   test('save and continue saves before running the pending action', async () => {
     renderRail();
-    fireEvent.click(screen.getByText('New Project'));
+    fireEvent.click(screen.getByText('Manage projects'));
     await act(async () => {
       fireEvent.click(screen.getByText('Save and continue'));
     });
     expect(ideState.saveCurrentProject).toHaveBeenCalled();
-    expect(editorState.changeCurrentProject).toHaveBeenCalled();
+    expect(navigateMock).toHaveBeenCalledWith('/projects');
   });
 
   test('does not guard when there are no dirty files', () => {
     editorState.dirtyFiles = new Set();
     renderRail();
-    fireEvent.click(screen.getByText('New Project'));
+    fireEvent.click(screen.getByText('Manage projects'));
     expect(screen.queryByText('Unsaved changes')).toBeNull();
-    expect(editorState.changeCurrentProject).toHaveBeenCalled();
-  });
-});
-
-describe('import/export wiring', () => {
-  beforeEach(() => {
-    ideState.activePanel = 'projects';
-  });
-
-  test('import dialog imports a project and closes', async () => {
-    renderRail();
-    fireEvent.click(screen.getByText('Import'));
-    const fileInput = screen.getByDisplayValue('') as HTMLInputElement;
-    const file = new File(['zip-bytes'], 'project.zip', { type: 'application/zip' });
-
-    await act(async () => {
-      fireEvent.change(fileInput, { target: { files: [file] } });
-    });
-
-    expect(ideState.importProjectFromFile).toHaveBeenCalledWith(file);
-    expect(editorState.changeCurrentProject).toHaveBeenCalled();
-    expect(screen.queryByText('project.zip')).toBeNull(); // dialog closed, no leftover file-name UI
-  });
-
-  test('export downloads the given project id', async () => {
-    renderRail();
-    await act(async () => {
-      fireEvent.click(screen.getByText('Export'));
-    });
-    expect(ideState.downloadProject).toHaveBeenCalledWith('p1');
-  });
-
-  test('export failure shows an alert dialog', async () => {
-    ideState.downloadProject.mockRejectedValueOnce(new Error('network error'));
-    renderRail();
-    await act(async () => {
-      fireEvent.click(screen.getByText('Export'));
-    });
-    expect(screen.getByText('Failed to export project. Please try again.')).toBeTruthy();
+    expect(navigateMock).toHaveBeenCalledWith('/projects');
   });
 });
 

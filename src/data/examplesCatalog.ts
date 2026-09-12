@@ -1,6 +1,5 @@
-// Curated example catalog — single source of truth for both the marketing
-// gallery (src/pages/ExamplesGalleryPage.tsx) and the in-editor Examples
-// panel (src/ExamplesPanel.tsx), so the two surfaces never drift.
+// Curated example catalog — single source of truth for the Examples category
+// in the unified project library.
 
 export interface CatalogEntry {
   key: string;

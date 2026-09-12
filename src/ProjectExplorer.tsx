@@ -81,34 +81,21 @@ type UserProject = {
 
 type Props = {
   onClose: () => void;
+  onOpenLibrary: () => void;
   // Editor launchers (state lives in SideMenu)
   setEditorMode: (m: AssetEditorMode | null) => void;
   onOpenSheetSprite: (name: string) => void;
   setEditingTilemap: (n: string | null) => void;
-  // Project ops (already wired in SideMenu)
-  onOpenUserProject: (p: UserProject) => void;
-  onNewProject: () => void;
-  onImport: () => void;
-  onDeleteProject: (id: string) => void;
-  onExportProject: (id: string) => void;
   userProjects: UserProject[];
-  loading: boolean;
-  loadUserProjects: () => void;
 };
 
 export default function ProjectExplorer({
   onClose,
+  onOpenLibrary,
   setEditorMode,
   onOpenSheetSprite,
   setEditingTilemap,
-  onOpenUserProject,
-  onNewProject,
-  onImport,
-  onDeleteProject,
-  onExportProject,
   userProjects,
-  loading,
-  loadUserProjects,
 }: Props) {
   const { t } = useTranslation();
   const theme = useThemeStore((s) => s.theme);
@@ -157,18 +144,15 @@ export default function ProjectExplorer({
 
   return (
     <>
-      <ProjectSwitcher
+      <ProjectHeader
         theme={theme}
-        currentProjectId={currentProjectId}
         currentProjectName={currentProjectName}
-        userProjects={userProjects}
-        loading={loading}
-        loadUserProjects={loadUserProjects}
-        onOpen={onOpenUserProject}
-        onNew={onNewProject}
-        onImport={onImport}
-        onExportCurrent={() => currentProjectId && onExportProject(currentProjectId)}
-        onDeleteCurrent={() => currentProjectId && onDeleteProject(currentProjectId)}
+        storageLabel={currentProjectId && !isExampleSessionId(currentProjectId)
+          ? t('projects.savedToAccount')
+          : currentProjectId
+            ? t('projects.exampleDraft')
+            : t('projects.savedOnDevice')}
+        onOpenLibrary={onOpenLibrary}
         onClose={onClose}
       />
 
@@ -462,127 +446,54 @@ function ScreenshotThumb({ snap, isCover, canPersist, busy, theme, onSetCover, o
   );
 }
 
-// ── ProjectSwitcher ────────────────────────────────────────────────────────────
+// ── Project identity ──────────────────────────────────────────────────────────
 
-function ProjectSwitcher({
-  theme, currentProjectId, currentProjectName, userProjects, loading,
-  loadUserProjects, onOpen, onNew, onImport, onExportCurrent, onDeleteCurrent, onClose,
+function ProjectHeader({
+  theme, currentProjectName, storageLabel, onOpenLibrary, onClose,
 }: {
   theme: Theme;
-  currentProjectId: string | null;
   currentProjectName: string;
-  userProjects: UserProject[];
-  loading: boolean;
-  loadUserProjects: () => void;
-  onOpen: (p: UserProject) => void;
-  onNew: () => void;
-  onImport: () => void;
-  onExportCurrent: () => void;
-  onDeleteCurrent: () => void;
+  storageLabel: string;
+  onOpenLibrary: () => void;
   onClose: () => void;
 }) {
   const { t } = useTranslation();
-  const [open, setOpen] = useState(false);
-  const wrapRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    loadUserProjects();
-    const handler = (e: MouseEvent) => {
-      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
-    };
-    window.addEventListener('mousedown', handler);
-    return () => window.removeEventListener('mousedown', handler);
-  }, [open, loadUserProjects]);
 
   return (
     <div style={{
-      height: 40, display: 'flex', alignItems: 'center', gap: 6,
-      padding: '0 8px 0 12px', background: theme.panelHeader,
+      minHeight: 48, display: 'flex', alignItems: 'center', gap: 7,
+      padding: '5px 8px 5px 12px', background: theme.panelHeader,
       borderBottom: `1px solid ${theme.panelBorder}`, flexShrink: 0,
     }}>
-      <div ref={wrapRef} style={{ flex: 1, position: 'relative' }}>
-        <button type="button" onClick={() => setOpen((v) => !v)}
-          style={{
-            all: 'unset', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
-            padding: '4px 8px', borderRadius: 5, color: theme.panelTxt,
-            fontFamily: theme.fontUI, fontSize: 13, fontWeight: 600, width: '100%', boxSizing: 'border-box',
-          }}>
-          <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{
+          color: theme.panelTxt, fontFamily: theme.fontUI, fontSize: 13, fontWeight: 700,
+          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+        }}>
             {currentProjectName}
-          </span>
-          <span style={{ fontSize: 10, color: theme.panelTxtMute }}>{open ? '▴' : '▾'}</span>
-        </button>
-        {open && (
-          <div style={{
-            position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 4, zIndex: 100,
-            background: theme.surfacePanel, border: `1px solid ${theme.panelBorder}`,
-            borderRadius: 6, boxShadow: '0 8px 24px rgba(0,0,0,0.4)', padding: '4px 0',
-            maxHeight: 360, overflowY: 'auto',
-          }}>
-            {loading && (
-              <div style={{ padding: '6px 10px', fontSize: 11, color: theme.panelTxtMute }}>
-                {t('sideMenu.loadingProjects')}
-              </div>
-            )}
-            {userProjects.map((p) => (
-              <button key={p.id} type="button"
-                onClick={() => { onOpen(p); setOpen(false); }}
-                style={{
-                  all: 'unset', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
-                  padding: '5px 10px', width: '100%', boxSizing: 'border-box',
-                  background: currentProjectId === p.id ? `${theme.accent}22` : 'transparent',
-                  color: currentProjectId === p.id ? theme.accent : theme.panelTxt,
-                  fontFamily: theme.fontUI, fontSize: 12,
-                }}>
-                <span style={{ width: 8, color: theme.accent, fontSize: 10 }}>
-                  {currentProjectId === p.id ? '●' : ''}
-                </span>
-                <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
-              </button>
-            ))}
-            <div style={{ borderTop: `1px solid ${theme.panelBorder}`, margin: '4px 0' }} />
-            <SwitcherAction theme={theme} icon="plus" label={t('sideMenu.newProject')}
-              onClick={() => { onNew(); setOpen(false); }} />
-            <SwitcherAction theme={theme} icon="import" label={t('sideMenu.importProject') || 'Import'}
-              onClick={() => { onImport(); setOpen(false); }} />
-            {currentProjectId && (
-              <>
-                <SwitcherAction theme={theme} icon="export" label={t('sideMenu.exportProjectTooltip')}
-                  onClick={() => { onExportCurrent(); setOpen(false); }} />
-                <SwitcherAction theme={theme} icon="trash" label={t('sideMenu.deleteProjectTooltip')}
-                  danger onClick={() => { onDeleteCurrent(); setOpen(false); }} />
-              </>
-            )}
-          </div>
-        )}
+        </div>
+        <div style={{ marginTop: 1, color: theme.panelTxtMute, fontFamily: theme.fontUI, fontSize: 10.5 }}>
+          {storageLabel}
+        </div>
       </div>
+      <button type="button" onClick={onOpenLibrary} title={t('projects.manageProjects')}
+        aria-label={t('projects.manageProjects')}
+        style={{
+          border: `1px solid ${theme.panelBorder}`, cursor: 'pointer', width: 30, height: 30,
+          borderRadius: 6, display: 'grid', placeItems: 'center', color: theme.panelTxt,
+          background: theme.surfacePanel,
+        }}>
+        <Icon name="folder" size={14} color="currentColor" />
+      </button>
       <button type="button" onClick={onClose} title={t('sideMenu.close')}
         style={{
-          all: 'unset', cursor: 'pointer', width: 28, height: 28, borderRadius: 4,
+          border: 0, cursor: 'pointer', width: 28, height: 28, borderRadius: 4,
           display: 'flex', alignItems: 'center', justifyContent: 'center', color: theme.panelTxtMute,
+          background: 'transparent',
         }}>
         <Icon name="close" size={16} color="currentColor" />
       </button>
     </div>
-  );
-}
-
-function SwitcherAction({
-  theme, icon, label, danger, onClick,
-}: {
-  theme: Theme; icon: IconName; label: string; danger?: boolean; onClick: () => void;
-}) {
-  return (
-    <button type="button" onClick={onClick}
-      style={{
-        all: 'unset', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8,
-        padding: '5px 10px', width: '100%', boxSizing: 'border-box',
-        color: danger ? theme.errorLine : theme.panelTxt, fontFamily: theme.fontUI, fontSize: 12,
-      }}>
-      <Icon name={icon} size={13} color="currentColor" />
-      <span>{label}</span>
-    </button>
   );
 }
 

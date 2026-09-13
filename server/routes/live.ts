@@ -4,6 +4,7 @@ import { authMiddleware } from '../middleware/auth.js';
 import { rateLimitPerUser } from '../middleware/rateLimitPerUser.js';
 import { getProjectAccess } from '../middleware/projectAuth.js';
 import { verifySessionToken } from '../sessions/tokens.js';
+import { isSessionActive } from '../sessions/classrooms.js';
 
 // Presence pings older than this are considered stale/idle.
 const STALE_MS = 5 * 60 * 1000;
@@ -60,7 +61,7 @@ export function createLiveRouter(): Router {
     let verifiedSid: string | null = null;
     if (typeof token === 'string' && token) {
       const verified = verifySessionToken(token, req.user!.id);
-      if (verified) verifiedSid = verified.sid;
+      if (verified && await isSessionActive(verified)) verifiedSid = verified.sid;
     }
 
     // project_id is either a real project (ownership required) or a synthetic
@@ -214,7 +215,7 @@ export function createLiveRouter(): Router {
 
   // GET /api/live/session/:sid/roster (X-Session-Token header)
   router.get('/session/:sid/roster', async (req: Request, res: Response): Promise<void> => {
-    const verified = verifySession(req, res);
+    const verified = await verifySession(req, res);
     if (!verified) return;
     const canSeePeers = !verified.groupId || verified.role === 'starter';
 
@@ -251,7 +252,7 @@ export function createLiveRouter(): Router {
 
   // GET /api/live/session/:sid/member/:studentId (X-Session-Token header)
   router.get('/session/:sid/member/:studentId', async (req: Request, res: Response): Promise<void> => {
-    const verified = verifySession(req, res);
+    const verified = await verifySession(req, res);
     if (!verified) return;
     const studentId = req.params['studentId'] as string;
     const canSeePeers = !verified.groupId || verified.role === 'starter';
@@ -265,7 +266,7 @@ export function createLiveRouter(): Router {
   // Verify a session token from the X-Session-Token header and that it
   // matches :sid. A header (not a query param) keeps the signed token out of
   // access/proxy logs. Writes the error response and returns null on failure.
-  function verifySession(req: Request, res: Response) {
+  async function verifySession(req: Request, res: Response) {
     const token = typeof req.headers['x-session-token'] === 'string' ? req.headers['x-session-token'] : '';
     if (!token) {
       res.status(401).json({ error: 'Unauthorized', message: 'session token required (X-Session-Token header)' });
@@ -278,6 +279,10 @@ export function createLiveRouter(): Router {
     }
     if (verified.sid !== req.params['sid']) {
       res.status(403).json({ error: 'Forbidden', message: 'token does not match session' });
+      return null;
+    }
+    if (!await isSessionActive(verified)) {
+      res.status(410).json({ error: 'Gone', message: 'This classroom session has ended' });
       return null;
     }
     return verified;

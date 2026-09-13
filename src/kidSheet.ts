@@ -7,7 +7,7 @@
 
 import type { SheetData, SheetSprites, SheetAnimationStrip } from "./state/projectTypes";
 import { decodePixels, encodePixels, BLANK_W, BLANK_H, hexToRgb } from "./sheetPixels";
-import { PAL_NAMES } from "./palette";
+import { PALETTE_HEX as SHARED_PALETTE_HEX } from "./palette";
 
 /** One square RGBA frame buffer (size × size × 4). */
 export type KidFrame = Uint8ClampedArray;
@@ -23,8 +23,8 @@ export type KidSize = (typeof KID_SIZES)[number];
 export const KID_DEFAULT_SIZE = 64;
 export const KID_DEFAULT_SPRITE = "sprite";
 
-/** Sweetie-16 palette, in canonical order (matches palette.ts / _color.py). */
-export const PALETTE_HEX: string[] = Object.keys(PAL_NAMES);
+/** Sweetie-16 core + derived swatches, in canonical order. */
+export const PALETTE_HEX: string[] = SHARED_PALETTE_HEX;
 export const PALETTE_RGB: Rgb[] = PALETTE_HEX.map((h) => hexToRgb(h));
 
 export function blankKidFrame(size: number): KidFrame {

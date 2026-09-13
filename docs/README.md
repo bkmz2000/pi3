@@ -41,7 +41,7 @@ point** that points here and carries the Knowledge Base (mem0) instructions.
 - **Frontend:** React 19, TypeScript, Vite, Zustand, Tailwind (base), CodeMirror 6
 - **Backend:** Express + better-sqlite3 + tsx
 - **Python runtime:** Pyodide 0.29.3 (WASM, Web Worker)
-- **Pixel canvas:** `SheetEditor.tsx` — 512×512 sheet, Sweetie 16 palette
+- **Pixel canvas:** `SheetEditor.tsx` — 512×512 sheet, Sweetie 16 core plus kid-friendly colors
 - **Tile editor:** `TileEditor.tsx` — layer-based with area brushes
 - **State:** `useEditor` (content) + `useIde` (UI/save) + `useRunnerStore` (worker)
 

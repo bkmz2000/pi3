@@ -140,8 +140,9 @@ describe("kidSheet helpers", () => {
     expect(mixRgb([239, 125, 87], [167, 240, 112], 0.5)).toEqual([203, 183, 100]);
   });
 
-  test("isPaletteRgb recognizes Sweetie-16 and rejects customs", () => {
+  test("isPaletteRgb recognizes core and derived palette colors and rejects customs", () => {
     expect(isPaletteRgb(PALETTE_RGB[3])).toBe(true);
+    expect(isPaletteRgb([166, 83, 62])).toBe(true);
     expect(isPaletteRgb([0, 255, 0])).toBe(false);
   });
 

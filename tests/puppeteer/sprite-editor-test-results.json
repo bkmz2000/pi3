@@ -1,7 +1,7 @@
 {
-  "passed": 4,
+  "passed": 5,
   "failed": 0,
-  "skipped": 1,
+  "skipped": 0,
   "tests": [
     {
       "name": "Open sprite editor",
@@ -14,9 +14,9 @@
       "error": null
     },
     {
-      "name": "Fill color toggle functionality",
-      "skipped": true,
-      "reason": "color picker popover, not a toggle button"
+      "name": "Kid-friendly color palette",
+      "passed": true,
+      "error": null
     },
     {
       "name": "Tool switching",

@@ -14,11 +14,12 @@ import {
 } from "lucide-react";
 import {
   kidStateFromSheet, kidStateToSheet, kidDefaultState, blankKidFrame,
-  KID_SIZES, PALETTE_RGB, PALETTE_HEX, mixRgb, isPaletteRgb, maxFramesPerStrip,
+  KID_SIZES, PALETTE_RGB, mixRgb, isPaletteRgb, maxFramesPerStrip,
   type KidAnimation, type KidFrame, type Rgb,
 } from "./kidSheet";
 import { blankSheet, paintBrush, floodFill, rgbToHex } from "./sheetPixels";
 import { bresenhamLine, rectOutline, ellipseOutline } from "./sheetRaster";
+import { PALETTE_TITLES } from "./palette";
 
 type Tool = "pencil" | "eraser" | "fill" | "pick" | "line" | "rect" | "circle";
 const SHAPES: Partial<Record<Tool, boolean>> = { line: true, rect: true, circle: true };
@@ -48,9 +49,9 @@ function LineIcon({ size = 17 }: { size?: number }) {
   );
 }
 
-const PALETTE_CM_ORDER = [0, 8, 1, 9, 2, 10, 3, 11, 4, 12, 5, 13, 6, 14, 7, 15];
+const PALETTE_CM_ORDER = [0, 8, 1, 9, 16, 17, 2, 18, 3, 10, 4, 11, 5, 12, 6, 13, 7, 14, 15];
 const PALETTE_CM = PALETTE_CM_ORDER.map((i) => PALETTE_RGB[i]);
-const PALETTE_HEX_CM = PALETTE_CM_ORDER.map((i) => PALETTE_HEX[i]);
+const PALETTE_TITLE_CM = PALETTE_CM_ORDER.map((i) => PALETTE_TITLES[i]);
 
 export default function KidSheetEditor({ onClose, initialSprite }: { onClose: () => void; initialSprite?: string }) {
   const { t } = useTranslation();
@@ -623,7 +624,7 @@ export default function KidSheetEditor({ onClose, initialSprite }: { onClose: ()
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 3 }}>
             {PALETTE_CM.map((c, i) => (
-              <button key={i} title={PALETTE_HEX_CM[i]}
+              <button key={i} title={PALETTE_TITLE_CM[i]}
                 onClick={() => {
                   setSel(c);
                   if (mixOpen) {

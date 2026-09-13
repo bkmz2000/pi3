@@ -7,6 +7,7 @@ import { createTestDb, closeTestDb } from './setup.js';
 import { createSessionsRouter } from '../routes/sessions.js';
 import { issueSessionToken, verifySessionToken, SESSION_TTL_MS } from '../sessions/tokens.js';
 import { _resetForTests as resetComments } from '../sessions/comments.js';
+import { _resetForTests as resetReactions } from '../sessions/reactions.js';
 
 let app: express.Application;
 let db: Database.Database;
@@ -24,6 +25,7 @@ beforeAll(() => {
 beforeEach(() => {
   db = createTestDb();
   resetComments();
+  resetReactions();
   const now = Date.now();
   starter = { id: uuidv4(), api_token: uuidv4().replace(/-/g, '') };
   joiner = { id: uuidv4(), api_token: uuidv4().replace(/-/g, '') };
@@ -96,6 +98,73 @@ describe('sessions — routes', () => {
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body.allowed)).toBe(true);
     expect(res.body.allowed.length).toBeGreaterThan(0);
+  });
+
+  it('GET /allowed-reactions returns semantic reaction ids', async () => {
+    const res = await request(app).get('/api/sessions/allowed-reactions').set(auth(starter.api_token));
+    expect(res.status).toBe(200);
+    expect(res.body.allowed).toEqual(['good', 'question', 'try']);
+  });
+});
+
+describe('sessions — line reactions', () => {
+  let token: string;
+  let sid: string;
+
+  beforeEach(async () => {
+    const startRes = await request(app).post('/api/sessions/start').set(auth(starter.api_token)).send({});
+    token = startRes.body.token;
+    sid = startRes.body.session_id;
+    db.prepare(`INSERT INTO live_presence
+      (student_id, project_id, file, cursor_line, updated_at, content, session_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?)`)
+      .run(joiner.id, `session:${sid}`, 'main.py', 4, Date.now(), 'print(1)', sid);
+  });
+
+  it('posts and lists a semantic reaction on an exact line', async () => {
+    const post = await request(app).post(`/api/sessions/${sid}/reactions`).set(auth(starter.api_token))
+      .send({ token, reaction: 'good', target: joiner.id, file: 'main.py', line: 4 });
+    expect(post.status).toBe(201);
+    expect(post.body).toMatchObject({ reaction: 'good', target: joiner.id, file: 'main.py', line: 4 });
+
+    const list = await request(app).post(`/api/sessions/${sid}/reactions/list`).set(auth(joiner.api_token))
+      .send({ token });
+    expect(list.status).toBe(200);
+    expect(list.body).toHaveLength(1);
+  });
+
+  it('rejects free text and missing line context', async () => {
+    const freeText = await request(app).post(`/api/sessions/${sid}/reactions`).set(auth(starter.api_token))
+      .send({ token, reaction: 'nice work', target: joiner.id, file: 'main.py', line: 4 });
+    expect(freeText.status).toBe(400);
+    const missingLine = await request(app).post(`/api/sessions/${sid}/reactions`).set(auth(starter.api_token))
+      .send({ token, reaction: 'good', target: joiner.id, file: 'main.py' });
+    expect(missingLine.status).toBe(400);
+  });
+
+  it('only the starter can react in a classroom session', async () => {
+    const groupId = uuidv4();
+    const now = Date.now();
+    db.prepare('INSERT INTO groups (id, teacher_id, name, created_at) VALUES (?, ?, ?, ?)')
+      .run(groupId, starter.id, 'A2', now);
+    db.prepare('INSERT INTO group_members (id, group_id, student_id, joined_at) VALUES (?, ?, ?, ?)')
+      .run(uuidv4(), groupId, joiner.id, now);
+    const classroom = issueSessionToken(starter.id, now, { groupId });
+    db.prepare('INSERT INTO live_group_sessions (group_id, sid, starter_id, started_at, expires_at) VALUES (?, ?, ?, ?, ?)')
+      .run(groupId, classroom.payload.sid, starter.id, now, classroom.payload.exp);
+
+    const denied = await request(app).post(`/api/sessions/${classroom.payload.sid}/reactions`).set(auth(joiner.api_token))
+      .send({ token: classroom.token, reaction: 'question', target: joiner.id, file: 'main.py', line: 2 });
+    expect(denied.status).toBe(403);
+
+    const allowed = await request(app).post(`/api/sessions/${classroom.payload.sid}/reactions`).set(auth(starter.api_token))
+      .send({ token: classroom.token, reaction: 'question', target: joiner.id, file: 'main.py', line: 2 });
+    expect(allowed.status).toBe(201);
+
+    db.prepare('DELETE FROM live_group_sessions WHERE group_id = ?').run(groupId);
+    const afterEnd = await request(app).post(`/api/sessions/${classroom.payload.sid}/reactions/list`)
+      .set(auth(joiner.api_token)).send({ token: classroom.token });
+    expect(afterEnd.status).toBe(410);
   });
 });
 

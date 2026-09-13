@@ -21,7 +21,7 @@
 |---------|-------|
 | Graphics API v1 freeze | `api-v1.md`; `_manifest.py` + CI snapshot test enforce parity |
 | Error system (phases D–E) | Structured i18n keys via `FriendlyError`; `error_hook.py`, `syntax_hints.py`, all-key registry |
-| Pixel sprite sheet editor | `SheetEditor.tsx` — 512×512 canvas, Sweetie 16 palette, animations |
+| Pixel sprite sheet editor | `SheetEditor.tsx` — 512×512 canvas, Sweetie 16 core plus kid-friendly colors, animations |
 | Tilemap editor + API | `TileEditor.tsx`; `TilemapLayer`, `TileMap`, `TileCollision`, `TileGroup` |
 | Actor system overhaul | `Rect`, `Circle`, `Group`, `Collider`; sealed attrs; kwarg typo detection |
 | Save-flow overhaul | Debounced auto-save, offline queue, anon stash, save chip, beforeunload guard |
@@ -42,7 +42,7 @@
 | Geometry shapes (phases 1-6) | `Line`, `Polygon`, `Spline`, texture-along-outline, `contains`/`random`/`in`/`distance_to`, `bounce_of`; draw-command marshalling perf pass |
 | Turtle module | `pi3.turtle` — classic turtle-graphics surface over the same runtime |
 | Compete mode | `/compete/:slug` problems, teacher problem authoring/import/publish, submission tiers |
-| Instructor dashboard / live session panel | Teacher live-activity roster + live code pane (`/teacher`); symmetric peer sessions joined by signed link; emoji reactions |
+| Collaboration surfaces | Explicit classroom sessions with opt-in students and teacher-only line reactions; signed-link rooms with side-by-side peer code; editor-only project invitations |
 | Floating canvas window | Canvas detached from docked layout, draggable/resizable (`CanvasWindow.tsx`) |
 | Matplotlib blit | Fast-path re-render for matplotlib figures in the worker |
 | `show()` | One-shot still-picture render, counterpart to `run()` |

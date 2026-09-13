@@ -94,6 +94,12 @@ describe('commentExtension', () => {
       parent: document.body,
     });
     expect(view.dom).toBeTruthy();
+    expect(view.dom.querySelector('.cm-comment-gutter')).toBeNull();
     view.destroy();
+  });
+
+  it('does not reserve a comment gutter for students', () => {
+    const exts = commentExtension({ canAdd: false, onLineSelect: jest.fn() });
+    expect(exts).toHaveLength(5); // 3 fields + inline plugin + theme
   });
 });

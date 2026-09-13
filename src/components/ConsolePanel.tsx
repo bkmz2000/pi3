@@ -513,6 +513,21 @@ export default function ConsolePanel({ onRight = false }: { onRight?: boolean })
           0%, 100% { opacity: 1; }
           50% { opacity: 0.3; }
         }
+        .pi3-console-action {
+          appearance: none;
+          border: 1px solid ${theme.consoleBorder};
+          background: ${theme.chip};
+          color: ${theme.consoleTxt};
+          border-radius: 6px;
+          padding: 4px 7px;
+          cursor: pointer;
+          transition: border-color 120ms ease, background 120ms ease;
+        }
+        .pi3-console-action:hover { border-color: ${theme.accent}; }
+        .pi3-console-action:focus-visible {
+          outline: 2px solid ${theme.accent};
+          outline-offset: 2px;
+        }
       `}</style>
       {/* Resize handle */}
       <div
@@ -583,14 +598,12 @@ export default function ConsolePanel({ onRight = false }: { onRight?: boolean })
         <div style={{ flex: 1 }} />
         <button
           type="button"
+          className="pi3-console-action"
           onClick={handleCopyConsole}
           style={{
-            all: "unset",
-            cursor: "pointer",
             fontFamily: theme.fontUI,
             fontSize: 12,
             fontWeight: theme.weightUI,
-            color: theme.consoleTxtMute,
             display: "inline-flex",
             alignItems: "center",
             gap: 4,
@@ -601,14 +614,12 @@ export default function ConsolePanel({ onRight = false }: { onRight?: boolean })
         </button>
         <button
           type="button"
+          className="pi3-console-action"
           onClick={clear}
           style={{
-            all: "unset",
-            cursor: "pointer",
             fontFamily: theme.fontUI,
             fontSize: 12,
             fontWeight: theme.weightUI,
-            color: theme.consoleTxtMute,
             display: "inline-flex",
             alignItems: "center",
             gap: 4,

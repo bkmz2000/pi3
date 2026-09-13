@@ -6,6 +6,7 @@ import Database from 'better-sqlite3';
 import { createTestDb, closeTestDb } from './setup.js';
 import { v4 as uuidv4 } from 'uuid';
 import { createGroupsRouter } from '../routes/groups.js';
+import { verifySessionToken } from '../sessions/tokens.js';
 
 let app: express.Application;
 let db: Database.Database;
@@ -184,6 +185,51 @@ describe('Groups API', () => {
       const res = await request(app).get('/api/groups/my').set(auth(student1.api_token));
       expect(res.status).toBe(200);
       expect(res.body).toHaveLength(0);
+    });
+  });
+
+  describe('classroom live sessions', () => {
+    it('requires explicit student acceptance and can be ended by the teacher', async () => {
+      const group = await request(app).post('/api/groups').set(auth(teacher.api_token)).send({ name: 'A2' });
+      const groupId = group.body.id;
+      await request(app).post(`/api/groups/${groupId}/invite`).set(auth(teacher.api_token))
+        .send({ username: student1.name });
+
+      const started = await request(app).post(`/api/groups/${groupId}/session/start`)
+        .set(auth(teacher.api_token)).send({});
+      expect(started.status).toBe(201);
+
+      const invitations = await request(app).get('/api/groups/my/live').set(auth(student1.api_token));
+      expect(invitations.status).toBe(200);
+      expect(invitations.body).toHaveLength(1);
+      expect(invitations.body[0]).toMatchObject({ group_id: groupId, group_name: 'A2', session_id: started.body.session_id });
+      expect(invitations.body[0].token).toBeUndefined();
+
+      const joined = await request(app).post(`/api/groups/${groupId}/session/join`)
+        .set(auth(student1.api_token)).send({});
+      expect(joined.status).toBe(200);
+      expect(joined.body).toMatchObject({ session_id: started.body.session_id, role: 'joiner', group_id: groupId });
+      expect(verifySessionToken(joined.body.token, student1.id)?.groupId).toBe(groupId);
+
+      const resumed = await request(app).get(`/api/groups/${groupId}/session/active`)
+        .set(auth(teacher.api_token));
+      expect(resumed.status).toBe(200);
+      expect(resumed.body.session_id).toBe(started.body.session_id);
+
+      const ended = await request(app).post(`/api/groups/${groupId}/session/end`)
+        .set(auth(teacher.api_token)).send({});
+      expect(ended.status).toBe(204);
+      const afterEnd = await request(app).get('/api/groups/my/live').set(auth(student1.api_token));
+      expect(afterEnd.body).toHaveLength(0);
+      expect((await request(app).post(`/api/groups/${groupId}/session/join`).set(auth(student1.api_token)).send({})).status).toBe(404);
+    });
+
+    it('does not let outsiders join a live group', async () => {
+      const group = await request(app).post('/api/groups').set(auth(teacher.api_token)).send({ name: 'A2' });
+      await request(app).post(`/api/groups/${group.body.id}/session/start`).set(auth(teacher.api_token)).send({});
+      const res = await request(app).post(`/api/groups/${group.body.id}/session/join`)
+        .set(auth(student2.api_token)).send({});
+      expect(res.status).toBe(403);
     });
   });
 

@@ -361,7 +361,7 @@
       "ref_image_param_y": "Y position (top-left corner).",
       "ref_image_param_w": "Draw width. Defaults to sprite's natural width.",
       "ref_image_param_h": "Draw height. Defaults to sprite's natural height.",
-      "ref_colors_palette": "The locked Sweetie 16 palette (GrafxKid, CC0). Use anywhere a color is accepted. Same 16 names that appear in the sprite editor — pixels and code stay visually consistent.",
+      "ref_colors_palette": "The Sweetie 16 core palette (GrafxKid, CC0), plus brown, purple, pink, and familiar blue/grey aliases. Use these names anywhere a color is accepted. The same swatches appear in the sprite editor, so pixels and code stay visually consistent.",
       "ref_fill_color": "Set the fill color. Accepts a color name string (\"red\"), a Colors.* tuple, three RGB numbers (0–255), a single gray value, or None to disable fill (same as no_fill()).",
       "ref_fill_color_advanced": "Fill is a *state machine*: once set, every subsequent shape uses this color until you change it. The state survives across `main()` calls within a frame but resets to its initial value at the start of every frame, so you must re-call `fill` each frame (or wrap it in `push`/`pop` if you only want the change to be local). `fill(None)` is identical to `no_fill()` — use whichever reads more naturally.",
       "ref_fill_color_param_color": "Color name, Colors.* value, RGB tuple, gray value, or None.",
@@ -855,6 +855,21 @@
     "closePeerTab": "Close {{name}}'s live code",
     "readOnly": "read-only",
     "peerNotVisible": "You can't view this member's code in this session."
+    ,"classroomInvite": "Group {{group}} is live. Join?"
+    ,"joining": "Joining…"
+    ,"joinFailed": "Could not join the class. Try again."
+    ,"joinClass": "Join"
+    ,"notNow": "Not now"
+    ,"classroomLive": "{{group}} is live"
+    ,"classroomConnected": "You're connected. Your teacher can see only the file you currently have open."
+    ,"selectLine": "Select a line to react"
+    ,"selectedLine": "Line {{line}} selected"
+    ,"liveReaction": "Live session"
+    ,"reaction": {
+      "good": "Looks good",
+      "question": "Question",
+      "try": "Try again"
+    }
   },
   "teacher": {
     "dashboard": "Teacher Dashboard",
@@ -875,6 +890,14 @@
     "ago": "ago",
     "notActive": "not active",
     "liveRoster": "Live activity",
+    "classroomSession": "Classroom session",
+    "classroomSessionHint": "Invite the group into a temporary live view of their selected files.",
+    "classroomSessionFailed": "The classroom session could not be updated. Try again.",
+    "startClass": "Start class",
+    "endClass": "End class",
+    "groupIsLive": "{{group}} is live",
+    "joinedCount": "{{count}} joined",
+    "waitingForStudents": "Waiting for students to join…",
     "line": "line",
     "close": "Close",
     "noLiveCode": "No live code yet — waiting for the first edit.",
@@ -1113,6 +1136,7 @@
     "shareRoleLabel": "Permission",
     "shareRoleEditorDesc": "Can edit",
     "shareRoleViewerDesc": "Can view",
+    "shareEditorNotice": "They will be able to edit files and assets. Only the owner can manage access or delete the project.",
     "shareCancel": "Cancel",
     "shareConfirm": "Share",
     "shareSharing": "Sharing…",

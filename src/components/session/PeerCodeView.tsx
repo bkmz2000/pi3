@@ -3,10 +3,11 @@ import { useTranslation } from 'react-i18next';
 import { useThemeStore } from '../../state/useTheme';
 import { useLiveSession } from '../../state/useLiveSession';
 import {
-  getSessionMember, getAllowedEmoji, postSessionComment,
-  type LiveMemberBuffer,
+  getSessionMember, postSessionReaction,
+  type LiveMemberBuffer, type SessionReactionKind,
 } from '../../state/api';
 import { ReadOnlyCode } from '../ReadOnlyCode';
+import { Icon } from '../Icons';
 
 const CODE_POLL_MS = 1000;
 
@@ -15,17 +16,14 @@ const CODE_POLL_MS = 1000;
  * peer card in the live panel and closed like a file tab. Read-only by
  * construction — a session shares telemetry, never edit rights.
  */
-export function PeerCodeView({ peerId, label }: { peerId: string; label: string }) {
+export function PeerCodeView({ peerId, label, onClose }: { peerId: string; label: string; onClose?: () => void }) {
   const { t } = useTranslation();
   const theme = useThemeStore((s) => s.theme);
   const { token, sid } = useLiveSession();
   const [buffer, setBuffer] = useState<LiveMemberBuffer | null>(null);
-  const [allowedEmoji, setAllowedEmoji] = useState<string[]>([]);
   const [denied, setDenied] = useState(false);
-
-  useEffect(() => {
-    getAllowedEmoji().then(setAllowedEmoji).catch(() => { /* ignore */ });
-  }, []);
+  const [selectedLine, setSelectedLine] = useState<number | null>(null);
+  const [sent, setSent] = useState<SessionReactionKind | null>(null);
 
   useEffect(() => {
     if (!token || !sid) { setBuffer(null); return; }
@@ -50,14 +48,22 @@ export function PeerCodeView({ peerId, label }: { peerId: string; label: string 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, sid, peerId]);
 
-  const react = async (emoji: string) => {
-    if (!token || !sid) return;
+  const react = async (reaction: SessionReactionKind) => {
+    if (!token || !sid || !buffer?.file || selectedLine == null) return;
     try {
-      await postSessionComment(sid, token, emoji, peerId);
+      await postSessionReaction(sid, token, reaction, peerId, buffer.file, selectedLine);
+      setSent(reaction);
+      window.setTimeout(() => setSent(null), 1200);
     } catch {
       /* ignore */
     }
   };
+
+  const reactionOptions: Array<{ id: SessionReactionKind; icon: 'check' | 'alert' | 'redo' }> = [
+    { id: 'good', icon: 'check' },
+    { id: 'question', icon: 'alert' },
+    { id: 'try', icon: 'redo' },
+  ];
 
   return (
     <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', background: theme.surface }}>
@@ -71,24 +77,52 @@ export function PeerCodeView({ peerId, label }: { peerId: string; label: string 
           {buffer?.file ?? ''}{buffer?.cursor_line != null && <> · {t('teacher.line')} {buffer.cursor_line}</>}
         </span>
         <span style={{ flex: 1 }} />
-        <span style={{ fontSize: 11, color: theme.panelTxtMute }}>{t('session.readOnly')}</span>
-        <div style={{ display: 'flex', gap: 2 }}>
-          {allowedEmoji.map((emoji) => (
+        <span style={{ fontSize: 11, color: theme.panelTxtMute }}>
+          {selectedLine == null ? t('session.selectLine') : t('session.selectedLine', { line: selectedLine })}
+        </span>
+        <div style={{ display: 'flex', gap: 4 }}>
+          {reactionOptions.map(({ id, icon }) => (
             <button
-              key={emoji}
+              key={id}
               type="button"
-              title={t('session.react')}
-              onClick={() => react(emoji)}
-              style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: '2px 4px', borderRadius: 6 }}
+              title={t(`session.reaction.${id}`)}
+              aria-label={t(`session.reaction.${id}`)}
+              disabled={selectedLine == null}
+              onClick={() => react(id)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 4,
+                background: sent === id ? theme.successPill : theme.surface,
+                color: sent === id ? theme.successPillTxt : theme.panelTxt,
+                border: `1px solid ${theme.panelBorder}`,
+                cursor: selectedLine == null ? 'default' : 'pointer',
+                fontSize: 11, lineHeight: 1, padding: '5px 7px', borderRadius: 6,
+                opacity: selectedLine == null ? 0.45 : 1,
+              }}
             >
-              {emoji}
+              <Icon name={icon} size={12} color="currentColor" />
+              {t(`session.reaction.${id}`)}
             </button>
           ))}
         </div>
+        {onClose && (
+          <button type="button" onClick={onClose} title={t('teacher.close')} style={{
+            display: 'grid', placeItems: 'center', width: 26, height: 26, padding: 0,
+            border: `1px solid ${theme.panelBorder}`, borderRadius: 6,
+            background: theme.surface, color: theme.panelTxtMute, cursor: 'pointer',
+          }}>
+            <Icon name="close" size={13} color="currentColor" />
+          </button>
+        )}
       </div>
       <div style={{ flex: 1, minHeight: 0 }}>
         {buffer?.content ? (
-          <ReadOnlyCode content={buffer.content} cursorLine={buffer.cursor_line} height="100%" />
+          <ReadOnlyCode
+            content={buffer.content}
+            cursorLine={buffer.cursor_line}
+            selectedLine={selectedLine}
+            onLineSelect={setSelectedLine}
+            height="100%"
+          />
         ) : (
           <div style={{
             display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%',

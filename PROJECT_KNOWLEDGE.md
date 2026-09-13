@@ -63,7 +63,7 @@ server/
   middleware/               # auth (Bearer + session), projectAuth (owner/editor/viewer), rateLimit*
   routes/                   # auth, projects, shares, comments, users, groups, help-requests,
                             #   live (sessions), compete, moderation, snapshots, sessions
-  sessions/                 # tokens.ts, comments.ts (live-session tokens + emoji comments)
+  sessions/                 # signed tokens, revocable classrooms, constrained line reactions
   profile.ts                # DEPLOYMENT_PROFILE resolver (institutional | public)
   auth-providers/           # loginus.ts, keycloak.ts, types.ts
 tests/
@@ -100,8 +100,10 @@ graphics._inject_event(kind, data) → sets polling flags on _state (_mouse_x, _
 2. postMessage({cmd:"interrupt"}) → graphics.stop() + graphics._clear(); worker ack interrupt_ack.
 
 ### Loop generation invalidation
-_loop_generation **always increments** (never resets), +3 per run. Stale tick callbacks compare and skip.
-Prevents old ticks firing in new runs. _reset_run_state() must NOT bump it (A2 invariant).
+_loop_generation increments once in each `run()`. Stale tick callbacks compare and skip both
+at frame entry and immediately before rescheduling. The second guard is essential when user
+`main()` calls `run()` re-entrantly during a game restart: only the new generation may leave
+a timer behind. `_reset_run_state()` must NOT bump it (A2 invariant).
 
 ### Frame order (per tick)
 update() for every living actor (registry) → main() → clear pressed/released flags → draw flush →
@@ -111,12 +113,16 @@ _flush_watches(). Mouse.pressed/Keyboard.*.pressed are edge flags cleared at end
 Actor registry + id counter reset, draw commands cleared, _loop_generation bumped, canvas size applied
 **after** setup so g.size() takes effect. Stopping a graphical script no longer clears the console.
 
-### Live sessions (newest subsystem, hottest node in graph: join has 33 callers)
-- Token-based membership: **the signed token IS the session** (no server row); stamped onto 1s presence pings.
-- useLiveSession (Zustand): start/join/adopt/leave, peerTabs (read-only live code), activePeer.
-- server/routes/live.ts (createLiveRouter): start, join, allowed-emoji, :sid/comments, roster, presence.
-- Symmetric peer sessions + asymmetric classroom sessions (groupId ⇒ classroom).
-- Peer tabs: open a peer's live buffer as a read-only editor tab; leaving the session closes them.
+### Live sessions
+- Three explicit surfaces: group classroom, signed-link room, and editor project sharing.
+- Link-room membership is stateless and signed. Classroom discovery is persisted in
+  `live_group_sessions`; group-bound tokens are also checked against that row for immediate revocation.
+- useLiveSession tracks kind/group/label in addition to token, sid, role and the selected live peer.
+- Students explicitly accept a classroom invitation before their presence is session-stamped.
+- Classroom visibility is asymmetric: teacher sees joined students' selected files; students see self only.
+- Peer code opens beside the user's editor, not as a fake file tab.
+- Fixed semantic reactions (`good`, `question`, `try`) are bound to target + file + line. Only the teacher
+  reacts in classroom mode; every link-room member may react.
 - Rate limiting + stale-presence pruning (pruneStaleLivePresence).
 
 ### Compete mode (teacher-authored problems)
@@ -146,8 +152,10 @@ Registration fixed 2026-07-28 (registerServiceWorker.ts).
 
 Drawing: size, width, height, circle, rect, ellipse, line, point,
 polyline, polygon, spline, text, text_size, text_align, say
-Color: fill, no_fill, stroke, no_stroke, stroke_width, background, Colors,
-lerp, darker, lighter, saturated, desaturated, random_color
+Color: fill, no_fill, stroke, no_stroke, stroke_width, background, Colors
+(unchanged Sweetie 16 core plus brown/purple/pink and
+grey/light_blue/dark_blue aliases), lerp, darker, lighter, saturated,
+desaturated, random_color
 Transform: push, pop, translate, rotate, scale + context managers
 translated / rotated / scaled; Stamp (drawing macro replay)
 Pixels: Sprite, PixelView, create_sprite, get_pixel, set_pixel, palette_swap,
@@ -323,8 +331,10 @@ DocsPanel entry resolves against EXPORTED_NAMES, re-sync AGENTS.md from the same
 - Presence pinger: usePresencePinger (~1s cadence), pruneStaleLivePresence on server.
 - Session tokens: server/sessions/tokens.ts (issueSessionToken/verifySessionToken),
   rate-limited, expiry in expires_at.
-- Emoji comments on live sessions: POST /:sid/comments, allowed-emoji list.
-- Teacher live roster: LiveRoster; help-request queue: HelpRequestsSection/GroupQueueView.
+- Line reactions: POST /:sid/reactions and /:sid/reactions/list; legacy emoji endpoints remain only
+  for cached-client compatibility.
+- Teacher classroom view: ClassroomSessionPanel; ambient LiveRoster remains a legacy component.
+  Help-request queue: HelpRequestsSection/GroupQueueView.
 - Compete submit: src/compete/submitRunner.ts (runSubmit), server scans/validates problem body
   (scanProblemBody/validateProblemBody), hidden tests via pi3.testing.
 

@@ -297,5 +297,6 @@ export function commentExtension(opts: {
     },
   });
 
-  return [commentsField, selectedLineField, hoveredLineField, gutterExt, inlinePlugin, theme];
+  const shared = [commentsField, selectedLineField, hoveredLineField, inlinePlugin, theme];
+  return opts.canAdd ? [...shared.slice(0, 3), gutterExt, ...shared.slice(3)] : shared;
 }

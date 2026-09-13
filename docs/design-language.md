@@ -18,7 +18,7 @@ All colors, typography, and geometry live in `src/state/useTheme.ts`.
 | `panelTxt` | `#1f2933` | `#e8f2f4` | Panel body text, dialog titles |
 | `panelTxtMute` | `#5b6976` | `#9bb3b8` | Section labels, hints, secondary info |
 | `consoleTxt` | `#1f2933` | `#e8f2f4` | Console output text |
-| `consoleTxtMute` | `#7a8696` | `#7d9499` | Console copy/clear button labels |
+| `consoleTxtMute` | `#566473` | `#9bb3b8` | Secondary console text; actions use visible button surfaces |
 | `railIcon` | `rgba(255,255,255,0.78)` | `rgba(155,210,216,0.7)` | Inactive rail button icons |
 | `railIconActive` | `#ffffff` | `#ffffff` | Active/selected rail button icons |
 | `railLogo` | `#fffaf0` | `#5fd4dc` | Pi3 logo mark in the rail (cream in Studio, teal in Midnight) |
@@ -61,7 +61,7 @@ All colors, typography, and geometry live in `src/state/useTheme.ts`.
 | Token | Studio | Midnight | Usage example |
 |---|---|---|---|
 | `editorTxt` | `#1f2933` | `#e8f2f4` | Main editor text color |
-| `editorLN` | `#b6c2c8` | `#5b8489` | Line number gutter text |
+| `editorLN` | `#66757e` | `#8fb0b5` | Line number gutter text; at least 4.5:1 against editor background |
 | `editorLNActive` | `#0a3d44` | `#e8f2f4` | Current-line number highlight |
 | `editorLineActive` | `rgba(14,154,167,0.06)` | `rgba(120,210,220,0.06)` | Active line background tint |
 | `errorLine` | `#ef4444` | `#ff8b8b` | Gutter indicator for error lines |
@@ -242,7 +242,7 @@ Row of equal-weight buttons in `src/SideMenu.tsx:693-741`:
 - Status pill: `borderRadius: 999`, `padding: 2px 8px`, 10.5px, uppercase, `letterSpacing: 0.6`
   - Running: `successPill` bg, `successPillTxt` text
   - Idle: `chip` bg, `consoleTxtMute` text
-- Spacer, then text-only action buttons (`consoleTxtMute`, 12px, icon size 13, gap 4)
+- Spacer, then surfaced action buttons (`consoleTxt`, 12px, icon size 13, gap 4) with hover border and visible keyboard focus
 
 **Resize handle**: 8px invisible strip at edge (top/left depending on orientation); contains a visible 32×3 (or 3×32) bar in `panelBorder` color at 50% opacity.
 

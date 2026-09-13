@@ -1,5 +1,15 @@
 # pi3 Graphics API v1 Changelog
 
+## 2026-09-12: kid-friendly color vocabulary
+
+- The original Sweetie 16 values remain unchanged.
+- Added distinct `brown`, `purple`, and `pink` swatches.
+- Added `grey`, `light_blue`, and `dark_blue` aliases for `gray`,
+  `sky`, and `navy`.
+- The names work consistently in `Colors.*`, string color arguments,
+  autocomplete, both sprite editors, `Colors.random()`/`random_color()`,
+  the bilingual in-app reference, and palette synchronization tests.
+
 ## Breaking changes from pre-v1 (0.9.x)
 
 ### Movement

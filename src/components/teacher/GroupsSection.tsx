@@ -12,7 +12,7 @@ import { Icon } from '../Icons';
 import { ThemedDialog } from '../ThemedDialog';
 import { ToggleRow } from '../ToggleRow';
 import { GroupQueueView } from './GroupQueueView';
-import { LiveRoster } from './LiveRoster';
+import { ClassroomSessionPanel } from './ClassroomSessionPanel';
 import { inputStyle, btnPrimary, btnSecondary } from './styles';
 import { userLabel } from '../../utils/userDisplay';
 
@@ -355,13 +355,10 @@ export function GroupsSection() {
                       <div style={{ fontSize: 12, color: theme.panelTxtMute }}>{t('sideMenu.loading')}</div>
                     )}
 
-                    {/* Live activity: current file + cursor line per student,
-                        polled from the server every few seconds. */}
+                    {/* Explicit, time-boxed classroom session. Students only
+                        appear after accepting the live invitation. */}
                     <div style={{ marginTop: 12 }}>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: theme.panelTxtMute, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 6 }}>
-                        {t('teacher.liveRoster')}
-                      </div>
-                      <LiveRoster groupId={g.id} />
+                      <ClassroomSessionPanel groupId={g.id} groupName={g.name} />
                     </div>
                   </div>
                 )}

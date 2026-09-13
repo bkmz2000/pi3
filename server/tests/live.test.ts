@@ -270,20 +270,25 @@ describe('GET /api/live/session/:sid — symmetric vs classroom', () => {
   it('classroom: a joiner (student) cannot read a peer, the starter (teacher) can', async () => {
     // groupId-bound token, starter = teacher.
     const g = await request(app).post('/api/groups').set(auth(teacher.api_token)).send({ name: 'G' });
-    const { token, payload } = issueSessionToken(teacher.id, Date.now(), { groupId: g.body.id });
-    await ping(s1, payload.sid, token, 's1 code');
-    await ping(s2, payload.sid, token, 's2 code');
+    await request(app).post('/api/groups/join').set(auth(s1.api_token)).send({ code: g.body.invite_code });
+    await request(app).post('/api/groups/join').set(auth(s2.api_token)).send({ code: g.body.invite_code });
+    const started = await request(app).post(`/api/groups/${g.body.id}/session/start`)
+      .set(auth(teacher.api_token)).send({});
+    const token = started.body.token as string;
+    const sid = started.body.session_id as string;
+    await ping(s1, sid, token, 's1 code');
+    await ping(s2, sid, token, 's2 code');
 
     // s1 (joiner) tries to read s2 (peer) — denied.
     const denied = await request(app)
-      .get(`/api/live/session/${payload.sid}/member/${s2.id}`)
+      .get(`/api/live/session/${sid}/member/${s2.id}`)
       .set(auth(s1.api_token))
       .set('X-Session-Token', token);
     expect(denied.status).toBe(403);
 
     // s1 may still read their own buffer.
     const own = await request(app)
-      .get(`/api/live/session/${payload.sid}/member/${s1.id}`)
+      .get(`/api/live/session/${sid}/member/${s1.id}`)
       .set(auth(s1.api_token))
       .set('X-Session-Token', token);
     expect(own.status).toBe(200);
@@ -291,7 +296,7 @@ describe('GET /api/live/session/:sid — symmetric vs classroom', () => {
 
     // The starter (teacher) reads any peer.
     const allowed = await request(app)
-      .get(`/api/live/session/${payload.sid}/member/${s2.id}`)
+      .get(`/api/live/session/${sid}/member/${s2.id}`)
       .set(auth(teacher.api_token))
       .set('X-Session-Token', token);
     expect(allowed.status).toBe(200);
@@ -299,11 +304,18 @@ describe('GET /api/live/session/:sid — symmetric vs classroom', () => {
 
     // A joiner's roster shows only themselves.
     const roster = await request(app)
-      .get(`/api/live/session/${payload.sid}/roster`)
+      .get(`/api/live/session/${sid}/roster`)
       .set(auth(s1.api_token))
       .set('X-Session-Token', token);
     expect(roster.body.members).toHaveLength(1);
     expect(roster.body.members[0].student_id).toBe(s1.id);
+
+    await request(app).post(`/api/groups/${g.body.id}/session/end`).set(auth(teacher.api_token)).send({});
+    const revoked = await request(app)
+      .get(`/api/live/session/${sid}/member/${s1.id}`)
+      .set(auth(s1.api_token))
+      .set('X-Session-Token', token);
+    expect(revoked.status).toBe(410);
   });
 
   it('401 without a token, 403 on session mismatch', async () => {

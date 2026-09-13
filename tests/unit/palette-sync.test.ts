@@ -2,7 +2,7 @@ import { describe, test, expect } from '@jest/globals';
 import * as fs from 'fs';
 import * as path from 'path';
 
-import { PAL_NAMES } from '../../src/palette';
+import { ALL_COLOR_NAMES, COLOR_ALIASES, PAL_NAMES, PALETTE_TITLES } from '../../src/palette';
 
 const PYTHON_SRC = path.resolve(__dirname, '../../src/assets/python/graphics/_color.py');
 
@@ -21,19 +21,32 @@ function parsePythonColorNames(src: string): string[] {
   return names;
 }
 
-describe('palette-sync: TypeScript PAL_NAMES mirrors Python COLOR_NAMES', () => {
-  test('PAL_NAMES values match Python COLOR_NAMES keys in order', () => {
+describe('palette-sync: TypeScript palette mirrors Python COLOR_NAMES', () => {
+  test('all TypeScript names match Python COLOR_NAMES keys in order', () => {
     const src = fs.readFileSync(PYTHON_SRC, 'utf8');
     const pythonNames = parsePythonColorNames(src);
-    const tsNames = Object.values(PAL_NAMES);
+    const tsNames = ALL_COLOR_NAMES;
 
     expect(tsNames).toEqual(pythonNames);
   });
 
-  test('both palettes have exactly 16 entries', () => {
+  test('the 16 core swatches stay first and the expected kid color names are present', () => {
     const src = fs.readFileSync(PYTHON_SRC, 'utf8');
     const pythonNames = parsePythonColorNames(src);
-    expect(pythonNames).toHaveLength(16);
-    expect(Object.keys(PAL_NAMES)).toHaveLength(16);
+    expect(Object.values(PAL_NAMES).slice(0, 16)).toEqual(pythonNames.slice(0, 16));
+    expect(pythonNames).toHaveLength(22);
+    expect(Object.keys(PAL_NAMES)).toHaveLength(19);
+    expect(Object.keys(COLOR_ALIASES)).toHaveLength(3);
+    expect(pythonNames).toEqual(expect.arrayContaining([
+      'brown', 'purple', 'pink', 'grey', 'light_blue', 'dark_blue',
+    ]));
+    expect(PALETTE_TITLES).toEqual(expect.arrayContaining([
+      expect.stringContaining('brown'),
+      expect.stringContaining('purple'),
+      expect.stringContaining('pink'),
+      expect.stringContaining('grey'),
+      expect.stringContaining('light_blue'),
+      expect.stringContaining('dark_blue'),
+    ]));
   });
 });

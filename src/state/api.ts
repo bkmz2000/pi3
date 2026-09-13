@@ -347,6 +347,7 @@ export interface SessionJoinResponse {
   starter_id: string;
   role: 'starter' | 'joiner';
   expires_at: number;
+  group_id?: string;
 }
 
 export async function startSession(): Promise<SessionStartResponse> {
@@ -371,7 +372,43 @@ export async function getSessionMember(sid: string, studentId: string, token: st
   );
 }
 
-// Emoji-only reactions inside a session. `target` is the student_id reacted to.
+export type SessionReactionKind = 'good' | 'question' | 'try';
+
+// A constrained reaction addressed to one user's selected file and line.
+export interface SessionReaction {
+  id: string;
+  author_id: string;
+  reaction: SessionReactionKind;
+  target: string;
+  file: string;
+  line: number;
+  created_at: number;
+}
+
+export async function getAllowedReactions(): Promise<SessionReactionKind[]> {
+  const r = await api.get<{ allowed: SessionReactionKind[] }>('/api/sessions/allowed-reactions');
+  return r.allowed;
+}
+
+export async function postSessionReaction(
+  sid: string,
+  token: string,
+  reaction: SessionReactionKind,
+  target: string,
+  file: string,
+  line: number,
+): Promise<SessionReaction> {
+  return api.post<SessionReaction>(`/api/sessions/${encodeURIComponent(sid)}/reactions`, {
+    token, reaction, target, file, line,
+  });
+}
+
+export async function listSessionReactions(sid: string, token: string): Promise<SessionReaction[]> {
+  return api.post<SessionReaction[]>(`/api/sessions/${encodeURIComponent(sid)}/reactions/list`, { token });
+}
+
+// Legacy session comments are retained so cached clients can finish rooms
+// created before line reactions were introduced.
 export interface SessionComment {
   id: string;
   author_id: string;
@@ -484,6 +521,42 @@ export async function joinGroupByCode(code: string): Promise<{ id: string; name:
 
 export async function getMyGroups(): Promise<(Group & { teacher_name: string; teacher_handle: string | null })[]> {
   return api.get('/api/groups/my');
+}
+
+export interface LiveGroupInvitation {
+  group_id: string;
+  group_name: string;
+  session_id: string;
+  teacher_name: string;
+  teacher_handle: string | null;
+  started_at: number;
+  expires_at: number;
+}
+
+export interface ClassroomSessionResponse extends SessionStartResponse {
+  group_id: string;
+  starter_id?: string;
+  role?: 'starter' | 'joiner';
+}
+
+export async function getLiveGroupInvitations(): Promise<LiveGroupInvitation[]> {
+  return api.get<LiveGroupInvitation[]>('/api/groups/my/live');
+}
+
+export async function startClassroomSession(groupId: string): Promise<ClassroomSessionResponse> {
+  return api.post<ClassroomSessionResponse>(`/api/groups/${encodeURIComponent(groupId)}/session/start`, {});
+}
+
+export async function getActiveClassroomSession(groupId: string): Promise<ClassroomSessionResponse | null> {
+  return api.get<ClassroomSessionResponse | null>(`/api/groups/${encodeURIComponent(groupId)}/session/active`);
+}
+
+export async function joinClassroomSession(groupId: string): Promise<ClassroomSessionResponse> {
+  return api.post<ClassroomSessionResponse>(`/api/groups/${encodeURIComponent(groupId)}/session/join`, {});
+}
+
+export async function endClassroomSession(groupId: string): Promise<void> {
+  return api.post<void>(`/api/groups/${encodeURIComponent(groupId)}/session/end`, {});
 }
 
 export async function createGroup(name: string): Promise<Group> {

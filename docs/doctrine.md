@@ -138,9 +138,10 @@ reconciliation plan.
 - **PUB-3: `/users/search` returns 410 Gone.** No queryable directory.
   Access to another user's context is only through session invite links.
 
-- **PUB-4: Emoji-only in-session communication.** Structural prevention,
-  not a filter. Fixed small palette. Applies to the ephemeral session
-  channel, not project comments — which are still free-text under CORE-1.
+- **PUB-4: Fixed line reactions only in live sessions.** Structural prevention,
+  not a filter. The semantic set is `good`, `question`, and `try`; every item
+  is bound to a recipient, selected file, and line. Applies to live rooms and
+  classroom sessions, not project comments — which remain free-text under CORE-1.
 
 - **PUB-5: No PII collected from students.** Auto-generated handle;
   only the password is user-editable. No name, email, or other identifier
@@ -160,6 +161,10 @@ reconciliation plan.
   guards. A signed link stays something you deliberately hand to a known person,
   and adds no discovery surface (no directory, no enumeration). Revisit only via
   an explicit PUB-6 amendment. Implementation: `server/routes/sessions.ts`.
+  Classroom sessions are the narrow exception to link delivery: they are
+  discoverable only to existing members of the teacher's group and still
+  require an explicit Join action. They create no public directory or first-
+  contact surface.
 
 ---
 

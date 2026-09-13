@@ -7,7 +7,9 @@ __init__.py because the static validator requires them as def statements there.
 from graphics._errors import FriendlyError
 
 # Sweetie 16 palette by GrafxKid (https://lospec.com/palette-list/sweetie-16).
-# Locked color palette — used by both Colors.<name> and fill("<name>") lookups.
+# The original Sweetie 16 entries stay unchanged. Three derived swatches and
+# three familiar aliases make the vocabulary friendlier for young artists.
+# Used by both Colors.<name> and fill("<name>") lookups.
 COLOR_NAMES = {
     "black":  ( 26,  28,  44),
     "wine":   ( 93,  39,  93),
@@ -25,11 +27,17 @@ COLOR_NAMES = {
     "silver": (148, 176, 194),
     "gray":   ( 86, 108, 134),
     "slate":  ( 51,  60,  87),
+    "brown":  (166,  83,  62),
+    "purple": (138,  77, 199),
+    "pink":   (230, 111, 167),
+    "grey":       ( 86, 108, 134),
+    "light_blue": ( 65, 166, 246),
+    "dark_blue":  ( 41,  54, 111),
 }
 
 
 class _Colors:
-    """Named color palette. Locked to Sweetie 16."""
+    """Sweetie 16 plus kid-friendly derived colors and aliases."""
     black  = COLOR_NAMES["black"]
     wine   = COLOR_NAMES["wine"]
     red    = COLOR_NAMES["red"]
@@ -46,11 +54,17 @@ class _Colors:
     silver = COLOR_NAMES["silver"]
     gray   = COLOR_NAMES["gray"]
     slate  = COLOR_NAMES["slate"]
+    brown  = COLOR_NAMES["brown"]
+    purple = COLOR_NAMES["purple"]
+    pink   = COLOR_NAMES["pink"]
+    grey       = COLOR_NAMES["grey"]
+    light_blue = COLOR_NAMES["light_blue"]
+    dark_blue  = COLOR_NAMES["dark_blue"]
 
     def random(self, seed=None, exclude=None):
         """Pick a palette color. Pass seed for deterministic choice; exclude to skip colors."""
         import random as _random
-        palette = list(COLOR_NAMES.values())
+        palette = list(dict.fromkeys(COLOR_NAMES.values()))
         if exclude:
             excl = {_to_rgb(c) for c in exclude}
             palette = [c for c in palette if c not in excl]

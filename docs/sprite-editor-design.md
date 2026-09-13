@@ -10,7 +10,7 @@ kid mode IS the editor. Engine choice deferred (see `docs/pedagogical-audit.md`
 | Area | Decision |
 |---|---|
 | Default canvas | 64×64 (16 / 32 / 64 / 128); size change prompts **Scale drawing** (nearest-neighbor) vs **Keep as-is** vs Cancel — applies to all animations |
-| Palette | Full 16-color Sweetie-16; **color mixing** = two palette colors → **10-step ramp** (i/9); **no RGB sliders** (user decision); ramp endpoints (palette colors) are not saved |
+| Palette | Sweetie-16 core plus brown, purple, and pink; familiar grey/light-blue/dark-blue aliases; **color mixing** = two palette colors → **10-step ramp** (i/9); **no RGB sliders** (user decision); ramp endpoints (palette colors) are not saved |
 | My colors | Session row of **custom-only** colors (non-palette), **34px swatches**, ≤12 |
 | Tools | Pencil, Eraser, Fill, Pick, Line, Rect, Circle — shapes **outline-only** (Fill covers filling); brush 1 / 3 / 5 (default 3) |
 | Icons | SVG icons, **no emoji** |

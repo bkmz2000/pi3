@@ -20,7 +20,6 @@ export function ShareDialog({ open, onClose, projectId, projectName }: ShareDial
   const [results, setResults] = useState<UserSearchResult[]>([]);
   const [searching, setSearching] = useState(false);
   const [picked, setPicked] = useState<UserSearchResult | null>(null);
-  const [role, setRole] = useState<'editor' | 'viewer'>('editor');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -29,7 +28,7 @@ export function ShareDialog({ open, onClose, projectId, projectName }: ShareDial
   useEffect(() => {
     if (open) {
       setQuery(''); setResults([]); setPicked(null);
-      setRole('editor'); setError(null); setSuccess(null);
+      setError(null); setSuccess(null);
     }
   }, [open]);
 
@@ -60,7 +59,7 @@ export function ShareDialog({ open, onClose, projectId, projectName }: ShareDial
     if (!picked) return;
     setLoading(true); setError(null);
     try {
-      await shareProjectWithUser(projectId, picked.id, role);
+      await shareProjectWithUser(projectId, picked.id, 'editor');
       setSuccess(t('projects.shareSuccess', { name: picked.name }));
       setTimeout(() => { onClose(); }, 1200);
     } catch (err) {
@@ -198,27 +197,8 @@ export function ShareDialog({ open, onClose, projectId, projectName }: ShareDial
             )}
           </div>
 
-          {/* Role */}
-          <div style={{ marginBottom: 14 }}>
-            <label style={{ display: 'block', marginBottom: 6, fontSize: 12, fontWeight: 600, color: theme.panelTxt }}>
-              {t('projects.shareRoleLabel')}
-            </label>
-            <select
-              value={role}
-              onChange={(e) => setRole(e.target.value as 'editor' | 'viewer')}
-              disabled={loading}
-              style={{
-                all: 'unset', display: 'block', width: '100%', boxSizing: 'border-box',
-                padding: '8px 12px',
-                background: theme.editorBg,
-                border: `1px solid ${theme.panelBorder}`,
-                borderRadius: 5,
-                fontSize: 13, color: theme.panelTxt,
-              }}
-            >
-              <option value="editor">{t('projects.roleEditor')} — {t('projects.shareRoleEditorDesc')}</option>
-              <option value="viewer">{t('projects.roleViewer')} — {t('projects.shareRoleViewerDesc')}</option>
-            </select>
+          <div style={{ marginBottom: 14, fontSize: 12, color: theme.panelTxtMute }}>
+            {t('projects.shareEditorNotice')}
           </div>
 
           {error && (

@@ -130,11 +130,11 @@ describe('file tabs', () => {
     expect(container).toBeTruthy();
   });
 
-  test('clicking a tab switches the current file and clears peer focus', () => {
+  test('clicking a tab switches the current file without closing the side-by-side peer pane', () => {
     render(<FileBar />);
     fireEvent.click(screen.getByText('utils.py'));
     expect(editorState.changeCurrentFile).toHaveBeenCalledWith('utils.py');
-    expect(liveSessionState.focusPeer).toHaveBeenCalledWith(null);
+    expect(liveSessionState.focusPeer).not.toHaveBeenCalled();
   });
 
   test('close button on the active tab deletes the file after confirm', () => {
@@ -202,18 +202,10 @@ describe('new file tab', () => {
 });
 
 describe('peer tabs', () => {
-  test('renders a read-only tab for each peer and wires select/close', () => {
+  test('does not mix live peers into the project file tabs', () => {
     liveSessionState.peerTabs = [{ id: 'peer-1', label: 'Alice' }];
     render(<FileBar />);
-
-    const peerTab = screen.getByTitle("Alice — live code (read-only)");
-    expect(peerTab).toBeTruthy();
-
-    fireEvent.click(peerTab);
-    expect(liveSessionState.focusPeer).toHaveBeenCalledWith('peer-1');
-
-    fireEvent.click(screen.getByLabelText("Close Alice's live code"));
-    expect(liveSessionState.closePeer).toHaveBeenCalledWith('peer-1');
+    expect(screen.queryByText('Alice')).toBeNull();
   });
 
   test('no peer tabs render when peerTabs is empty', () => {

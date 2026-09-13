@@ -11,6 +11,7 @@ import { NewProjectDialog } from './NewProjectDialog';
 import { Icon } from '../Icons';
 import { ThemedDialog } from '../ThemedDialog';
 import { joinGroupByCode } from '../../state/api';
+import { ClassroomInviteBanner } from '../session/ClassroomInviteBanner';
 
 type LibrarySection = 'mine' | 'examples' | 'shared';
 
@@ -178,6 +179,8 @@ export function ProjectsPage() {
           pi<span style={{ fontSize: 12 }}>3</span>
         </div>
       </header>
+
+      <ClassroomInviteBanner onJoined={openEditor} />
 
       <div className="pi3-project-library-layout">
         <nav className="pi3-project-library-nav" aria-label={t('projects.categories')} style={{

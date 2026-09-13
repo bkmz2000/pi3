@@ -170,10 +170,12 @@ the in-flight save; second edit must remain dirty.
 
 ### P2.7 — Service worker check
 1. DevTools → Application → Service Workers.
-2. **Pass:** no SW registered (current intended state). If you see one,
-   investigate before launch — the `public/sw.js` file ships but no code
-   registers it; if a registration sneaked in, it could pin users to a stale
-   cache.
+2. **Pass:** a production build registers `/sw.js`; development builds do not.
+3. Load the app once, go offline, and reload `/ide/...`. **Pass:** the cached
+   application shell loads and the editor offers cached project recovery.
+4. Return online and deploy a build with a new `webide-vN` cache name.
+   **Pass:** the new worker activates (unless a teacher has frozen updates),
+   removes the old versioned cache, and a reload serves the new build.
 
 ---
 

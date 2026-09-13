@@ -295,8 +295,8 @@ export const DOCS: DocCategory[] = [
         id: "colors_palette",
         name: "Colors",
         signature: "Colors.<name>",
-        en: "The locked Sweetie 16 palette (GrafxKid, CC0). Use anywhere a color is accepted. Same 16 names that appear in the sprite editor — pixels and code stay visually consistent.",
-        ru: "Закреплённая палитра Sweetie 16 (GrafxKid, CC0). Используйте везде, где принимается цвет. Это те же 16 имён, что и в редакторе спрайтов — пиксели и код выглядят согласованно.",
+        en: "The Sweetie 16 core palette (GrafxKid, CC0), plus brown, purple, pink, and familiar blue/grey aliases. Use these names anywhere a color is accepted. The same swatches appear in the sprite editor, so pixels and code stay visually consistent.",
+        ru: "Основная палитра Sweetie 16 (GrafxKid, CC0), а также коричневый, фиолетовый, розовый и привычные варианты названий синего и серого. Эти имена можно использовать везде, где принимается цвет. Те же образцы есть в редакторе спрайтов, поэтому пиксели и код выглядят одинаково.",
         example: 'fill(Colors.red)\ncircle(100, 100, 30)',
         swatches: [
           { name: "black",  rgb: [ 26,  28,  44] },
@@ -315,6 +315,12 @@ export const DOCS: DocCategory[] = [
           { name: "silver", rgb: [148, 176, 194] },
           { name: "gray",   rgb: [ 86, 108, 134] },
           { name: "slate",  rgb: [ 51,  60,  87] },
+          { name: "brown",  rgb: [166,  83,  62] },
+          { name: "purple", rgb: [138,  77, 199] },
+          { name: "pink",   rgb: [230, 111, 167] },
+          { name: "grey",       rgb: [ 86, 108, 134] },
+          { name: "light_blue", rgb: [ 65, 166, 246] },
+          { name: "dark_blue",  rgb: [ 41,  54, 111] },
         ],
       },
       {

@@ -1013,10 +1013,8 @@ def noise(x, y, scale=0.1, seed=0) -> float:
 
 def random_color() -> tuple:
     import random as _random
-    names = [n for n in dir(Colors) if not n.startswith("_") and isinstance(getattr(Colors, n), tuple)]
-    if names:
-        return getattr(Colors, _random.choice(names))
-    return _random.choice(list(COLOR_NAMES.values()))
+    # Aliases should not make gray/sky/navy more likely than other swatches.
+    return _random.choice(list(dict.fromkeys(COLOR_NAMES.values())))
 
 
 def frame_rate(fps) -> None:
@@ -1162,6 +1160,11 @@ def _tick(main, my_generation):
     elif _state._paused:
         pass  # loop suspended; _resume() will reschedule
     else:
+        # main() may call run() itself (for example when restarting a game).
+        # In that case _run() has already created the next generation's timer;
+        # the old frame must not append a second tick chain after it returns.
+        if _state._loop_generation != my_generation or not _state._running:
+            return
         elapsed = (1000 / _state._target_fps) * _state._speed_divisor
         _state._pending_timer_id = setTimeout(_state.tick_proxy, int(elapsed))
 

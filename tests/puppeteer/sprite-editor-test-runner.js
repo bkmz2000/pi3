@@ -26,6 +26,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 const DEV_SERVER_URL = process.env.PUPPETEER_URL || 'http://localhost:5173';
+const EDITOR_URL = new URL('/ide', DEV_SERVER_URL).toString();
 
 const testResults = {
   passed: 0,
@@ -46,24 +47,13 @@ function addTestResult(name, passed, error = null) {
   }
 }
 
-function skipTestResult(name, reason) {
-  testResults.tests.push({ name, skipped: true, reason });
-  testResults.skipped++;
-  console.log(`⏭️  ${name} (skipped: ${reason})`);
-}
-
 async function openSheetEditor(page) {
   // Projects panel → Sprites section "+" (title="New sprite").
   await page.evaluate(() => {
     const btn = document.querySelector('button[aria-label="Projects"]');
     if (btn) btn.click();
   });
-  await waitForFn(page, async () => {
-    return await page.evaluate(() => {
-      const region = document.querySelector('div[role="region"]');
-      return !!region && (region.getAttribute('style') || '').includes('left: 60');
-    });
-  }, { timeout: 5000 });
+  await waitForElement(page, 'div[role="region"][aria-label="Projects"]', { timeout: 5000 });
   await sleep(500);
 
   const plusClicked = await page.evaluate(() => {
@@ -86,7 +76,7 @@ async function closeSheetEditor(page) {
   await sleep(800);
   // Close the Projects panel too.
   await page.evaluate(() => {
-    const region = document.querySelector('div[role="region"]');
+    const region = document.querySelector('div[role="region"][aria-label="Projects"]');
     if (region) {
       const btn = region.querySelector('button[title="Close"]');
       if (btn) btn.click();
@@ -96,7 +86,7 @@ async function closeSheetEditor(page) {
 }
 
 async function selectTool(page, title) {
-  const btn = await waitForElement(page, `button[title="${title}"]`, { timeout: 5000 });
+  const btn = await waitForElement(page, `button[title^="${title}"]`, { timeout: 5000 });
   await btn.click();
   await sleep(200);
 }
@@ -114,7 +104,7 @@ async function dragOnCanvas(page, x1, y1, x2, y2) {
 
 async function runTests() {
   console.log('🚀 Starting Sprite Editor E2E tests...');
-  console.log(`📡 Target: ${DEV_SERVER_URL}`);
+  console.log(`📡 Target: ${EDITOR_URL}`);
 
   let browser = null;
 
@@ -133,21 +123,16 @@ async function runTests() {
       if (msg.type() === 'error') console.log('Browser console error:', msg.text());
     });
 
-    console.log(`🌐 Navigating to ${DEV_SERVER_URL}...`);
+    console.log(`🌐 Navigating to ${EDITOR_URL}...`);
     try {
-      await page.goto(DEV_SERVER_URL, { waitUntil: 'domcontentloaded', timeout: DEFAULT_TIMEOUT });
+      await page.goto(EDITOR_URL, { waitUntil: 'domcontentloaded', timeout: DEFAULT_TIMEOUT });
     } catch (navError) {
-      throw new Error(`Failed to navigate to ${DEV_SERVER_URL}: ${navError.message}`);
+      throw new Error(`Failed to navigate to ${EDITOR_URL}: ${navError.message}`);
     }
     await sleep(2000);
 
-    // Wait for the IDE (Run button enabled means Pyodide loaded).
-    await waitForFn(page, async () => {
-      return await page.evaluate(() => {
-        const btn = document.querySelector('button[aria-label="Run"]');
-        return !!btn && !btn.disabled;
-      });
-    }, { timeout: 60000 });
+    // The sprite editor is usable before the heavy Python runtime finishes.
+    await waitForElement(page, '.cm-editor', { timeout: 15000 });
 
     console.log('\n=== Running Sprite Editor Tests ===\n');
 
@@ -173,11 +158,11 @@ async function runTests() {
       await dragOnCanvas(page, 40, 40, 90, 90);
 
       console.log('   🟦 Rect...');
-      await selectTool(page, 'Rect');
+      await selectTool(page, 'Rectangle');
       await dragOnCanvas(page, 120, 40, 220, 100);
 
       console.log('   ⭕ Ellipse...');
-      await selectTool(page, 'Ellipse');
+      await selectTool(page, 'Circle');
       await dragOnCanvas(page, 260, 40, 360, 100);
 
       console.log('   📏 Line...');
@@ -201,16 +186,26 @@ async function runTests() {
       addTestResult('Drawing tools functionality', false, error);
     }
 
-    // Test 3: Fill color toggle — SKIPPED.
-    // The current editor uses a color-picker popover with a "none /
-    // transparent" swatch as the disable mechanism, not a toggle button.
-    skipTestResult('Fill color toggle functionality', 'color picker popover, not a toggle button');
+    // Test 3: Kid-friendly palette names are present and selectable.
+    console.log('\n3. Kid-friendly color palette');
+    try {
+      await openSheetEditor(page);
+      const brown = await waitForElement(page, 'button[title*="brown"]', { timeout: 5000 });
+      await brown.click();
+      for (const name of ['purple', 'pink', 'grey', 'light_blue', 'dark_blue']) {
+        await waitForElement(page, `button[title*="${name}"]`, { timeout: 5000 });
+      }
+      await closeSheetEditor(page);
+      addTestResult('Kid-friendly color palette', true);
+    } catch (error) {
+      addTestResult('Kid-friendly color palette', false, error);
+    }
 
     // Test 4: Tool switching does not crash the editor
     console.log('\n4. Tool switching');
     try {
       await openSheetEditor(page);
-      for (const t of ['Pencil', 'Eraser', 'Fill', 'Line', 'Rect', 'Ellipse', 'Select / Move']) {
+      for (const t of ['Pencil', 'Eraser', 'Fill', 'Pick color', 'Line', 'Rectangle', 'Circle']) {
         await selectTool(page, t);
       }
       // Draw one pixel with the pencil to confirm the canvas stays live.

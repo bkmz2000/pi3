@@ -262,6 +262,8 @@ export async function resetDatabase(): Promise<void> {
     { sql: 'DROP TABLE IF EXISTS problems' },
     { sql: 'DROP TABLE IF EXISTS help_requests' },
     { sql: 'DROP TABLE IF EXISTS comments' },
+    { sql: 'DROP TABLE IF EXISTS live_group_sessions' },
+    { sql: 'DROP TABLE IF EXISTS live_presence' },
     { sql: 'DROP TABLE IF EXISTS group_members' },
     { sql: 'DROP TABLE IF EXISTS groups' },
     { sql: 'DROP TABLE IF EXISTS project_shares' },

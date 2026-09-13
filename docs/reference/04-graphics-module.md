@@ -30,9 +30,9 @@ The module is split across several files; `__init__.py` is the only public surfa
 
 ---
 
-## Color palette (Sweetie 16)
+## Color palette (Sweetie 16 core + familiar names)
 
-`COLOR_NAMES` and `Colors` use the **Sweetie 16** palette, not the old generic web colors:
+`COLOR_NAMES` and `Colors` keep the **Sweetie 16** core unchanged and add a few names children commonly look for:
 
 ```python
 Colors.black   = (26, 28, 44)
@@ -51,9 +51,19 @@ Colors.white   = (244, 244, 244)
 Colors.silver  = (148, 176, 194)
 Colors.gray    = (86, 108, 134)
 Colors.slate   = (51, 60, 87)
+Colors.brown   = (166, 83, 62)
+Colors.purple  = (138, 77, 199)
+Colors.pink    = (230, 111, 167)
+
+# Familiar aliases
+Colors.grey       = Colors.gray
+Colors.light_blue = Colors.sky
+Colors.dark_blue  = Colors.navy
 ```
 
-The SheetEditor's 16-color palette is **this same palette** — they must stay in sync.
+The sprite editors show the same 19 distinct swatches. Alias names share their
+matching core swatch and appear in its tooltip. A synchronization test keeps
+the Python names, TypeScript palette, documentation, and autocomplete manifest aligned.
 
 Color arguments (`fill`, `stroke`, `background`) accept:
 - A `Colors.xxx` tuple: `g.fill(Colors.red)`

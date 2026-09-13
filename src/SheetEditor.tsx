@@ -23,6 +23,7 @@ import {
 } from "./sheetPixels";
 import { bresenhamLine, rectOutline, ellipseOutline } from "./sheetRaster";
 import { makeUndoStack } from "./makeUndoStack";
+import { PALETTE_HEX, PALETTE_TITLES } from "./palette";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -37,12 +38,7 @@ const GRID_SIZES = [1, 2, 4, 8, 16, 32, 64, 128];
 function prevGridSize(s: number): number { const i = GRID_SIZES.indexOf(s); return i > 0 ? GRID_SIZES[i - 1] : GRID_SIZES[0]; }
 function nextGridSize(s: number): number { const i = GRID_SIZES.indexOf(s); return i < GRID_SIZES.length - 1 ? GRID_SIZES[i + 1] : GRID_SIZES[GRID_SIZES.length - 1]; }
 
-const PALETTE = [
-  "#1a1c2c", "#5d275d", "#b13e53", "#ef7d57",
-  "#ffcd75", "#a7f070", "#38b764", "#257179",
-  "#29366f", "#3b5dc9", "#41a6f6", "#73eff7",
-  "#f4f4f4", "#94b0c2", "#566c86", "#333c57",
-];
+const PALETTE = PALETTE_HEX;
 
 export { PAL_NAMES } from './palette';
 
@@ -90,8 +86,8 @@ function ColorPicker({ color, secondaryColor, onColor, onSecondary, onClose, the
     <div style={{ position: "absolute", left: 0, top: "calc(100% + 4px)", zIndex: 50, background: surfacePanel, border: `1px solid ${panelBorder}`, borderRadius: 6, padding: 8, width: 168, boxShadow: "0 4px 16px rgba(0,0,0,0.5)" }}
       onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(8, 1fr)", gap: 2, marginBottom: 8 }}>
-        {PALETTE.map((c) => (
-          <button key={c} onClick={() => { if (editing === "b") onSecondary(c); else { onColor(c); onClose(); } }}
+        {PALETTE.map((c, i) => (
+          <button key={c} title={PALETTE_TITLES[i]} onClick={() => { if (editing === "b") onSecondary(c); else { onColor(c); onClose(); } }}
             style={{ width: 18, height: 18, borderRadius: 2, padding: 0, cursor: "pointer", background: c, border: `2px solid ${activeColor === c ? "#fff" : "transparent"}`, outline: activeColor === c ? `1px solid ${accent}` : "none" }} />
         ))}
       </div>

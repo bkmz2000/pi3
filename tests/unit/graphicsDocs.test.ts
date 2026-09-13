@@ -210,18 +210,18 @@ describe('graphicsDocs — tilemap + actor regression guards', () => {
     expect(init).toMatch(/"SheetAnimation",\s*"SpriteEntry",\s*"SheetNamespace",\s*"AnimationController",/);
   });
 
-  it('Colors entry exposes the Sweetie 16 swatches', () => {
+  it('Colors entry exposes the Sweetie 16 core and kid-friendly names', () => {
     const colors = DOCS
       .find((c) => c.id === 'color')!
       .entries.find((e) => e.id === 'colors_palette')!;
     expect(colors.swatches).toBeDefined();
-    expect(colors.swatches!.length).toBe(16);
+    expect(colors.swatches!.length).toBe(22);
     const names = colors.swatches!.map((s) => s.name);
     expect(names).toContain('black');
     expect(names).toContain('wine');
     expect(names).toContain('slate');
-    expect(names).not.toContain('pink');
-    expect(names).not.toContain('purple');
-    expect(names).not.toContain('brown');
+    expect(names).toEqual(expect.arrayContaining([
+      'pink', 'purple', 'brown', 'grey', 'light_blue', 'dark_blue',
+    ]));
   });
 });

@@ -212,7 +212,7 @@ Rail-based layout. Most panel content is inline in `SideMenu.tsx`; `DocsPanel` i
 - **Docs** (`src/components/DocsPanel.tsx`) — bilingual API reference
 
 **Asset editor split**: `src/AssetEditor.tsx` is the unified dispatcher modal. It shows a type picker for `mode='new'` and delegates to the appropriate leaf editor:
-- `src/SheetEditor.tsx` — 512×512 pixel sprite sheet editor, Sweetie 16 palette, animation frames
+- `src/SheetEditor.tsx` — 512×512 pixel sprite sheet editor, Sweetie 16 core plus kid-friendly colors, animation frames
 - `src/TileEditor.tsx` — layer-based tilemap editor (cells, areas, undo/redo)
 
 **Docs maintenance**: `src/docs/graphicsDocs.ts` is the single source of truth for the API reference panel. Update it whenever `src/assets/python/graphics/` changes (add/remove/rename functions, change parameter names or defaults).
@@ -400,7 +400,7 @@ SVG sprites can't be decoded by `createImageBitmap` in the worker → ImageBitma
 
 ## Sprite Editor
 
-`SheetEditor.tsx` is the pixel sprite editor (replaced the old Konva vector editor). Tools: pencil, eraser, fill, line, rect, ellipse, region, select, tile (stamp), wand. Sweetie 16 palette (must match `COLOR_NAMES`), brush sizes 1/2/4/8, undo/redo (`makeUndoStack`, Ctrl+Z / Ctrl+Y), grid sizes 1..128. Sheet is 512×512, sprites are regions, animation strips are horizontal rows.
+`SheetEditor.tsx` is the pixel sprite editor (replaced the old Konva vector editor). Tools: pencil, eraser, fill, line, rect, ellipse, region, select, tile (stamp), wand. The unchanged Sweetie 16 core plus kid-friendly derived colors and aliases must match `COLOR_NAMES`; brush sizes are 1/2/4/8, with undo/redo (`makeUndoStack`, Ctrl+Z / Ctrl+Y) and grid sizes 1..128. Sheet is 512×512, sprites are regions, animation strips are horizontal rows.
 
 ---
 
@@ -411,6 +411,27 @@ Privacy-first code sharing for instructor oversight. No accounts required for ba
 - Instructor dashboard at `/teacher` (or `/teacher/projects/:projectId`).
 - Comments are **anchored to content, not line numbers** — store an `anchor` string; on display, find the first line containing it. If not found → "orphaned" (instructor can reattach).
 - Security: OAuth school accounts or password "outsider" accounts; project access only for owner + explicitly shared teachers; teacher dashboard requires teacher role.
+
+### Collaboration surfaces
+
+Collaboration is deliberately split into three products with different authority:
+
+- **Classroom session:** a teacher starts a time-boxed session from a group. Group members see
+  “Group … is live. Join?” and do not publish presence until they accept. The teacher sees each
+  joined student's currently selected file and may send only the fixed line reactions `good`,
+  `question`, and `try`. Students cannot inspect classmates or react in this mode.
+- **Link room:** any signed-in user starts a signed-link room. Members may inspect a selected
+  peer beside their own editor and send the same fixed line reactions. A room never grants save
+  or project access.
+- **Shared project:** an owner invites a user as an editor. Editors may change files/assets and
+  save; only the owner manages access or deletes the project. Viewer shares remain an internal
+  compatibility path for the separate teacher-review workflow.
+
+Classroom discovery is persisted in `live_group_sessions` (migration 013), but tokens remain
+signed and time-boxed. Reissued teacher/student tokens preserve the same `sid` and expiry.
+Every group-bound read/write also checks that the persisted session is still active, so End class
+revokes all classroom tokens immediately. Presence remains polling-based and stores only the
+currently selected file buffer.
 
 ---
 

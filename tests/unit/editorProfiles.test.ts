@@ -28,7 +28,7 @@ describe("editor profiles", () => {
   it("graphicsProfile has more extensions than competeProfile", () => {
     const compete = competeProfile(opts);
     const graphics = graphicsProfile(opts);
-    // autocompletion + 3 graphicsExtensions + Prec.high(keymap) + commentExtension + lintGutter
+    // autocompletion + 3 graphicsExtensions + Prec.high(keymap) + comment extension + lintGutter
     expect(graphics.length).toBe(compete.length + 7);
   });
 });

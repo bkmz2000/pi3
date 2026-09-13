@@ -70,6 +70,23 @@ interface GroupMember {
   student_name?: string;
 }
 
+interface LiveGroupSession {
+  group_id: string;
+  sid: string;
+  starter_id: string;
+  started_at: number;
+  expires_at: number;
+}
+
+async function getActiveGroupSession(groupId: string): Promise<LiveGroupSession | undefined> {
+  const client = getClient();
+  await client.execute('DELETE FROM live_group_sessions WHERE expires_at <= ?', [Date.now()]);
+  return (await client.execute(
+    'SELECT * FROM live_group_sessions WHERE group_id = ? AND expires_at > ?',
+    [groupId, Date.now()],
+  )).rows[0] as unknown as LiveGroupSession | undefined;
+}
+
 function requireTeacher(req: Request, res: Response): boolean {
   if (req.user!.role !== 'teacher') {
     res.status(403).json({ error: 'Forbidden', message: 'Only teachers can perform this action' });
@@ -148,6 +165,27 @@ export function createGroupsRouter(): Router {
        WHERE gm.student_id = ? AND g.archived_at IS NULL
        ORDER BY g.created_at DESC`,
       [req.user!.id],
+    );
+    res.json(result.rows);
+  });
+
+  // GET /api/groups/my/live — active classroom invitations for this student.
+  // Tokens are never returned from discovery; a fresh signed membership token
+  // is minted only after the student explicitly accepts an invitation.
+  router.get('/my/live', async (req: Request, res: Response): Promise<void> => {
+    const client = getClient();
+    const now = Date.now();
+    await client.execute('DELETE FROM live_group_sessions WHERE expires_at <= ?', [now]);
+    const result = await client.execute(
+      `SELECT s.group_id, g.name AS group_name, s.sid AS session_id,
+              s.started_at, s.expires_at, u.name AS teacher_name, u.handle AS teacher_handle
+       FROM live_group_sessions s
+       JOIN groups g ON g.id = s.group_id
+       JOIN group_members gm ON gm.group_id = g.id
+       JOIN users u ON u.id = g.teacher_id
+       WHERE gm.student_id = ? AND g.archived_at IS NULL AND s.expires_at > ?
+       ORDER BY s.started_at DESC`,
+      [req.user!.id, now],
     );
     res.json(result.rows);
   });
@@ -326,13 +364,98 @@ export function createGroupsRouter(): Router {
       res.status(404).json({ error: 'Not Found', message: 'Group not found' });
       return;
     }
-    const { token, payload } = issueSessionToken(req.user!.id, Date.now(), { groupId });
+    if (group.archived_at !== null) {
+      res.status(409).json({ error: 'Conflict', message: 'Archived groups cannot go live' });
+      return;
+    }
+    const now = Date.now();
+    const { token, payload } = issueSessionToken(req.user!.id, now, { groupId });
+    await getClient().execute(
+      `INSERT INTO live_group_sessions (group_id, sid, starter_id, started_at, expires_at)
+       VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT(group_id) DO UPDATE SET
+         sid = excluded.sid,
+         starter_id = excluded.starter_id,
+         started_at = excluded.started_at,
+         expires_at = excluded.expires_at`,
+      [groupId, payload.sid, req.user!.id, now, payload.exp],
+    );
     res.status(201).json({
       token,
       session_id: payload.sid,
       group_id: groupId,
       expires_at: payload.exp,
     });
+  });
+
+  // GET /api/groups/:id/session/active — the group owner can resume the live
+  // view after a reload. The replacement token preserves the same sid/expiry.
+  router.get('/:id/session/active', async (req: Request, res: Response): Promise<void> => {
+    const groupId = req.params['id'] as string;
+    const group = await checkGroupOwnership(groupId, req.user!.id);
+    if (!group) {
+      res.status(404).json({ error: 'Not Found', message: 'Group not found' });
+      return;
+    }
+    const active = await getActiveGroupSession(groupId);
+    if (!active) {
+      res.status(204).send();
+      return;
+    }
+    const { token } = issueSessionToken(active.starter_id, Date.now(), {
+      groupId,
+      sid: active.sid,
+      expiresAt: active.expires_at,
+    });
+    res.json({
+      token,
+      session_id: active.sid,
+      group_id: groupId,
+      expires_at: active.expires_at,
+    });
+  });
+
+  // POST /api/groups/:id/session/join — explicit student acceptance.
+  router.post('/:id/session/join', async (req: Request, res: Response): Promise<void> => {
+    const groupId = req.params['id'] as string;
+    const client = getClient();
+    const member = (await client.execute(
+      'SELECT 1 FROM group_members WHERE group_id = ? AND student_id = ?',
+      [groupId, req.user!.id],
+    )).rows[0];
+    if (!member) {
+      res.status(403).json({ error: 'Forbidden', message: 'You are not a member of this group' });
+      return;
+    }
+    const active = await getActiveGroupSession(groupId);
+    if (!active) {
+      res.status(404).json({ error: 'Not Found', message: 'This classroom session is no longer live' });
+      return;
+    }
+    const { token } = issueSessionToken(active.starter_id, Date.now(), {
+      groupId,
+      sid: active.sid,
+      expiresAt: active.expires_at,
+    });
+    res.json({
+      token,
+      session_id: active.sid,
+      starter_id: active.starter_id,
+      role: 'joiner',
+      group_id: groupId,
+      expires_at: active.expires_at,
+    });
+  });
+
+  router.post('/:id/session/end', async (req: Request, res: Response): Promise<void> => {
+    const groupId = req.params['id'] as string;
+    const group = await checkGroupOwnership(groupId, req.user!.id);
+    if (!group) {
+      res.status(404).json({ error: 'Not Found', message: 'Group not found' });
+      return;
+    }
+    await getClient().execute('DELETE FROM live_group_sessions WHERE group_id = ?', [groupId]);
+    res.status(204).send();
   });
 
   // GET /api/groups/:id/snapshot — latest project per member.

@@ -1,7 +1,8 @@
 import { createHmac, timingSafeEqual, randomBytes } from 'crypto';
 
-// Ephemeral, symmetric multiplayer sessions. No DB row is written; the signed
-// token IS the session. Whoever holds a valid, unexpired token is a member.
+// Signed membership for both ephemeral link rooms and time-boxed classroom
+// sessions. Classroom metadata is persisted separately so members can discover
+// the invitation; the signed token still authorizes each participant.
 
 export const SESSION_TTL_MS = 2 * 60 * 60 * 1000; // 2 hours
 
@@ -34,13 +35,13 @@ function b64urlDecode(s: string): Buffer {
 export function issueSessionToken(
   starterId: string,
   now: number = Date.now(),
-  opts: { groupId?: string } = {},
+  opts: { groupId?: string; sid?: string; expiresAt?: number } = {},
 ): { token: string; payload: SessionPayload } {
   const payload: SessionPayload = {
-    sid: randomBytes(9).toString('hex'),
+    sid: opts.sid ?? randomBytes(9).toString('hex'),
     starterId,
     iat: now,
-    exp: now + SESSION_TTL_MS,
+    exp: opts.expiresAt ?? now + SESSION_TTL_MS,
     ...(opts.groupId ? { groupId: opts.groupId } : {}),
   };
   const body = b64urlEncode(Buffer.from(JSON.stringify(payload), 'utf8'));

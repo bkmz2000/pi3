@@ -27,14 +27,18 @@ The sheet is stored in `project.sheet` (`SheetData`) and round-trips through the
 
 ## Color palette
 
-16-color **Sweetie 16** palette — identical to `graphics.Colors` so Python code colors match what the editor shows:
+The unchanged 16-color **Sweetie 16** core plus brown, purple, and pink — identical to the distinct `graphics.Colors` values so Python code colors match what the editor shows:
 
 ```
 #1a1c2c  #5d275d  #b13e53  #ef7d57
 #ffcd75  #a7f070  #38b764  #257179
 #29366f  #3b5dc9  #41a6f6  #73eff7
 #f4f4f4  #94b0c2  #566c86  #333c57
+#a6533e  #8a4dc7  #e66fa7
 ```
+
+Tooltips also expose `grey` on the gray swatch, `light_blue` on sky, and
+`dark_blue` on navy.
 
 The color picker shows:
 - Primary color (A) and secondary color (B)

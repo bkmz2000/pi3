@@ -1868,16 +1868,20 @@ mover._apply_velocity()
 test("actor.set_vel(Polar) then apply moves east", abs(mover._x - 5) < 1e-9 and abs(mover._y) < 1e-9)
 
 
-# --- Colors (Sweetie 16 palette) ---
+# --- Colors (Sweetie 16 core + kid-friendly names) ---
 
-print("\n=== Runtime: Colors (Sweetie 16) ===")
+print("\n=== Runtime: Colors (Sweetie 16 + kid names) ===")
 
 test("Colors.red matches Sweetie", g.Colors.red == (177, 62, 83))
 test("Colors.black matches Sweetie", g.Colors.black == (26, 28, 44))
 test("Colors.white matches Sweetie", g.Colors.white == (244, 244, 244))
 test("Colors.cyan matches Sweetie", g.Colors.cyan == (115, 239, 247))
-test("Colors has 16 named slots",
-     len([n for n in dir(g.Colors) if not n.startswith("_") and isinstance(getattr(g.Colors, n), tuple)]) == 16)
+test("Colors has 22 named slots",
+     len([n for n in dir(g.Colors) if not n.startswith("_") and isinstance(getattr(g.Colors, n), tuple)]) == 22)
+test("Colors.brown is a darker orange", sum(g.Colors.brown) < sum(g.Colors.orange))
+test("Colors.grey aliases gray", g.Colors.grey == g.Colors.gray)
+test("Colors.light_blue aliases sky", g.Colors.light_blue == g.Colors.sky)
+test("Colors.dark_blue aliases navy", g.Colors.dark_blue == g.Colors.navy)
 
 
 # --- Light ---

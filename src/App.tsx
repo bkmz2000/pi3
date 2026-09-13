@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Navigate, Routes, Route, useNavigate, useParams } from "react-router-dom";
 import CodeMirror, { type ReactCodeMirrorRef } from "@uiw/react-codemirror";
 import { setDiagnostics } from "@codemirror/lint";
@@ -6,7 +6,10 @@ import { reconfigureGraphicsExtensions } from "./editor/graphicsCompletion";
 import { graphicsProfile } from "./editor/profiles";
 import Rail from "./SideMenu";
 import { useEditor, useIde, isExampleSessionId, EXAMPLE_SESSION_PREFIX } from "./state/IdeState";
-import { getProject, getComments, type ApiComment } from "./state/api";
+import {
+  getProject, getComments, listSessionReactions,
+  ApiHttpError, type ApiComment, type SessionReaction,
+} from "./state/api";
 import { projectStorage } from "./utils/storage";
 import { encodeSheet, decodeSheet } from "./state/sheetCodec";
 import { toEditorProject } from "./state/projectNormalization";
@@ -32,6 +35,7 @@ import { usePresencePinger } from "./state/usePresencePinger";
 import { useSessionAutoJoin } from "./state/useSessionAutoJoin";
 import { useLiveSession } from "./state/useLiveSession";
 import { PeerCodeView } from "./components/session/PeerCodeView";
+import { ClassroomInviteBanner } from "./components/session/ClassroomInviteBanner";
 import { useTranslation } from "react-i18next";
 import ForkDialog from "./components/dialogs/ForkDialog";
 import { useThemeStore } from "./state/useTheme";
@@ -206,6 +210,7 @@ function AppInner() {
 
   const [showForkDialog, setShowForkDialog] = useState(false);
   const [fileComments, setFileComments] = useState<ApiComment[]>([]);
+  const [sessionReactions, setSessionReactions] = useState<SessionReaction[]>([]);
   const [selectedLine, setSelectedLine] = useState<number | null>(null);
   const [anchorY, setAnchorY] = useState<number | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
@@ -236,6 +241,9 @@ function AppInner() {
   useSessionAutoJoin(authStateLive === 'logged_in');
   const peerTabs = useLiveSession((s) => s.peerTabs);
   const activePeer = useLiveSession((s) => s.activePeer);
+  const closePeer = useLiveSession((s) => s.closePeer);
+  const liveToken = useLiveSession((s) => s.token);
+  const liveSid = useLiveSession((s) => s.sid);
   const activePeerTab = activePeer ? peerTabs.find((p) => p.id === activePeer) ?? null : null;
 
   useEffect(() => {
@@ -274,10 +282,50 @@ function AppInner() {
       .catch(() => {});
   }, [currentProjectId, currentFile]);
 
+  useEffect(() => {
+    if (!liveToken || !liveSid) { setSessionReactions([]); return; }
+    let stopped = false;
+    let timer: number | null = null;
+    const tick = async () => {
+      try {
+        const rows = await listSessionReactions(liveSid, liveToken);
+        if (!stopped) setSessionReactions(rows);
+      } catch (error) {
+        if (!stopped) setSessionReactions([]);
+        if (error instanceof ApiHttpError && error.status === 410) {
+          useLiveSession.getState().leave();
+        }
+      } finally {
+        if (!stopped) timer = window.setTimeout(tick, 2000);
+      }
+    };
+    void tick();
+    return () => { stopped = true; if (timer) window.clearTimeout(timer); };
+  }, [liveToken, liveSid]);
+
+  const visibleComments = useMemo<ApiComment[]>(() => {
+    const userId = useUser.getState().user?.id;
+    const live = sessionReactions
+      .filter((item) => item.target === userId && item.file === currentFile)
+      .map((item): ApiComment => ({
+        id: `session:${item.id}`,
+        project_id: currentProjectId ?? '',
+        file_path: item.file,
+        line_number: item.line,
+        anchor_text: '',
+        text: t(`session.reaction.${item.reaction}`),
+        author_id: item.author_id,
+        author_name: t('session.liveReaction'),
+        author_handle: null,
+        created_at: item.created_at,
+      }));
+    return [...fileComments, ...live];
+  }, [sessionReactions, currentFile, currentProjectId, fileComments, t]);
+
   // Push into editor on every render — handles editor mounting after the fetch
   useEffect(() => {
     if (editorRef.current?.view) {
-      editorRef.current.view.dispatch({ effects: setCommentsEffect.of(fileComments) });
+      editorRef.current.view.dispatch({ effects: setCommentsEffect.of(visibleComments) });
     }
   });
 
@@ -408,6 +456,18 @@ function AppInner() {
             position: "relative",
           }}
         >
+          <style>{`
+            @media (max-width: 800px) {
+              .pi3-live-split { flex-direction: column !important; }
+              .pi3-live-peer {
+                flex: 0 1 50% !important;
+                min-width: 0 !important;
+                max-width: none !important;
+                border-left: 0 !important;
+                border-top: 1px solid ${theme.panelBorder};
+              }
+            }
+          `}</style>
           {authError !== null && (
             <div style={{
               background: theme.errorChipBg,
@@ -435,6 +495,7 @@ function AppInner() {
               >×</button>
             </div>
           )}
+          <ClassroomInviteBanner />
           <FileBar />
 
           {/* Editor + Console — row when consoleOnRight, column otherwise.
@@ -452,12 +513,12 @@ function AppInner() {
           >
             {/* Editor */}
             <div style={{
-              flex: 1, minWidth: 0, minHeight: 0, display: "flex", flexDirection: "column",
+              flex: 1, minWidth: 0, minHeight: 0, display: "flex", flexDirection: "row",
               background: theme.editorBg,
               position: "relative",
-            }}>
+            }} className="pi3-live-split">
               <div style={{
-                flex: 1, minHeight: 0, background: theme.editorBg,
+                flex: 1, minWidth: 0, minHeight: 0, background: theme.editorBg,
                 "--cm-bg": theme.editorBg,
                 "--indent-guide-1": theme.name === "Midnight" ? "rgba(95,212,220,0.06)" : "rgba(14,154,167,0.07)",
                 "--indent-guide-2": theme.name === "Midnight" ? "rgba(95,212,220,0.10)" : "rgba(14,154,167,0.11)",
@@ -485,16 +546,22 @@ function AppInner() {
                   className="h-full text-left"
                 />
               </div>
-              {/* A peer's buffer covers the editor rather than replacing it:
-                  CodeMirror stays mounted so presence pings (which read the
-                  live view) keep flowing while you watch someone else code. */}
+              {/* Keep both editors visible: your file stays on the left while
+                  the selected live buffer opens as a dedicated right pane. */}
               {activePeerTab && (
-                <div style={{ position: 'absolute', inset: 0, zIndex: 5, display: 'flex' }}>
-                  <PeerCodeView peerId={activePeerTab.id} label={activePeerTab.label} />
+                <div className="pi3-live-peer" style={{
+                  flex: '0 1 50%', minWidth: 340, maxWidth: 720,
+                  borderLeft: `1px solid ${theme.panelBorder}`, display: 'flex',
+                }}>
+                  <PeerCodeView
+                    peerId={activePeerTab.id}
+                    label={activePeerTab.label}
+                    onClose={() => closePeer(activePeerTab.id)}
+                  />
                 </div>
               )}
               {selectedLine !== null && anchorY !== null && (() => {
-                const lineComments = fileComments.filter(c => c.line_number === selectedLine);
+                const lineComments = visibleComments.filter(c => c.line_number === selectedLine);
                 if (lineComments.length === 0) return null;
                 return (
                   <div data-comment-popover style={{

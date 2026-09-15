@@ -44,6 +44,12 @@ import { SaveErrorIndicator } from "./components/SaveErrorIndicator";
 import { getCmTheme } from "./editor/cmTheme";
 import { readAnonStash, clearAnonStash } from "./utils/anonStash";
 
+const SESSION_REACTION_GLYPHS: Record<SessionReaction["reaction"], string> = {
+  good: "👍",
+  question: "❓",
+  try: "↻",
+};
+
 function SessionChecker() {
   const checkSession = useUser((s) => s.checkSession);
   useEffect(() => {
@@ -313,7 +319,7 @@ function AppInner() {
         file_path: item.file,
         line_number: item.line,
         anchor_text: '',
-        text: t(`session.reaction.${item.reaction}`),
+        text: SESSION_REACTION_GLYPHS[item.reaction],
         author_id: item.author_id,
         author_name: t('session.liveReaction'),
         author_handle: null,
@@ -568,7 +574,7 @@ function AppInner() {
                     position: 'fixed',
                     left: 320,
                     top: Math.max(8, Math.min(anchorY - 60, window.innerHeight - 300)),
-                    width: 280,
+                    width: 240,
                     background: theme.surfacePanel,
                     border: `1px solid ${theme.panelBorder}`,
                     borderRadius: 8,

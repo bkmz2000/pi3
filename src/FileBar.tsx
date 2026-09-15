@@ -389,6 +389,28 @@ export default function FileBar() {
         gap: 0,
       }}
     >
+      {project.name && (
+        <>
+          <div
+            title={project.name}
+            style={{
+              alignSelf: "center",
+              maxWidth: 160,
+              marginRight: 14,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+              color: theme.panelTxt,
+              fontFamily: theme.fontUI,
+              fontSize: 12.5,
+              fontWeight: theme.weightUI + 100,
+            }}
+          >
+            {project.name}
+          </div>
+          <div style={{ alignSelf: "stretch", width: 1, marginRight: 12, background: theme.panelBorder }} />
+        </>
+      )}
       <div style={{ flex: 1, display: "flex", alignItems: "flex-end" }}>
         {files.map((name) => (
           <FileTab

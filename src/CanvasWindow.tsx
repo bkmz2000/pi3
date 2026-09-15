@@ -214,20 +214,6 @@ export default function CanvasWindow() {
       >
         <Icon name="play" size={11} color={running ? theme.runBg : theme.canvasTitleTxt} />
         <span>{t('canvas.label')}</span>
-        <span
-          style={{
-            padding: "1px 7px",
-            borderRadius: 999,
-            background: running ? theme.canvasLiveBg : theme.chip,
-            color: running ? theme.canvasLiveTxt : theme.consoleTxtMute,
-            fontSize: 10,
-            fontWeight: theme.weightUI + 100,
-            textTransform: "uppercase",
-            letterSpacing: 0.5,
-          }}
-        >
-          {running ? t('canvas.statusLive') : t('canvas.statusPaused')}
-        </span>
         <div style={{ flex: 1 }} />
         {running && canvasActive && (
           <>

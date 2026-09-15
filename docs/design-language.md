@@ -48,7 +48,7 @@ All colors, typography, and geometry live in `src/state/useTheme.ts`.
 | `canvasBg` | `#072428` | `#021012` | Canvas content area |
 | `canvasTitle` | `#0a3d44` | `#031518` | Canvas titlebar background |
 | `canvasOverlay` | `rgba(7,36,40,0.7)` | `rgba(2,16,18,0.7)` | Semi-transparent overlay drawn over the canvas (loading, paused states) |
-| `successPill` | `rgba(52,168,83,0.16)` | `rgba(126,224,168,0.14)` | Running status pill background |
+| `successPill` | `rgba(52,168,83,0.16)` | `rgba(126,224,168,0.14)` | Durable positive-status background |
 
 **File tab text** (completes the tab token group)
 | Token | Studio | Midnight | Usage example |
@@ -92,7 +92,7 @@ All colors, typography, and geometry live in `src/state/useTheme.ts`.
 | `stopBg` | `#ef4444` | `#ff8b8b` | Stop button background |
 | `submitBg` | `#2563eb` | `#3b82f6` | Submit button background (compete mode); blue distinguishes it from run/stop |
 | `submitTxt` | `#ffffff` | `#ffffff` | Submit button text |
-| `successPillTxt` | `#0e7c52` | `#7ee0a8` | Running status pill text |
+| `successPillTxt` | `#0e7c52` | `#7ee0a8` | Durable positive-status text |
 
 **Console output colors**
 - `consoleInfo` — green (info messages)
@@ -133,7 +133,7 @@ Note: components sometimes deviate upward from these values for specific UI elem
 
 `src/FileBar.tsx` — the 44px horizontal strip directly above the editor.
 
-**Container**: `height: 44`, `background: theme.filebarBg`, `display: flex`, `alignItems: flex-end`, `padding: 0 12px 0 16px`. Tabs hang from the bottom edge — `alignItems: flex-end` means taller active tabs "grow upward."
+**Container**: `height: 44`, `background: theme.filebarBg`, `display: flex`, `alignItems: flex-end`, `padding: 0 12px 0 16px`. Named projects show a compact, ellipsized project label before the existing tabs; drafts without a name do not reserve empty space. Tabs hang from the bottom edge — `alignItems: flex-end` means taller active tabs "grow upward."
 
 **File tab dimensions** (`FileTab`, `src/FileBar.tsx:87-162`):
 - Active: `height: 38`, `padding: 0 14px`, `background: theme.tabActiveBg`, `color: theme.tabActiveTxt`, `fontWeight: theme.weightUI + 100` (600)
@@ -162,6 +162,7 @@ Note: components sometimes deviate upward from these values for specific UI elem
 - Background: `theme.railBg`
 - Logo at top (`Pi3Logo` component, 26px Nunito font, `theme.railLogo`)
 - Stack of `RailButton`s (44×44 each, `theme.radiusButton`, gap 8)
+- Editor destinations: projects, examples, and live collaboration. Problems are intentionally excluded; they will use a separate surface rather than another editor drawer.
 - Run/stop button (same 44×44 size) with `theme.runBg`/`stopBg`
 - Thin horizontal divider: `width: 26, height: 1, background: rgba(148,210,216,0.22)`
 - Spacer (`flex: 1`) pushes bottom buttons down
@@ -239,10 +240,8 @@ Row of equal-weight buttons in `src/SideMenu.tsx:693-741`:
 **Header** (32px height, `src/ConsolePanel.tsx:493-568`):
 - `padding: 0 14px`, `borderBottom: 1px solid consoleBorder`
 - Label: 12.5px, `weightUI + 100`, `consoleTxt`, `textTransform: uppercase`, `letterSpacing: 0.4`
-- Status pill: `borderRadius: 999`, `padding: 2px 8px`, 10.5px, uppercase, `letterSpacing: 0.6`
-  - Running: `successPill` bg, `successPillTxt` text
-  - Idle: `chip` bg, `consoleTxtMute` text
-- Spacer, then surfaced action buttons (`consoleTxt`, 12px, icon size 13, gap 4) with hover border and visible keyboard focus
+- No idle/running status pill. Execution is already communicated by the rail run/stop control and the animated dots in the output area.
+- Spacer, then two quiet icon-only actions for copy and clear (28×28, icon size 14, `consoleTxtMute`). They gain a subtle `chip` background and `consoleTxt` color on hover, retain text tooltips/accessible names, and show visible keyboard focus.
 
 **Resize handle**: 8px invisible strip at edge (top/left depending on orientation); contains a visible 32×3 (or 3×32) bar in `panelBorder` color at 50% opacity.
 
@@ -255,7 +254,7 @@ Row of equal-weight buttons in `src/SideMenu.tsx:693-741`:
 `src/CanvasWindow.tsx:198-250`:
 - 30px height, `background: theme.canvasTitle`, `borderBottom: 1px solid canvasBorder`
 - `padding: 0 10px 0 14px`, `fontUI`, `weightUI + 100`, 12.5px
-- Left: small `<Icon>` (size 11) + label + status pill (borderRadius 999, fontSize 10)
+- Left: small `<Icon>` (size 11) + label. Do not repeat live/paused state in a pill.
 - Right control buttons (each 22×22, `borderRadius: 4`, `all: "unset"`): step-back, pause/play, step-fwd, speed text, camera, screenshot count
 
 ### 2h. Primary action button (Run/Stop)
@@ -287,11 +286,13 @@ Row of equal-weight buttons in `src/SideMenu.tsx:693-741`:
 ### 2j. Comment popover
 
 Inline code comments from teacher render as a fixed popover (`src/App.tsx:454-484`):
-- `position: fixed`, `left: 320`, `width: 280`
+- `position: fixed`, `left: 320`, `width: 240`
 - `background: theme.surfacePanel`, `border: 1px solid theme.panelBorder`, `borderRadius: 8`
 - `boxShadow: "0 8px 24px rgba(0,0,0,0.28)"`, `zIndex: 50`, `padding: 12`
 - Each comment card: `background: theme.surface`, `borderRadius: 6`, `padding: 8px 10px`, `border: 1px solid theme.panelBorder`
 - Author name: 11.5px, weight 600, `panelTxt`; date: 10.5px, `panelTxtMute`; body: 12.5px, `panelTxt`, `white-space: pre-wrap`
+
+The editor gutter stays compact even with lint and reaction columns: line numbers use `2ch` plus 4px side padding, lint reserves 14px, and reactions reserve 18px. Reaction glyphs have no chip background or border.
 
 ---
 
@@ -304,9 +305,9 @@ Appears at the very top of the editor area (`src/App.tsx:358-384`):
 
 ---
 
-### 2l. Status pill (recurring pattern)
+### 2l. Status pills
 
-Used in console header, canvas titlebar, and compete mode test results:
+Reserved for durable, meaningful state such as save/sync feedback and compete-mode test results. Do not use them for transient console or canvas execution state:
 - `borderRadius: 999`, `padding: 2px 8px` (or `1px 7px` for small variants)
 - 10–10.5px font, `textTransform: uppercase`, `letterSpacing: 0.5–0.6`
 - Two semantic states: success (`successPill`/`successPillTxt`) vs idle (`chip`/`consoleTxtMute`)
@@ -569,7 +570,7 @@ These appear once and may or may not be patterns — noted for honesty:
 | `all: "unset"` on every `<button>` | SideMenu, ConsolePanel, ProblemsPanel, CanvasWindow |
 | `<Icon name="..." size={n} color="currentColor" />` for all icons | SideMenu, ConsolePanel, ProblemsPanel |
 | `theme.fontUI` / `theme.fontMono` — never hardcoded | SideMenu, ConsolePanel, CompetePage |
-| Status pills: `borderRadius: 999`, uppercase, 10–10.5px | ConsolePanel header, CanvasWindow titlebar, CompeteLeft toolbar |
+| Status pills only for durable state | SaveErrorIndicator, CompeteLeft results |
 | Progress bar: 3px track `chip` bg + `accent` fill, `transition: width 0.15s` | CompetePage `ProgressBar`, CanvasWindow |
 | Hover state via `useState` + `onMouseEnter/Leave` | RailButton, ProblemsPanel rows |
 | Transition `0.15s` on hover color/background changes | RailButton, SegmentSelector |

@@ -59,10 +59,10 @@ export function PeerCodeView({ peerId, label, onClose }: { peerId: string; label
     }
   };
 
-  const reactionOptions: Array<{ id: SessionReactionKind; icon: 'check' | 'alert' | 'redo' }> = [
-    { id: 'good', icon: 'check' },
-    { id: 'question', icon: 'alert' },
-    { id: 'try', icon: 'redo' },
+  const reactionOptions: Array<{ id: SessionReactionKind; glyph: string }> = [
+    { id: 'good', glyph: '👍' },
+    { id: 'question', glyph: '❓' },
+    { id: 'try', glyph: '↻' },
   ];
 
   return (
@@ -81,7 +81,7 @@ export function PeerCodeView({ peerId, label, onClose }: { peerId: string; label
           {selectedLine == null ? t('session.selectLine') : t('session.selectedLine', { line: selectedLine })}
         </span>
         <div style={{ display: 'flex', gap: 4 }}>
-          {reactionOptions.map(({ id, icon }) => (
+          {reactionOptions.map(({ id, glyph }) => (
             <button
               key={id}
               type="button"
@@ -90,17 +90,17 @@ export function PeerCodeView({ peerId, label, onClose }: { peerId: string; label
               disabled={selectedLine == null}
               onClick={() => react(id)}
               style={{
-                display: 'flex', alignItems: 'center', gap: 4,
-                background: sent === id ? theme.successPill : theme.surface,
-                color: sent === id ? theme.successPillTxt : theme.panelTxt,
-                border: `1px solid ${theme.panelBorder}`,
+                appearance: 'none', display: 'grid', placeItems: 'center',
+                width: 28, height: 28, padding: 0,
+                background: 'transparent', color: theme.panelTxt, border: 0,
                 cursor: selectedLine == null ? 'default' : 'pointer',
-                fontSize: 11, lineHeight: 1, padding: '5px 7px', borderRadius: 6,
+                fontSize: 16, lineHeight: 1,
                 opacity: selectedLine == null ? 0.45 : 1,
+                transform: sent === id ? 'scale(1.16)' : 'scale(1)',
+                transition: 'transform 120ms ease, opacity 120ms ease',
               }}
             >
-              <Icon name={icon} size={12} color="currentColor" />
-              {t(`session.reaction.${id}`)}
+              <span aria-hidden="true">{glyph}</span>
             </button>
           ))}
         </div>

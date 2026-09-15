@@ -29,6 +29,7 @@ const theme = {
 
 const editorState = {
   project: {
+    name: 'Moon Platformer',
     files: { 'main.py': 'print(1)', 'utils.py': 'pass' },
   },
   currentProjectId: 'p1' as string | undefined,
@@ -102,7 +103,7 @@ beforeEach(() => {
   clearMocks(editorState);
   clearMocks(liveSessionState);
   clearMocks(teacherShareState);
-  editorState.project = { files: { 'main.py': 'print(1)', 'utils.py': 'pass' } };
+  editorState.project = { name: 'Moon Platformer', files: { 'main.py': 'print(1)', 'utils.py': 'pass' } };
   editorState.currentProjectId = 'p1';
   editorState.currentFile = 'main.py';
   editorState.dirtyFiles = new Set<string>();
@@ -113,6 +114,11 @@ beforeEach(() => {
 });
 
 describe('file tabs', () => {
+  test('keeps the current project name beside the existing tabs', () => {
+    render(<FileBar />);
+    expect(screen.getByText('Moon Platformer')).toBeTruthy();
+  });
+
   test('renders a tab for every project file', () => {
     render(<FileBar />);
     expect(screen.getByText('main.py')).toBeTruthy();

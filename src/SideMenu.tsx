@@ -278,14 +278,6 @@ export default function Rail() {
         />
 
         <RailButton
-          icon="nodes"
-          label={t('compete.problems')}
-          active={isOpen("problems")}
-          onClick={() => togglePanel("problems")}
-          theme={theme}
-        />
-
-        <RailButton
           icon="users"
           label={t('session.panelTitle')}
           active={isOpen("live")}

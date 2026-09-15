@@ -94,12 +94,29 @@ describe('commentExtension', () => {
       parent: document.body,
     });
     expect(view.dom).toBeTruthy();
-    expect(view.dom.querySelector('.cm-comment-gutter')).toBeNull();
+    expect(view.dom.querySelector('.cm-comment-gutter')).toBeTruthy();
     view.destroy();
   });
 
-  it('does not reserve a comment gutter for students', () => {
+  it('keeps the reaction gutter available for students', () => {
     const exts = commentExtension({ canAdd: false, onLineSelect: jest.fn() });
-    expect(exts).toHaveLength(5); // 3 fields + inline plugin + theme
+    expect(exts).toHaveLength(6); // 3 fields + gutter + inline plugin + theme
+  });
+
+  it('renders session reactions as bare gutter glyphs instead of inline chips', () => {
+    const exts = commentExtension({ canAdd: false, onLineSelect: jest.fn() });
+    const view = new EditorView({
+      state: EditorState.create({ doc: DOC, extensions: exts }),
+      parent: document.body,
+    });
+    view.dispatch({
+      effects: setCommentsEffect.of([
+        makeComment({ id: 'session:r1', text: '👍' }),
+      ]),
+    });
+
+    expect(view.dom.querySelector('.cm-comment-reaction')?.textContent).toBe('👍');
+    expect(view.dom.querySelector('.cm-comment-inline')).toBeNull();
+    view.destroy();
   });
 });

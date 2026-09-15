@@ -43,7 +43,19 @@ export function baseProfile(o: ProfileOpts): Extension[] {
     indentationGuideField,
     indentationGuides,
     o.cmTheme,
-    EditorView.theme({ "&": { fontSize: o.fontSize + "px" } }),
+    EditorView.theme({
+      "&": { fontSize: o.fontSize + "px" },
+      ".cm-gutters": { padding: "0" },
+      ".cm-lineNumbers .cm-gutterElement": {
+        minWidth: "2ch",
+        padding: "0 4px",
+      },
+      ".cm-gutter-lint": { width: "14px" },
+      ".cm-gutter-lint .cm-gutterElement": {
+        width: "14px",
+        padding: "0",
+      },
+    }),
     EditorView.lineWrapping,
     LINT_GUTTER_EXT,
   ];

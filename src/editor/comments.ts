@@ -123,6 +123,45 @@ class AddMarker extends GutterMarker {
 
 const addMarker = new AddMarker();
 
+function isSessionReaction(comment: Comment) {
+  return comment.id.startsWith("session:");
+}
+
+class CommentMarker extends GutterMarker {
+  constructor(
+    readonly comments: ResolvedComment[],
+    readonly selected: boolean,
+  ) { super(); }
+
+  toDOM() {
+    const el = document.createElement("span");
+    const reactions = this.comments.filter(isSessionReaction);
+    el.className = reactions.length > 0
+      ? "cm-comment-marker cm-comment-reaction"
+      : "cm-comment-marker";
+    if (this.selected) el.classList.add("selected");
+    el.textContent = reactions.length > 0
+      ? reactions.slice(0, 2).map((comment) => comment.text).join("")
+      : "•";
+    el.title = this.comments
+      .map((comment) => `${comment.author_name}: ${comment.text}`)
+      .join("\n");
+    return el;
+  }
+
+  eq(other: GutterMarker) {
+    return (
+      other instanceof CommentMarker &&
+      other.selected === this.selected &&
+      other.comments.length === this.comments.length &&
+      other.comments.every((comment, index) => (
+        comment.id === this.comments[index].id &&
+        comment.text === this.comments[index].text
+      ))
+    );
+  }
+}
+
 // ── Extension ────────────────────────────────────────────────────────────────
 
 export function commentExtension(opts: {
@@ -133,8 +172,16 @@ export function commentExtension(opts: {
     class: "cm-comment-gutter",
 
     lineMarker(view, line) {
-      if (!opts.canAdd) return null;
       const lineNum = view.state.doc.lineAt(line.from).number;
+      const comments = view.state.field(commentsField)
+        .filter((comment) => comment.resolvedLine === lineNum);
+      if (comments.length > 0) {
+        return new CommentMarker(
+          comments,
+          view.state.field(selectedLineField) === lineNum,
+        );
+      }
+      if (!opts.canAdd) return null;
       if (view.state.field(hoveredLineField) === lineNum) return addMarker;
       return null;
     },
@@ -143,7 +190,11 @@ export function commentExtension(opts: {
       return (
         update.docChanged ||
         update.transactions.some(tr =>
-          tr.effects.some(e => e.is(hoverLineEffect))
+          tr.effects.some(e => (
+            e.is(hoverLineEffect) ||
+            e.is(selectLineEffect) ||
+            e.is(setCommentsEffect)
+          ))
         )
       );
     },
@@ -151,6 +202,9 @@ export function commentExtension(opts: {
     domEventHandlers: {
       click(view, line, event) {
         const lineNum = view.state.doc.lineAt(line.from).number;
+        const hasComments = view.state.field(commentsField)
+          .some((comment) => comment.resolvedLine === lineNum);
+        if (!opts.canAdd && !hasComments) return false;
         const gutterEl = (event.target as HTMLElement).closest(".cm-gutterElement");
         const rect = gutterEl?.getBoundingClientRect();
         const anchorY = rect ? rect.top + rect.height / 2 : (event as MouseEvent).clientY;
@@ -219,7 +273,8 @@ export function commentExtension(opts: {
           let pos = from;
           while (pos <= to) {
             const line = view.state.doc.lineAt(pos);
-            const lineComments = byLine.get(line.number);
+            const lineComments = byLine.get(line.number)
+              ?.filter((comment) => !isSessionReaction(comment));
             if (lineComments?.length) {
               const selected = selectedLine === line.number;
               builder.add(
@@ -262,8 +317,9 @@ export function commentExtension(opts: {
   );
 
   const theme = EditorView.theme({
-    ".cm-comment-gutter": { width: "20px", cursor: "pointer" },
+    ".cm-comment-gutter": { width: "18px", cursor: "pointer" },
     ".cm-comment-gutter .cm-gutterElement": {
+      width: "18px", padding: "0",
       display: "flex", alignItems: "center", justifyContent: "center",
     },
     ".cm-comment-add": {
@@ -271,6 +327,24 @@ export function commentExtension(opts: {
       background: "rgba(0,120,255,0.15)", color: "#0078ff",
       display: "flex", alignItems: "center", justifyContent: "center",
       fontSize: "12px", lineHeight: "1", fontWeight: "bold",
+    },
+    ".cm-comment-marker": {
+      color: "#c9a227",
+      fontSize: "15px",
+      lineHeight: "1",
+      cursor: "pointer",
+      userSelect: "none",
+    },
+    ".cm-comment-marker.selected": {
+      color: "#f0c849",
+    },
+    ".cm-comment-reaction": {
+      minWidth: "18px",
+      textAlign: "center",
+      background: "transparent",
+      border: "0",
+      borderRadius: "0",
+      padding: "0",
     },
     ".cm-comment-inline": {
       marginLeft: "1.5em",
@@ -298,5 +372,5 @@ export function commentExtension(opts: {
   });
 
   const shared = [commentsField, selectedLineField, hoveredLineField, inlinePlugin, theme];
-  return opts.canAdd ? [...shared.slice(0, 3), gutterExt, ...shared.slice(3)] : shared;
+  return [...shared.slice(0, 3), gutterExt, ...shared.slice(3)];
 }

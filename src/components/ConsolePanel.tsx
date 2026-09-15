@@ -515,15 +515,23 @@ export default function ConsolePanel({ onRight = false }: { onRight?: boolean })
         }
         .pi3-console-action {
           appearance: none;
-          border: 1px solid ${theme.consoleBorder};
-          background: ${theme.chip};
-          color: ${theme.consoleTxt};
-          border-radius: 6px;
-          padding: 4px 7px;
+          width: 28px;
+          height: 28px;
+          border: 0;
+          background: transparent;
+          color: ${theme.consoleTxtMute};
+          border-radius: 4px;
+          padding: 0;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
           cursor: pointer;
-          transition: border-color 120ms ease, background 120ms ease;
+          transition: color 120ms ease, background 120ms ease;
         }
-        .pi3-console-action:hover { border-color: ${theme.accent}; }
+        .pi3-console-action:hover {
+          color: ${theme.consoleTxt};
+          background: ${theme.chip};
+        }
         .pi3-console-action:focus-visible {
           outline: 2px solid ${theme.accent};
           outline-offset: 2px;
@@ -563,7 +571,7 @@ export default function ConsolePanel({ onRight = false }: { onRight?: boolean })
           padding: "0 14px",
           display: "flex",
           alignItems: "center",
-          gap: 14,
+          gap: 4,
           borderBottom: `1px solid ${theme.consoleBorder}`,
           flex: "none",
         }}
@@ -580,53 +588,24 @@ export default function ConsolePanel({ onRight = false }: { onRight?: boolean })
         >
           {t('sideMenu.console')}
         </div>
-        <div
-          style={{
-            padding: "2px 8px",
-            borderRadius: 999,
-            background: running ? theme.successPill : theme.chip,
-            color: running ? theme.successPillTxt : theme.consoleTxtMute,
-            fontFamily: theme.fontUI,
-            fontSize: 10.5,
-            fontWeight: theme.weightUI + 100,
-            textTransform: "uppercase",
-            letterSpacing: 0.6,
-          }}
-        >
-          {running ? t('app.statusRunning') : t('app.statusIdle')}
-        </div>
         <div style={{ flex: 1 }} />
         <button
           type="button"
           className="pi3-console-action"
           onClick={handleCopyConsole}
-          style={{
-            fontFamily: theme.fontUI,
-            fontSize: 12,
-            fontWeight: theme.weightUI,
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 4,
-          }}
+          aria-label={t('app.copyConsole')}
+          title={t('app.copyConsole')}
         >
-          <Icon name="copy" size={13} color="currentColor" />
-          {t('app.copyConsole')}
+          <Icon name="copy" size={14} color="currentColor" />
         </button>
         <button
           type="button"
           className="pi3-console-action"
           onClick={clear}
-          style={{
-            fontFamily: theme.fontUI,
-            fontSize: 12,
-            fontWeight: theme.weightUI,
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 4,
-          }}
+          aria-label={t('app.clearConsole')}
+          title={t('app.clearConsole')}
         >
-          <Icon name="trash" size={13} color="currentColor" />
-          {t('app.clearConsole')}
+          <Icon name="trash" size={14} color="currentColor" />
         </button>
       </div>
 

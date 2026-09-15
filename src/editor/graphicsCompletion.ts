@@ -365,7 +365,7 @@ function makeAutocompleteTheme(theme: Theme) {
     ".cm-completionIcon-variable::after": { content: '"·"', color: accent },
     ".cm-completionIcon-keyword::after":  { content: '"k"', color: accent },
     // Lint gutter markers
-    ".cm-gutter-lint .cm-gutterElement": { padding: "0 2px" },
+    ".cm-gutter-lint .cm-gutterElement": { width: "14px", padding: "0" },
   });
 }
 

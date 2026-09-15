@@ -209,11 +209,11 @@ beforeEach(() => {
 });
 
 describe('Rail buttons', () => {
-  test('renders all rail buttons', () => {
+  test('renders the editor rail buttons without the standalone problems surface', () => {
     renderRail();
     expect(screen.getByTitle('Projects')).toBeTruthy();
     expect(screen.getByTitle('Examples')).toBeTruthy();
-    expect(screen.getByTitle('Problems')).toBeTruthy();
+    expect(screen.queryByTitle('Problems')).toBeNull();
     expect(screen.getByTitle('Live')).toBeTruthy();
     expect(screen.getByTitle('Reference')).toBeTruthy();
     expect(screen.getByTitle('Settings')).toBeTruthy();

@@ -2745,10 +2745,13 @@ import types as _types
 
 # show() is the only public entry point that talks to the JS bridge outside a
 # run loop, so stub the two globals Pyodide would supply.
-_show_calls = {"resize": [], "flush": []}
+_show_calls = {"resize": [], "flush": [], "keep": []}
 _fake_js = _types.ModuleType("js")
 _fake_js._ide_canvas_resize = lambda w, h: _show_calls["resize"].append((w, h))
-_fake_js._ide_flush_draw_commands = lambda c: _show_calls["flush"].append(list(c))
+def _fake_flush(c, _frame=-1, keep=False):
+    _show_calls["flush"].append(list(c))
+    _show_calls["keep"].append(keep)
+_fake_js._ide_flush_draw_commands = _fake_flush
 _fake_ffi = _types.ModuleType("pyodide.ffi")
 _fake_ffi.to_js = lambda obj, **kw: obj
 _fake_pyodide = _types.ModuleType("pyodide")
@@ -2773,11 +2776,15 @@ try:
     test("show(): flushes once", len(_show_calls["flush"]) == 1)
     test("show(): flushes what was drawn",
          len(_show_calls["flush"][0]) == 1 and _show_calls["flush"][0][0][0] == "circle")
+    test("show(): marks its one-shot canvas to survive normal completion",
+         _show_calls["keep"] == [True])
     test("show(): empties the buffer", list(g._draw_commands) == [])
 
     # Second call must not repaint the first call's commands.
     g.show()
     test("show(): a second call flushes nothing new", _show_calls["flush"][1] == [])
+    test("show(): every one-shot flush requests canvas persistence",
+         _show_calls["keep"] == [True, True])
     test("show(): a second call still resizes", len(_show_calls["resize"]) == 2)
 finally:
     for _m in ("js", "pyodide", "pyodide.ffi"):

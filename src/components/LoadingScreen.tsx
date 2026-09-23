@@ -1,18 +1,46 @@
 import { useTranslation } from "react-i18next";
+import { useThemeStore } from "../state/useTheme";
 
 export default function LoadingScreen() {
   const { t } = useTranslation();
+  const theme = useThemeStore((s) => s.theme);
   return (
-    <div className="fixed inset-0 bg-neutral-950 flex flex-col items-center justify-center z-50">
-      <div className="text-6xl font-bold text-white mb-8 relative">
-        <span className="text-8xl font-mono">pi</span>
-        <sup className="text-4xl font-mono absolute top-0">3</sup>
+    <div
+      role="status"
+      aria-live="polite"
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 50,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        background: theme.appBg,
+        color: theme.appTxt,
+        fontFamily: theme.fontUI,
+      }}
+    >
+      <div style={{ marginBottom: 32, position: "relative", color: theme.primaryBg, fontWeight: 700 }}>
+        <span style={{ fontSize: 96, fontFamily: theme.fontMono, lineHeight: 1 }}>pi</span>
+        <sup style={{ fontSize: 36, fontFamily: theme.fontMono, position: "absolute", top: 0 }}>3</sup>
       </div>
-      <div className="flex items-center gap-4 text-cyan-300">
-        <div className="w-8 h-8 border-4 border-cyan-300 border-t-transparent rounded-full animate-spin" />
-        <span className="text-lg">{t('app.loading')}</span>
+      <div style={{ display: "flex", alignItems: "center", gap: 16, color: theme.primaryBg }}>
+        <div
+          data-testid="loading-spinner"
+          className="animate-spin"
+          style={{
+            width: 32,
+            height: 32,
+            boxSizing: "border-box",
+            border: `4px solid ${theme.primaryBg}`,
+            borderTopColor: "transparent",
+            borderRadius: "50%",
+          }}
+        />
+        <span style={{ fontSize: 18 }}>{t('app.loading')}</span>
       </div>
-      <div className="mt-8 text-cyan-500 text-sm max-w-md text-center">
+      <div style={{ marginTop: 32, color: theme.consoleTxtMute, fontSize: 14, maxWidth: 448, textAlign: "center" }}>
         {t('app.loadingHint')}
       </div>
     </div>

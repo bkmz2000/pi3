@@ -21,7 +21,7 @@ scheduled = []
 js_stub.clearTimeout = lambda tid: None
 js_stub.setTimeout = lambda callback, delay: scheduled.append((callback, delay)) or len(scheduled)
 js_stub._ide_canvas_resize = lambda width, height: None
-js_stub._ide_flush_draw_commands = lambda commands, frame=None: None
+js_stub._ide_flush_draw_commands = lambda commands, frame=None, keep=False: None
 sys.modules.setdefault("js", js_stub)
 
 pyodide_stub = types.ModuleType("pyodide")

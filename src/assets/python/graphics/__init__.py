@@ -1245,7 +1245,10 @@ def _show() -> None:
         _state._width, _state._height = _state._pending_size
         _state._pending_size = None
     _ide_canvas_resize(_state._width, _state._height)
-    _ide_flush_draw_commands(to_js(_state._draw_commands))
+    # The third argument distinguishes this one-shot public API from the
+    # internal frame-loop flushes.  The worker uses it to keep the completed
+    # still picture visible after the program returns.
+    _ide_flush_draw_commands(to_js(_state._draw_commands), -1, True)
     _state._draw_commands.clear()
 
 

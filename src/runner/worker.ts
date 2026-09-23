@@ -21,6 +21,9 @@ let pendingOffscreen: OffscreenCanvas | null = null;
 
 // JS-side asset stores — ImageBitmaps never enter Pyodide
 let runAssets: Record<string, ImageBitmap> = {};
+// Set only by graphics.show()'s explicitly marked one-shot flush.  A normal
+// run() loop must retain its existing stop/end behavior and hide the canvas.
+let oneShotCanvasShown = false;
 
 // DBG-4: step-back ring buffer
 const MAX_REWIND_FRAMES = 200;
@@ -271,11 +274,17 @@ async function initPyodide(
 
   // _ide_flush_draw_commands: called from Python each tick with to_js(_draw_commands).
   // frameNum >= 0 on the final (post-main) flush; -1 on the pre-main flush (not captured).
-  p.globals.set("_ide_flush_draw_commands", (commands: unknown[], frameNum: number = -1) => {
+  // keepAfterResult is true only for the public one-shot graphics.show().
+  p.globals.set("_ide_flush_draw_commands", (
+    commands: unknown[],
+    frameNum: number = -1,
+    keepAfterResult: boolean = false,
+  ) => {
     if (!offscreen) return;
     const ctx = offscreen.getContext("2d");
     if (!ctx) return;
     executeDrawCommands(ctx, Array.from(commands as Iterable<unknown>), runAssets, offscreen.width, offscreen.height);
+    if (keepAfterResult) oneShotCanvasShown = true;
     if (frameNum >= 0) maybeCaptureRewindFrame(frameNum);
   });
 
@@ -491,6 +500,7 @@ async function runGraphicsScript(
   showHitboxes: boolean = false,
   showActorInfo: boolean = false,
 ) {
+  oneShotCanvasShown = false;
   prepareFiles(p, files);
 
   if (!offscreen) {
@@ -757,7 +767,7 @@ except Exception:
     } catch { /* never crash on debug cleanup */ }
     // A3: drain trailing stdout/stderr.
     try { p.runPython("import sys; sys.stdout.flush(); sys.stderr.flush()"); } catch { /* ignore */ }
-    post({ type: "result" });
+    post({ type: "result", keepCanvas: oneShotCanvasShown });
   }
 }
 

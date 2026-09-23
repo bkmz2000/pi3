@@ -377,9 +377,38 @@ async function runProductionTests() {
       addTestResult('p5.js sketch execution', false, error);
     }
     
-    // Test 4: Asset Management — the Projects panel hosts the sprite /
+    // Test 4: show() paints once and its completed frame remains visible.
+    console.log('\n4. show() Still-picture Persistence');
+    try {
+      await clearEditor(page);
+      await typeCode(page, 'from graphics import *\n\nbackground("sky")\nfill("red")\ncircle(150, 150, 40)\nshow()');
+      await clickRun(page);
+
+      // The program must have completed (Run is back) while the canvas window
+      // remains visible. This catches the historical split-second flash where
+      // the worker posted a plain result event immediately after show().
+      await page.waitForFunction(() => {
+        const run = document.querySelector('button[aria-label="Run"]');
+        const canvas = document.querySelector('canvas');
+        const canvasWindow = canvas?.parentElement?.parentElement;
+        return !!run && !!canvasWindow && window.getComputedStyle(canvasWindow).opacity === '1';
+      }, { timeout: 10000 });
+      await sleep(750);
+
+      const stillVisible = await page.evaluate(() => {
+        const canvas = document.querySelector('canvas');
+        const canvasWindow = canvas?.parentElement?.parentElement;
+        return !!canvasWindow && window.getComputedStyle(canvasWindow).opacity === '1';
+      });
+      if (!stillVisible) throw new Error('show() canvas disappeared after execution completed');
+      addTestResult('show() still-picture persistence', true);
+    } catch (error) {
+      addTestResult('show() still-picture persistence', false, error);
+    }
+
+    // Test 5: Asset Management — the Projects panel hosts the sprite /
     // tilemap / sound sections (the old separate Assets rail button is gone).
-    console.log('\n4. Asset Management');
+    console.log('\n5. Asset Management');
     try {
       await openProjectsPanel(page);
       await sleep(500);
@@ -396,8 +425,8 @@ async function runProductionTests() {
       addTestResult('Asset management', false, error);
     }
     
-    // Test 5: Project Management
-    console.log('\n5. Project Management');
+    // Test 6: Project Management
+    console.log('\n6. Project Management');
     try {
       await openProjectsPanel(page);
       const isVisible = await page.evaluate(() => {
@@ -414,8 +443,8 @@ async function runProductionTests() {
       addTestResult('Project management', false, error);
     }
     
-    // Test 6: Error Handling
-    console.log('\n6. Error Handling');
+    // Test 7: Error Handling
+    console.log('\n7. Error Handling');
     try {
       await clearEditor(page);
       await typeCode(page, 'print("test")\nx = 1 / 0');
@@ -432,8 +461,8 @@ async function runProductionTests() {
       addTestResult('Error handling', false, error);
     }
     
-    // Test 7: Console Output
-    console.log('\n7. Console Output');
+    // Test 8: Console Output
+    console.log('\n8. Console Output');
     try {
       await clearEditor(page);
       await typeCode(page, 'for i in range(3):\n    print("line", i)');
@@ -450,9 +479,9 @@ async function runProductionTests() {
       addTestResult('Console output', false, error);
     }
     
-    // Test 8: Sprite Editor — Projects panel → Sprites section "+" button
+    // Test 9: Sprite Editor — Projects panel → Sprites section "+" button
     // (title="New sprite") opens the sheet editor.
-    console.log('\n8. Sprite Editor');
+    console.log('\n9. Sprite Editor');
     try {
       await openProjectsPanel(page);
       const plusClicked = await page.evaluate(() => {
@@ -486,8 +515,8 @@ async function runProductionTests() {
       addTestResult('Sprite editor', false, error);
     }
     
-    // Test 9: Hello World Example
-    console.log('\n9. Hello World Example');
+    // Test 10: Hello World Example
+    console.log('\n10. Hello World Example');
     try {
       await openExamplesPanel(page);
       const found = await clickExample(page, 'Hello World');
@@ -506,8 +535,8 @@ async function runProductionTests() {
       addTestResult('Hello world example', false, error);
     }
     
-    // Test 10: Snake Example (new graphics API)
-    console.log('\n10. Snake Example');
+    // Test 11: Snake Example (new graphics API)
+    console.log('\n11. Snake Example');
     try {
       // Stop any running sketch first
       await stopSketch(page);
@@ -533,8 +562,8 @@ async function runProductionTests() {
       addTestResult('Snake example', false, error);
     }
     
-    // Test 11: Asteroids Example
-    console.log('\n11. Asteroids Example');
+    // Test 12: Asteroids Example
+    console.log('\n12. Asteroids Example');
     try {
       await stopSketch(page);
       await openExamplesPanel(page);
@@ -556,8 +585,8 @@ async function runProductionTests() {
       addTestResult('Asteroids example', false, error);
     }
     
-    // Test 12: Sokoban Example (with sprites)
-    console.log('\n12. Sokoban Example');
+    // Test 13: Sokoban Example (with sprites)
+    console.log('\n13. Sokoban Example');
     try {
       // Stop any running sketch first
       await stopSketch(page);

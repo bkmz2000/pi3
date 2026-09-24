@@ -1,4 +1,9 @@
-const CACHE_NAME = 'webide-v6';
+const CACHE_PREFIX = 'webide-v7';
+// Replaced in dist/sw.js after every production build. A changed worker script
+// makes browsers install the new release even when the caching strategy itself
+// has not changed.
+const BUILD_ID = '__PI3_BUILD_ID__';
+const CACHE_NAME = `${CACHE_PREFIX}-${BUILD_ID}`;
 const PYODIDE_VERSION = '0.29.3';
 
 // We ship Pyodide from the same origin (public/pyodide/, mirrored from

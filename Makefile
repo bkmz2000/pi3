@@ -53,6 +53,7 @@ build:
 	@echo "→ Building with DEPLOYMENT_PROFILE=$(DEPLOYMENT_PROFILE)"
 	docker build \
 		--build-arg DEPLOYMENT_PROFILE=$(DEPLOYMENT_PROFILE) \
+		--build-arg BUILD_ID=$(SHA) \
 		-t $(IMAGE):$(SHA) -t $(IMAGE):latest .
 
 push:

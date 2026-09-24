@@ -78,7 +78,9 @@ console.log(`[copy-pyodide] ${copied} copied, ${skipped} up-to-date → public/p
 // precaches the correct CDN fallback URLs (stays in sync with package.json).
 // v5: precache list now includes the app shell, and /assets/* is cache-first.
 // v6: offline SPA fallback resolves to '/' (the precached shell key).
-const SW_CACHE_NAME = 'webide-v6';
+// v7: every production build stamps a unique suffix so a release always
+// installs a fresh worker and evicts caches left by the previous release.
+const SW_CACHE_PREFIX = 'webide-v7';
 const swPath = join(ROOT, 'public', 'sw.js');
 if (existsSync(swPath)) {
   const { version } = require('../node_modules/pyodide/package.json');
@@ -87,12 +89,12 @@ if (existsSync(swPath)) {
     /const PYODIDE_VERSION = '[^']+';/,
     `const PYODIDE_VERSION = '${version}';`,
   );
-  // Bump SW_CACHE_NAME whenever the precache list or fetch strategy changes —
+  // Bump SW_CACHE_PREFIX whenever the precache list or fetch strategy changes —
   // this line is the source of truth, it overwrites whatever public/sw.js says.
   sw = sw.replace(
-    /const CACHE_NAME = '[^']+';/,
-    `const CACHE_NAME = '${SW_CACHE_NAME}';`,
+    /const CACHE_PREFIX = '[^']+';/,
+    `const CACHE_PREFIX = '${SW_CACHE_PREFIX}';`,
   );
   writeFileSync(swPath, sw, 'utf8');
-  console.log(`[copy-pyodide] sw.js patched → PYODIDE_VERSION=${version}, CACHE_NAME=${SW_CACHE_NAME}`);
+  console.log(`[copy-pyodide] sw.js patched → PYODIDE_VERSION=${version}, CACHE_PREFIX=${SW_CACHE_PREFIX}`);
 }

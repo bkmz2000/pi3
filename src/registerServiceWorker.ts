@@ -9,15 +9,17 @@
 // Dev is deliberately excluded: a registered SW caches dev assets and fights
 // with HMR. Registration is deferred to `load` so it never competes with the
 // initial page load (Pyodide is already heavy enough).
+import { installServiceWorkerUpdateFlow } from './serviceWorkerUpdate';
+
 export function registerServiceWorker(): void {
   if (!import.meta.env.PROD) return;
   if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) return;
 
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("/sw.js").catch((err) => {
-      // Non-fatal: the app works fine without offline support or the install
-      // prompt. Never block startup on this.
-      console.warn("Service worker registration failed:", err);
-    });
+    void installServiceWorkerUpdateFlow(
+      navigator.serviceWorker,
+      () => window.location.reload(),
+      (message, error) => console.warn(message, error),
+    );
   });
 }

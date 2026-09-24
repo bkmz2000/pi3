@@ -24,6 +24,7 @@
     "predev": "node scripts/copy-pyodide.mjs",
     "predev:all": "node scripts/copy-pyodide.mjs",
     "prebuild": "node scripts/copy-pyodide.mjs",
+    "postbuild": "node scripts/stamp-service-worker.cjs",
     "prepreview": "node scripts/copy-pyodide.mjs",
     "dev": "vite",
     "dev:all": "concurrently -n fe,api -c cyan,green \"vite\" \"node --env-file=.env --import tsx server/index.ts\"",

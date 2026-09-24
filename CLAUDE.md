@@ -231,7 +231,7 @@ Rail-based layout. Most panel content is inline in `SideMenu.tsx`; `DocsPanel` i
 - Test DB: in-memory SQLite created in `server/tests/setup.ts`
 
 ### PWA
-Service worker at `public/sw.js` (cache name `webide-v6`). Caches Pyodide CDN assets and app shell on install.
+Service worker at `public/sw.js` (cache prefix `webide-v7`). Caches Pyodide CDN assets and app shell on install. `npm run build` stamps a unique release ID into `dist/sw.js`; registration bypasses the HTTP cache and reloads an already-controlled page once when the new worker activates. This prevents deployed bundles remaining stale until Ctrl+Shift+R. The first install does not reload, and teacher freeze-updates mode still holds a release in `waiting` until unfreezing.
 
 ### OAuth & Authentication
 
@@ -344,7 +344,7 @@ Diagnostics carry `{code, messageKey, messageArgs, row, column, endRow, endColum
 - **Soft wrap**: `EditorView.lineWrapping` — no horizontal scrolling.
 - **File management**: auto-save on run; auto-save every 60 s while dirty (`useAutoSave.ts`); Ctrl+S saves all dirty files; delete confirmation via `window.confirm()` (`FileBar.tsx`).
 - **Console panel**: resizeable (bottom or right via settings), copy/clear buttons, input prompt support, running indicator.
-- **Service worker**: `public/sw.js` caches Pyodide (cache name `webide-v6`; auto-invalidated on version change). DocsPanel is lazy-loaded via `React.lazy()`.
+- **Service worker**: `public/sw.js` caches Pyodide (build-stamped `webide-v7-<release>` cache; auto-invalidated on every deployment). Existing controlled pages reload once when the new worker activates; initial installs do not. DocsPanel is lazy-loaded via `React.lazy()`.
 
 ---
 

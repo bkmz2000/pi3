@@ -32,9 +32,13 @@ describe('release script safety regressions', () => {
     const check = readFileSync(join(root, 'scripts/release-policy-check.sh'), 'utf8');
     const makefile = readFileSync(join(root, 'Makefile'), 'utf8');
     expect(policy).toContain('`READY` means **eligible to attempt a controlled promotion**');
-    expect(policy.replace(/\s+/g, ' ')).toContain('The production canary cannot run against the new image until *after* promotion');
+    const normalizedPolicy = policy.replace(/\s+/g, ' ');
+    expect(normalizedPolicy).toContain('The production canary cannot run against the new image until *after* promotion');
+    expect(normalizedPolicy).toContain('independent external host-down monitoring is recommended but not a launch gate');
+    expect(normalizedPolicy).toContain('at least 10 minutes after the canary');
     expect(check).toContain("grep -Fqx '**Release gate status: READY**'");
     expect(check).toContain('stamp="$stamp_dir/${sha}-${profile}.stamp"');
+    expect(check).toContain('-le 86400');
     const promotion = makefile.indexOf('promote-vps: release-policy-check');
     const imageSwitch = makefile.indexOf("/tmp/pi3-deploy-vps-$(SHA).sh '$(CANDIDATE_IMAGE_REF)'", promotion);
     const canary = makefile.indexOf('if node scripts/deploy-canary.mjs &&', promotion);

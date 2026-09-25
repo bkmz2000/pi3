@@ -50,7 +50,9 @@ read -r format stamped_sha stamped_profile stamped_at < "$stamp"
 [ "$format" = v1 ] && [ "$stamped_sha" = "$sha" ] && [ "$stamped_profile" = "$profile" ] || fail 'release-gate evidence does not match commit/profile'
 now=$(date +%s)
 [ "$stamped_at" -le "$now" ] || fail 'release-gate timestamp is in the future'
-[ "$((now - stamped_at))" -le 21600 ] || fail 'release-gate evidence expired (6-hour limit)'
+# The stamp is bound to this immutable commit/profile; a full day is enough
+# for a human-reviewed pilot rollout without rerunning the same gates at night.
+[ "$((now - stamped_at))" -le 86400 ] || fail 'release-gate evidence expired (24-hour limit)'
 
 repo='ghcr.io/bkmz2000/pi3'
 candidate=${CANDIDATE_IMAGE_REF:-}

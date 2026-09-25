@@ -7,9 +7,11 @@
 `READY` means **eligible to attempt a controlled promotion**, not "deployed" or
 "production canary passed." The operator may commit `READY` only after the
 pre-promotion controls are evidenced: reviewed durability changes, a tested
-rollback/canary path, a recorded off-host restore drill, and independent
-external host-down monitoring. The full release gate then runs on that exact
-clean `production` commit and creates a short-lived, commit/profile-bound
+rollback/canary path, and a recorded off-host restore drill. For this manually
+attended pilot, independent external host-down monitoring is recommended but
+not a launch gate (see the accepted risk below). The full release gate then
+runs on that exact clean `production` commit and creates a short-lived,
+commit/profile-bound
 stamp; candidate publication does not change production. Promotion still
 requires the published image digest and separate exact-tuple approval. The
 production canary cannot run against the new image until *after* promotion:
@@ -105,7 +107,8 @@ from a green focused test run.
   binding was added before invoking the helper; the nightly executable itself
   was not replaced. This snapshot has sheets but no assets, sounds, or tilemaps
   to exercise. Repeat monthly; an independent external host-down monitor is
-  still missing. Same-VPS retention is not an off-host backup.
+  still missing but is not a gate for this attended pilot. Same-VPS retention
+  is not an off-host backup.
 - Read-only production inspection on 2026-09-25 found the running container
   mounted only the database Docker volume; `/srv/pi3/backups` was not mounted.
   The host backup directory was root-owned mode 700. Keep verifying this
@@ -164,11 +167,15 @@ nightly backup job intact until a reviewed candidate establishes that identity,
 then install the new backup implementation as a separate verified step.
 
 This on-host checker cannot notify if the entire VPS, its network, or Telegram
-connectivity is down. A separate external dead-man's-switch monitor is still
-needed for that failure mode; Telegram delivery alone does not establish
-host-loss monitoring. Telegram and the first off-host drill are now recorded;
-keep release status **BLOCKED** until independent external monitoring and the
-remaining pre-promotion review/rollback/canary preparations are evidenced.
+connectivity is down. **Accepted pilot risk:** for a manually attended release
+with a small user base, an independent external dead-man's-switch monitor is
+recommended, not a promotion prerequisite. The operator must watch the rollout
+and check service/backup health the next day. A later total VPS/network outage
+may go unnoticed until a human checks; same-host backups may be lost with the
+host. Add external monitoring before unattended releases or a larger cohort;
+manual attention at deploy time is not equivalent to 24/7 alerting. Telegram
+and the first off-host drill are recorded; keep status **BLOCKED** until the
+remaining pre-promotion review and rollback/canary preparations are evidenced.
 `READY` precedes the exact clean-commit release gate; the production canary is
 mandatory *after* the image switch and before rollout success.
 
@@ -288,11 +295,12 @@ release log:
 
 ### Before changing production
 
-1. Identify the exact candidate commit. Confirm that external monitoring, the
-   recorded restore drill, review, and rollback/canary preparations are ready;
-   commit `READY` with the candidate on `production` only when these
-   pre-promotion conditions are met. It does not claim a gate stamp or a passed
-   production canary.
+1. Identify the exact candidate commit. Confirm the recorded restore drill,
+   review, and rollback/canary preparations are ready; explicitly accept the
+   missing external-monitor risk for this manually attended pilot. Commit
+   `READY` with the candidate on `production` only when these pre-promotion
+   conditions are met. It does not claim a gate stamp or a passed production
+   canary.
 2. Run the full release gate on that exact clean commit and deployment profile:
    lint, unit/server tests, previous-version browser/storage migrations and
    offline sync fixtures, the full browser suite, and builds. `scripts/run-e2e.sh`
@@ -329,8 +337,11 @@ release log:
     it, and confirms it is gone. Failure triggers release-specific rollback of
     image and Compose; the command cannot report success or discard rollback
     evidence before this passes.
-13. Monitor save failures, migration errors, and project-not-found responses for
-    at least 30 minutes before final release sign-off.
+13. Actively watch save failures, migration errors, and project-not-found
+    responses for at least 10 minutes after the canary. Check service health,
+    backup freshness, and the same error signals again the next day. Treat any
+    data-loss symptom as an incident; the missing external host-down monitor
+    remains a separately documented follow-up.
 
 ## 6. Rollback and incident response
 
@@ -361,8 +372,11 @@ the post-promotion canary; it cannot be a prerequisite for setting `READY`:
 - verify claim/sync with revision comparison, read-back verification, and
   copy-first deletion; preserve conflicting revisions rather than overwriting
   silently;
-- complete monthly off-host decrypt/restore drills and alerting for missed
-  jobs, failed validation, low disk space, and stale drills;
+- keep an encrypted pre-deploy backup and the recorded off-host restore drill;
+  continue monthly drills and on-host alerts for missed jobs, failed validation,
+  low disk space, and stale drills. A failed backup/restore validation blocks
+  promotion; the absent *external* host-down monitor alone does not block an
+  attended pilot release;
 - prepare the dedicated test account and rollback/canary tooling before
   promotion; run and verify the authenticated API/UI canary on production
   immediately after the image switch, with automatic rollback on failure.

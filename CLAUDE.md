@@ -213,9 +213,12 @@ Compose rollback. The canary uses the normal browser session to mint a
 the hash is stored server-side, and the credential is not injected into browser
 requests. The configured canary account ID was verified read-only as an
 existing student, but its value is not stored in docs. Production remains
-**BLOCKED**: the scoped-token flow is not production-tested, independent
-external host-down monitoring is absent, and the completed off-host restore
-snapshot did not contain assets, sounds, or tilemaps. On 2026-09-25 at 17:57 UTC,
+**BLOCKED** pending full candidate review and rollback/canary preparation;
+the scoped-token flow cannot be tested against the new production image before
+promotion. Independent external host-down monitoring is absent but is a
+recommended follow-up rather than a gate for this manually attended pilot;
+the completed off-host restore snapshot did not contain assets, sounds, or
+tilemaps. On 2026-09-25 at 17:57 UTC,
 the drill passed encrypted/decrypted checksum, SQLite integrity/counts, and
 isolated authenticated API read-back checks; the installed VPS helper recorded
 a protected encrypted restore copy and the active freshness checker passed.
@@ -228,13 +231,15 @@ on the VPS on 2026-09-25, but the new nightly backup executable has not replaced
 the existing one, so immediate backup success/failure hooks are not active. The
 Telegram token/chat pair is configured in root-owned mode 0600 and Telegram's
 `getChat` API accepted it.
-Direct host-side Telegram messages also cannot detect full VPS/network outages,
-so an independent external dead-man monitor remains required. Release-policy
-`READY` means pre-promotion controls have been reviewed and a controlled rollout
-may be attempted, not that the new production canary already passed: commit
-`READY` with the candidate only after the external monitor, restore drill, review,
-and rollback/canary preparations are in place; run the exact clean-commit release
-gate afterward. Image digest and explicit approval are separate promotion checks.
+Direct host-side Telegram messages cannot detect full VPS/network outages;
+external dead-man monitoring remains recommended before unattended releases or
+a larger cohort. The operator explicitly accepts that risk for attended pilot
+deploys and rechecks service/backup health the next day. Release-policy `READY`
+means pre-promotion controls have been reviewed and a controlled rollout may be
+attempted, not that the new production canary already passed: commit `READY`
+with the candidate only after the restore drill, review, and rollback/canary
+preparations are in place; run the exact clean-commit release gate afterward.
+Image digest and explicit approval are separate promotion checks.
 `make promote-vps` runs the production canary after the image switch and rolls
 back on failure; final acceptance follows post-deploy monitoring.
 

@@ -482,7 +482,18 @@ export class ProjectStorage {
               queueStore.put({ ...row, content: { ...row.content, version: verifiedVersion } });
             }
           }
-          if (cached?.writerId === queued.writerId && queued.writerId) {
+          const cacheMatches = (content: QueuedSave['content']) => cached && JSON.stringify([
+            cached.files, cached.assets, cached.tilemaps, cached.sounds, cached.sheet, cached.currentFile,
+          ]) === JSON.stringify([
+            content.files, content.assets, content.tilemaps, content.sounds, content.sheet, content.currentFile,
+          ]);
+          const newerQueuedCopy = (rows ?? []).some((row) => row.id > queued.id
+            && row.writerId === queued.writerId && cacheMatches(row.content));
+          // Only promote cache revisions for verified content or for a newer
+          // queued snapshot from the same tab that was rebased above. An unqueued
+          // editor edit must never inherit the older snapshot's revision.
+          if (cached?.writerId === queued.writerId && queued.writerId
+            && (cacheMatches(queued.content) || newerQueuedCopy)) {
             contentStore.put({ ...cached, version: verifiedVersion });
           } else if (!cached) {
             contentStore.put({ ...queued.content, writerId: queued.writerId, version: verifiedVersion, savedAt: Date.now() });

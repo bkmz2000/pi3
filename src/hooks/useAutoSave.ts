@@ -8,8 +8,8 @@ export function useAutoSave() {
   const currentProjectId = useEditor((s) => s.currentProjectId);
   const dirtyFiles = useEditor((s) => s.dirtyFiles);
   const saveCurrentProject = useIde((s) => s.saveCurrentProject);
-  // Sticky client-side errors (413, validation) — retrying on every keystroke
-  // would just keep failing. The user must fix the project before we try again.
+  // Payload errors cannot be retried unchanged. After a conflict, the save
+  // action writes new edits to independent local recovery drafts, not the API.
   const saveError = useIde((s) => s.saveError);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -18,7 +18,7 @@ export function useAutoSave() {
   // to the project API.
   useEffect(() => {
     if (!currentProjectId) return;
-    if (saveError?.kind === "payload" || saveError?.kind === "conflict") return;
+    if (saveError?.kind === "payload") return;
 
     const interval = setInterval(async () => {
       const dirty = useEditor.getState().dirtyFiles;
@@ -36,7 +36,7 @@ export function useAutoSave() {
   useEffect(() => {
     if (!currentProjectId) return;
     if (dirtyFiles.size === 0) return;
-    if (saveError?.kind === "payload" || saveError?.kind === "conflict") return;
+    if (saveError?.kind === "payload") return;
 
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(async () => {

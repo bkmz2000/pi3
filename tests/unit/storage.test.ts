@@ -95,6 +95,20 @@ describe('offline save queue', () => {
     });
   });
 
+  it('does not promote unqueued newer cache content to the older verified revision', async () => {
+    storage = new ProjectStorage('tab-a');
+    const first = makeContent('proj-unsent', { files: { 'main.py': 'sent' }, version: 7 });
+    await storage.queueSave(first);
+    const [queued] = await storage.getQueuedSaves();
+    await storage.cacheProjectContent('proj-unsent', makeContent('proj-unsent', {
+      files: { 'main.py': 'unsent newer edit' }, version: 7,
+    }));
+    await storage.completeQueuedSave(queued, 8);
+    await expect(storage.getCachedProjectContent('proj-unsent')).resolves.toMatchObject({
+      files: { 'main.py': 'unsent newer edit' }, version: 7,
+    });
+  });
+
   it('does not inherit another tab cache revision or rebase its queued snapshot', async () => {
     storage = new ProjectStorage('tab-a');
     const otherTab = new ProjectStorage('tab-b');

@@ -21,7 +21,9 @@ export async function claimAnonymousDraft(
   const created = await create(name, project, name);
   const verified = await getProject(created.id);
   const expected = {
-    name,
+    // The server canonicalizes whitespace in names. Compare two server
+    // responses, not the raw input, while verifying all durable content.
+    name: created.name,
     files: project.files,
     assets: project.assets,
     tilemaps: project.tilemaps,

@@ -45,6 +45,12 @@ test('persists latest edits, verifies complete server copy, then removes only th
   expect(readBack.mock.invocationCallOrder[0]).toBeLessThan(removedDraft.mock.invocationCallOrder[0]);
 });
 
+test('accepts the server-canonical name without losing verification of project content', async () => {
+  expect(await claimAnonymousDraft('__anon_draft_1', project, 'My  game', create)).toEqual(created);
+  expect(create).toHaveBeenCalledWith('My  game', project, 'My  game');
+  expect(removedDraft).toHaveBeenCalledWith('__anon_draft_1');
+});
+
 test.each([
   ['missing asset', { assets: {} }],
   ['wrong revision', { version: 2 }],

@@ -15,8 +15,10 @@ commit/profile-bound
 stamp; candidate publication does not change production. Promotion still
 requires the published image digest and separate exact-tuple approval. The
 production canary cannot run against the new image until *after* promotion:
-`make promote-vps` must run it before declaring success or removing rollback
-evidence, and must roll back on failure. Never set `READY` merely to get past
+`make promote-vps` must run it before declaring success and must roll back on
+failure. Keep release-specific rollback evidence through the attended watch;
+only `make finalize-vps FINALIZE_FOR_SHA=<full commit SHA>` may retire it after
+ten minutes and another health/identity check. Never set `READY` merely to get past
 a failing gate, or treat a successful local gate as a production canary.
 
 **Applies to:** every pi3 deployment, including institutional and public profiles
@@ -81,8 +83,12 @@ from a green focused test run.
   conflict recovery, and IndexedDB abort behavior. The 2026-09-25 reviewer
   blocked the candidate on local-draft export, claim read-back, and candidate
   migration dry-run; local fixes and focused tests are now staged and a
-  follow-up reviewer found no P0/P1 in their immediate blast radii. They are
-  not deployed or reviewed on a clean committed candidate.
+  follow-up reviewer found no P0/P1 in their immediate blast radii. Two broader
+  reviewers then BLOCKED the clean WIP candidate `02fea4f` on reconnect/editor
+  revision and post-conflict recovery, clean-draft claiming, unsafe inherited
+  Turso credentials in a local fixture, and early rollback-evidence cleanup.
+  The follow-up fixes and regression tests are local; focused re-review and the
+  exact clean-`production` release gate are still pending. Nothing is deployed.
 - **Migration dry-run recorded locally on 2026-09-25:** verified the encrypted
   checksum for `pi3-daily-2026-09-25.db.age`, decrypted only into a private local
   temporary directory, and ran the current `initDb()` migrations against that
@@ -319,7 +325,7 @@ release log:
 7. Dry-run the candidate image's migrations on an isolated restored copy;
    compare row counts, migration names, and project content.
 8. Promote only the approved image digest. Keep the previous Compose file and a
-   digest-pinned rollback configuration until the post-deploy canary passes.
+   digest-pinned rollback configuration through the canary and attended watch.
 9. Never delete or recreate the database volume. Wait for migrations and health
    checks; on failure stop the rollout without automatic destructive retries.
 
@@ -335,13 +341,17 @@ release log:
     read/delete only. The canary creates the project in the authenticated
     session, edits/reloads it through the IDE, verifies the server copy, deletes
     it, and confirms it is gone. Failure triggers release-specific rollback of
-    image and Compose; the command cannot report success or discard rollback
-    evidence before this passes.
+    image and Compose; the command cannot report success before this passes.
+    A passing canary retains rollback evidence rather than deleting it.
 13. Actively watch save failures, migration errors, and project-not-found
-    responses for at least 10 minutes after the canary. Check service health,
-    backup freshness, and the same error signals again the next day. Treat any
-    data-loss symptom as an incident; the missing external host-down monitor
-    remains a separately documented follow-up.
+    responses for at least 10 minutes after the canary. If anything fails, use
+    `make rollback ROLLBACK_FOR_SHA=<full commit SHA>` while its exact rollback
+    files are intact. After the watch passes, explicitly run
+    `make finalize-vps FINALIZE_FOR_SHA=<full commit SHA>`; it rechecks the live
+    image/health and the canary timestamp before retiring those files. Check
+    service health, backup freshness, and the same error signals again the next
+    day. Treat any data-loss symptom as an incident; the missing external
+    host-down monitor remains a separately documented follow-up.
 
 ## 6. Rollback and incident response
 

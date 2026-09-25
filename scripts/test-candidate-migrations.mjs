@@ -6,8 +6,15 @@ import { createHash } from 'node:crypto';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { initDb } from '../dist-server/db/index.js';
+
+// initDb prefers Turso over DB_PATH. Never let a local fixture run migrations
+// against credentials inherited from the operator's shell.
+if (process.env.TURSO_DATABASE_URL || process.env.TURSO_AUTH_TOKEN) {
+  throw new Error('Candidate migration fixture requires Turso credentials to be unset');
+}
 
 const dir = mkdtempSync(join(tmpdir(), 'pi3-candidate-migration-'));
 const originalPath = join(dir, 'original.db');
@@ -86,7 +93,15 @@ try {
     encoding: 'utf8',
   });
   if (rejected.status === 0) throw new Error('Candidate verifier accepted a tampered baseline');
-  console.log('Candidate migration dry-run fixture passed (apply, source isolation, tamper rejection).');
+  const unsafeEnv = spawnSync(process.execPath, [fileURLToPath(import.meta.url)], {
+    cwd: new URL('..', import.meta.url),
+    env: { ...process.env, TURSO_DATABASE_URL: 'libsql://do-not-contact.example', TURSO_AUTH_TOKEN: 'fixture-only' },
+    encoding: 'utf8',
+  });
+  if (unsafeEnv.status === 0 || !unsafeEnv.stderr.includes('requires Turso credentials to be unset')) {
+    throw new Error('Candidate fixture did not reject remote database credentials before initDb');
+  }
+  console.log('Candidate migration dry-run fixture passed (apply, source isolation, tamper rejection, remote-credential guard).');
 } finally {
   if (priorDbPath === undefined) delete process.env.DB_PATH;
   else process.env.DB_PATH = priorDbPath;

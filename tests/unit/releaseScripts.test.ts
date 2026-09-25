@@ -49,6 +49,12 @@ describe('release script safety regressions', () => {
     expect(canary).toBeGreaterThan(imageSwitch);
     expect(rollback).toBeGreaterThan(canary);
     expect(rollback).toBeLessThan(nextTarget);
+    expect(makefile.slice(canary, nextTarget)).not.toContain('rm -f .pi3-compose.previous');
+    expect(makefile).toContain('cp -p .pi3-compose.rollback docker-compose.yml');
+    expect(makefile).toContain('finalize-vps:');
+    const fixture = readFileSync(join(root, 'scripts/test-candidate-migrations.mjs'), 'utf8');
+    expect(fixture.indexOf('if (process.env.TURSO_DATABASE_URL || process.env.TURSO_AUTH_TOKEN)'))
+      .toBeLessThan(fixture.indexOf('await initDb()'));
   });
 
   it('retention keeps 7/4/1 rolling files and never removes the protected restore-tested copy', async () => {
@@ -205,6 +211,42 @@ describe('release script safety regressions', () => {
       expect(readdirSync(temp)).toEqual([]);
     } finally {
       await new Promise<void>((resolvePromise) => server.close(() => resolvePromise()));
+      rmSync(temp, { recursive: true, force: true });
+    }
+  });
+
+  it('keeps rollback evidence during the watch and finalizes only the matching canary after ten minutes', async () => {
+    const temp = mkdtempSync(join(tmpdir(), 'pi3-finalize-test-'));
+    const remote = join(temp, 'remote');
+    const bin = join(temp, 'bin');
+    mkdirSync(remote);
+    mkdirSync(bin);
+    const release = 'a'.repeat(40);
+    const image = 'ghcr.io/example/pi3@sha256:' + 'b'.repeat(64);
+    writeFileSync(join(remote, '.pi3-current-release-sha'), `${release}\n`);
+    writeFileSync(join(remote, '.pi3-current-image'), `${image}\n`);
+    writeFileSync(join(remote, '.pi3-previous-image'), 'previous-image\n');
+    writeFileSync(join(remote, '.pi3-previous-release-sha'), 'previous-sha\n');
+    writeFileSync(join(remote, '.pi3-compose.rollback'), 'previous compose\n');
+    const marker = join(remote, '.pi3-canary-passed-at');
+    writeFileSync(marker, `${release} ${Math.floor(Date.now() / 1000) - 590}\n`);
+    writeFileSync(join(bin, 'ssh'), '#!/bin/sh\nshift\nremote_cmd="$1"\nremote_cmd="${remote_cmd#*cd /app/pi3; }"\ncd "$TEST_REMOTE_DIR"\nexec sh -ec "$remote_cmd"\n');
+    writeFileSync(join(bin, 'docker'), '#!/bin/sh\nprintf "%s\\n" "$TEST_CURRENT_IMAGE"\n');
+    writeFileSync(join(bin, 'curl'), '#!/bin/sh\nexit 0\n');
+    for (const executable of ['ssh', 'docker', 'curl']) chmodSync(join(bin, executable), 0o755);
+    try {
+      const env = { ...process.env, PATH: `${bin}:${process.env.PATH ?? ''}`, TEST_REMOTE_DIR: remote, TEST_CURRENT_IMAGE: image };
+      const early = await run('sh', ['scripts/finalize-vps.sh', 'test-vps', release], env);
+      expect(early.code).not.toBe(0);
+      expect(existsSync(join(remote, '.pi3-compose.rollback'))).toBe(true);
+      writeFileSync(marker, `${release} ${Math.floor(Date.now() / 1000) - 610}\n`);
+      const wrongRelease = await run('sh', ['scripts/finalize-vps.sh', 'test-vps', 'c'.repeat(40)], env);
+      expect(wrongRelease.code).not.toBe(0);
+      const finalized = await run('sh', ['scripts/finalize-vps.sh', 'test-vps', release], env);
+      expect(finalized.code).toBe(0);
+      expect(existsSync(join(remote, '.pi3-compose.rollback'))).toBe(false);
+      expect(existsSync(marker)).toBe(false);
+    } finally {
       rmSync(temp, { recursive: true, force: true });
     }
   });

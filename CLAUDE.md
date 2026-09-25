@@ -157,7 +157,10 @@ server matrix, E2E, lint, typecheck, and build pass on the dirty worktree,
 **not** on a reviewed clean release commit. The 2026-09-25 follow-up reviewer
 cleared the three local P1 fixes in their immediate blast radii (draft export,
 claim verification, and predeploy candidate migration dry-run), but release
-policy remains BLOCKED pending clean-candidate proof and operational checks.
+policy remains BLOCKED pending clean-candidate proof. A later full-candidate
+review of `02fea4f` found reconnect/editor revision, post-conflict autosave,
+clean-draft claim, remote-credential fixture, and early rollback-evidence
+cleanup defects; repairs require focused follow-up review and exact-commit gates.
 
 **Testing the worker without Pyodide.** `src/runner/WorkerInterface.ts` defines
 typed `WorkerCommand`/`WorkerEvent` unions. Test `RunnerProvider` /
@@ -241,7 +244,14 @@ with the candidate only after the restore drill, review, and rollback/canary
 preparations are in place; run the exact clean-commit release gate afterward.
 Image digest and explicit approval are separate promotion checks.
 `make promote-vps` runs the production canary after the image switch and rolls
-back on failure; final acceptance follows post-deploy monitoring.
+back on failure. A passing canary retains pinned rollback evidence through the
+10-minute attended watch; `make finalize-vps FINALIZE_FOR_SHA=<full SHA>` checks
+elapsed time, image identity and health before cleanup. Route project loading
+waits for offline queue replay, and a verified queued revision may only advance
+the active editor when its content matches; stale clean content is replaced and
+newer dirty edits are preserved as local recovery drafts. Conflict autosave
+continues local recovery without retrying the server. Final acceptance follows
+post-deploy monitoring.
 
 ## Architecture
 

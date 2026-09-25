@@ -8,12 +8,13 @@ import Rail from "./SideMenu";
 import { useEditor, useIde, isExampleSessionId, EXAMPLE_SESSION_PREFIX } from "./state/IdeState";
 import { isAnonymousDraftId } from "./state/sessionId";
 import {
-  getProject, getComments, listSessionReactions,
+  getComments, listSessionReactions,
   ApiHttpError, type ApiComment, type SessionReaction,
 } from "./state/api";
 import { projectStorage } from "./utils/storage";
 import { encodeSheet, decodeSheet } from "./state/sheetCodec";
 import { toEditorProject } from "./state/projectNormalization";
+import { loadProjectAfterQueue } from "./state/loadProjectAfterQueue";
 import { useOnlineSync } from "./hooks/useOnlineSync";
 import FileBar from "./FileBar";
 import { useRunner } from "./runner/RunnerProvider";
@@ -43,6 +44,7 @@ import { claimAnonymousDraft } from './state/claimAnonymousDraft';
 import { useThemeStore } from "./state/useTheme";
 import { ToastContainer } from "./components/ToastContainer";
 import { SaveErrorIndicator } from "./components/SaveErrorIndicator";
+import { ClaimLocalDraftButton } from "./components/ClaimLocalDraftButton";
 import { getCmTheme } from "./editor/cmTheme";
 import { migrateLegacyAnonStash, clearAnonStash } from "./utils/anonStash";
 
@@ -157,7 +159,10 @@ function ProjectLoader() {
 
     const loadFromApi = async () => {
       try {
-        const apiProject = await getProject(projectId);
+        // A mount-time offline replay may update this project's server row.
+        // Wait for it before issuing GET so a stale response cannot overwrite
+        // verified queued work in the editor or its local recovery cache.
+        const apiProject = await loadProjectAfterQueue(projectId, () => useIde.getState().syncQueuedSaves());
         if (cancelled) return;
         // Cache full content locally for offline reloads.
         projectStorage.cacheProjectContent(projectId, {
@@ -403,7 +408,10 @@ function AppInner() {
     if ((e.ctrlKey || e.metaKey) && e.key === "s") {
       e.preventDefault();
 
-      if (dirtyFiles.size > 0 && authStateLive === 'logged_in' && (!currentProjectId || isExampleSessionId(currentProjectId) || isAnonymousDraftId(currentProjectId))) {
+      if (authStateLive === 'logged_in' && (
+        (currentProjectId && isAnonymousDraftId(currentProjectId))
+        || (dirtyFiles.size > 0 && (!currentProjectId || isExampleSessionId(currentProjectId)))
+      )) {
         setShowForkDialog(true);
         return;
       }
@@ -533,6 +541,8 @@ function AppInner() {
           )}
           <ClassroomInviteBanner />
           <FileBar />
+          <ClaimLocalDraftButton projectId={currentProjectId}
+            signedIn={authStateLive === 'logged_in'} onClaim={() => setShowForkDialog(true)} />
 
           {/* Editor + Console — row when consoleOnRight, column otherwise.
               The canvas floats above this block (position: fixed), so it takes

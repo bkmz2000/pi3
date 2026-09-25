@@ -34,7 +34,7 @@ export {
 };
 
 export type SaveErrorKind = 'auth' | 'network' | 'quota' | 'payload' | 'conflict' | 'verification';
-export type SaveError = { kind: SaveErrorKind; message: string };
+export type SaveError = { kind: SaveErrorKind; message: string; projectId?: string };
 
 function createRecoveryDraftId(projectId: string, reason: "auth" | "conflict"): string {
   const suffix = typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -70,6 +70,26 @@ async function refreshQueuedSaveCount(): Promise<void> {
 
 let queuedSyncInProgress = false;
 let queuedSyncRequested = false;
+let queuedSyncCompletion: Promise<void> | null = null;
+let resolveQueuedSync: (() => void) | null = null;
+
+function editorMatchesQueuedSave(editor: ReturnType<typeof useEditor.getState>, content: QueuedSave['content']): boolean {
+  return JSON.stringify({
+    files: editor.project.files,
+    assets: editor.project.assets ?? {},
+    tilemaps: editor.project.tilemaps ?? {},
+    sounds: editor.project.sounds ?? {},
+    sheet: editor.project.sheet ? encodeSheet(editor.project.sheet) : undefined,
+    currentFile: editor.currentFile,
+  }) === JSON.stringify({
+    files: content.files,
+    assets: content.assets ?? {},
+    tilemaps: content.tilemaps ?? {},
+    sounds: content.sounds ?? {},
+    sheet: content.sheet,
+    currentFile: content.currentFile,
+  });
+}
 
 function unchangedDirtyKeys(keys: Set<string>, before: Project, beforeCurrentFile: string, after: Project, afterCurrentFile: string): string[] {
   return [...keys].filter((key) => {
@@ -315,6 +335,24 @@ export const useIde = create<IdeState>((set, get) => ({
         }
       }
 
+      // A rejected optimistic write must not silently resume cloud writes, but
+      // later edits still need a durable device copy. Each snapshot gets its own
+      // recovery ID so an overlapping save cannot replace newer local work.
+      if (get().saveError?.kind === "conflict" && get().saveError?.projectId === currentProjectId) {
+        try {
+          await projectStorage.saveAnonymousDraft({
+            id: createRecoveryDraftId(currentProjectId, "conflict"),
+            project: { ...project, currentFile },
+            lastModified: Date.now(),
+          });
+          markSnapshotClean();
+          return true;
+        } catch {
+          set({ saveError: { kind: "quota", message: "Could not preserve new edits after a conflict — export your project now" } });
+          return false;
+        }
+      }
+
       // Persist a complete recovery copy before attempting cloud persistence.
       // Sheet is sparse-chunk-encoded on the wire and in IndexedDB.
       const content = {
@@ -426,7 +464,7 @@ export const useIde = create<IdeState>((set, get) => ({
             return false;
           }
         }
-        set({ saveError: { kind, message } });
+        set({ saveError: { kind, message, ...(kind === "conflict" ? { projectId: currentProjectId } : {}) } });
         return kind === "network";
       }
     } finally {
@@ -437,11 +475,15 @@ export const useIde = create<IdeState>((set, get) => ({
   syncQueuedSaves: async () => {
     if (queuedSyncInProgress) {
       queuedSyncRequested = true;
-      return;
+      // Route loading must wait for an in-flight replay before reading the
+      // server, otherwise an older GET can replace a newly synced snapshot.
+      return queuedSyncCompletion ?? undefined;
     }
     queuedSyncInProgress = true;
+    queuedSyncCompletion = new Promise<void>((resolve) => { resolveQueuedSync = resolve; });
     queuedSyncRequested = false;
     let didSync = false;
+    let editorNeedsRecovery = false;
     try {
       let syncFailed = false;
       let rounds = 0;
@@ -532,9 +574,38 @@ export const useIde = create<IdeState>((set, get) => ({
             const sameContent = JSON.stringify({ files: verified.files, assets: verified.assets, tilemaps: verified.tilemaps ?? {}, sounds: verified.sounds ?? {}, sheet: verified.sheet, currentFile: verified.current_file })
               === JSON.stringify({ files: payload.files, assets: payload.assets, tilemaps: payload.tilemaps, sounds: payload.sounds, sheet: payload.sheet, currentFile: payload.currentFile });
             if (!Number.isFinite(saved.version) || saved.version !== verified.version || !sameContent) throw new Error("Queued save verification failed");
-            const currentEditor = useEditor.getState();
-            if (currentEditor.currentProjectId === q.content.id) currentEditor.setCurrentProjectVersion(verified.version!);
+            const beforeCompletion = useEditor.getState();
+            if (beforeCompletion.currentProjectId === q.content.id && beforeCompletion.dirtyFiles.size > 0
+              && !editorMatchesQueuedSave(beforeCompletion, q.content)) {
+              await projectStorage.saveAnonymousDraft({
+                id: createRecoveryDraftId(q.content.id, "conflict"),
+                project: { ...beforeCompletion.project, currentFile: beforeCompletion.currentFile },
+                lastModified: Date.now(),
+              });
+            }
             await projectStorage.completeQueuedSave(q, verified.version!);
+            const currentEditor = useEditor.getState();
+            if (currentEditor.currentProjectId === q.content.id) {
+              if (currentEditor.dirtyFiles.size > 0 && !editorMatchesQueuedSave(currentEditor, q.content)) {
+                // A newer edit must never inherit the queued snapshot's revision.
+                // Keep a separate recovery copy if it changed during completion.
+                if (currentEditor !== beforeCompletion) {
+                  await projectStorage.saveAnonymousDraft({
+                    id: createRecoveryDraftId(q.content.id, "conflict"),
+                    project: { ...currentEditor.project, currentFile: currentEditor.currentFile },
+                    lastModified: Date.now(),
+                  });
+                }
+                currentEditor.setCurrentProjectVersion(null);
+                editorNeedsRecovery = true;
+              } else if (!editorMatchesQueuedSave(currentEditor, q.content)) {
+                // The loader showed an older, clean server copy while replay ran.
+                currentEditor.changeCurrentProject(toEditorProject(verified), q.content.id, verified.version);
+              } else {
+                currentEditor.setCurrentProjectVersion(verified.version!);
+                currentEditor.markClean();
+              }
+            }
             await refreshQueuedSaveCount();
             didSync = true;
           } catch (err) {
@@ -568,7 +639,8 @@ export const useIde = create<IdeState>((set, get) => ({
       if (!syncFailed && isOnline()) {
         const remaining = await projectStorage.getQueuedSaves();
         useEditor.getState().setQueuedSaveCount(remaining.length);
-        if (!remaining.length) set({ saveError: null });
+        if (!remaining.length && !editorNeedsRecovery) set({ saveError: null });
+        else if (editorNeedsRecovery) set({ saveError: { kind: "verification", message: "Offline edits synced; newer local edits were preserved in Projects. Open the recovery draft to continue." } });
         else set({ saveError: { kind: "network", message: "Additional local edits remain queued for sync" } });
       }
 
@@ -583,6 +655,9 @@ export const useIde = create<IdeState>((set, get) => ({
       }
     } finally {
       queuedSyncInProgress = false;
+      resolveQueuedSync?.();
+      resolveQueuedSync = null;
+      queuedSyncCompletion = null;
       if (queuedSyncRequested) {
         queuedSyncRequested = false;
         queueMicrotask(() => { void get().syncQueuedSaves(); });

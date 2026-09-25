@@ -81,6 +81,11 @@ function setEditorState(overrides: {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  // Sticky conflict recovery no longer consumes a second mocked API rejection;
+  // reset one-shot queues so one test cannot alter the next project's outcome.
+  mockSaveProjectContent.mockReset();
+  mockGetProject.mockReset();
+  (projectStorage.getQueuedSaves as jest.Mock).mockReset().mockResolvedValue([]);
   mockIsOnline.mockReturnValue(true);
   mockSaveAnonymousDraft.mockResolvedValue(undefined);
   mockSaveAnonymousDraftIfAbsent.mockResolvedValue(undefined);
@@ -499,6 +504,20 @@ describe('save durability', () => {
     expect(ids[0]).not.toBe(ids[1]);
   });
 
+  it('persists edits made after a 409 without retrying the cloud overwrite', async () => {
+    setEditorState({ currentProjectId: 'proj-conflict-edits' });
+    mockSaveProjectContent.mockRejectedValueOnce(new ApiHttpError(409, 'Conflict'));
+    expect(await useIde.getState().saveCurrentProject()).toBe(false);
+    useEditor.getState().changeFile('main.py', 'print("newer edit")');
+    expect(await useIde.getState().saveCurrentProject()).toBe(true);
+    expect(mockSaveProjectContent).toHaveBeenCalledTimes(1);
+    expect(mockSaveAnonymousDraft).toHaveBeenCalledTimes(2);
+    expect(mockSaveAnonymousDraft.mock.calls[1][0].project.files['main.py']).toBe('print("newer edit")');
+    expect(mockSaveAnonymousDraft.mock.calls[1][0].id).not.toBe(mockSaveAnonymousDraft.mock.calls[0][0].id);
+    expect(useIde.getState().saveError?.kind).toBe('conflict');
+    expect(useEditor.getState().dirtyFiles.size).toBe(0);
+  });
+
   it('creates distinct auth recovery drafts instead of replacing another tab’s copy', async () => {
     setEditorState({ currentProjectId: 'proj-repeat-auth' });
     mockSaveProjectContent
@@ -541,6 +560,29 @@ describe('syncQueuedSaves', () => {
     expect(mockSaveProjectContent).not.toHaveBeenCalled();
   });
 
+  it('lets a route loader await an in-flight replay before fetching server content', async () => {
+    let releaseWrite: (() => void) | undefined;
+    const pending = new Promise<void>((resolve) => { releaseWrite = resolve; });
+    mockGetQueuedSaves.mockResolvedValueOnce([{
+      id: 64, queuedAt: Date.now(), attempts: 0, writerId: 'tab',
+      content: { id: 'proj-loading', files: { 'main.py': 'offline' }, assets: {}, tilemaps: {}, sounds: {}, currentFile: 'main.py', version: 7, savedAt: 0 },
+    }]);
+    mockSaveProjectContent.mockImplementationOnce(async () => {
+      await pending;
+      return { version: 8 } as Awaited<ReturnType<typeof saveProjectContent>>;
+    });
+    const first = useIde.getState().syncQueuedSaves();
+    const waitingLoader = useIde.getState().syncQueuedSaves();
+    let loaderUnblocked = false;
+    void waitingLoader.then(() => { loaderUnblocked = true; });
+    await Promise.resolve();
+    expect(loaderUnblocked).toBe(false);
+    releaseWrite?.();
+    await Promise.all([first, waitingLoader]);
+    expect(loaderUnblocked).toBe(true);
+    expect(mockGetProject).toHaveBeenCalledWith('proj-loading');
+  });
+
   it('does nothing when queue is empty', async () => {
     mockGetQueuedSaves.mockResolvedValueOnce([]);
 
@@ -571,6 +613,44 @@ describe('syncQueuedSaves', () => {
     expect(mockSaveProjectContent).toHaveBeenCalledTimes(1);
     expect(mockCompleteQueuedSave).toHaveBeenCalledWith(queued, 8);
     expect(useEditor.getState().currentProjectVersion).toBe(8);
+  });
+
+  it('replaces a clean stale editor with the verified offline snapshot before promoting its revision', async () => {
+    const queued = {
+      id: 62, queuedAt: Date.now(), attempts: 0, writerId: 'tab',
+      content: { id: 'proj-reconnect', files: { 'main.py': 'offline edits' }, assets: {}, tilemaps: {}, sounds: {}, currentFile: 'main.py', version: 7, savedAt: 0 },
+    };
+    useEditor.setState({
+      currentProjectId: 'proj-reconnect', currentProjectVersion: 7,
+      project: { files: { 'main.py': 'stale server' }, assets: {}, tilemaps: {}, sounds: {} },
+      currentFile: 'main.py', dirtyFiles: new Set(),
+    });
+    mockGetQueuedSaves.mockResolvedValueOnce([queued]);
+    await useIde.getState().syncQueuedSaves();
+    expect(projectStorage.completeQueuedSave).toHaveBeenCalledWith(queued, 8);
+    expect(useEditor.getState().project.files['main.py']).toBe('offline edits');
+    expect(useEditor.getState().currentProjectVersion).toBe(8);
+    expect(useEditor.getState().dirtyFiles.size).toBe(0);
+  });
+
+  it('preserves newer dirty editor edits as a draft without giving them the queued revision', async () => {
+    const queued = {
+      id: 63, queuedAt: Date.now(), attempts: 0, writerId: 'tab',
+      content: { id: 'proj-dirty-reconnect', files: { 'main.py': 'offline edits' }, assets: {}, tilemaps: {}, sounds: {}, currentFile: 'main.py', version: 7, savedAt: 0 },
+    };
+    useEditor.setState({
+      currentProjectId: 'proj-dirty-reconnect', currentProjectVersion: 7,
+      project: { files: { 'main.py': 'even newer edit' }, assets: {}, tilemaps: {}, sounds: {} },
+      currentFile: 'main.py', dirtyFiles: new Set(['main.py']),
+    });
+    mockGetQueuedSaves.mockResolvedValueOnce([queued]);
+    await useIde.getState().syncQueuedSaves();
+    expect(mockSaveAnonymousDraft).toHaveBeenCalledWith(expect.objectContaining({
+      project: expect.objectContaining({ files: { 'main.py': 'even newer edit' } }),
+    }));
+    expect(useEditor.getState().project.files['main.py']).toBe('even newer edit');
+    expect(useEditor.getState().currentProjectVersion).toBeNull();
+    expect(useIde.getState().saveError?.kind).toBe('verification');
   });
 
   it('preserves ambiguous legacy duplicate snapshots as separate recovery drafts', async () => {

@@ -1,7 +1,7 @@
 /**
  * useAutoSave: a 60s periodic fallback and a 3s debounced save. The save action
  * owns snapshot-aware dirty cleanup; the hook must never clear dirty keys a
- * second time. Payload and conflict errors sticky-skip automatic retries.
+ * second time. Payload errors skip retries; conflicts persist later edits locally.
  *
  * Isolation trick: the periodic interval reads the dirty set via
  * useEditor.getState() at fire time (dirtyFiles is NOT an effect dep), while
@@ -104,15 +104,15 @@ describe('periodic fallback interval (60s)', () => {
     expect(ideState.saveCurrentProject).not.toHaveBeenCalled();
   });
 
-  it('sticky-skips automatic retries while a conflict awaits explicit resolution', async () => {
+  it('continues saving later edits locally while a conflict blocks cloud writes', async () => {
     ideState.saveError = { kind: 'conflict', message: 'revision conflict' };
     const { rerender } = renderHook(() => useAutoSave());
     editorState.dirtyFiles = new Set(['main.py']);
     rerender();
 
-    await act(async () => { jest.advanceTimersByTime(60000); });
-
-    expect(ideState.saveCurrentProject).not.toHaveBeenCalled();
+    await act(async () => { jest.advanceTimersByTime(3000); });
+    expect(ideState.saveCurrentProject).toHaveBeenCalledTimes(1);
+    expect(editorState.markClean).not.toHaveBeenCalled();
   });
 
   it('does not perform a second cleanup that could erase in-flight edits', async () => {

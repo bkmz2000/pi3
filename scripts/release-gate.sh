@@ -44,6 +44,7 @@ echo '→ Isolated candidate migration fixture'
 node scripts/test-candidate-migrations.mjs
 sh -n scripts/deploy-vps.sh
 sh -n scripts/rollback-vps.sh
+sh -n scripts/finalize-vps.sh
 sh -n scripts/vps-backup.sh
 sh -n scripts/backup-retention.sh
 sh -n scripts/mark-restore-verified.sh
@@ -53,7 +54,7 @@ node --check scripts/deploy-canary.mjs
 node --check scripts/verify-candidate-migrations.mjs
 node --check scripts/test-candidate-migrations.mjs
 if command -v shellcheck >/dev/null 2>&1; then
-  shellcheck scripts/deploy-vps.sh scripts/rollback-vps.sh scripts/vps-backup.sh scripts/backup-retention.sh scripts/mark-restore-verified.sh scripts/telegram-notify.sh scripts/backup-alert-check.sh scripts/release-gate.sh scripts/release-policy-check.sh
+  shellcheck scripts/deploy-vps.sh scripts/rollback-vps.sh scripts/finalize-vps.sh scripts/vps-backup.sh scripts/backup-retention.sh scripts/mark-restore-verified.sh scripts/telegram-notify.sh scripts/backup-alert-check.sh scripts/release-gate.sh scripts/release-policy-check.sh
 fi
 cleanup_generated_results
 [ -z "$(git status --porcelain --untracked-files=all)" ] || fail 'tests/build modified tracked source or left untracked files'

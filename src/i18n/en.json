@@ -1589,6 +1589,7 @@
     "savedOfflineWillSync": "Saved offline — will sync when online",
     "localOnly": "Local only — Ctrl+S to save",
     "conflict": "Sync conflict — local recovery saved; open Projects to continue",
+    "claimDraft": "Save local project to account",
     "saved": "Saved"
   },
   "errorBoundary": {

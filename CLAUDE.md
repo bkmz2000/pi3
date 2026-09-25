@@ -160,7 +160,8 @@ claim verification, and predeploy candidate migration dry-run), but release
 policy remains BLOCKED pending clean-candidate proof. A later full-candidate
 review of `02fea4f` found reconnect/editor revision, post-conflict autosave,
 clean-draft claim, remote-credential fixture, and early rollback-evidence
-cleanup defects; repairs require focused follow-up review and exact-commit gates.
+cleanup defects; both focused fix re-reviews later returned OK with notes, not
+deployment approval. Exact clean-production commit gates remain pending.
 
 **Testing the worker without Pyodide.** `src/runner/WorkerInterface.ts` defines
 typed `WorkerCommand`/`WorkerEvent` unions. Test `RunnerProvider` /

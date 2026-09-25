@@ -90,9 +90,11 @@ from a green focused test run.
   The follow-up release reviewer found no remaining issues; the client reviewer
   found one further P1: after dirty-editor queue replay, *later* edits with an
   unknown server revision only reached the cache and could be lost on reload.
-  The local fix writes a distinct recovery draft on every such autosave. Its
-  focused re-review and the exact clean-`production` gate remain pending.
-  Nothing is deployed.
+  The fix writes a distinct recovery draft on every such autosave. Both
+  focused follow-ups returned **OK with notes** for their fixes and immediate
+  blast radii (release operations on `e8265f2`; client recovery on `81a4e6d`).
+  Neither verdict is deployment approval or a full clean-`production` release
+  gate. The latter and controlled canary remain pending. Nothing is deployed.
 - **Migration dry-run recorded locally on 2026-09-25:** verified the encrypted
   checksum for `pi3-daily-2026-09-25.db.age`, decrypted only into a private local
   temporary directory, and ran the current `initDb()` migrations against that

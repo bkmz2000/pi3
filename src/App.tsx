@@ -6,6 +6,7 @@ import { reconfigureGraphicsExtensions } from "./editor/graphicsCompletion";
 import { graphicsProfile } from "./editor/profiles";
 import Rail from "./SideMenu";
 import { useEditor, useIde, isExampleSessionId, EXAMPLE_SESSION_PREFIX } from "./state/IdeState";
+import { isAnonymousDraftId } from "./state/sessionId";
 import {
   getProject, getComments, listSessionReactions,
   ApiHttpError, type ApiComment, type SessionReaction,
@@ -38,11 +39,12 @@ import { PeerCodeView } from "./components/session/PeerCodeView";
 import { ClassroomInviteBanner } from "./components/session/ClassroomInviteBanner";
 import { useTranslation } from "react-i18next";
 import ForkDialog from "./components/dialogs/ForkDialog";
+import { claimAnonymousDraft } from './state/claimAnonymousDraft';
 import { useThemeStore } from "./state/useTheme";
 import { ToastContainer } from "./components/ToastContainer";
 import { SaveErrorIndicator } from "./components/SaveErrorIndicator";
 import { getCmTheme } from "./editor/cmTheme";
-import { readAnonStash, clearAnonStash } from "./utils/anonStash";
+import { migrateLegacyAnonStash, clearAnonStash } from "./utils/anonStash";
 
 const SESSION_REACTION_GLYPHS: Record<SessionReaction["reaction"], string> = {
   good: "👍",
@@ -60,24 +62,31 @@ function SessionChecker() {
 
 function AnonStashLoader() {
   const changeCurrentProject = useEditor((s) => s.changeCurrentProject);
-  const currentProjectId = useEditor((s) => s.currentProjectId);
   const ran = useRef(false);
 
   useEffect(() => {
     if (ran.current) return;
     ran.current = true;
 
-    // Only restore if no project is already loaded (no URL param)
-    if (currentProjectId) return;
+    // Restore only on the fresh editor URL; never override a project route.
+    if (window.location.pathname !== "/ide") return;
 
-    const stash = readAnonStash();
-    if (!stash) return;
-
-    const sessionId = stash.exampleName
-      ? `__example_session_${stash.exampleName}`
-      : "__example_session_untitled";
-
-    changeCurrentProject(stash.project, sessionId);
+    void (async () => {
+      try {
+        // Migrate the historical single-stash entry before enumerating drafts.
+        await migrateLegacyAnonStash();
+        const drafts = await projectStorage.listAnonymousDrafts();
+        const latestEditor = useEditor.getState();
+        // A user may begin editing while IDB is opening. Preserve that work;
+        // its own autosave will persist it, and keep the existing drafts listed.
+        if (window.location.pathname !== "/ide" || latestEditor.dirtyFiles.size > 0 || drafts.length === 0) return;
+        const latest = drafts[0];
+        changeCurrentProject(latest.project, latest.id);
+        localStorage.setItem("pi3_last_editor_path", `/ide/${latest.id}`);
+      } catch (error) {
+        console.error("Failed to restore anonymous draft:", error);
+      }
+    })();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return null;
@@ -121,8 +130,30 @@ function ProjectLoader() {
       setLoaded(true);
       return;
     }
+    if (useEditor.getState().currentProjectId === projectId) {
+      setLoaded(true);
+      return;
+    }
 
     let cancelled = false;
+    if (isAnonymousDraftId(projectId) || isExampleSessionId(projectId)) {
+      projectStorage.getAnonymousDraft(projectId).then((draft) => {
+        if (cancelled) return;
+        if (!draft) {
+          setError("project_not_found");
+        } else {
+          changeCurrentProject(draft.project, draft.id);
+          localStorage.setItem("pi3_last_editor_path", `/ide/${draft.id}`);
+        }
+        setLoaded(true);
+      }).catch((draftError) => {
+        if (cancelled) return;
+        console.error("Failed to load anonymous draft:", draftError);
+        setError("project_not_found");
+        setLoaded(true);
+      });
+      return () => { cancelled = true; };
+    }
 
     const loadFromApi = async () => {
       try {
@@ -138,11 +169,12 @@ function ProjectLoader() {
           // wire so the cache row stays compact regardless.
           sheet: apiProject.sheet ? encodeSheet(decodeSheet(apiProject.sheet)!) : undefined,
           currentFile: apiProject.current_file,
+          version: apiProject.version,
         }).catch(() => {});
         // toEditorProject decodes the sheet wire shape back into the in-memory
         // flat-buffer SheetData every consumer (editor, worker, exporter)
         // expects. Without this, sheet/sounds were silently dropped on load.
-        changeCurrentProject(toEditorProject(apiProject), projectId);
+        changeCurrentProject(toEditorProject(apiProject), projectId, apiProject.version ?? null);
         localStorage.setItem('pi3_last_editor_path', `/ide/${projectId}`);
         setLoaded(true);
       } catch (apiErr) {
@@ -164,6 +196,7 @@ function ProjectLoader() {
                 currentFile: cached.currentFile ?? Object.keys(cached.files)[0],
               },
               projectId,
+              cached.version ?? null,
             );
           } else {
             console.error("Failed to load project, not in cache:", apiErr);
@@ -193,7 +226,6 @@ function AppInner() {
   const changeFile = useEditor((s) => s.changeFile);
   const currentFile = useEditor((s) => s.currentFile);
   const project = useEditor((s) => s.project);
-  const markClean = useEditor((s) => s.markClean);
   const dirtyFiles = useEditor((s) => s.dirtyFiles);
   const queuedSaveCount = useEditor((s) => s.queuedSaveCount);
   const currentProjectId = useEditor((s) => s.currentProjectId);
@@ -282,7 +314,7 @@ function AppInner() {
 
   // Fetch when file/project changes
   useEffect(() => {
-    if (!currentProjectId || isExampleSessionId(currentProjectId) || !currentFile) { setFileComments([]); return; }
+    if (!currentProjectId || isExampleSessionId(currentProjectId) || isAnonymousDraftId(currentProjectId) || !currentFile) { setFileComments([]); return; }
     getComments(currentProjectId, currentFile)
       .then(rows => setFileComments(rows))
       .catch(() => {});
@@ -371,20 +403,16 @@ function AppInner() {
     if ((e.ctrlKey || e.metaKey) && e.key === "s") {
       e.preventDefault();
 
-      if (dirtyFiles.size > 0 && authStateLive === 'logged_in' && (!currentProjectId || isExampleSessionId(currentProjectId))) {
+      if (dirtyFiles.size > 0 && authStateLive === 'logged_in' && (!currentProjectId || isExampleSessionId(currentProjectId) || isAnonymousDraftId(currentProjectId))) {
         setShowForkDialog(true);
         return;
       }
 
       if (dirtyFiles.size > 0 && currentProjectId) {
-        const snapshot = new Set(dirtyFiles);
-        const success = await saveCurrentProject();
-        if (success) {
-          markClean(snapshot);
-        }
+        await saveCurrentProject();
       }
     }
-  }, [currentProjectId, dirtyFiles, saveCurrentProject, markClean, setShowForkDialog, authStateLive]);
+  }, [currentProjectId, dirtyFiles, saveCurrentProject, setShowForkDialog, authStateLive]);
 
   useEffect(() => {
     window.addEventListener("keydown", handleSave);
@@ -392,12 +420,14 @@ function AppInner() {
   }, [handleSave]);
 
   const handleForkSave = async (name: string) => {
-    const forked = await forkExample(name, project);
+    const forked = currentProjectId && isAnonymousDraftId(currentProjectId)
+      ? await claimAnonymousDraft(currentProjectId, project, name, forkExample)
+      : await forkExample(name, project, name);
     useEditor.getState().changeCurrentProject(
       { ...project, name: forked.name },
       forked.id,
+      forked.version ?? null,
     );
-    markClean();
     clearAnonStash();
     setShowForkDialog(false);
     navigate(`/ide/${forked.id}`, { replace: true });

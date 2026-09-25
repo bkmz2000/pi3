@@ -2,17 +2,19 @@ import { create } from "zustand";
 
 import { Examples } from "./exampleProjects";
 import type { Project, TilemapData, SheetData } from "./projectTypes";
-import { EXAMPLE_SESSION_PREFIX } from "./sessionId";
+import { EXAMPLE_SESSION_PREFIX, createAnonymousDraftId } from "./sessionId";
 
 type EditorState = {
   currentFile: string;
   project: Project;
   currentProjectId: string | null;
+  currentProjectVersion: number | null;
   dirtyFiles: Set<string>;
   queuedSaveCount: number;
 
   changeCurrentFile: (name: string) => void;
-  changeCurrentProject: (project: Project, projectId?: string) => void;
+  changeCurrentProject: (project: Project, projectId?: string, version?: number | null) => void;
+  setCurrentProjectVersion: (version: number | null) => void;
   changeFile: (name: string, text: string) => void;
   saveFile: (name: string) => void;
   deleteFile: (name: string) => void;
@@ -29,18 +31,20 @@ type EditorState = {
   markClean: (keys?: Iterable<string>) => void;
   incrementQueuedSaves: () => void;
   decrementQueuedSaves: () => void;
+  setQueuedSaveCount: (count: number) => void;
 };
 
 function ensureSessionId(s: EditorState): { currentProjectId: string } | Record<string, never> {
   if (s.currentProjectId !== null) return {};
   const exampleName = Object.keys(Examples).find((key) => Examples[key] === s.project);
-  return { currentProjectId: exampleName ? `${EXAMPLE_SESSION_PREFIX}${exampleName}` : `${EXAMPLE_SESSION_PREFIX}untitled` };
+  return { currentProjectId: exampleName ? `${EXAMPLE_SESSION_PREFIX}${exampleName}` : createAnonymousDraftId() };
 }
 
 export const useEditor = create<EditorState>((set) => ({
   project: Examples["hello world"],
   currentFile: "main.py",
   currentProjectId: null,
+  currentProjectVersion: null,
 
   dirtyFiles: new Set(),
   queuedSaveCount: 0,
@@ -66,7 +70,7 @@ export const useEditor = create<EditorState>((set) => ({
 
         // Non-example project (blank, ZIP import, etc.) — generate a session ID
         // so saves persist to anonymous stash.
-        const sessionId = `${EXAMPLE_SESSION_PREFIX}untitled`;
+        const sessionId = createAnonymousDraftId();
         const files = { ...s.project.files, [name]: text };
         const project = { ...s.project, files };
         const dirty = new Set(s.dirtyFiles);
@@ -90,17 +94,25 @@ export const useEditor = create<EditorState>((set) => ({
       return { dirtyFiles: dirty };
     }),
 
-  changeCurrentFile: (name: string) => set({ currentFile: name }),
+  changeCurrentFile: (name: string) => set((s) => {
+    if (s.currentFile === name) return {};
+    const dirty = new Set(s.dirtyFiles);
+    dirty.add("*currentFile*");
+    return { currentFile: name, dirtyFiles: dirty, ...ensureSessionId(s) };
+  }),
 
-  changeCurrentProject: (project, projectId) =>
+  changeCurrentProject: (project, projectId, version = null) =>
     set({
       project,
       currentFile: project.currentFile && project.files[project.currentFile] !== undefined
         ? project.currentFile
         : Object.keys(project.files)[0] ?? "",
       currentProjectId: projectId || null,
+      currentProjectVersion: version,
       dirtyFiles: new Set(),
     }),
+
+  setCurrentProjectVersion: (version) => set({ currentProjectVersion: version }),
 
   renameFile: (oldName, newName) =>
     set((s) => {
@@ -112,9 +124,13 @@ export const useEditor = create<EditorState>((set) => ({
 
       const project = { ...s.project, files };
 
+      const dirty = new Set(s.dirtyFiles);
+      dirty.add("*files*");
       return {
         project,
         currentFile: s.currentFile === oldName ? newName : s.currentFile,
+        dirtyFiles: dirty,
+        ...ensureSessionId(s),
       };
     }),
 
@@ -124,7 +140,11 @@ export const useEditor = create<EditorState>((set) => ({
       delete files[name];
       const project = { ...s.project };
       project.files = files;
-      return { project, currentFile: Object.keys(project.files)[0] ?? "" };
+      const dirty = new Set(s.dirtyFiles);
+      dirty.add("*files*");
+      const currentFile = Object.keys(project.files)[0] ?? "";
+      if (currentFile !== s.currentFile) dirty.add("*currentFile*");
+      return { project, currentFile, dirtyFiles: dirty, ...ensureSessionId(s) };
     }),
 
   changeAsset: (name, url) =>
@@ -238,4 +258,5 @@ export const useEditor = create<EditorState>((set) => ({
 
   incrementQueuedSaves: () => set((s) => ({ queuedSaveCount: s.queuedSaveCount + 1 })),
   decrementQueuedSaves: () => set((s) => ({ queuedSaveCount: Math.max(0, s.queuedSaveCount - 1) })),
+  setQueuedSaveCount: (count) => set({ queuedSaveCount: Math.max(0, count) }),
 }));

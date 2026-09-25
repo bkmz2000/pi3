@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import type { ReactCodeMirrorRef } from '@uiw/react-codemirror';
 import { postLivePresence } from './api';
-import { isExampleSessionId } from './sessionId';
+import { isExampleSessionId, isAnonymousDraftId } from './sessionId';
 import { useLiveSession } from './useLiveSession';
 
 const PING_INTERVAL_MS = 1000;
@@ -61,7 +61,7 @@ export function usePresencePinger(args: {
     if (!loggedIn) return;
     // Presence key: a real saved project id, or — while in a session — a
     // synthetic per-session id so peers still see the buffer without a save.
-    const hasRealProject = !!projectId && !isExampleSessionId(projectId);
+    const hasRealProject = !!projectId && !isExampleSessionId(projectId) && !isAnonymousDraftId(projectId);
     const presenceProjectId = hasRealProject ? projectId! : (sid ? `session:${sid}` : null);
     if (!presenceProjectId) return;
 

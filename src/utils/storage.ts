@@ -2,14 +2,22 @@ import {
   downloadProjectZip,
   StoredProject as ZipStoredProject,
 } from "./zip";
-import type { TilemapData } from "../state/IdeState";
+import type { TilemapData, Project } from "../state/projectTypes";
 import { decodeSheet, type SheetWire } from "../state/sheetCodec";
 
 const DB_NAME = "WebIDE";
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 const META_STORE = "projectMeta";
 const CONTENT_STORE = "projectContent";
 const SAVE_QUEUE_STORE = "saveQueue";
+const ANON_DRAFT_STORE = "anonymousDrafts";
+
+export interface AnonymousDraft {
+  id: string;
+  project: Project;
+  exampleName?: string;
+  lastModified: number;
+}
 
 export interface ProjectContent {
   id: string;
@@ -21,6 +29,12 @@ export interface ProjectContent {
   // and queued saves can re-POST without re-encoding.
   sheet: SheetWire | undefined;
   currentFile: string | undefined;
+  /** Last server revision observed when this local copy was loaded/saved. */
+  version?: number;
+  /** Tab-local provenance; never use another tab's cached revision as a baseline. */
+  writerId?: string;
+  /** Opaque write token used to conditionally advance a verified cache snapshot. */
+  cacheToken?: string;
   savedAt: number;
 }
 
@@ -29,13 +43,39 @@ export interface QueuedSave {
   content: ProjectContent;
   queuedAt: number;
   attempts: number;
+  /** Identifies snapshots that can be causally rebased after this tab's verified write. */
+  writerId?: string;
+}
+
+function createWriterId(): string {
+  return typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
 function txPromise<T>(tx: IDBTransaction, op: IDBRequest<T>): Promise<T> {
   return new Promise((resolve, reject) => {
-    op.onsuccess = () => resolve(op.result);
-    op.onerror = () => reject(op.error);
-    tx.onerror = () => reject(tx.error);
+    let result: T;
+    let requestSucceeded = false;
+    let settled = false;
+    const fail = (error: DOMException | null) => {
+      if (settled) return;
+      settled = true;
+      reject(error ?? new Error("IndexedDB transaction failed"));
+    };
+    op.onsuccess = () => {
+      result = op.result;
+      requestSucceeded = true;
+    };
+    op.onerror = () => fail(op.error);
+    tx.oncomplete = () => {
+      if (settled) return;
+      settled = true;
+      if (requestSucceeded) resolve(result);
+      else reject(new Error("IndexedDB transaction completed without a result"));
+    };
+    tx.onabort = () => fail(tx.error);
+    tx.onerror = () => fail(tx.error);
   });
 }
 
@@ -43,28 +83,56 @@ export class ProjectStorage {
   private db: IDBDatabase | null = null;
   private initPromise: Promise<void> | null = null;
 
-  constructor() {
-    this.init();
+  constructor(private readonly writerId = createWriterId()) {
+    // Initialization errors are surfaced by the first operation; avoid an
+    // unhandled rejection when the constructor's eager open is blocked.
+    void this.init().catch(() => undefined);
   }
 
   private async init(): Promise<void> {
     if (this.initPromise) return this.initPromise;
 
-    this.initPromise = new Promise((resolve, reject) => {
+    const opening: Promise<void> = new Promise((resolve, reject) => {
       const request = indexedDB.open(DB_NAME, DB_VERSION);
+      let settled = false;
+      const reset = () => {
+        if (this.initPromise === opening) this.initPromise = null;
+      };
 
-      request.onerror = () => reject(request.error);
+      request.onerror = () => {
+        if (settled) return;
+        settled = true;
+        reset();
+        reject(request.error ?? new Error("Could not open browser storage"));
+      };
+      request.onblocked = () => {
+        if (settled) return;
+        settled = true;
+        reset();
+        reject(new Error("Browser storage upgrade is blocked by another open pi3 tab. Close or reload other pi3 tabs, then retry the save."));
+      };
       request.onsuccess = () => {
+        if (settled) {
+          request.result.close();
+          return;
+        }
+        settled = true;
         this.db = request.result;
+        this.db.onversionchange = () => {
+          this.db?.close();
+          this.db = null;
+          this.initPromise = null;
+        };
         resolve();
       };
 
       request.onupgradeneeded = (event) => {
         const db = (event.target as IDBOpenDBRequest).result;
-        // Drop old schema if present
-        if (db.objectStoreNames.contains("projects")) {
-          db.deleteObjectStore("projects");
-        }
+        // Keep legacy stores intact and copy their contents forward below.
+        // Deleting or clearing a student-work store during an upgrade is forbidden.
+        const legacyProjects = db.objectStoreNames.contains("projects")
+          ? (event.target as IDBOpenDBRequest).transaction?.objectStore("projects")
+          : undefined;
         if (!db.objectStoreNames.contains(META_STORE)) {
           db.createObjectStore(META_STORE, { keyPath: "id" });
         }
@@ -78,10 +146,94 @@ export class ProjectStorage {
           });
           qStore.createIndex("projectId", "projectId", { unique: false });
         }
+        if (!db.objectStoreNames.contains(ANON_DRAFT_STORE)) {
+          db.createObjectStore(ANON_DRAFT_STORE, { keyPath: "id" });
+        }
+        if (legacyProjects) {
+          const transaction = (event.target as IDBOpenDBRequest).transaction;
+          const metaStore = transaction?.objectStore(META_STORE);
+          const draftStore = transaction?.objectStore(ANON_DRAFT_STORE);
+          const request = legacyProjects.openCursor();
+          request.onsuccess = () => {
+            const cursor = request.result;
+            if (!cursor) return;
+            const legacy = cursor.value as Record<string, unknown>;
+            if (typeof legacy.id === "string" || typeof legacy.id === "number") {
+              const hasProjectContent = ["files", "assets", "tilemaps", "sounds", "sheet"]
+                .some((key) => legacy[key] !== undefined);
+              if (!hasProjectContent) {
+                // Metadata-only rows stay metadata; never synthesize empty student work.
+                const existing = metaStore?.get(legacy.id);
+                if (existing && metaStore) {
+                  existing.onsuccess = () => {
+                    if (existing.result === undefined) metaStore.put(legacy);
+                  };
+                }
+              } else {
+                const updated = legacy.updatedAt ?? legacy.updated_at;
+                const parsedTime = typeof updated === "number" ? updated : Date.parse(String(updated ?? ""));
+                const projectFields = { ...legacy };
+                delete projectFields.id;
+                delete projectFields.createdAt;
+                delete projectFields.updatedAt;
+                delete projectFields.updated_at;
+                delete projectFields.created_at;
+                delete projectFields.current_file;
+                delete projectFields.isExample;
+                delete projectFields.user_id;
+                delete projectFields.role;
+                delete projectFields.version;
+                delete projectFields.description;
+                delete projectFields.is_public;
+                const project = {
+                  ...projectFields,
+                  files: (legacy.files && typeof legacy.files === "object" ? legacy.files : {}) as Record<string, string>,
+                  assets: (legacy.assets && typeof legacy.assets === "object" ? legacy.assets : {}) as Record<string, string>,
+                  tilemaps: (legacy.tilemaps && typeof legacy.tilemaps === "object" ? legacy.tilemaps : {}) as Record<string, TilemapData>,
+                  sounds: (legacy.sounds && typeof legacy.sounds === "object" ? legacy.sounds : {}) as Record<string, string>,
+                  sheet: legacy.sheet as Project["sheet"],
+                  currentFile: typeof legacy.currentFile === "string"
+                    ? legacy.currentFile
+                    : typeof legacy.current_file === "string" ? legacy.current_file : undefined,
+                } as unknown as Project;
+                const draftId = `__anon_draft_legacy_${legacy.id}`;
+                const existingDraft = draftStore?.get(draftId);
+                if (existingDraft && draftStore) {
+                  existingDraft.onsuccess = () => {
+                    // A prior/current draft wins; keep legacy source untouched.
+                    if (existingDraft.result === undefined) {
+                      draftStore.put({
+                        id: draftId,
+                        project,
+                        lastModified: Number.isFinite(parsedTime) ? parsedTime : Date.now(),
+                      } satisfies AnonymousDraft);
+                    }
+                  };
+                }
+                const contentStore = transaction?.objectStore(CONTENT_STORE);
+                const existingContent = contentStore?.get(String(legacy.id));
+                if (existingContent && contentStore) {
+                  existingContent.onsuccess = () => {
+                    if (existingContent.result === undefined) {
+                      contentStore.put({
+                        ...project,
+                        id: String(legacy.id),
+                        version: typeof legacy.version === "number" ? legacy.version : undefined,
+                        savedAt: Number.isFinite(parsedTime) ? parsedTime : Date.now(),
+                      });
+                    }
+                  };
+                }
+              }
+            }
+            cursor.continue();
+          };
+        }
       };
     });
+    this.initPromise = opening;
 
-    return this.initPromise;
+    return opening;
   }
 
   private async ensureDb(): Promise<IDBDatabase> {
@@ -118,12 +270,54 @@ export class ProjectStorage {
   // ── Full project content cache (offline editing) ──────────────────────────
 
   /** Cache full project content locally for offline access */
-  async cacheProjectContent(id: string, content: Omit<ProjectContent, "id" | "savedAt">): Promise<void> {
+  async cacheProjectContent(id: string, content: Omit<ProjectContent, "id" | "savedAt" | "cacheToken">): Promise<string> {
     const db = await this.ensureDb();
     const tx = db.transaction(CONTENT_STORE, "readwrite");
     const store = tx.objectStore(CONTENT_STORE);
-    const entry = { ...content, id, savedAt: Date.now() };
+    const cacheToken = createWriterId();
+    const entry = { ...content, id, writerId: this.writerId, cacheToken, savedAt: Date.now() };
     await txPromise(tx, store.put(entry));
+    return cacheToken;
+  }
+
+  /** Advance a verified save's revision only if no newer local snapshot replaced it. */
+  async cacheProjectContentIfCurrent(
+    id: string,
+    expectedCacheToken: string,
+    content: Omit<ProjectContent, "id" | "savedAt" | "cacheToken">,
+  ): Promise<boolean> {
+    const db = await this.ensureDb();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(CONTENT_STORE, "readwrite");
+      const store = tx.objectStore(CONTENT_STORE);
+      const request = store.get(id);
+      let updated = false;
+      let settled = false;
+      const fail = (error: DOMException | Error | null) => {
+        if (settled) return;
+        settled = true;
+        reject(error ?? new Error("Could not conditionally update the project cache"));
+      };
+      request.onsuccess = () => {
+        if (request.result?.cacheToken !== expectedCacheToken) return;
+        const cacheToken = createWriterId();
+        try {
+          store.put({ ...content, id, writerId: this.writerId, cacheToken, savedAt: Date.now() });
+          updated = true;
+        } catch (error) {
+          try { tx.abort(); } catch { /* transaction may already be inactive */ }
+          fail(error instanceof Error ? error : new Error("Could not update the project cache"));
+        }
+      };
+      request.onerror = () => fail(request.error);
+      tx.oncomplete = () => {
+        if (settled) return;
+        settled = true;
+        resolve(updated);
+      };
+      tx.onerror = () => fail(tx.error);
+      tx.onabort = () => fail(tx.error);
+    });
   }
 
   /** Get cached full project content. Returns null if not in cache. */
@@ -134,19 +328,115 @@ export class ProjectStorage {
     return ((await txPromise(tx, store.get(id))) ?? null) as ProjectContent | null;
   }
 
+  // ── Anonymous drafts ─────────────────────────────────────────────────────
+
+  async saveAnonymousDraft(draft: AnonymousDraft): Promise<void> {
+    const db = await this.ensureDb();
+    const tx = db.transaction(ANON_DRAFT_STORE, "readwrite");
+    await txPromise(tx, tx.objectStore(ANON_DRAFT_STORE).put(draft));
+  }
+
+  /** Persist a migration copy only if its deterministic destination is absent. */
+  async saveAnonymousDraftIfAbsent(draft: AnonymousDraft): Promise<void> {
+    const db = await this.ensureDb();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(ANON_DRAFT_STORE, "readwrite");
+      const store = tx.objectStore(ANON_DRAFT_STORE);
+      const existing = store.get(draft.id);
+      let settled = false;
+      const fail = (error: DOMException | Error | null) => {
+        if (settled) return;
+        settled = true;
+        reject(error ?? new Error("Anonymous draft migration transaction failed"));
+      };
+      existing.onsuccess = () => {
+        if (existing.result !== undefined) return;
+        try {
+          store.add(draft);
+        } catch (error) {
+          try { tx.abort(); } catch { /* transaction may already be inactive */ }
+          fail(error instanceof Error ? error : new Error("Could not save migrated anonymous draft"));
+        }
+      };
+      existing.onerror = () => fail(existing.error);
+      tx.oncomplete = () => {
+        if (settled) return;
+        settled = true;
+        resolve();
+      };
+      tx.onabort = () => fail(tx.error);
+      tx.onerror = () => fail(tx.error);
+    });
+  }
+
+  async getAnonymousDraft(id: string): Promise<AnonymousDraft | null> {
+    const db = await this.ensureDb();
+    const tx = db.transaction(ANON_DRAFT_STORE, "readonly");
+    return ((await txPromise(tx, tx.objectStore(ANON_DRAFT_STORE).get(id))) ?? null) as AnonymousDraft | null;
+  }
+
+  async listAnonymousDrafts(): Promise<AnonymousDraft[]> {
+    const db = await this.ensureDb();
+    const tx = db.transaction(ANON_DRAFT_STORE, "readonly");
+    const drafts = await txPromise(tx, tx.objectStore(ANON_DRAFT_STORE).getAll()) as AnonymousDraft[];
+    return drafts.sort((a, b) => b.lastModified - a.lastModified);
+  }
+
+  async deleteAnonymousDraft(id: string): Promise<void> {
+    const db = await this.ensureDb();
+    const tx = db.transaction(ANON_DRAFT_STORE, "readwrite");
+    await txPromise(tx, tx.objectStore(ANON_DRAFT_STORE).delete(id));
+  }
+
   // ── Offline save queue ────────────────────────────────────────────────────
 
-  /** Queue a save to retry when online */
+  /**
+   * Queue the latest complete snapshot for this tab. Same-tab snapshots may
+   * supersede one another; other tabs' independent work must remain queued.
+   */
   async queueSave(content: ProjectContent): Promise<void> {
     const db = await this.ensureDb();
-    const tx = db.transaction(SAVE_QUEUE_STORE, "readwrite");
-    const store = tx.objectStore(SAVE_QUEUE_STORE);
-    const queued: Omit<QueuedSave, "id"> = {
-      content,
-      queuedAt: Date.now(),
-      attempts: 0,
-    };
-    await txPromise(tx, store.add(queued));
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(SAVE_QUEUE_STORE, "readwrite");
+      const queueStore = tx.objectStore(SAVE_QUEUE_STORE);
+      let rows: QueuedSave[] | undefined;
+      let queueReadDone = false;
+      let settled = false;
+      const fail = (error: DOMException | Error | null) => {
+        if (settled) return;
+        settled = true;
+        reject(error ?? new Error("Could not persist queued save"));
+      };
+      const enqueue = () => {
+        if (!queueReadDone) return;
+        try {
+          // The editor's captured revision is the only valid baseline for this
+          // snapshot. A cache revision written by another tab is not evidence
+          // that this content includes that tab's changes.
+          for (const row of rows ?? []) {
+            if (row.content.id === content.id && row.writerId === this.writerId) queueStore.delete(row.id);
+          }
+          queueStore.add({ content: { ...content }, queuedAt: Date.now(), attempts: 0, writerId: this.writerId });
+        } catch (error) {
+          try { tx.abort(); } catch { /* transaction may already be inactive */ }
+          fail(error instanceof Error ? error : new Error("Could not persist queued save"));
+        }
+      };
+      const queueRequest = queueStore.getAll();
+      queueRequest.onsuccess = () => {
+        rows = queueRequest.result as QueuedSave[];
+        queueReadDone = true;
+        enqueue();
+      };
+      queueRequest.onerror = () => fail(queueRequest.error);
+      tx.oncomplete = () => {
+        if (settled) return;
+        settled = true;
+        resolve();
+      };
+      tx.onabort = () => fail(tx.error);
+      tx.onerror = () => fail(tx.error);
+    });
   }
 
   /** Get all queued saves that need syncing */
@@ -155,6 +445,73 @@ export class ProjectStorage {
     const tx = db.transaction(SAVE_QUEUE_STORE, "readonly");
     const store = tx.objectStore(SAVE_QUEUE_STORE);
     return (await txPromise(tx, store.getAll())) as QueuedSave[];
+  }
+
+  /**
+   * Commit a verified queue write without clobbering another tab's snapshot.
+   * Only causally related rows from the same writer may be removed/rebased, and
+   * the cache revision advances only when its writer matches this queue row.
+   */
+  async completeQueuedSave(queued: QueuedSave, verifiedVersion: number): Promise<void> {
+    const db = await this.ensureDb();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction([SAVE_QUEUE_STORE, CONTENT_STORE], "readwrite");
+      const queueStore = tx.objectStore(SAVE_QUEUE_STORE);
+      const contentStore = tx.objectStore(CONTENT_STORE);
+      const rowsRequest = queueStore.getAll();
+      const cacheRequest = contentStore.get(queued.content.id);
+      let rows: QueuedSave[] | undefined;
+      let cached: ProjectContent | undefined;
+      let rowsReady = false;
+      let cacheReady = false;
+      let settled = false;
+      const fail = (error: DOMException | Error | null) => {
+        if (settled) return;
+        settled = true;
+        reject(error ?? new Error("Could not finalize queued save"));
+      };
+      const finalize = () => {
+        if (!rowsReady || !cacheReady) return;
+        try {
+          for (const row of rows ?? []) {
+            if (row.content.id !== queued.content.id) continue;
+            const sameWriter = Boolean(queued.writerId) && row.writerId === queued.writerId;
+            if (row.id === queued.id || (sameWriter && row.id < queued.id)) {
+              queueStore.delete(row.id);
+            } else if (sameWriter && row.id > queued.id) {
+              queueStore.put({ ...row, content: { ...row.content, version: verifiedVersion } });
+            }
+          }
+          if (cached?.writerId === queued.writerId && queued.writerId) {
+            contentStore.put({ ...cached, version: verifiedVersion });
+          } else if (!cached) {
+            contentStore.put({ ...queued.content, writerId: queued.writerId, version: verifiedVersion, savedAt: Date.now() });
+          }
+        } catch (error) {
+          try { tx.abort(); } catch { /* transaction may already be inactive */ }
+          fail(error instanceof Error ? error : new Error("Could not finalize queued save"));
+        }
+      };
+      rowsRequest.onsuccess = () => {
+        rows = rowsRequest.result as QueuedSave[];
+        rowsReady = true;
+        finalize();
+      };
+      cacheRequest.onsuccess = () => {
+        cached = cacheRequest.result as ProjectContent | undefined;
+        cacheReady = true;
+        finalize();
+      };
+      rowsRequest.onerror = () => fail(rowsRequest.error);
+      cacheRequest.onerror = () => fail(cacheRequest.error);
+      tx.oncomplete = () => {
+        if (settled) return;
+        settled = true;
+        resolve();
+      };
+      tx.onabort = () => fail(tx.error);
+      tx.onerror = () => fail(tx.error);
+    });
   }
 
   /** Remove a queued save after successful sync */

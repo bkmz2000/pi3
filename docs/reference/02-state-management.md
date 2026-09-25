@@ -30,7 +30,9 @@ type EditorState = {
   currentFile: string;
   project: Project;
   currentProjectId: string | null;
+  currentProjectVersion: number | null; // last server revision used for If-Match
   dirtyFiles: Set<string>;
+  queuedSaveCount: number;
   // ... actions
 }
 ```
@@ -54,7 +56,7 @@ interface Project {
 | Action | Signature | Notes |
 |--------|-----------|-------|
 | `changeCurrentFile` | `(name) → void` | Switch active tab |
-| `changeCurrentProject` | `(project, projectId?) → void` | Load project, resets dirty set |
+| `changeCurrentProject` | `(project, projectId?, version?) → void` | Load project and its server revision; resets dirty set |
 | `changeFile` | `(name, text) → void` | Edit file; copy-on-write clones example on first edit |
 | `saveFile` | `(name) → void` | Remove file from dirty set |
 | `deleteFile` | `(name) → void` | Remove file from project |
@@ -79,9 +81,9 @@ interface Project {
 `changeFile` checks `currentProjectId === null` (pure example). On first edit:
 1. Clones the example project (new object, same content)
 2. Assigns `currentProjectId = EXAMPLE_SESSION_PREFIX + exampleName`
-3. The session ID signals the app to use `writeAnonStash` for saves (no API call required)
+3. The session ID signals the app to save this copy as a separate IndexedDB anonymous draft (no API call required)
 
-Asset/tilemap/sound mutations also auto-assign a session ID via `ensureSessionId()`.
+Asset/tilemap/sound/file/current-file mutations also auto-assign a stable local draft ID when needed.
 
 ---
 
@@ -135,29 +137,33 @@ type IdeState = {
 
 ### `saveCurrentProject` flow
 
-Returns `Promise<boolean>` — `true` means dirty set may be cleared; `false` means keep dirty (permanent failure).
+Returns `Promise<boolean>`. `true` means the captured snapshot was persisted locally as a draft/queue or server-verified; it does not always mean cloud durability. `false` means keep dirty and surface recovery.
 
 ```
 currentProjectId null?
   → false (no-op)
 
-isExampleSessionId(currentProjectId)?
-  → writeAnonStash (localStorage) → sets saveError on quota failure
+isExampleSessionId(currentProjectId) or isAnonymousDraftId(currentProjectId)?
+  → write a separate IndexedDB draft; true only after transaction commit
+
+Persist complete snapshot to IndexedDB recovery cache first
+  → quota/transaction failure: false; keep dirty
 
 isOnline()?
-  No → queueSave to IndexedDB → saveError "network" → return true (soft success)
-  Yes → saveProjectContent(API)
-        success → clear saveError, update userProjects list
-        4xx (non-401) → saveError "payload", return false  (keep dirty)
-        401 → writeAnonStash fallback, saveError "auth", return true
-        network error → queueSave to IndexedDB, saveError "network", return true
+  No → coalesce this complete snapshot into the project's queue row; true = local only
+  Yes → require known currentProjectVersion; PUT with If-Match
+        → GET/read-back must match returned revision and content
+        → only unchanged keys from the captured snapshot become clean
+        → conflict/auth/payload/verification errors keep dirty and local recovery
+        → network error queues the full local snapshot; true = local only
 ```
 
-`saveError` carries `{ kind: "auth" | "network" | "quota" | "payload", message: string }`.
+`saveError` carries `{ kind: "auth" | "network" | "quota" | "payload" | "conflict" | "verification", message: string }`.
+A green/cloud **Saved** state is reserved for a verified server write or completed ZIP export; local queue success is not cloud durability.
 
 ### Offline queue (`syncQueuedSaves`)
 
-Called on reconnect. Drains `projectStorage.getQueuedSaves()`, calls the API for each, removes on success. Stops on first failure.
+The queue stores complete project snapshots with their captured server revision and tab-local writer ID. New saves replace only older snapshots from the same tab; another tab's row and revision remain independent. During reconnect, snapshots with ambiguous legacy provenance or no revision are first copied into anonymous recovery drafts. Verified writes rebase only causally related same-tab rows. Conflicts/auth failures become a durable recovery draft before queue removal; network and read-back verification failures retain the queue. Never infer a baseline from another tab's cached revision. IndexedDB writes resolve only after the transaction commits.
 
 ---
 

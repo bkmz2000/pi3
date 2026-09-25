@@ -63,7 +63,11 @@ from a green focused test run.
 
 - Browser save durability still requires a clean-candidate full test run and
   review, including offline queue replay, forked-project revision tracking,
-  conflict recovery, and IndexedDB abort behavior.
+  conflict recovery, and IndexedDB abort behavior. The 2026-09-25 reviewer
+  blocked the candidate on local-draft export, claim read-back, and candidate
+  migration dry-run; local fixes and focused tests are now staged and a
+  follow-up reviewer found no P0/P1 in their immediate blast radii. They are
+  not deployed or reviewed on a clean committed candidate.
 - **Migration dry-run recorded locally on 2026-09-25:** verified the encrypted
   checksum for `pi3-daily-2026-09-25.db.age`, decrypted only into a private local
   temporary directory, and ran the current `initDb()` migrations against that
@@ -71,8 +75,11 @@ from a green focused test run.
   to 16 tracked migrations (`014_canary_tokens.sql`), project/user counts stayed
   at 39/15, and a representative project content hash was unchanged. The
   plaintext and fixture were removed. This was against the current worktree,
-  not a clean committed image or the live database; the release gate must still
-  verify the exact committed candidate.
+  not a clean committed image or the live database. The local release gate now
+  exercises an isolated candidate-migration fixture; the promotion script runs
+  the candidate image's migration code on a tmpfs copy of the verified snapshot
+  before changing the container. Neither is evidence for the exact clean
+  committed/published candidate until the gate and actual promotion are verified.
 - One local-only decrypt/restore drill was completed on 2026-09-25 from
   `pi3-daily-2026-09-25.db.age`; integrity and application read-back passed for
   39 projects, 15 users, and 15 migrations. Its representative project had four
@@ -95,9 +102,11 @@ and applies 7 daily, 4 weekly, and 1 monthly retention. The local code provides
 a separate protected restore-verified copy, Telegram success/failure messages,
 and a daily backup/restore freshness checker. Telegram credentials are now
 configured on the VPS in root-owned mode 0600, and Telegram's `getChat` API
-accepted the token/chat pair; the notifier scripts and freshness timer have not
-yet been installed or exercised there. The age private identity is local at
-`~/.config/age/pi3-backup-identity.txt` (mode 0600); only the public recipient is
+accepted the token/chat pair. On 2026-09-25 the notifier scripts and
+`pi3-backup-alert-check.timer` were installed, enabled, and exercised. The app
+container was not replaced. The existing nightly backup executable still lacks
+immediate Telegram hooks until a reviewed image establishes release markers.
+The age private identity is local at `~/.config/age/pi3-backup-identity.txt` (mode 0600); only the public recipient is
 on the VPS. These same-VPS backups are not off-host protection.
 
 ### Telegram backup alerts (local implementation)
@@ -138,8 +147,8 @@ host-loss monitoring. Keep release status **BLOCKED** until Telegram is
 configured and tested, the required off-host restore drill is recorded, and
 external monitoring/alerting is established.
 
-The current release workflow is intended to build/publish a candidate first,
-then require a separate, command-line approval bound to commit, registry
+The current release workflow builds/publishes a candidate first,
+then requires separate, command-line approval bound to commit, registry
 digest, deployment profile, VPS target, and origin before promotion. The
 production canary must then pass; rollback must restore the prior pinned image
 and Compose configuration. This workflow itself is not yet production-verified.
@@ -164,7 +173,8 @@ database have been preserved.
   Each daily/weekly/monthly manifest entry records its filename, source
   release/image digest, checksums, size, and verification metadata. The local
   implementation sends Telegram success/failure notices and includes a daily
-  freshness checker; neither is installed on the VPS yet. This is a snapshot
+  freshness checker. The new backup executable is not installed on the VPS;
+  the separate freshness checker is installed and active. This is a snapshot
   check—not a decrypt-and-restore drill. The age private identity stays
   off-host, so periodic off-host restore tests remain necessary.
 - **Retention:** 7 daily, 4 weekly, and 1 monthly, plus pre-deploy copies kept
@@ -172,8 +182,8 @@ database have been preserved.
   After a full off-host restore drill passes, an operator must run
   `scripts/mark-restore-verified.sh <backup-file.db.age> --restore-drill-passed`
   on the VPS to publish/replace that protected copy. Normal rotation never prunes
-  it. The new helper is local-only until installed and exercised on the VPS;
-  prune only after a new snapshot passes its checks.
+  it. The marking helper is installed on the VPS, but no off-host drill has
+  been recorded with it; prune only after a new snapshot passes its checks.
 - **Recovery keys:** keep the age private identity outside the VPS (password
   manager/offline recovery escrow), restrict access to named operators, and
   rehearse key recovery. Store only the public recipient on the VPS. Losing the

@@ -130,79 +130,41 @@ pi3 integrates with **Loginus** for OAuth 2.0 authentication. See [LOGINUS_AUTH_
 
 ## Deployment
 
-pi3 uses Docker for production deployment with GitHub Actions CI/CD.
+Production deployment is governed by the fail-closed procedure in
+[docs/deployment-data-safety.md](docs/deployment-data-safety.md). Never deploy a
+mutable tag or replace the database volume. The Vercel production path remains
+disabled until it has equivalent restore, rollback, and canary controls.
 
 ### Quick Start (Local Docker)
 
 ```bash
-# Build the Docker image
-docker build -t pi3 .
-
-# Run with docker-compose
-docker-compose up -d
-
-# Access at http://localhost
+docker build -t pi3:local .
+PI3_IMAGE=pi3:local docker compose up -d
+# Access at http://localhost:8080
 ```
 
-### Server Setup Requirements
+### Production candidate and promotion
 
-1. **Docker** - Install Docker Engine on the server
-2. **Docker Compose** - Install docker-compose plugin
-3. **Node.js** - Required for building the Docker image (or use cloud build)
-4. **Git** - For pulling latest code
-
-### Manual Deployment
+`make deploy vps` runs local gates, builds and publishes a candidate, then
+prints its immutable registry digest. It does **not** change production.
+Production promotion is a separate, explicit step after reviewing the exact
+commit, digest, profile, VPS, and origin and obtaining product-owner approval:
 
 ```bash
-# Pull latest code
-git pull origin main
-
-# Build the Docker image
-docker build -t pi3:latest .
-
-# Stop existing container
-docker stop pi3 || true
-docker rm pi3 || true
-
-# Run new container
-docker run -d \
-  --name pi3 \
-  --restart unless-stopped \
-  -p 8080:5173 \
-  -v pi3-data:/app/data \
-  pi3:latest
+make promote-vps \
+  CANDIDATE_IMAGE_REF='ghcr.io/bkmz2000/pi3@sha256:<reviewed-digest>' \
+  PI3_RELEASE_APPROVAL='APPROVE <commit-sha> ghcr.io/bkmz2000/pi3@sha256:<reviewed-digest> institutional <VPS> https://pi3.sys5.ru'
 ```
 
-### Rollback Procedure
+The dedicated canary account, backup recovery identity, clean production
+branch, passed local gate, and **READY** release policy are required. Promotion
+runs an API/UI create-edit-reload-delete canary and uses release-specific,
+digest-pinned image and Compose rollback. Do not bypass this workflow with
+manual `docker compose up`, tag-based deployment, or a checkout/rebuild rollback.
+See the policy for backup, restore, approval, and incident requirements.
 
-To rollback to a previous version:
-
-```bash
-# SSH to server
-ssh user@server
-
-# Navigate to app directory
-cd /app/pi3
-
-# Checkout previous commit
-git checkout <previous-sha>
-
-# Rebuild and restart
-docker build -t pi3:latest .
-docker stop pi3 || true
-docker rm pi3 || true
-docker run -d \
-  --name pi3 \
-  --restart unless-stopped \
-  -p 8080:5173 \
-  -v pi3-data:/app/data \
-  pi3:latest
-```
-
-### GitHub Actions
-
-- **CI** runs on every PR and push to main (tests + lint)
-- **Deploy** automatically runs on merge to main (server-side build via SSH)
+CI and production deployment are separate; there is no automatic production
+deploy on merge.
 
 ---
 

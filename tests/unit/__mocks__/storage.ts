@@ -3,12 +3,19 @@
 export const projectStorage = {
   cacheProjectMeta:           jest.fn().mockResolvedValue(undefined),
   getCachedProjectMeta:       jest.fn().mockResolvedValue([]),
-  cacheProjectContent:        jest.fn().mockResolvedValue(undefined),
+  cacheProjectContent:        jest.fn().mockResolvedValue('cache-token'),
+  cacheProjectContentIfCurrent: jest.fn().mockResolvedValue(true),
   getCachedProjectContent:    jest.fn().mockResolvedValue(null),
   queueSave:                  jest.fn().mockResolvedValue(undefined),
   getQueuedSaves:             jest.fn().mockResolvedValue([]),
   removeQueuedSave:           jest.fn().mockResolvedValue(undefined),
   removeQueuedSavesForProject: jest.fn().mockResolvedValue(undefined),
+  completeQueuedSave:         jest.fn().mockResolvedValue(undefined),
+  saveAnonymousDraft:        jest.fn().mockResolvedValue(undefined),
+  saveAnonymousDraftIfAbsent: jest.fn().mockResolvedValue(undefined),
+  getAnonymousDraft:         jest.fn().mockResolvedValue(null),
+  listAnonymousDrafts:       jest.fn().mockResolvedValue([]),
+  deleteAnonymousDraft:     jest.fn().mockResolvedValue(undefined),
   downloadProjectZip:         jest.fn().mockResolvedValue(undefined),
 };
 

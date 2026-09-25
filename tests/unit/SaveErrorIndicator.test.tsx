@@ -1,6 +1,6 @@
 /**
  * SaveErrorIndicator: the floating save-state chip. State-driven branches:
- * saving, auth/network/quota/payload errors, example-session local-only,
+ * saving, auth/network/quota/payload/verification/conflict errors, local-draft-only,
  * clean named project — and null when there is no project.
  */
 import { describe, test, expect, jest, beforeEach } from '@jest/globals';
@@ -74,6 +74,25 @@ describe('SaveErrorIndicator', () => {
     ideState.saveError = { kind: 'payload', message: 'Project too large' };
     render(<SaveErrorIndicator />);
     expect(screen.getByText('Project too large')).toBeTruthy();
+  });
+
+  test('shows a queued verification failure verbatim instead of a false saved state', () => {
+    ideState.saveError = { kind: 'verification', message: 'Queued edits were saved as a local recovery draft. Open Projects to continue.' };
+    render(<SaveErrorIndicator />);
+    expect(screen.getByText(ideState.saveError.message)).toBeTruthy();
+  });
+
+  test('shows a sync conflict message', () => {
+    ideState.saveError = { kind: 'conflict', message: 'Conflict' };
+    render(<SaveErrorIndicator />);
+    expect(screen.getByText('saveIndicator.conflict')).toBeTruthy();
+  });
+
+  test('anonymous recovery draft with dirty files shows local-only', () => {
+    editorState.currentProjectId = '__anon_draft_recovered_proj_queue_1';
+    editorState.dirtyFiles = new Set(['main.py']);
+    render(<SaveErrorIndicator />);
+    expect(screen.getByText('saveIndicator.localOnly')).toBeTruthy();
   });
 
   test('example session with dirty files shows local-only', () => {

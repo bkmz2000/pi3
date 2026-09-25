@@ -3,13 +3,13 @@ import { create } from "zustand";
 import { useEditor } from "./editorStore";
 import { Examples } from "./exampleProjects";
 import type { Project } from "./projectTypes";
-import { projectStorage, isOnline } from "../utils/storage";
+import { projectStorage, isOnline, triggerSync } from "../utils/storage";
+import type { QueuedSave } from "../utils/storage";
 import { importProjectFromFile as importZipFile, downloadProjectZip } from "../utils/zip";
-import { getProjects, createProject as apiCreateProject, updateProject as apiUpdateProject, deleteProject as apiDeleteProject, saveProjectContent, Project as ApiProject, ApiHttpError } from "./api";
+import { getProjects, getProject, createProject as apiCreateProject, updateProject as apiUpdateProject, deleteProject as apiDeleteProject, saveProjectContent, Project as ApiProject, ApiHttpError } from "./api";
 import { toEditorProject } from "./projectNormalization";
-import { encodeSheet } from "./sheetCodec";
-import { writeAnonStash } from "../utils/anonStash";
-import { EXAMPLE_SESSION_PREFIX, isExampleSessionId, exampleNameFromSessionId } from "./sessionId";
+import { decodeSheet, encodeSheet } from "./sheetCodec";
+import { ANON_DRAFT_PREFIX, EXAMPLE_SESSION_PREFIX, isExampleSessionId, isAnonymousDraftId, exampleNameFromSessionId } from "./sessionId";
 
 export type PanelId = "projects" | "settings" | "docs" | "examples" | "problems" | "live" | null;
 
@@ -33,8 +33,55 @@ export {
   toEditorProject,
 };
 
-export type SaveErrorKind = 'auth' | 'network' | 'quota' | 'payload';
+export type SaveErrorKind = 'auth' | 'network' | 'quota' | 'payload' | 'conflict' | 'verification';
 export type SaveError = { kind: SaveErrorKind; message: string };
+
+function createRecoveryDraftId(projectId: string, reason: "auth" | "conflict"): string {
+  const suffix = typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  return `${ANON_DRAFT_PREFIX}recovered_${projectId}_${reason}_${suffix}`;
+}
+
+async function recoverQueuedSave(q: QueuedSave): Promise<void> {
+  await projectStorage.saveAnonymousDraftIfAbsent({
+    id: `${ANON_DRAFT_PREFIX}recovered_${q.content.id}_queue_${q.id}`,
+    project: {
+      name: `Recovered offline edits #${q.id}`,
+      files: q.content.files,
+      assets: q.content.assets,
+      tilemaps: q.content.tilemaps,
+      sounds: q.content.sounds,
+      sheet: q.content.sheet ? decodeSheet(q.content.sheet) : undefined,
+      currentFile: q.content.currentFile,
+    },
+    lastModified: q.queuedAt || Date.now(),
+  });
+}
+
+async function refreshQueuedSaveCount(): Promise<void> {
+  try {
+    const queued = await projectStorage.getQueuedSaves();
+    useEditor.getState().setQueuedSaveCount(queued.length);
+  } catch {
+    // A read failure must not make a successful local queue write fail.
+  }
+}
+
+let queuedSyncInProgress = false;
+let queuedSyncRequested = false;
+
+function unchangedDirtyKeys(keys: Set<string>, before: Project, beforeCurrentFile: string, after: Project, afterCurrentFile: string): string[] {
+  return [...keys].filter((key) => {
+    if (key === "*currentFile*") return beforeCurrentFile === afterCurrentFile;
+    if (key === "*files*") return JSON.stringify(before.files) === JSON.stringify(after.files);
+    if (key === "*assets*") return JSON.stringify(before.assets) === JSON.stringify(after.assets);
+    if (key === "*tilemaps*") return JSON.stringify(before.tilemaps) === JSON.stringify(after.tilemaps);
+    if (key === "*sounds*") return JSON.stringify(before.sounds) === JSON.stringify(after.sounds);
+    if (key === "*sheet*") return JSON.stringify(before.sheet) === JSON.stringify(after.sheet);
+    return before.files[key] === after.files[key];
+  });
+}
 
 type IdeState = {
   activePanel: PanelId;
@@ -63,7 +110,7 @@ type IdeState = {
   forkExample: (exampleName: string, exampleProject: Project, newName?: string) => Promise<ApiProject>;
   saveCurrentProject: () => Promise<boolean>;
   syncQueuedSaves: () => Promise<void>;
-  downloadProject: (id: string) => Promise<void>;
+  downloadProject: (id?: string) => Promise<void>;
   downloadAsHtml: () => Promise<void>;
   importProjectFromFile: (file: File) => Promise<ApiProject>;
   setSaveError: (error: SaveError | null) => void;
@@ -215,35 +262,61 @@ export const useIde = create<IdeState>((set, get) => ({
   },
 
   saveCurrentProject: async () => {
-    const { currentProjectId, project, currentFile } = useEditor.getState();
+    const { currentProjectId, project, currentFile, currentProjectVersion, dirtyFiles: initialDirty } = useEditor.getState();
     if (!currentProjectId) return false;
+    const snapshotDirty = new Set(initialDirty);
+    const markSnapshotClean = () => {
+      const latest = useEditor.getState();
+      if (latest.currentProjectId === currentProjectId) {
+        latest.markClean(unchangedDirtyKeys(snapshotDirty, project, currentFile, latest.project, latest.currentFile));
+      }
+    };
 
     set({ isSaving: true });
     try {
       // Example-session: persist to the anonymous stash. No API call, no
       // auth dependency. The user gets a chance to fork-and-claim on sign-in.
       if (isExampleSessionId(currentProjectId)) {
-        const result = writeAnonStash({
-          exampleName: exampleNameFromSessionId(currentProjectId),
-          project,
-        });
-        if (!result.ok) {
-          // Storage full or blocked — let the user know their tinkering is no
-          // longer being persisted, so they can sign in (to save server-side)
-          // or clear space before they lose work.
-          const message = result.reason === "quota"
-            ? "Local storage full — sign in to save your work"
-            : "Local storage unavailable — sign in to save your work";
+        try {
+          await projectStorage.saveAnonymousDraft({
+            id: currentProjectId,
+            exampleName: exampleNameFromSessionId(currentProjectId),
+            project,
+            lastModified: Date.now(),
+          });
+          markSnapshotClean();
+          set({ saveError: null });
+          return true;
+        } catch (error) {
+          const message = error instanceof DOMException && error.name === "QuotaExceededError"
+            ? "Device storage full — export your project or sign in to save it"
+            : "Device storage unavailable — export your project or sign in to save it";
           set({ saveError: { kind: "quota", message } });
           return false;
         }
-        set({ saveError: null });
-        return true;
       }
 
-      // Always cache full content locally (offline resilience).
-      // Sheet is sparse-chunk-encoded for the wire and IndexedDB; empty regions
-      // are skipped, shrinking typical 512x512 sheets by 10-30x before gzip.
+      if (isAnonymousDraftId(currentProjectId)) {
+        try {
+          await projectStorage.saveAnonymousDraft({
+            id: currentProjectId,
+            project,
+            lastModified: Date.now(),
+          });
+          markSnapshotClean();
+          set({ saveError: null });
+          return true;
+        } catch (error) {
+          const message = error instanceof DOMException && error.name === "QuotaExceededError"
+            ? "Device storage full — export your project or sign in to save it"
+            : "Device storage unavailable — export your project or sign in to save it";
+          set({ saveError: { kind: "quota", message } });
+          return false;
+        }
+      }
+
+      // Persist a complete recovery copy before attempting cloud persistence.
+      // Sheet is sparse-chunk-encoded on the wire and in IndexedDB.
       const content = {
         files: project.files,
         assets: project.assets,
@@ -252,37 +325,65 @@ export const useIde = create<IdeState>((set, get) => ({
         sheet: project.sheet ? encodeSheet(project.sheet) : undefined,
         currentFile,
       };
-      projectStorage.cacheProjectContent(currentProjectId, content).catch(() => {});
-
-      // If offline, queue the save for later sync
-      if (!isOnline()) {
-        await projectStorage.queueSave({ id: currentProjectId, ...content, savedAt: Date.now() });
-        useEditor.getState().incrementQueuedSaves();
-        set({ saveError: { kind: "network", message: "Offline — saved locally, will sync when online" } });
-        return true;
+      let initialCacheToken: string;
+      try {
+        initialCacheToken = await projectStorage.cacheProjectContent(currentProjectId, {
+          ...content,
+          version: currentProjectVersion ?? undefined,
+        });
+      } catch (error) {
+        const message = error instanceof DOMException && error.name === "QuotaExceededError"
+          ? "Device storage full — export your project before continuing"
+          : "Could not create a local recovery copy — export your project before continuing";
+        set({ saveError: { kind: "quota", message } });
+        return false;
       }
 
-      try {
-        await saveProjectContent(currentProjectId, content);
+      if (!isOnline()) {
+        try {
+          await projectStorage.queueSave({ id: currentProjectId, ...content, version: currentProjectVersion ?? undefined, savedAt: Date.now() });
+          if (queuedSyncInProgress) queuedSyncRequested = true;
+          else if (isOnline()) triggerSync();
+          await refreshQueuedSaveCount();
+          markSnapshotClean();
+          set({ saveError: { kind: "network", message: "Offline — saved locally, will sync when online" } });
+          return true;
+        } catch {
+          set({ saveError: { kind: "quota", message: "Could not queue your save — export your project now" } });
+          return false;
+        }
+      }
 
-        // Update the local cache
+      let writeReturned = false;
+      try {
+        const expectedVersion = currentProjectVersion;
+        if (expectedVersion === null) {
+          set({ saveError: { kind: "verification", message: "Project revision is unknown — reload before saving to the cloud" } });
+          return false;
+        }
+        const saved = await saveProjectContent(currentProjectId, content, expectedVersion);
+        writeReturned = true;
+        const verified = await getProject(currentProjectId);
+        const sameContent = JSON.stringify({ files: verified.files, assets: verified.assets, tilemaps: verified.tilemaps ?? {}, sounds: verified.sounds ?? {}, sheet: verified.sheet, currentFile: verified.current_file })
+          === JSON.stringify({ files: content.files, assets: content.assets, tilemaps: content.tilemaps, sounds: content.sounds, sheet: content.sheet, currentFile: content.currentFile });
+        if (!Number.isFinite(saved.version) || saved.version !== verified.version || !sameContent) {
+          set({ saveError: { kind: "verification", message: "Cloud save could not be verified — your local copy is safe" } });
+          return false;
+        }
+        if (useEditor.getState().currentProjectId === currentProjectId) {
+          useEditor.getState().setCurrentProjectVersion(verified.version!);
+        }
+        await projectStorage.cacheProjectContentIfCurrent(currentProjectId, initialCacheToken, {
+          ...content,
+          version: verified.version,
+        });
+
         const { userProjects } = get();
         set({
-          userProjects: userProjects.map((p) => {
-            if (p.id !== currentProjectId) return p;
-            const updated: Record<string, unknown> = {
-              ...p,
-              files: project.files,
-              assets: project.assets,
-              tilemaps: project.tilemaps,
-              updated_at: Date.now(),
-            };
-            if (project.sounds) updated.sounds = project.sounds;
-            if (project.sheet) updated.sheet = project.sheet;
-            return updated as unknown as ApiProject;
-          }),
+          userProjects: userProjects.map((p) => p.id === currentProjectId ? { ...p, ...verified } : p),
           saveError: null,
         });
+        markSnapshotClean();
         return true;
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : "Failed to save project";
@@ -291,29 +392,42 @@ export const useIde = create<IdeState>((set, get) => ({
         // large, validation failure, etc.) — retrying or queueing for later sync
         // will just keep failing, so surface it and stop the auto-save loop.
         const kind: SaveErrorKind =
-          status === 401 ? "auth"
+          writeReturned ? "verification"
+          : status === 409 ? "conflict"
+          : status === 401 || status === 403 ? "auth"
           : status >= 400 && status < 500 ? "payload"
           : "network";
         const message = kind === "payload" && status === 413
           ? "Project too large to save — try removing large assets"
           : errorMessage;
-        if (kind === "network") {
-          await projectStorage.queueSave({ id: currentProjectId, ...content, savedAt: Date.now() });
-          useEditor.getState().incrementQueuedSaves();
+        if (kind === "auth" || kind === "conflict") {
+          // Preserve a distinct recovery draft; never overwrite the remote/local
+          // baseline after a rejected optimistic write.
+          try {
+            await projectStorage.saveAnonymousDraft({
+              id: createRecoveryDraftId(currentProjectId, kind),
+              project,
+              lastModified: Date.now(),
+            });
+          } catch {
+            set({ saveError: { kind: "quota", message: "Could not save a local recovery copy — export your project now" } });
+            return false;
+          }
         }
-        if (kind === "auth") {
-          // Not logged in — persist locally so work is never lost.
-          // IndexedDB cache was written above; also write to anonymous stash.
-          writeAnonStash({
-            exampleName: `__anon_real_project__${currentProjectId}`,
-            project,
-          });
+        if (kind === "network") {
+          try {
+            await projectStorage.queueSave({ id: currentProjectId, ...content, version: currentProjectVersion ?? undefined, savedAt: Date.now() });
+            if (queuedSyncInProgress) queuedSyncRequested = true;
+            else if (isOnline()) triggerSync();
+            await refreshQueuedSaveCount();
+            markSnapshotClean();
+          } catch {
+            set({ saveError: { kind: "quota", message: "Could not queue your save — export your project now" } });
+            return false;
+          }
         }
         set({ saveError: { kind, message } });
-        // Network/auth: local cache has the data, treat as soft-success so the
-        // dirty set clears. Payload errors must keep files dirty so the user
-        // can retry after shrinking the project.
-        return kind !== "payload";
+        return kind === "network";
       }
     } finally {
       set({ isSaving: false });
@@ -321,52 +435,184 @@ export const useIde = create<IdeState>((set, get) => ({
   },
 
   syncQueuedSaves: async () => {
-    if (!isOnline()) return;
-    const queued = await projectStorage.getQueuedSaves();
-    if (queued.length === 0) return;
-
-    for (const q of queued) {
-      try {
-        await saveProjectContent(q.content.id, {
-          files: q.content.files,
-          assets: q.content.assets,
-          tilemaps: q.content.tilemaps,
-          sounds: q.content.sounds,
-          sheet: q.content.sheet,
-          currentFile: q.content.currentFile,
-        });
-        await projectStorage.removeQueuedSave(q.id);
-        useEditor.getState().decrementQueuedSaves();
-      } catch (err) {
-        // If still failing (e.g. offline), stop trying
-        if (!isOnline() || (err instanceof Error && err.message === "Unauthorized")) break;
-        console.warn("Failed to sync queued save, will retry:", err);
-        break;
-      }
+    if (queuedSyncInProgress) {
+      queuedSyncRequested = true;
+      return;
     }
+    queuedSyncInProgress = true;
+    queuedSyncRequested = false;
+    let didSync = false;
+    try {
+      let syncFailed = false;
+      let rounds = 0;
+      let firstRound = true;
+      while (!syncFailed && (firstRound || isOnline()) && rounds < 20) {
+        firstRound = false;
+        rounds += 1;
+        queuedSyncRequested = false;
+        let queued: Awaited<ReturnType<typeof projectStorage.getQueuedSaves>>;
+        try {
+          queued = await projectStorage.getQueuedSaves();
+        } catch (error) {
+          set({ saveError: { kind: "quota", message: "Could not inspect locally queued saves" } });
+          console.warn("Could not read offline save queue:", error);
+          syncFailed = true;
+          break;
+        }
+        useEditor.getState().setQueuedSaveCount(queued.length);
+        // On mount inspect the queue even without connectivity, but do not
+        // send its snapshots until the browser reports that it is online.
+        if (!isOnline()) break;
+        if (!queued.length) {
+          if (queuedSyncRequested) continue;
+          break;
+        }
+        // A snapshot without provenance cannot safely be rebased against another
+        // tab's write. Preserve ambiguous legacy rows as independent drafts.
+        const legacyByProject = new Map<string, QueuedSave[]>();
+        for (const q of queued) {
+          if (q.writerId) continue;
+          const rows = legacyByProject.get(q.content.id) ?? [];
+          rows.push(q);
+          legacyByProject.set(q.content.id, rows);
+        }
+        const rowsToRecover = queued.filter((q) =>
+          q.content.version === undefined || (!q.writerId && (legacyByProject.get(q.content.id)?.length ?? 0) > 1),
+        );
+        if (rowsToRecover.length) {
+          try {
+            for (const q of rowsToRecover.sort((a, b) => a.id - b.id)) {
+              await recoverQueuedSave(q);
+              await projectStorage.removeQueuedSave(q.id);
+            }
+            await refreshQueuedSaveCount();
+            syncFailed = true;
+            set({ saveError: { kind: "verification", message: "Older queued saves were preserved as local recovery drafts. Open Projects to continue." } });
+          } catch {
+            syncFailed = true;
+            set({ saveError: { kind: "quota", message: "Could not preserve an older queued save as a recovery draft" } });
+          }
+          break;
+        }
 
-    // Refresh userProjects after sync
-    const { currentProjectId } = useEditor.getState();
-    if (currentProjectId && !isExampleSessionId(currentProjectId)) {
-      try {
-        const refreshed = await getProjects();
-        set({ userProjects: refreshed });
-        projectStorage.cacheProjectMeta(refreshed as unknown as Record<string, unknown>[]).catch(() => {});
-      } catch { /* refresh failed, keep current state */ }
+        // Sync one latest snapshot per project/tab. Other tabs keep their own
+        // captured revision and will conflict into a recovery draft if stale.
+        const latestByWriter = new Map<string, QueuedSave>();
+        for (const q of [...queued].sort((a, b) => a.id - b.id)) {
+          const source = q.writerId ?? "legacy-single-writer";
+          latestByWriter.set(`${q.content.id}\u0000${source}`, q);
+        }
+
+        for (const q of latestByWriter.values()) {
+          if (q.content.version === undefined) {
+            try {
+              await recoverQueuedSave(q);
+              await projectStorage.removeQueuedSave(q.id);
+              await refreshQueuedSaveCount();
+              set({ saveError: { kind: "verification", message: "Queued save was preserved as a local recovery draft. Open Projects to continue." } });
+            } catch {
+              set({ saveError: { kind: "quota", message: "Could not preserve the queued save as a recovery draft" } });
+            }
+            syncFailed = true;
+            break;
+          }
+          let writeReturned = false;
+          try {
+            const payload = {
+              files: q.content.files,
+              assets: q.content.assets,
+              tilemaps: q.content.tilemaps,
+              sounds: q.content.sounds,
+              sheet: q.content.sheet,
+              currentFile: q.content.currentFile,
+            };
+            const saved = await saveProjectContent(q.content.id, payload, q.content.version);
+            writeReturned = true;
+            const verified = await getProject(q.content.id);
+            const sameContent = JSON.stringify({ files: verified.files, assets: verified.assets, tilemaps: verified.tilemaps ?? {}, sounds: verified.sounds ?? {}, sheet: verified.sheet, currentFile: verified.current_file })
+              === JSON.stringify({ files: payload.files, assets: payload.assets, tilemaps: payload.tilemaps, sounds: payload.sounds, sheet: payload.sheet, currentFile: payload.currentFile });
+            if (!Number.isFinite(saved.version) || saved.version !== verified.version || !sameContent) throw new Error("Queued save verification failed");
+            const currentEditor = useEditor.getState();
+            if (currentEditor.currentProjectId === q.content.id) currentEditor.setCurrentProjectVersion(verified.version!);
+            await projectStorage.completeQueuedSave(q, verified.version!);
+            await refreshQueuedSaveCount();
+            didSync = true;
+          } catch (err) {
+            syncFailed = true;
+            const status = err instanceof ApiHttpError ? err.status : 0;
+            const kind: SaveErrorKind = writeReturned || (err instanceof Error && err.message === "Queued save verification failed")
+              ? "verification"
+              : status === 409 ? "conflict"
+              : status === 401 || status === 403 ? "auth"
+              : "network";
+            let recovered = false;
+            if (kind === "conflict" || kind === "auth") {
+              try {
+                await recoverQueuedSave(q);
+                await projectStorage.removeQueuedSave(q.id);
+                await refreshQueuedSaveCount();
+                recovered = true;
+              } catch {
+                set({ saveError: { kind: "quota", message: "Could not save a recovery copy of the queued project" } });
+                break;
+              }
+            }
+            set({ saveError: recovered
+              ? { kind: "verification", message: "Queued edits were saved as a local recovery draft. Open Projects to continue." }
+              : { kind, message: kind === "verification" ? "Queued save could not be verified — retained locally" : err instanceof Error ? err.message : "Queued save failed" } });
+            console.warn("Failed to sync queued save, will retry:", err);
+            break;
+          }
+        }
+      }
+      if (!syncFailed && isOnline()) {
+        const remaining = await projectStorage.getQueuedSaves();
+        useEditor.getState().setQueuedSaveCount(remaining.length);
+        if (!remaining.length) set({ saveError: null });
+        else set({ saveError: { kind: "network", message: "Additional local edits remain queued for sync" } });
+      }
+
+      // Refresh userProjects after at least one verified queued write.
+      const { currentProjectId } = useEditor.getState();
+      if (didSync && currentProjectId && !isExampleSessionId(currentProjectId) && !isAnonymousDraftId(currentProjectId)) {
+        try {
+          const refreshed = await getProjects();
+          set({ userProjects: refreshed });
+          projectStorage.cacheProjectMeta(refreshed as unknown as Record<string, unknown>[]).catch(() => {});
+        } catch { /* refresh failed, keep current state */ }
+      }
+    } finally {
+      queuedSyncInProgress = false;
+      if (queuedSyncRequested) {
+        queuedSyncRequested = false;
+        queueMicrotask(() => { void get().syncQueuedSaves(); });
+      }
     }
   },
 
   setSaveError: (error) => set({ saveError: error }),
 
-  downloadProject: async (id: string) => {
-    if (isExampleSessionId(id)) {
-      const { project } = useEditor.getState();
+  downloadProject: async (id?: string) => {
+    const editor = useEditor.getState();
+    const isCurrentProject = !id || editor.currentProjectId === id;
+
+    // The editor is also the only source of truth for anonymous drafts and
+    // example sessions. Export it directly so signed-out students can download
+    // their work and so the ZIP contains edits made since the last autosave.
+    if (isCurrentProject || isExampleSessionId(id)) {
+      const { project } = editor;
       const ide = get();
-      const exampleKey = id.slice(EXAMPLE_SESSION_PREFIX.length);
-      const name = ide.userProjects.find((p) => p.id === id)?.name || project.name || exampleKey;
+      const exportId = id || editor.currentProjectId || "untitled";
+      const exampleKey = isExampleSessionId(id)
+        ? id!.slice(EXAMPLE_SESSION_PREFIX.length)
+        : "";
+      const name = ide.userProjects.find((p) => p.id === exportId)?.name
+        || project.name
+        || exampleKey
+        || "project";
       const files = Object.entries(project.files).map(([fname, content]) => ({ name: fname, content }));
       await downloadProjectZip({
-        id,
+        id: exportId,
         name,
         files,
         assets: project.assets,
@@ -374,7 +620,7 @@ export const useIde = create<IdeState>((set, get) => ({
         sounds: project.sounds || {},
         sheet: project.sheet,
         updatedAt: new Date().toISOString(),
-        currentFile: useEditor.getState().currentFile,
+        currentFile: editor.currentFile,
       });
       return;
     }

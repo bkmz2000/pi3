@@ -52,14 +52,70 @@ describe('offline save queue', () => {
     expect(queued[0].attempts).toBe(0);
   });
 
-  it('queuing the same project twice creates two independent rows (not deduped)', async () => {
+  it('coalesces repeated offline saves to the newest complete project snapshot', async () => {
     await storage.queueSave(makeContent('proj-dup', { files: { 'main.py': 'v1' } }));
     await storage.queueSave(makeContent('proj-dup', { files: { 'main.py': 'v2' } }));
 
     const queued = await storage.getQueuedSaves();
-    expect(queued).toHaveLength(2);
-    expect(queued[0].content.files['main.py']).toBe('v1');
-    expect(queued[1].content.files['main.py']).toBe('v2');
+    expect(queued).toHaveLength(1);
+    expect(queued[0].content.files['main.py']).toBe('v2');
+  });
+
+  it('rebases a newer queued snapshot from the same tab after prior sync', async () => {
+    storage = new ProjectStorage('tab-a');
+    const first = makeContent('proj-race', { files: { 'main.py': 'sent snapshot' }, version: 7 });
+    await storage.queueSave(first);
+    const [queuedFirst] = await storage.getQueuedSaves();
+    const newer = makeContent('proj-race', { files: { 'main.py': 'newer local edits' }, version: 7 });
+    await storage.cacheProjectContent('proj-race', newer);
+
+    // Model a same-tab edit queued while the first snapshot is in flight.
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open('WebIDE', 4);
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    const tx = db.transaction('saveQueue', 'readwrite');
+    tx.objectStore('saveQueue').add({ content: newer, queuedAt: Date.now(), attempts: 0, writerId: 'tab-a' });
+    await new Promise<void>((resolve, reject) => {
+      tx.oncomplete = () => resolve();
+      tx.onabort = () => reject(tx.error);
+      tx.onerror = () => reject(tx.error);
+    });
+    db.close();
+
+    await storage.completeQueuedSave(queuedFirst, 8);
+
+    const remaining = await storage.getQueuedSaves();
+    expect(remaining).toHaveLength(1);
+    expect(remaining[0].content.files['main.py']).toBe('newer local edits');
+    expect(remaining[0].content.version).toBe(8);
+    await expect(storage.getCachedProjectContent('proj-race')).resolves.toMatchObject({
+      files: { 'main.py': 'newer local edits' }, version: 8,
+    });
+  });
+
+  it('does not inherit another tab cache revision or rebase its queued snapshot', async () => {
+    storage = new ProjectStorage('tab-a');
+    const otherTab = new ProjectStorage('tab-b');
+    const first = makeContent('proj-cross-tab', { files: { 'main.py': 'tab A' }, version: 7 });
+    const second = makeContent('proj-cross-tab', { files: { 'main.py': 'tab B' }, version: 7 });
+    await otherTab.cacheProjectContent('proj-cross-tab', { ...second, version: 8 });
+    await storage.queueSave(first);
+    await otherTab.queueSave(second);
+
+    const rows = await storage.getQueuedSaves();
+    expect(rows).toHaveLength(2);
+    expect(rows.map((row) => row.content.version)).toEqual([7, 7]);
+    await storage.completeQueuedSave(rows[0], 8);
+
+    const remaining = await storage.getQueuedSaves();
+    expect(remaining).toHaveLength(1);
+    expect(remaining[0].writerId).toBe('tab-b');
+    expect(remaining[0].content.version).toBe(7);
+    await expect(storage.getCachedProjectContent('proj-cross-tab')).resolves.toMatchObject({
+      files: { 'main.py': 'tab B' }, version: 8, writerId: 'tab-b',
+    });
   });
 
   it('preserves base64 asset payload byte-exact through the IDB round-trip', async () => {
@@ -86,6 +142,249 @@ describe('offline save queue', () => {
     const [{ content: roundTripped }] = await storage.getQueuedSaves();
 
     expect(roundTripped.sheet).toEqual(sheet);
+  });
+});
+
+// ── Anonymous drafts ─────────────────────────────────────────────────────────
+
+describe('anonymous drafts', () => {
+  const makeDraft = (id: string, lastModified: number) => ({
+    id,
+    project: {
+      name: id,
+      files: { 'main.py': `print('${id}')` },
+      assets: { 'sprite.png': 'data:image/png;base64,abc' },
+      tilemaps: {},
+      sounds: {},
+    },
+    lastModified,
+  });
+
+  it('rejects a draft write when its transaction aborts after the request succeeds', async () => {
+    const originalPut = IDBObjectStore.prototype.put;
+    const abortingPut = jest.spyOn(IDBObjectStore.prototype, 'put').mockImplementation(function (this: IDBObjectStore, value: unknown, key?: IDBValidKey) {
+      const request = key === undefined ? originalPut.call(this, value) : originalPut.call(this, value, key);
+      if (this.name === 'anonymousDrafts') {
+        request.addEventListener('success', () => this.transaction.abort(), { once: true });
+      }
+      return request;
+    });
+    try {
+      await expect(storage.saveAnonymousDraft({
+        id: '__anon_draft_aborted',
+        project: { files: { 'main.py': 'print(1)' }, assets: {}, tilemaps: {}, sounds: {} },
+        lastModified: 1,
+      })).rejects.toBeDefined();
+    } finally {
+      abortingPut.mockRestore();
+    }
+    await expect(storage.getAnonymousDraft('__anon_draft_aborted')).resolves.toBeNull();
+  });
+
+  it('preserves a legacy projects store when upgrading the database', async () => {
+    globalThis.indexedDB = new IDBFactory();
+    const legacyDb = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open('WebIDE', 1);
+      request.onupgradeneeded = () => {
+        const projects = request.result.createObjectStore('projects', { keyPath: 'id' });
+        projects.createIndex('name', 'name', { unique: false });
+        projects.createIndex('updatedAt', 'updatedAt', { unique: false });
+        projects.createIndex('isExample', 'isExample', { unique: false });
+      };
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => resolve(request.result);
+    });
+    const tx = legacyDb.transaction(['projects'], 'readwrite');
+    const legacyProject = {
+      id: 'legacy-project',
+      name: 'Old browser project',
+      files: { 'main.py': 'print(42)' },
+      assets: { 'sprite.png': 'data:image/png;base64,abc' },
+      tilemaps: { level: { layers: [] } },
+      sounds: { 'beep.wav': 'data:audio/wav;base64,abc' },
+      sheet: { pixels: 'AAEC', width: 1, height: 1, sprites: {} },
+      animations: { idle: [{ frame: 0 }] },
+      currentFile: 'main.py',
+      updatedAt: '2025-03-04T05:06:07.000Z',
+    };
+    const legacyStore = tx.objectStore('projects');
+    legacyStore.put(legacyProject);
+    legacyStore.put({ id: 'legacy-metadata', name: 'Offline project list row', updated_at: '2025-03-05T00:00:00.000Z' });
+    for (let i = 0; i < 500; i += 1) {
+      legacyStore.put({ id: `legacy-meta-${i}`, name: `Cached project ${i}`, updated_at: '2025-03-05T00:00:00.000Z' });
+    }
+    await new Promise<void>((resolve, reject) => {
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+    legacyDb.close();
+
+    const upgradedStorage = new ProjectStorage();
+    await upgradedStorage.listAnonymousDrafts(); // Opens version 4 and performs the upgrade.
+    const upgradedDb = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open('WebIDE');
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => resolve(request.result);
+    });
+    expect(upgradedDb.objectStoreNames.contains('projects')).toBe(true);
+    const readTx = upgradedDb.transaction('projects', 'readonly');
+    const recordRequest = readTx.objectStore('projects').get('legacy-project');
+    const rowsRequest = readTx.objectStore('projects').getAll();
+    const [record, legacyRows] = await Promise.all([
+      new Promise((resolve, reject) => {
+        recordRequest.onsuccess = () => resolve(recordRequest.result);
+        recordRequest.onerror = () => reject(recordRequest.error);
+      }),
+      new Promise<unknown[]>((resolve, reject) => {
+        rowsRequest.onsuccess = () => resolve(rowsRequest.result);
+        rowsRequest.onerror = () => reject(rowsRequest.error);
+      }),
+    ]);
+    expect(record).toEqual(legacyProject);
+    expect(legacyRows).toHaveLength(502);
+    upgradedDb.close();
+
+    const migratedMetadata = await upgradedStorage.getCachedProjectMeta();
+    expect(migratedMetadata).toHaveLength(501);
+    expect(migratedMetadata).toContainEqual(expect.objectContaining({ id: 'legacy-metadata', name: 'Offline project list row' }));
+    const migrated = await upgradedStorage.getAnonymousDraft('__anon_draft_legacy_legacy-project');
+    expect(migrated).toEqual({
+      id: '__anon_draft_legacy_legacy-project',
+      project: {
+        name: 'Old browser project',
+        files: { 'main.py': 'print(42)' },
+        assets: { 'sprite.png': 'data:image/png;base64,abc' },
+        tilemaps: { level: { layers: [] } },
+        sounds: { 'beep.wav': 'data:audio/wav;base64,abc' },
+        sheet: { pixels: 'AAEC', width: 1, height: 1, sprites: {} },
+        animations: { idle: [{ frame: 0 }] },
+        currentFile: 'main.py',
+      },
+      lastModified: Date.parse('2025-03-04T05:06:07.000Z'),
+    });
+  });
+
+  it('preserves the actually released v3 cache and queue stores during the v4 upgrade', async () => {
+    globalThis.indexedDB = new IDBFactory();
+    const v3Db = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open('WebIDE', 3);
+      request.onupgradeneeded = () => {
+        const db = request.result;
+        db.createObjectStore('projectMeta', { keyPath: 'id' });
+        db.createObjectStore('projectContent', { keyPath: 'id' });
+        const queue = db.createObjectStore('saveQueue', { keyPath: 'id', autoIncrement: true });
+        queue.createIndex('projectId', 'projectId', { unique: false });
+      };
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => resolve(request.result);
+    });
+    const meta = { id: 'meta-v3', name: 'Cached metadata', updated_at: '2025-03-06T00:00:00.000Z' };
+    const content = makeContent('content-v3', { files: { 'main.py': 'print("v3 cache")' } });
+    const queuedContent = makeContent('queued-v3', { files: { 'main.py': 'print("queued")' } });
+    const tx = v3Db.transaction(['projectMeta', 'projectContent', 'saveQueue'], 'readwrite');
+    tx.objectStore('projectMeta').put(meta);
+    tx.objectStore('projectContent').put(content);
+    tx.objectStore('saveQueue').add({ content: queuedContent, queuedAt: 10, attempts: 1 });
+    await new Promise<void>((resolve, reject) => {
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+    v3Db.close();
+
+    const upgradedStorage = new ProjectStorage();
+    await upgradedStorage.listAnonymousDrafts();
+    expect(await upgradedStorage.getCachedProjectMeta()).toEqual([meta]);
+    expect(await upgradedStorage.getCachedProjectContent(content.id)).toEqual(content);
+    expect(await upgradedStorage.getQueuedSaves()).toEqual([expect.objectContaining({
+      content: queuedContent,
+      queuedAt: 10,
+      attempts: 1,
+    })]);
+    expect(await upgradedStorage.listAnonymousDrafts()).toEqual([]);
+  });
+
+  it('preserves released v2 metadata-only cache rows without inventing project content', async () => {
+    globalThis.indexedDB = new IDBFactory();
+    const v2Db = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open('WebIDE', 2);
+      request.onupgradeneeded = () => request.result.createObjectStore('projects', { keyPath: 'id' });
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => resolve(request.result);
+    });
+    const metadata = {
+      id: 'v2-metadata', name: 'Cached API project', description: null,
+      updated_at: '2025-03-07T00:00:00.000Z', user_id: 'student-1', is_public: 0,
+    };
+    const tx = v2Db.transaction('projects', 'readwrite');
+    tx.objectStore('projects').put(metadata);
+    await new Promise<void>((resolve, reject) => {
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+    v2Db.close();
+
+    const upgradedStorage = new ProjectStorage();
+    await upgradedStorage.listAnonymousDrafts();
+    expect(await upgradedStorage.getCachedProjectMeta()).toEqual([metadata]);
+    expect(await upgradedStorage.getCachedProjectContent(metadata.id)).toBeNull();
+    expect(await upgradedStorage.getAnonymousDraft('__anon_draft_legacy_v2-metadata')).toBeNull();
+  });
+
+  it('copies a retained legacy store even when the destination draft store exists, without overwriting it', async () => {
+    // Deliberate coexistence fixture for collision/idempotence behavior; released v3
+    // itself had no `projects` store, as verified in the separate v3-layout test.
+    globalThis.indexedDB = new IDBFactory();
+    const legacyDb = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open('WebIDE', 3);
+      request.onupgradeneeded = () => {
+        const db = request.result;
+        db.createObjectStore('projects', { keyPath: 'id' });
+        db.createObjectStore('projectMeta', { keyPath: 'id' });
+        db.createObjectStore('projectContent', { keyPath: 'id' });
+        db.createObjectStore('saveQueue', { keyPath: 'id', autoIncrement: true });
+        db.createObjectStore('anonymousDrafts', { keyPath: 'id' });
+      };
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => resolve(request.result);
+    });
+    const legacy = { id: 'collision', name: 'Legacy', files: { 'main.py': 'legacy' }, assets: {}, tilemaps: {}, sounds: {}, currentFile: 'main.py' };
+    const existing = makeDraft('__anon_draft_legacy_collision', 999);
+    const tx = legacyDb.transaction(['projects', 'anonymousDrafts'], 'readwrite');
+    tx.objectStore('projects').put(legacy);
+    tx.objectStore('anonymousDrafts').put(existing);
+    await new Promise<void>((resolve, reject) => {
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+    legacyDb.close();
+
+    const upgradedStorage = new ProjectStorage();
+    await upgradedStorage.listAnonymousDrafts();
+    expect(await upgradedStorage.getAnonymousDraft(existing.id)).toEqual(existing);
+    expect((await upgradedStorage.getCachedProjectContent('collision'))?.files).toEqual(legacy.files);
+    expect(await upgradedStorage.getAnonymousDraft('__anon_draft_legacy_collision')).toEqual(existing);
+  });
+
+  it('keeps separate projects and returns newest first', async () => {
+    const older = makeDraft('__anon_draft_a', 10);
+    const newer = makeDraft('__anon_draft_b', 20);
+    await storage.saveAnonymousDraft(older);
+    await storage.saveAnonymousDraft(newer);
+
+    expect(await storage.getAnonymousDraft(older.id)).toEqual(older);
+    expect(await storage.listAnonymousDrafts()).toEqual([newer, older]);
+  });
+
+  it('updates one draft without replacing the others and supports removal', async () => {
+    await storage.saveAnonymousDraft(makeDraft('__anon_draft_a', 10));
+    await storage.saveAnonymousDraft(makeDraft('__anon_draft_b', 20));
+    const updated = makeDraft('__anon_draft_a', 30);
+    await storage.saveAnonymousDraft(updated);
+    await storage.deleteAnonymousDraft(updated.id);
+
+    expect(await storage.getAnonymousDraft(updated.id)).toBeNull();
+    expect(await storage.listAnonymousDrafts()).toHaveLength(1);
+    expect((await storage.listAnonymousDrafts())[0].id).toBe('__anon_draft_b');
   });
 });
 
@@ -174,6 +473,25 @@ describe('project content cache', () => {
     expect(result!.files['main.py']).toBe('v2');
   });
 
+  it('does not let an older verified save replace a newer cached snapshot', async () => {
+    const id = 'proj-cache-race';
+    const base = { assets: {}, tilemaps: {}, sounds: {}, sheet: undefined as undefined, currentFile: 'main.py' };
+    const saveAToken = await storage.cacheProjectContent(id, { ...base, files: { 'main.py': 'save A' }, version: 7 });
+    await storage.cacheProjectContent(id, { ...base, files: { 'main.py': 'newer save B' }, version: 7 });
+
+    await expect(storage.cacheProjectContentIfCurrent(id, saveAToken, { ...base, files: { 'main.py': 'save A' }, version: 8 })).resolves.toBe(false);
+    expect((await storage.getCachedProjectContent(id))?.files['main.py']).toBe('newer save B');
+  });
+
+  it('advances the revision when the verified save still matches the cached snapshot', async () => {
+    const id = 'proj-cache-advance';
+    const base = { assets: {}, tilemaps: {}, sounds: {}, sheet: undefined as undefined, currentFile: 'main.py' };
+    const token = await storage.cacheProjectContent(id, { ...base, files: { 'main.py': 'same snapshot' }, version: 7 });
+
+    await expect(storage.cacheProjectContentIfCurrent(id, token, { ...base, files: { 'main.py': 'same snapshot' }, version: 8 })).resolves.toBe(true);
+    expect(await storage.getCachedProjectContent(id)).toMatchObject({ files: { 'main.py': 'same snapshot' }, version: 8 });
+  });
+
   it('getCachedProjectContent returns null for an unknown id', async () => {
     expect(await storage.getCachedProjectContent('no-such-project')).toBeNull();
   });
@@ -232,6 +550,36 @@ describe('DB schema / init', () => {
     const db1 = await s.ensureDb();
     const db2 = await s.ensureDb();
     expect(db1).toBe(db2);
+  });
+
+  it('fails a blocked v3-to-v4 upgrade promptly and succeeds after the old tab closes', async () => {
+    globalThis.indexedDB = new IDBFactory();
+    const oldTab = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open('WebIDE', 3);
+      request.onupgradeneeded = () => {
+        const db = request.result;
+        db.createObjectStore('projectMeta', { keyPath: 'id' });
+        db.createObjectStore('projectContent', { keyPath: 'id' });
+        const queue = db.createObjectStore('saveQueue', { keyPath: 'id', autoIncrement: true });
+        queue.createIndex('projectId', 'projectId', { unique: false });
+      };
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => resolve(request.result);
+    });
+    // fake-indexeddb does not reliably dispatch `blocked` for an outstanding
+    // upgrade in Jest. Deliver that event explicitly, then retry against the
+    // real v3 database after the old tab closes.
+    const pending = { onblocked: null as ((event: Event) => void) | null };
+    const open = jest.spyOn(indexedDB, 'open').mockReturnValueOnce(pending as unknown as IDBOpenDBRequest);
+    const upgradedStorage = new ProjectStorage();
+    queueMicrotask(() => pending.onblocked?.(new Event('blocked')));
+    try {
+      await expect(upgradedStorage.listAnonymousDrafts()).rejects.toThrow(/blocked by another open pi3 tab/i);
+    } finally {
+      open.mockRestore();
+      oldTab.close();
+    }
+    await expect(upgradedStorage.listAnonymousDrafts()).resolves.toEqual([]);
   });
 });
 

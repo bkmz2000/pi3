@@ -7,8 +7,8 @@
  *   P0.1 cold boot, no console errors
  *   P0.2 run hello world, see output
  *   P0.3 dirty flag + Ctrl+S round trip
- *   P0.8 anonymous stash survives reload
- *   P1.5 anonStash quota chip appears when localStorage is full
+ *   P0.8 anonymous IndexedDB draft survives reload
+ *   P1.5 IndexedDB write failure keeps the project visibly recoverable
  *
  * Cases that require eyeballing smoothness (paint stress, pan/zoom) or
  * synthetic crashes via DevTools breakpoints stay in the manual checklist.
@@ -27,6 +27,7 @@ import puppeteer from 'puppeteer';
 import { waitForElement, waitForFn, sleep } from './test-utils.js';
 
 const URL = process.env.PUPPETEER_URL || 'http://localhost:5173';
+const EDITOR_URL = new globalThis.URL('/ide', URL).toString();
 const HEADLESS = process.env.HEADLESS !== 'false';
 
 const results = { passed: 0, failed: 0, cases: [] };
@@ -62,7 +63,7 @@ async function freshPage(browser) {
   });
   page.on('pageerror', (e) => consoleErrors.push(`pageerror: ${e.message}`));
   page._consoleErrors = consoleErrors;
-  await page.goto(URL, { waitUntil: 'domcontentloaded' });
+  await page.goto(EDITOR_URL, { waitUntil: 'domcontentloaded' });
   return { page, ctx };
 }
 
@@ -183,7 +184,7 @@ async function caseDirtyAndSave(browser) {
   }
 }
 
-async function caseAnonStashPersistence(browser) {
+async function caseAnonymousDraftPersistence(browser) {
   const { page, ctx } = await freshPage(browser);
   try {
     await waitForPyodideReady(page);
@@ -194,41 +195,70 @@ async function caseAnonStashPersistence(browser) {
     await page.keyboard.down('Control');
     await page.keyboard.press('s');
     await page.keyboard.up('Control');
-    await sleep(1500); // let writeAnonStash flush
+    await waitForFn(page, async () => page.evaluate(async (value) => {
+      const request = indexedDB.open('WebIDE', 4);
+      const db = await new Promise((resolve, reject) => {
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+      const tx = db.transaction('anonymousDrafts', 'readonly');
+      const rows = await new Promise((resolve, reject) => {
+        const query = tx.objectStore('anonymousDrafts').getAll();
+        query.onsuccess = () => resolve(query.result);
+        query.onerror = () => reject(query.error);
+      });
+      db.close();
+      return rows.some((row) => Object.values(row.project?.files ?? {}).some((text) => text.includes(value)));
+    }, sentinel), { timeout: 10000 });
 
     await page.reload({ waitUntil: 'domcontentloaded' });
     await waitForPyodideReady(page);
 
-    await waitForFn(page, async () => {
-      const code = await page.evaluate(() => document.querySelector('.cm-content')?.innerText ?? '');
-      return code.includes(sentinel);
-    }, { timeout: 15000 });
+    try {
+      await waitForFn(page, async () => {
+        const code = await page.evaluate(() => document.querySelector('.cm-content')?.innerText ?? '');
+        return code.includes(sentinel);
+      }, { timeout: 15000 });
+    } catch (error) {
+      const debug = await page.evaluate(async () => {
+        const request = indexedDB.open('WebIDE', 4);
+        const db = await new Promise((resolve, reject) => {
+          request.onsuccess = () => resolve(request.result);
+          request.onerror = () => reject(request.error);
+        });
+        const tx = db.transaction('anonymousDrafts', 'readonly');
+        const rows = await new Promise((resolve, reject) => {
+          const query = tx.objectStore('anonymousDrafts').getAll();
+          query.onsuccess = () => resolve(query.result);
+          query.onerror = () => reject(query.error);
+        });
+        db.close();
+        return {
+          text: document.querySelector('.cm-content')?.innerText,
+          path: localStorage.getItem('pi3_last_editor_path'),
+          drafts: rows.map((row) => ({ id: row.id, files: row.project?.files })),
+        };
+      });
+      throw new Error(`${error.message}; post-reload state=${JSON.stringify(debug)}`);
+    }
   } finally {
     await ctx.close();
   }
 }
 
-async function caseAnonStashQuotaChip(browser) {
+async function caseIndexedDbFailureChip(browser) {
   const { page, ctx } = await freshPage(browser);
   try {
     await waitForPyodideReady(page);
 
-    // Fill localStorage until setItem throws, then top up the remaining
-    // headroom with small keys so any subsequent write (the anon stash) is
-    // guaranteed to exceed quota. Blob size is a tradeoff: too big leaves
-    // hundreds of KB of headroom, too small makes the loop slow.
+    // Simulate an IndexedDB quota failure at the draft write boundary. Browser
+    // localStorage limits are unrelated to the current anonymous-save path.
     await page.evaluate(() => {
-      const blob = 'x'.repeat(400_000);
-      let i = 0;
-      try {
-        for (; i < 100; i++) localStorage.setItem('__quota_pad_' + i, blob);
-      } catch { /* quota reached */ }
-      // Fill the leftover headroom with 1KB keys until we're at the edge.
-      const small = 'y'.repeat(1000);
-      let j = 0;
-      try {
-        for (; j < 5000; j++) localStorage.setItem('__quota_tiny_' + j, small);
-      } catch { /* now at the edge */ }
+      const originalPut = IDBObjectStore.prototype.put;
+      IDBObjectStore.prototype.put = function (value, ...args) {
+        if (this.name === 'anonymousDrafts') throw new DOMException('simulated quota exhaustion', 'QuotaExceededError');
+        return originalPut.call(this, value, ...args);
+      };
     });
 
     await clearEditor(page);
@@ -238,13 +268,9 @@ async function caseAnonStashQuotaChip(browser) {
     await page.keyboard.up('Control');
 
     await waitForFn(page, async () => {
-      return await page.evaluate(() => /local storage full|storage unavailable/i.test(document.body.innerText));
+      return await page.evaluate(() => /device storage full|device storage unavailable/i.test(document.body.innerText));
     }, { timeout: 5000 });
 
-    // Cleanup so subsequent cases don't inherit the padded storage.
-    await page.evaluate(() => {
-      for (const k of Object.keys(localStorage)) if (k.startsWith('__quota_pad_')) localStorage.removeItem(k);
-    });
   } finally {
     await ctx.close();
   }
@@ -262,8 +288,8 @@ async function main() {
     await run('P0.1 cold boot, no console errors', () => caseColdBoot(browser));
     await run('P0.2 run hello world prints to console', () => caseRunHelloWorld(browser));
     await run('P0.3 dirty + ctrl+s round trip', () => caseDirtyAndSave(browser));
-    await run('P0.8 anonymous stash persists across reload', () => caseAnonStashPersistence(browser));
-    await run('P1.5 quota chip appears when localStorage is full', () => caseAnonStashQuotaChip(browser));
+    await run('P0.8 anonymous IndexedDB draft persists across reload', () => caseAnonymousDraftPersistence(browser));
+    await run('P1.5 IndexedDB failure keeps draft visibly recoverable', () => caseIndexedDbFailureChip(browser));
   } finally {
     await browser.close();
   }

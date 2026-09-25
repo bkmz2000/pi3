@@ -15,6 +15,7 @@ point** that points here and carries the Knowledge Base (mem0) instructions.
 | [pre-launch-smoke.md](pre-launch-smoke.md) | Manual smoke-test checklist |
 | [audit-baseline.md](audit-baseline.md) | Phase-0 test baseline snapshot (historical record) |
 | [doctrine.md](doctrine.md) | Safety & Privacy doctrine (Core / institutional / public) |
+| [deployment-data-safety.md](deployment-data-safety.md) | Mandatory project durability, backup, migration, deploy, and recovery policy |
 | [design-language.md](design-language.md) | Visual/UX tokens and idioms |
 | [ROADMAP.md](ROADMAP.md) | Shipped / in-progress / planned features |
 | [reconciliation-phase0-findings.md](reconciliation-phase0-findings.md) | Historical branch reconciliation record |
@@ -22,11 +23,11 @@ point** that points here and carries the Knowledge Base (mem0) instructions.
 
 ## `reference/` — live module specs (verified against HEAD)
 
-| Doc | Status |
-|-----|--------|
-| 02 | [State Management](reference/02-state-management.md) | Corrected 2026-08-14 (PanelId, WorkerEvent list, severity). |
+| # | Doc | Status |
+|---|-----|--------|
+| 02 | [State Management](reference/02-state-management.md) | Updated 2026-09-25 (revision-bound save verification, snapshot cleanup, coalesced offline queue). |
 | 04 | [Graphics Module](reference/04-graphics-module.md) | Corrected 2026-08-14 (`__all__`, Polar, Timer, anchors, velocity, Light attrs). **Canonical graphics API reference.** |
-| 06 | [Storage & Persistence](reference/06-storage.md) | Corrected 2026-08-14 (save route, autosave, session prefix). |
+| 06 | [Storage & Persistence](reference/06-storage.md) | Updated 2026-09-25 (actual v1/v2/v3 migration boundaries, local transaction durability, recovery drafts). |
 | 08 | [Sheet Editor (pixel)](reference/08-sprite-editor.md) | Accurate. |
 
 > Archived reference docs (01, 03, 05, 07, 09-14) and the `graphics-api-design.md` draft were

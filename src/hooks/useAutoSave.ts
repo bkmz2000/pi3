@@ -7,7 +7,6 @@ const DEBOUNCE_MS = 3000;         // save 3s after last change on real projects
 export function useAutoSave() {
   const currentProjectId = useEditor((s) => s.currentProjectId);
   const dirtyFiles = useEditor((s) => s.dirtyFiles);
-  const markClean = useEditor((s) => s.markClean);
   const saveCurrentProject = useIde((s) => s.saveCurrentProject);
   // Sticky client-side errors (413, validation) — retrying on every keystroke
   // would just keep failing. The user must fix the project before we try again.
@@ -19,37 +18,34 @@ export function useAutoSave() {
   // to the project API.
   useEffect(() => {
     if (!currentProjectId) return;
-    if (saveError?.kind === "payload") return;
+    if (saveError?.kind === "payload" || saveError?.kind === "conflict") return;
 
     const interval = setInterval(async () => {
       const dirty = useEditor.getState().dirtyFiles;
       if (dirty.size === 0) return;
-      // Snapshot what we're about to persist so a concurrent edit (during the
-      // network roundtrip) doesn't get falsely marked clean.
-      const snapshot = new Set(dirty);
-      const success = await saveCurrentProject();
-      if (success) markClean(snapshot);
+      // saveCurrentProject owns snapshot-aware dirty cleanup after persistence
+      // is verified; a second cleanup here could erase an in-flight edit.
+      await saveCurrentProject();
     }, AUTO_SAVE_INTERVAL);
 
     return () => clearInterval(interval);
-  }, [currentProjectId, saveCurrentProject, markClean, saveError?.kind]);
+  }, [currentProjectId, saveCurrentProject, saveError?.kind]);
 
   // Debounced save triggered 3s after any change. Real projects go to the API;
   // drafts and example sessions go to local storage.
   useEffect(() => {
     if (!currentProjectId) return;
     if (dirtyFiles.size === 0) return;
-    if (saveError?.kind === "payload") return;
+    if (saveError?.kind === "payload" || saveError?.kind === "conflict") return;
 
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(async () => {
-      const snapshot = new Set(useEditor.getState().dirtyFiles);
-      const success = await saveCurrentProject();
-      if (success) markClean(snapshot);
+      // The save action owns snapshot-aware dirty cleanup.
+      await saveCurrentProject();
     }, DEBOUNCE_MS);
 
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [dirtyFiles, currentProjectId, saveCurrentProject, markClean, saveError?.kind]);
+  }, [dirtyFiles, currentProjectId, saveCurrentProject, saveError?.kind]);
 }

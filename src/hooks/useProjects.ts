@@ -30,7 +30,7 @@ export function useProjects() {
 
   const loadProject = useCallback(async (id: string) => {
     const project = await getProject(id);
-    changeEditorCurrentProject(toEditorProject(project), id);
+    changeEditorCurrentProject(toEditorProject(project), id, project.version ?? null);
     return project;
   }, [changeEditorCurrentProject]);
 
@@ -42,7 +42,7 @@ export function useProjects() {
   const handleForkExample = useCallback(async (exampleName: string) => {
     const exampleProject = projects[exampleName];
     const forkedApiProject = await forkExample(exampleName, exampleProject);
-    changeEditorCurrentProject(toEditorProject(forkedApiProject), forkedApiProject.id);
+    changeEditorCurrentProject(toEditorProject(forkedApiProject), forkedApiProject.id, forkedApiProject.version ?? null);
   }, [projects, forkExample, changeEditorCurrentProject]);
 
   const handleNewProject = useCallback(() => {
@@ -64,7 +64,7 @@ export function useProjects() {
     const firstUserProject = useIde.getState().userProjects[0];
     if (firstUserProject) {
       const full = await getProject(firstUserProject.id);
-      changeEditorCurrentProject(toEditorProject(full), full.id);
+      changeEditorCurrentProject(toEditorProject(full), full.id, full.version ?? null);
       return;
     }
 

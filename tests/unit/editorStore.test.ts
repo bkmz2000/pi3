@@ -6,7 +6,7 @@
  */
 import { describe, test, expect, beforeEach } from '@jest/globals';
 import { useEditor } from '../../src/state/editorStore';
-import { EXAMPLE_SESSION_PREFIX } from '../../src/state/sessionId';
+import { ANON_DRAFT_PREFIX, EXAMPLE_SESSION_PREFIX } from '../../src/state/sessionId';
 
 beforeEach(() => {
   // Reset to the hello-world example default between tests.
@@ -25,6 +25,16 @@ describe('changeFile (dirty tracking + copy-on-write)', () => {
     expect(s.currentProjectId).toBe(EXAMPLE_SESSION_PREFIX + 'hello world');
     expect(s.dirtyFiles.has('main.py')).toBe(true);
     expect(s.project.files['main.py']).toBe('print(2)');
+  });
+
+  test('editing a standalone project gets a stable unique draft id', () => {
+    useEditor.getState().changeCurrentProject({ files: { 'main.py': '' }, assets: {}, tilemaps: {} });
+    useEditor.getState().changeFile('main.py', 'print(1)');
+    const id = useEditor.getState().currentProjectId;
+    expect(id).toMatch(new RegExp(`^${ANON_DRAFT_PREFIX}`));
+
+    useEditor.getState().changeFile('main.py', 'print(2)');
+    expect(useEditor.getState().currentProjectId).toBe(id);
   });
 
   test('editing a named project does not change its id', () => {

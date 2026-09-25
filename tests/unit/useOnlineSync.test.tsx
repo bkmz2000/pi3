@@ -33,10 +33,11 @@ describe('useOnlineSync', () => {
     expect(ideState.syncQueuedSaves).toHaveBeenCalledTimes(1);
   });
 
-  it('does not sync on mount while offline', () => {
+  it('inspects the persistent queue on mount while offline', () => {
     (isOnline as jest.Mock).mockReturnValue(false);
     renderHook(() => useOnlineSync());
-    expect(ideState.syncQueuedSaves).not.toHaveBeenCalled();
+    // syncQueuedSaves reads/counts local rows while offline and returns before API writes.
+    expect(ideState.syncQueuedSaves).toHaveBeenCalledTimes(1);
   });
 
   it('registers an online listener and syncs when the event fires', () => {

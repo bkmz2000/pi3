@@ -1,5 +1,5 @@
 {
-  "passed": 12,
+  "passed": 13,
   "failed": 0,
   "tests": [
     {
@@ -14,6 +14,11 @@
     },
     {
       "name": "p5.js sketch execution",
+      "passed": true,
+      "error": null
+    },
+    {
+      "name": "show() still-picture persistence",
       "passed": true,
       "error": null
     },

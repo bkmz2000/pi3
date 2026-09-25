@@ -144,6 +144,18 @@ hooks bucket failed until they got suites).
   from the page is CORS-rejected (this silently broke the whole suite at one
   point: the page loaded but Pyodide never initialized).
 
+**Storage and browser gate timing (2026-09-25).** In the blocked-upgrade
+unit test, deliver `IDBOpenDBRequest.onblocked` explicitly: fake-indexeddb's
+outstanding upgrade can hang this Jest case. Then close the old v3 connection
+and test a real v4 retry. In the production browser suite, wait for `.cm-editor`
+rather than treating `#root` plus a fixed sleep as proof that CodeMirror mounted;
+a slow cold start previously produced a false UI failure. The local full unit,
+server matrix, E2E, lint, typecheck, and build pass on the dirty worktree,
+**not** on a reviewed clean release commit. The 2026-09-25 follow-up reviewer
+cleared the three local P1 fixes in their immediate blast radii (draft export,
+claim verification, and predeploy candidate migration dry-run), but release
+policy remains BLOCKED pending clean-candidate proof and operational checks.
+
 **Testing the worker without Pyodide.** `src/runner/WorkerInterface.ts` defines
 typed `WorkerCommand`/`WorkerEvent` unions. Test `RunnerProvider` /
 `useRunnerStore` by posting synthetic `WorkerEvent`s to the message handler — no
@@ -163,6 +175,53 @@ via `DEPLOYMENT_PROFILE` env var (`institutional` | `public`, default:
 institutional). Profile resolver: `server/profile.ts`. Any feature that
 touches identity, publishing, comments, or user directory must be checked
 against this doctrine before landing.
+
+## Deployment data safety
+
+`docs/deployment-data-safety.md` is the mandatory release policy for project
+durability, browser-storage migrations, server backups, deployment verification,
+rollback, and recovery. Its central invariant is that browser storage is only a
+recovery cache: the unqualified **Saved** state requires a server-acknowledged,
+read-back verified write or a completed ZIP export. Browser migrations may not
+delete/clear project stores. Current save logic uses revision-bound writes,
+read-back verification, transaction-committed local recovery, and tab-scoped
+full-snapshot queues. Another tab's cached revision, or a revision installed while local persistence
+is in flight, is never used to rebase a snapshot; each queued snapshot retains
+its captured editor revision. Offline startup counts pending rows without
+attempting a network write. Ambiguous/versionless legacy rows are preserved as
+anonymous recovery drafts. E2E uses private per-run project/session databases, clears Turso/Redis
+credentials, and requires its own health nonce. The full release gate still must
+pass on a reviewed clean commit. Anonymous drafts use independent
+IndexedDB records and have their own ZIP export in Projects; claiming one first
+persists the latest editor snapshot, then creates and reads back the full
+server copy before deleting that draft. A failed read-back keeps the device
+copy and editor state. The v4 migration preserves actual v3 stores and copies
+retained v1/v2 `projects` rows without deleting the source. The Makefile now
+separates candidate publication from promotion; the promotion script runs the
+exact candidate's `initDb()` in a network-isolated, read-only image with a
+writable tmpfs copy of the verified predeploy SQLite snapshot, checks row
+counts, migration set, integrity and representative project hash before
+replacing the container. The local release gate tests the dry-run verifier on
+an isolated fixture. Promotion requires fresh
+command-line approval bound to commit, image digest, profile, VPS, and origin,
+then runs an authenticated API/UI canary with release-specific image and
+Compose rollback. The canary uses the normal browser session to mint a
+10-minute bearer credential limited to read/delete of one owned canary project;
+the hash is stored server-side, and the credential is not injected into browser
+requests. The configured canary account ID was verified read-only as an
+existing student, but its value is not stored in docs. Production remains
+**BLOCKED**: the scoped-token flow is not production-tested, monthly off-host
+restore monitoring/alerting is not operational, and the completed local-only
+restore drill did not cover assets, sounds, or tilemaps. Local code now
+preserves a separate restore-verified encrypted backup, records
+migration/project read-back metadata, sends Telegram backup/drill notifications,
+and checks backup/restore freshness daily with weekly reminders. The Telegram notifier and daily freshness checker were installed and exercised
+on the VPS on 2026-09-25, but the new nightly backup executable has not replaced
+the existing one, so immediate backup success/failure hooks are not active. The
+Telegram token/chat pair is configured in root-owned mode 0600 and Telegram's
+`getChat` API accepted it.
+Direct host-side Telegram messages also cannot detect full VPS/network outages,
+so an independent external dead-man monitor remains required.
 
 ## Architecture
 
@@ -193,7 +252,7 @@ In dev, Vite proxies `/api` to `:3001`. The `Cross-Origin-Opener-Policy` / `Cros
 
 ### State Management (src/state/)
 - **`useTheme`** — Theme (Studio / Midnight / Daylight), font size. All UI uses `theme.xxx` inline style tokens. ~80 tokens in `src/state/useTheme.ts`.
-- **`useUser`** — Auth state (`loading` / `logged_out` / `logged_in`). Flow: localStorage token → `checkSession()` on mount → Bearer token on API calls.
+- **`useUser`** — Auth state (`loading` / `logged_out` / `logged_in`). The browser uses the server session cookie; `ApiClient` sends requests with `credentials: 'include'`. The server also accepts bearer API tokens for supported non-browser clients.
 - **`useEditor`** (`IdeState.ts`) — Current project content (files, assets, currentFile), dirty tracking, file CRUD, save/fork/import/export. Built-in `Examples` map keyed by name.
 - **`useIde`** (`IdeState.ts`) — UI state and the canonical account/shared project collection. `useProjects` is a facade over this collection; it must not create component-local project lists.
 - **`useRunnerStore`** (`RunnerProvider.tsx`) — Pyodide worker state: `ready`, `running`, `output`, `lintErrors`, canvas dimensions, `workerEpoch` (increments on hard-kill to force canvas remount).
@@ -205,7 +264,7 @@ The graphics library at `src/assets/python/graphics/` is a custom Python module 
 
 ### Panel System (src/SideMenu.tsx)
 Rail-based layout. Most panel content is inline in `SideMenu.tsx`; `DocsPanel` is a separate lazy component:
-- **Project contents** — files, sprites, tilemaps, sounds, screenshots, and current project identity. Project switching/creation/import/export lives only on `/projects`.
+- **Project contents** — files, sprites, tilemaps, sounds, screenshots, and current project identity. Project switching/creation/import lives on `/projects`; the Projects submenu opened from the editor rail also provides ZIP export of the current in-memory project for signed-in and anonymous users.
 - **Examples rail action** — navigates to `/projects?tab=examples`; there is no separate editor examples panel.
 - **Assets** — built-in pack + user assets with asset editor button
 - **Settings** — theme, font size, console auto-hide, show hitboxes
@@ -261,7 +320,7 @@ Keycloak uses standard OIDC endpoints under `{KEYCLOAK_URL}/realms/{KEYCLOAK_REA
 - OAuth state and return URL stored in httpOnly cookies with `path: '/'` and `sameSite: 'lax'` (critical for callback validation)
 - State is cryptographically signed with `SESSION_SECRET` using HMAC-SHA256
 - Session created via `express-session` with settings in `server/index.ts`
-- `authMiddleware` in `server/middleware/auth.ts` validates Bearer tokens and session cookies
+- `authMiddleware` in `server/middleware/auth.ts` resolves the normal browser session cookie or a supported bearer API token; browser requests use cookies, not a token read from localStorage
 - Frontend auth flow: `useUser` → `checkSession()` on mount → `getMe()` API call to verify session
 - Password auth can be enabled via `ALLOW_PASSWORD_AUTH=true` environment variable
 - See `LOGINUS_AUTH_INTEGRATION_UNIVERSAL.md` for the original Loginus integration guide
@@ -445,7 +504,7 @@ currently selected file buffer.
 - Actor kwargs: known names go through property setters; unknown kwargs become plain attrs (typo risk) — but post-construction new attrs raise a friendly sealed-attr error; declare in `init()`.
 - Sheet animations: `actor.image = assets.sheet.player` → animate via `actor.walk.tick()`, not `actor.image.walk.tick()`.
 - `fill(None)` == `no_fill()`.
-- ZIP export loses non-file data (tilemaps, animations, sounds, sheet).
+- ZIP export preserves files, assets, tilemaps, embedded sounds, and the sprite sheet (including sheet animations). Sounds backed only by external URLs are exported as references with a warning note.
 
 ---
 

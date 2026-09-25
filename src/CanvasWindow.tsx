@@ -4,6 +4,7 @@ import { useRunner, useRunnerStore, type Screenshot } from "./runner/RunnerProvi
 import { useThemeStore } from "./state/useTheme";
 import { Icon } from "./components/Icons";
 import { useEditor, isExampleSessionId } from "./state/IdeState";
+import { isAnonymousDraftId } from "./state/sessionId";
 import { uploadProjectThumbnail } from "./state/api";
 import { clampIntoView, dragTo, fitScale } from "./canvasWindowGeometry";
 import { MeasureOverlay } from "./components/MeasureOverlay";
@@ -37,7 +38,7 @@ export default function CanvasWindow() {
   const frameHistory = useRunnerStore((s) => s.frameHistory);
   const scrubIndex = useRunnerStore((s) => s.scrubIndex);
   const projectId = useEditor((s) => s.currentProjectId);
-  const canPersist = !!projectId && !isExampleSessionId(projectId);
+  const canPersist = !!projectId && !isExampleSessionId(projectId) && !isAnonymousDraftId(projectId);
   const snaps = useRunnerStore((s) => s.screenshots);
   const addScreenshot = useRunnerStore((s) => s.addScreenshot);
   const clearScreenshots = useRunnerStore((s) => s.clearScreenshots);

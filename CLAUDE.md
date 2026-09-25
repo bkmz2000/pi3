@@ -213,10 +213,15 @@ Compose rollback. The canary uses the normal browser session to mint a
 the hash is stored server-side, and the credential is not injected into browser
 requests. The configured canary account ID was verified read-only as an
 existing student, but its value is not stored in docs. Production remains
-**BLOCKED**: the scoped-token flow is not production-tested, monthly off-host
-restore monitoring/alerting is not operational, and the completed local-only
-restore drill did not cover assets, sounds, or tilemaps. Local code now
-preserves a separate restore-verified encrypted backup, records
+**BLOCKED**: the scoped-token flow is not production-tested, independent
+external host-down monitoring is absent, and the completed off-host restore
+snapshot did not contain assets, sounds, or tilemaps. On 2026-09-25 at 17:57 UTC,
+the drill passed encrypted/decrypted checksum, SQLite integrity/counts, and
+isolated authenticated API read-back checks; the installed VPS helper recorded
+a protected encrypted restore copy and the active freshness checker passed.
+The legacy backup manifest lacked a `file` field, so its checksum-verified
+filename binding was appended before marking; the nightly executable was not
+replaced. Local code now preserves a separate restore-verified encrypted backup, records
 migration/project read-back metadata, sends Telegram backup/drill notifications,
 and checks backup/restore freshness daily with weekly reminders. The Telegram notifier and daily freshness checker were installed and exercised
 on the VPS on 2026-09-25, but the new nightly backup executable has not replaced

@@ -80,11 +80,19 @@ from a green focused test run.
   the candidate image's migration code on a tmpfs copy of the verified snapshot
   before changing the container. Neither is evidence for the exact clean
   committed/published candidate until the gate and actual promotion are verified.
-- One local-only decrypt/restore drill was completed on 2026-09-25 from
-  `pi3-daily-2026-09-25.db.age`; integrity and application read-back passed for
-  39 projects, 15 users, and 15 migrations. Its representative project had four
-  files and a sheet, but the backup contained no assets, sounds, or tilemaps.
-  Monthly off-host restore cadence, monitoring, and alerting are not established.
+- **Off-host restore drill recorded on 2026-09-25 at 17:57 UTC:** copied
+  `pi3-daily-2026-09-25.db.age` to a private local temporary directory, checked
+  its encrypted and decrypted SHA-256 values against the VPS manifest, restored
+  SQLite (`integrity_check=ok`, 39 projects, 15 users, 15 migrations), and read
+  a copied four-file project through the authenticated API of an isolated local
+  server. The temporary plaintext, test database, and server were removed.
+  The VPS marking helper preserved `pi3-restore-verified.db.age` and its matching
+  JSON record; the active freshness checker then passed. The legacy nightly
+  backup manifest omitted `file`, so a checksum-verified, append-only filename
+  binding was added before invoking the helper; the nightly executable itself
+  was not replaced. This snapshot has sheets but no assets, sounds, or tilemaps
+  to exercise. Repeat monthly; an independent external host-down monitor is
+  still missing. Same-VPS retention is not an off-host backup.
 - Read-only production inspection on 2026-09-25 found the running container
   mounted only the database Docker volume; `/srv/pi3/backups` was not mounted.
   The host backup directory was root-owned mode 700. Keep verifying this
@@ -130,8 +138,8 @@ Install `scripts/telegram-notify.sh` as
 `mark-restore-verified.sh` for operator use, install the two
 `scripts/systemd/pi3-backup-alert-check.*` units into `/etc/systemd/system`,
 then reload systemd and enable `pi3-backup-alert-check.timer`. Send a manual test
-message and run the checker once; the checker should initially alert that a
-restore drill has not yet been recorded.
+message and run the checker once; before the first drill the checker alerts
+that a restore drill has not yet been recorded.
 
 Do not replace the existing `/usr/local/sbin/pi3-vps-backup` yet. The local
 `vps-backup.sh` deliberately refuses to create backups unless the running image
@@ -143,9 +151,9 @@ then install the new backup implementation as a separate verified step.
 This on-host checker cannot notify if the entire VPS, its network, or Telegram
 connectivity is down. A separate external dead-man's-switch monitor is still
 needed for that failure mode; Telegram delivery alone does not establish
-host-loss monitoring. Keep release status **BLOCKED** until Telegram is
-configured and tested, the required off-host restore drill is recorded, and
-external monitoring/alerting is established.
+host-loss monitoring. Telegram and the first off-host drill are now recorded;
+keep release status **BLOCKED** until independent external monitoring and the
+remaining clean-candidate gate/review and production canary requirements are met.
 
 The current release workflow builds/publishes a candidate first,
 then requires separate, command-line approval bound to commit, registry
@@ -182,8 +190,8 @@ database have been preserved.
   After a full off-host restore drill passes, an operator must run
   `scripts/mark-restore-verified.sh <backup-file.db.age> --restore-drill-passed`
   on the VPS to publish/replace that protected copy. Normal rotation never prunes
-  it. The marking helper is installed on the VPS, but no off-host drill has
-  been recorded with it; prune only after a new snapshot passes its checks.
+  it. The 2026-09-25 off-host drill was recorded with the installed helper;
+  prune only after a new snapshot passes its checks.
 - **Recovery keys:** keep the age private identity outside the VPS (password
   manager/offline recovery escrow), restrict access to named operators, and
   rehearse key recovery. Store only the public recipient on the VPS. Losing the

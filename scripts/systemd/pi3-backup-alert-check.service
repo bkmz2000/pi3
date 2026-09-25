@@ -1,0 +1,11 @@
+[Unit]
+Description=Check PI3 backup and restore-drill freshness
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/app/pi3
+EnvironmentFile=/etc/pi3-backup.env
+ExecStart=/usr/local/sbin/pi3-backup-alert-check

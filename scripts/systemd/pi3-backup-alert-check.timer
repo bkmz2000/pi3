@@ -1,0 +1,9 @@
+[Unit]
+Description=Daily PI3 backup and restore-drill freshness check
+
+[Timer]
+OnCalendar=*-*-* 02:00:00 UTC
+Persistent=true
+
+[Install]
+WantedBy=timers.target

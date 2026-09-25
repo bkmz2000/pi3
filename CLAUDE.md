@@ -91,7 +91,10 @@ The gates run in `make test` (containerized via `Dockerfile.test`):
 `test:server:ci` (server, coverage-gated, institutional profile), and
 `test:server:public` (server suite re-run under `DEPLOYMENT_PROFILE=public`
 without coverage — same tests, other profile). `docker-e2e` (Puppeteer) is
-run manually; it is not part of the automated gate.
+run manually; it is not part of the automated gate. The Alpine test image
+installs `bash` and `curl` because release/Telegram script units spawn Bash and
+the E2E wrong-server guard uses curl; host-only Jest success is not enough to
+prove the pre-push container gate.
 
 **Profile matrix.** Two files pin `process.env.DEPLOYMENT_PROFILE = 'institutional'`
 at the top because they exercise institutional-flavor behavior (teacher

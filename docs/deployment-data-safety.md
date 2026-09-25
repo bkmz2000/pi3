@@ -87,8 +87,12 @@ from a green focused test run.
   reviewers then BLOCKED the clean WIP candidate `02fea4f` on reconnect/editor
   revision and post-conflict recovery, clean-draft claiming, unsafe inherited
   Turso credentials in a local fixture, and early rollback-evidence cleanup.
-  The follow-up fixes and regression tests are local; focused re-review and the
-  exact clean-`production` release gate are still pending. Nothing is deployed.
+  The follow-up release reviewer found no remaining issues; the client reviewer
+  found one further P1: after dirty-editor queue replay, *later* edits with an
+  unknown server revision only reached the cache and could be lost on reload.
+  The local fix writes a distinct recovery draft on every such autosave. Its
+  focused re-review and the exact clean-`production` gate remain pending.
+  Nothing is deployed.
 - **Migration dry-run recorded locally on 2026-09-25:** verified the encrypted
   checksum for `pi3-daily-2026-09-25.db.age`, decrypted only into a private local
   temporary directory, and ran the current `initDb()` migrations against that

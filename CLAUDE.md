@@ -249,9 +249,11 @@ back on failure. A passing canary retains pinned rollback evidence through the
 elapsed time, image identity and health before cleanup. Route project loading
 waits for offline queue replay, and a verified queued revision may only advance
 the active editor when its content matches; stale clean content is replaced and
-newer dirty edits are preserved as local recovery drafts. Conflict autosave
-continues local recovery without retrying the server. Final acceptance follows
-post-deploy monitoring.
+newer dirty edits are preserved as local recovery drafts. Subsequent saves
+with an unknown server revision also persist distinct drafts, not just a cache
+row that a route GET may replace; failed draft persistence keeps edits dirty.
+Conflict autosave continues local recovery without retrying the server. Final
+acceptance follows post-deploy monitoring.
 
 ## Architecture
 

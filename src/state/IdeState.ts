@@ -396,8 +396,23 @@ export const useIde = create<IdeState>((set, get) => ({
       try {
         const expectedVersion = currentProjectVersion;
         if (expectedVersion === null) {
-          set({ saveError: { kind: "verification", message: "Project revision is unknown — reload before saving to the cloud" } });
-          return false;
+          // Reconnect reconciliation deliberately leaves a divergent editor
+          // without a server revision. A cache row alone is not a recovery copy:
+          // the next route GET may replace it. Keep every later edit as a
+          // distinct draft until the student explicitly resolves the conflict.
+          try {
+            await projectStorage.saveAnonymousDraft({
+              id: createRecoveryDraftId(currentProjectId, "conflict"),
+              project: { ...project, currentFile },
+              lastModified: Date.now(),
+            });
+          } catch {
+            set({ saveError: { kind: "quota", message: "Could not preserve edits with an unknown revision — export your project now" } });
+            return false;
+          }
+          markSnapshotClean();
+          set({ saveError: { kind: "verification", message: "Project revision is unknown — newer edits were saved as a local recovery draft. Open Projects to continue." } });
+          return true;
         }
         const saved = await saveProjectContent(currentProjectId, content, expectedVersion);
         writeReturned = true;

@@ -651,6 +651,31 @@ describe('syncQueuedSaves', () => {
     expect(useEditor.getState().project.files['main.py']).toBe('even newer edit');
     expect(useEditor.getState().currentProjectVersion).toBeNull();
     expect(useIde.getState().saveError?.kind).toBe('verification');
+
+    // An edit *after* replay must survive a route reload too: the server GET
+    // can replace the cache, but cannot delete this independently stored draft.
+    useEditor.getState().changeFile('main.py', 'latest edit after replay');
+    expect(await useIde.getState().saveCurrentProject()).toBe(true);
+    expect(mockSaveProjectContent).toHaveBeenCalledTimes(1);
+    expect(mockSaveAnonymousDraft).toHaveBeenCalledWith(expect.objectContaining({
+      project: expect.objectContaining({ files: { 'main.py': 'latest edit after replay' } }),
+    }));
+    const drafts = mockSaveAnonymousDraft.mock.calls.map(([draft]) => draft);
+    expect(new Set(drafts.map((draft) => draft.id)).size).toBe(drafts.length);
+    useEditor.getState().changeCurrentProject({
+      files: { 'main.py': 'offline edits' }, assets: {}, tilemaps: {}, sounds: {},
+    }, 'proj-dirty-reconnect', 8);
+    expect(drafts.at(-1)?.project.files['main.py']).toBe('latest edit after replay');
+  });
+
+  it('keeps an unknown-revision edit dirty if its recovery draft cannot persist', async () => {
+    setEditorState({ currentProjectId: 'unknown-revision' });
+    useEditor.getState().setCurrentProjectVersion(null);
+    mockSaveAnonymousDraft.mockRejectedValueOnce(new Error('quota'));
+    expect(await useIde.getState().saveCurrentProject()).toBe(false);
+    expect(useEditor.getState().dirtyFiles.size).toBeGreaterThan(0);
+    expect(useIde.getState().saveError?.kind).toBe('quota');
+    expect(mockSaveProjectContent).not.toHaveBeenCalled();
   });
 
   it('preserves ambiguous legacy duplicate snapshots as separate recovery drafts', async () => {

@@ -4,6 +4,19 @@
 
 **Release gate status: BLOCKED**
 
+`READY` means **eligible to attempt a controlled promotion**, not "deployed" or
+"production canary passed." The operator may commit `READY` only after the
+pre-promotion controls are evidenced: reviewed durability changes, a tested
+rollback/canary path, a recorded off-host restore drill, and independent
+external host-down monitoring. The full release gate then runs on that exact
+clean `production` commit and creates a short-lived, commit/profile-bound
+stamp; candidate publication does not change production. Promotion still
+requires the published image digest and separate exact-tuple approval. The
+production canary cannot run against the new image until *after* promotion:
+`make promote-vps` must run it before declaring success or removing rollback
+evidence, and must roll back on failure. Never set `READY` merely to get past
+a failing gate, or treat a successful local gate as a production canary.
+
 **Applies to:** every pi3 deployment, including institutional and public profiles
 
 **Owner:** release operator
@@ -99,8 +112,10 @@ from a green focused test run.
   invariant; same-host backups do not protect against VPS/disk loss.
 - The configured production canary account ID was verified read-only as an
   existing student; its value is not recorded here. The scoped canary-token flow
-  is implemented locally but has not been tested against production; the API/UI
-  canary has not run, and no production promotion is authorized.
+  is implemented locally but has not been tested against production. Confirm
+  the account and rollback/canary machinery are ready *before* promotion; the
+  new image's authenticated API/UI canary runs *after* promotion, within the
+  same rollback-protected command. No production promotion is authorized yet.
 - The Vercel production path has no policy-compliant rollback/canary workflow and
   remains deliberately disabled.
 
@@ -153,7 +168,9 @@ connectivity is down. A separate external dead-man's-switch monitor is still
 needed for that failure mode; Telegram delivery alone does not establish
 host-loss monitoring. Telegram and the first off-host drill are now recorded;
 keep release status **BLOCKED** until independent external monitoring and the
-remaining clean-candidate gate/review and production canary requirements are met.
+remaining pre-promotion review/rollback/canary preparations are evidenced.
+`READY` precedes the exact clean-commit release gate; the production canary is
+mandatory *after* the image switch and before rollout success.
 
 The current release workflow builds/publishes a candidate first,
 then requires separate, command-line approval bound to commit, registry
@@ -271,45 +288,49 @@ release log:
 
 ### Before changing production
 
-1. Identify the exact commit and build an immutable image tagged with its full
-   commit SHA. Record the image digest.
-2. Run lint, unit/server tests, the full browser suite, and the storage migration
-   suite. `scripts/run-e2e.sh` must use a fresh temporary SQLite database with
-   Turso credentials unset so local browser tests cannot touch production.
-3. Confirm there are no unresolved data-safety blockers.
-4. Create the encrypted pre-deploy SQLite backup under `/srv/pi3/backups` and
-   verify its checksum and restored-copy integrity before changing containers.
-5. Record baseline row counts and successfully read a real canary project.
-6. Dry-run new migrations on the restored copy. Compare row counts and canary
-   project content before and after.
+1. Identify the exact candidate commit. Confirm that external monitoring, the
+   recorded restore drill, review, and rollback/canary preparations are ready;
+   commit `READY` with the candidate on `production` only when these
+   pre-promotion conditions are met. It does not claim a gate stamp or a passed
+   production canary.
+2. Run the full release gate on that exact clean commit and deployment profile:
+   lint, unit/server tests, previous-version browser/storage migrations and
+   offline sync fixtures, the full browser suite, and builds. `scripts/run-e2e.sh`
+   must use a fresh temporary SQLite database with Turso credentials unset so
+   local browser tests cannot touch production. Retain the fresh gate stamp.
+3. Build and publish an immutable candidate tagged with the full commit SHA;
+   record the registry digest. Publication does not change production.
+4. Obtain final product-owner approval for that commit/digest/profile/VPS/origin
+   tuple. This is a separate command-line input, never stored in config.
 
-### Deploy
+### Controlled promotion (`make promote-vps`)
 
-7. Publish a candidate, record its exact registry digest, and obtain final
-   product-owner approval for that commit/digest/profile/VPS/origin tuple. The
-   approval is a separate command-line input; it must not be stored in config.
-8. Promote only the recorded image digest. Keep the previous Compose file and a
+5. Before switching containers, create the encrypted pre-deploy SQLite backup
+   under `/srv/pi3/backups`; verify its checksum and restored-copy integrity.
+6. Record baseline row counts and read a representative pre-existing project.
+7. Dry-run the candidate image's migrations on an isolated restored copy;
+   compare row counts, migration names, and project content.
+8. Promote only the approved image digest. Keep the previous Compose file and a
    digest-pinned rollback configuration until the post-deploy canary passes.
-9. Do not delete or recreate the database volume. Wait for migrations and
-   health checks to complete. If either fails, stop the rollout; do not retry
-   destructive steps automatically.
+9. Never delete or recreate the database volume. Wait for migrations and health
+   checks; on failure stop the rollout without automatic destructive retries.
 
 ### Verify before declaring success
 
 10. Compare post-deploy row counts with the baseline. Any unexplained decrease
     is an automatic rollback/incident condition.
-11. Read the pre-existing canary project and compare its content hash across
-    files, assets, tilemaps, sounds, sheet, current file, owner, and revision.
-12. Run `make promote-vps` with the dedicated canary account ID and a fresh
-    exact approval. Sign in through the opened browser; the server issues a
-    10-minute token scoped to that one canary project for read/delete only. The
-    canary creates the project in the authenticated session, edits/reloads it
-    through the IDE, verifies the server copy, deletes it, and confirms it is
-    gone. Failure triggers release-specific rollback of image and Compose.
-13. Verify a previous-version local browser fixture upgrades with all projects
-    intact, and verify offline-to-online sync.
-14. Monitor save failures, migration errors, and project-not-found responses for
-    at least 30 minutes.
+11. Read the pre-existing project and compare its content hash across files,
+    assets, tilemaps, sounds, sheet, current file, owner, and revision.
+12. During the same `make promote-vps` invocation, use the dedicated canary
+    account to sign in through the opened browser. After the image switch, the
+    server issues a 10-minute token scoped to that one canary project for
+    read/delete only. The canary creates the project in the authenticated
+    session, edits/reloads it through the IDE, verifies the server copy, deletes
+    it, and confirms it is gone. Failure triggers release-specific rollback of
+    image and Compose; the command cannot report success or discard rollback
+    evidence before this passes.
+13. Monitor save failures, migration errors, and project-not-found responses for
+    at least 30 minutes before final release sign-off.
 
 ## 6. Rollback and incident response
 
@@ -332,16 +353,20 @@ If any project disappears:
 
 ## 7. Required verification work
 
-The implementation is not release-ready until these controls are demonstrated
-on the exact clean candidate and supported operational environment:
+The implementation is not eligible for controlled promotion until the
+pre-promotion controls are demonstrated on the exact clean candidate and
+supported operational environment. Production acceptance additionally requires
+the post-promotion canary; it cannot be a prerequisite for setting `READY`:
 
 - verify claim/sync with revision comparison, read-back verification, and
   copy-first deletion; preserve conflicting revisions rather than overwriting
   silently;
 - complete monthly off-host decrypt/restore drills and alerting for missed
   jobs, failed validation, low disk space, and stale drills;
-- run and verify the authenticated API/UI release canary on production; keep
-  the dedicated test-account token out of source control.
+- prepare the dedicated test account and rollback/canary tooling before
+  promotion; run and verify the authenticated API/UI canary on production
+  immediately after the image switch, with automatic rollback on failure.
+  Keep the test-account token out of source control.
 
 No checklist checkbox can waive the durability contract. If a required control
 cannot be demonstrated, the release does not proceed.

@@ -229,7 +229,14 @@ the existing one, so immediate backup success/failure hooks are not active. The
 Telegram token/chat pair is configured in root-owned mode 0600 and Telegram's
 `getChat` API accepted it.
 Direct host-side Telegram messages also cannot detect full VPS/network outages,
-so an independent external dead-man monitor remains required.
+so an independent external dead-man monitor remains required. Release-policy
+`READY` means pre-promotion controls have been reviewed and a controlled rollout
+may be attempted, not that the new production canary already passed: commit
+`READY` with the candidate only after the external monitor, restore drill, review,
+and rollback/canary preparations are in place; run the exact clean-commit release
+gate afterward. Image digest and explicit approval are separate promotion checks.
+`make promote-vps` runs the production canary after the image switch and rolls
+back on failure; final acceptance follows post-deploy monitoring.
 
 ## Architecture
 

@@ -82,8 +82,9 @@ push:
 	docker push $(IMAGE):$(SHA)
 	@echo "→ Published candidate tag $(IMAGE):$(SHA)"
 
-# One public production entry point: backup + immutable deploy + authenticated
-# API/UI canary + rollback on any canary/identity failure.
+# One public production entry point: READY permits an attempt, not success.
+# Check the exact gate/approval, back up, promote the immutable digest, then
+# require the authenticated API/UI canary before removing rollback evidence.
 promote-vps: release-policy-check
 	@docker pull "$(CANDIDATE_IMAGE_REF)" >/dev/null
 	@test "$$(docker image inspect "$(CANDIDATE_IMAGE_REF)" --format '{{range .RepoDigests}}{{println .}}{{end}}' | grep -F '$(IMAGE)@sha256:' | head -n 1)" = "$(CANDIDATE_IMAGE_REF)" || { echo 'ERROR: local image does not match the approved immutable candidate' >&2; exit 1; }

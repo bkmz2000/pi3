@@ -27,6 +27,26 @@ function touchAt(path: string, epoch: number): void {
 describe('release script safety regressions', () => {
   jest.setTimeout(15_000);
 
+  it('treats READY as pre-promotion eligibility, with canary and rollback after the image switch', () => {
+    const policy = readFileSync(join(root, 'docs/deployment-data-safety.md'), 'utf8');
+    const check = readFileSync(join(root, 'scripts/release-policy-check.sh'), 'utf8');
+    const makefile = readFileSync(join(root, 'Makefile'), 'utf8');
+    expect(policy).toContain('`READY` means **eligible to attempt a controlled promotion**');
+    expect(policy.replace(/\s+/g, ' ')).toContain('The production canary cannot run against the new image until *after* promotion');
+    expect(check).toContain("grep -Fqx '**Release gate status: READY**'");
+    expect(check).toContain('stamp="$stamp_dir/${sha}-${profile}.stamp"');
+    const promotion = makefile.indexOf('promote-vps: release-policy-check');
+    const imageSwitch = makefile.indexOf("/tmp/pi3-deploy-vps-$(SHA).sh '$(CANDIDATE_IMAGE_REF)'", promotion);
+    const canary = makefile.indexOf('if node scripts/deploy-canary.mjs &&', promotion);
+    const rollback = makefile.indexOf('scripts/rollback-vps.sh', canary);
+    const nextTarget = makefile.indexOf('\nrollback:', canary);
+    expect(promotion).toBeGreaterThan(-1);
+    expect(imageSwitch).toBeGreaterThan(promotion);
+    expect(canary).toBeGreaterThan(imageSwitch);
+    expect(rollback).toBeGreaterThan(canary);
+    expect(rollback).toBeLessThan(nextTarget);
+  });
+
   it('retention keeps 7/4/1 rolling files and never removes the protected restore-tested copy', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'pi3-retention-test-'));
     try {

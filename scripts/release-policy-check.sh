@@ -18,8 +18,11 @@ if [ "$MODE" = preflight ]; then
 fi
 [ "$MODE" = deploy ] || fail "unknown policy-check mode: $MODE"
 
+# READY attests pre-promotion prerequisites, not a canary on the new image.
+# The exact gate stamp and digest-bound approval below remain separate checks;
+# Makefile runs the production canary after switching, then rolls back on failure.
 grep -Fqx '**Release gate status: READY**' docs/deployment-data-safety.md || \
-  fail 'docs/deployment-data-safety.md is not READY; resolve and document every blocker first'
+  fail 'docs/deployment-data-safety.md is not READY for controlled promotion; resolve pre-promotion blockers first'
 [ -n "${VPS:-}" ] || fail 'VPS must be explicitly configured'
 case "$VPS" in *[!A-Za-z0-9_.@:-]*) fail 'VPS must be a single SSH host target (no options or shell metacharacters)' ;; esac
 [ -n "${BACKUP_AGE_RECIPIENT:-}" ] || fail 'BACKUP_AGE_RECIPIENT must be configured'

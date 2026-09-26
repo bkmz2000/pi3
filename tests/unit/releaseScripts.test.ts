@@ -205,9 +205,9 @@ describe('release script safety regressions', () => {
     const policy = readFileSync(join(root, 'docs/deployment-data-safety.md'), 'utf8');
     const check = readFileSync(join(root, 'scripts/release-policy-check.sh'), 'utf8');
     const makefile = readFileSync(join(root, 'Makefile'), 'utf8');
-    expect(policy).toContain('**Release gate status: READY**');
+    expect(policy).toContain('**Release gate status: BLOCKED**');
     expect(policy).toContain('`READY` means **eligible to attempt a controlled promotion**');
-    expect(policy).toContain('candidate canary still has not run');
+    expect(policy).toContain('canary attempt failed with HTTP 401 on scoped read-back');
     const normalizedPolicy = policy.replace(/\s+/g, ' ');
     expect(normalizedPolicy).toContain('The production canary cannot run against the new image until *after* promotion');
     expect(normalizedPolicy).toContain('independent external host-down monitoring is recommended but not a launch gate');

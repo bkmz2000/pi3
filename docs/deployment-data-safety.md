@@ -2,7 +2,7 @@
 
 **Status:** Required release policy
 
-**Release gate status: READY**
+**Release gate status: BLOCKED**
 
 `READY` means **eligible to attempt a controlled promotion**, not "deployed" or
 "production canary passed." The operator may commit `READY` only after the
@@ -71,7 +71,7 @@ A release is blocked unless all of these are true:
 10. Storage quota or persistence failures keep the project dirty and show a
     blocking recovery action; they never resolve as a successful save.
 
-### Current release status: READY for a controlled attempt (2026-09-26)
+### Current release status: BLOCKED after failed canary (2026-09-26)
 
 A controlled promotion of commit `a8dd8c71a0409db155d3c49971347b585bcac497`
 was explicitly approved for institutional candidate
@@ -118,7 +118,9 @@ eligible for this attempt. The exact current source commit must pass its own
 release gate and be published as an immutable matching digest. READY means
 **eligible to attempt** a controlled promotion, not deployed or canary-passed;
 explicit approval for the exact commit/profile/digest/VPS/origin is still
-required. No promotion or canary success is recorded.
+required. No successful promotion or canary is recorded.
+
+A later explicit approval authorized commit `39eafcd2eb58b2c958c50a9a6cd07d407cae8629`, profile `institutional`, image `ghcr.io/bkmz2000/pi3@sha256:d064fe858559bbd38352b925ee02eac79c4a0ec1173b21bac4f0879cd00e7a29`, VPS `root@159.194.196.40`, and origin `https://pi3.sys5.ru`. Its exact-commit release gate passed and the digest labels matched. Candidate health and DB read-back passed (42 projects, 17 users, 16 migrations, project read-back verified), but the post-switch API/UI canary failed: scoped project read returned HTTP 401; automatic scoped cleanup returned 401 and the session cleanup path returned 403. `make promote-vps` automatically rolled back to the prior pinned digest `sha256:4f55bd0d89533ecd288694638c80c186fd6e36b55fb82b0c17a48cbbb12e0404`; rollback health passed after two probes. Subsequent read-only checks showed the prior image running and both internal/public health 200. A final read-only SQLite query returned integrity `ok`, 43 projects, 17 users, and 16 migrations; it found exactly one generated `Release canary` project and one expired scoped-token row. The encrypted attempt snapshot `pi3-predeploy-20260926T153328Z.db.age` remains mode 0600. Checked shares, comments, and help-request dependencies for that project are zero. Do not manually delete them before explicit review. The rollback command retired its release-specific markers after verified rollback. The current Compose file hardcodes the prior digest, but `.env` still has `PI3_IMAGE` set to the failed candidate; current-image marker is the prior digest and current release SHA is `unknown`. No production promotion or canary success occurred. Keep policy **BLOCKED**; do not retry until the canary 401 is diagnosed, runtime configuration and remaining canary data are safely reconciled, rollback/audit handling is reviewed, and a new exact-commit candidate receives fresh owner approval.
 
 - Historical browser-save review blockers (local-draft export, claim read-back,
   reconnect/editor revision, post-conflict autosave, clean-draft claiming, and
@@ -174,7 +176,7 @@ required. No promotion or canary success is recorded.
   image is not a valid target for the new canary; do not rerun against it. The
   candidate's canary runs *after* its approved switch, within the rollback-
   protected command. This legacy-image check preceded the approved but failed
-  candidate promotion described above; the candidate canary still has not run.
+  candidate promotion described above; the subsequent canary attempt failed with HTTP 401 on scoped read-back, and automatic rollback succeeded. See the incident record below.
 - The Vercel production path has no policy-compliant rollback/canary workflow and
   remains deliberately disabled.
 - Before promotion, `scripts/verify-age-recipient.sh` must derive exactly one

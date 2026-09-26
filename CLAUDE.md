@@ -161,10 +161,25 @@ Compose file, or `.env`; rollback files were checksum-archived both on the VPS
 and locally before active markers were retired. The legacy prior release SHA
 remains unknown. The exact prior image successfully reran `initDb()` against an
 isolated fixture after migration 014, though student-level API behavior still
-requires the post-switch canary. Release policy is now **READY for a controlled
-attempt only**. The `6998282` digest lacks the current marker guard and must not
-be used; any attempt requires a new exact-commit candidate and explicit
-digest-bound owner approval. See Deployment data safety for evidence paths.
+requires the post-switch canary. At that point policy was **READY for a
+controlled attempt only**. The `6998282` digest lacks the current marker guard
+and must not be used. See Deployment data safety for evidence paths.
+
+A later explicitly approved attempt on `39eafcd2eb58b2c958c50a9a6cd07d407cae8629`
+with digest `ghcr.io/bkmz2000/pi3@sha256:d064fe858559bbd38352b925ee02eac79c4a0ec1173b21bac4f0879cd00e7a29`
+passed candidate health and DB read-back, but its production scoped-canary
+read returned HTTP 401. Both canary cleanup paths failed (401/403). The
+promotion target automatically rolled back to prior digest
+`sha256:4f55bd0d89533ecd288694638c80c186fd6e36b55fb82b0c17a48cbbb12e0404`;
+rollback health passed after two probes and public/internal health are 200.
+Read-only verification found `.env` still selecting the failed candidate while
+the restored Compose file hardcodes the prior digest; `.pi3-current-release-sha`
+remains `unknown`. One generated canary project and scoped-token row remain.
+The rollback script also retired release-specific evidence markers on its
+success path, contrary to the attended-watch retention policy. Release policy is
+**BLOCKED** again. Do not retry or clean canary data/evidence until the 401,
+rollback configuration/evidence behavior, and remaining project/token are
+reviewed and reconciled.
 
 **Testing the worker without Pyodide.** `src/runner/WorkerInterface.ts` defines
 typed `WorkerCommand`/`WorkerEvent` unions. Test `RunnerProvider` /
@@ -233,14 +248,16 @@ into a private host temp file. The release-gate stamp requires `make test`
 health probes. Bounded polling was implemented and gated; the retained rollback
 markers were later archived with verified copies on the VPS and local machine,
 then retired without changing the running prior digest, `.env`, Compose file, or
-database. Internal/public health remain 200. The live schema includes additive
-migration `014_canary_tokens.sql` (16 migrations, 42 projects, 17 users, zero
-canary rows); an isolated prior-image startup test with 014 passed, while the
-production authenticated canary still must run after an approved image switch.
-Release policy is **READY for a controlled attempt only**. The old `6998282`
-digest lacks the current marker guard and is not eligible; any next attempt
-requires a new exact-commit gate, matching candidate digest, and explicit owner
-approval. Independent external host-down monitoring is
+database. Internal/public health remain 200. Before the later switch attempt,
+the live schema included additive migration `014_canary_tokens.sql` (16
+migrations, 42 projects, 17 users, zero canary rows); an isolated prior-image
+startup test with 014 passed. The later
+approved switch attempt on `39eafcd` failed its scoped canary read-back with
+HTTP 401 and automatically rolled back; see the incident note above. Release
+policy is currently **BLOCKED**. Neither the old `6998282` digest nor the failed
+`39eafcd` candidate is eligible for retry. Resolve the canary authorization and
+rollback-state issues, then require a new exact-commit gate, matching candidate
+digest, and explicit owner approval. Independent external host-down monitoring is
 absent but is a recommended follow-up rather than a gate for this manually
 attended pilot;
 the completed off-host restore snapshot did not contain assets, sounds, or

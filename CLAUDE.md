@@ -173,12 +173,18 @@ promotion target automatically rolled back to prior digest
 `sha256:4f55bd0d89533ecd288694638c80c186fd6e36b55fb82b0c17a48cbbb12e0404`;
 rollback health passed after two probes and public/internal health are 200.
 Read-only verification found `.env` still selecting the failed candidate while
-the restored Compose file hardcodes the prior digest; `.pi3-current-release-sha`
-remains `unknown`. One generated canary project and scoped-token row remain.
-The rollback script also retired release-specific evidence markers on its
-success path, contrary to the attended-watch retention policy. Release policy is
+the restored Compose file hardcoded the prior digest. After separate explicit
+approval, only `.env`'s `PI3_IMAGE` was restored to the prior digest, with a
+mode-0600 audit copy at `/srv/pi3/backups/reconciliation-canary-failure-20260926T172215Z/.env.before`; the container was not restarted. Compose, `.env`, and the
+running container now select the prior digest; `.pi3-current-release-sha`
+remains `unknown`. One generated canary project, an expired scoped-token row,
+and one `live_presence` row containing the canary code remain. The guarded
+project/token cleanup transaction detected the presence dependency and aborted
+without deleting DB rows; normal live-presence retention is 24 hours. The
+rollback script also retired release-specific evidence markers on its success
+path, contrary to the attended-watch retention policy. Release policy is
 **BLOCKED** again. Do not retry or clean canary data/evidence until the 401,
-rollback configuration/evidence behavior, and remaining project/token are
+rollback evidence behavior, and remaining project/token/presence rows are
 reviewed and reconciled.
 
 **Testing the worker without Pyodide.** `src/runner/WorkerInterface.ts` defines

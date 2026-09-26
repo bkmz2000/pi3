@@ -88,13 +88,13 @@ verification. Focused tests, lint, typecheck, and the smoke E2E suite pass, and
 both profile gates). The configured recipient matches the protected identity,
 and an isolated container encryption round-trip passed. Independent corrected-code follow-up reviews returned **OK with notes**, with
 no remaining code findings; the helper's executable mode is verified as
-`0755`. The complete local release gate passed for exact commit
-`7271711d7d75d6faf73f506a903ee073c2be501d` / `institutional`; its protected
-mode-0600 stamp is present. Policy remains **BLOCKED** because production
-rollback/canary preparedness and the scoped canary-token flow have not been
-verified against production. This gate does not itself confer `READY` or
-promotion approval. No image has been published or deployed; exact artifact
-approval and the controlled production canary remain required.
+`0755`. The complete local release gate has passed on clean production
+commits/profile `institutional`; stamps are private mode 0600 and bound to
+exact commits. Policy remains **BLOCKED**: no candidate has been promoted, so
+production rollback/canary behavior is not yet verified. This gate does not
+itself confer `READY` or promotion approval. No image has been published or
+deployed; exact artifact approval and the controlled production canary remain
+required.
 
 - Browser save durability still requires a clean-candidate full test run and
   review, including offline queue replay, forked-project revision tracking,
@@ -151,9 +151,15 @@ approval and the controlled production canary remain required.
   minutes for operator sign-in. No canary project was created, and a subsequent
   read-only DB query found no `Release canary` projects. The launcher now sets
   an 11-minute protocol timeout; the authenticated API/UI canary must still be
-  completed. Confirm the account and rollback/canary machinery are ready
-  *before* promotion; the candidate canary runs *after* promotion, within the
-  same rollback-protected command. No production promotion is authorized yet.
+  completed on the candidate. In a subsequent authorized live check, the
+  dedicated student authenticated and a temporary project was created, but
+  scoped-token issuance returned 404 on the currently running legacy `:latest`
+  image; the student session's DELETE returned 403. The exact canary row was
+  removed in a guarded transaction after verifying its name and that it had no
+  related rows. No image/container was changed. This verifies the old production
+  image is not a valid target for the new canary; do not rerun against it. The
+  candidate's canary runs *after* its approved switch, within the rollback-
+  protected command. No production promotion is authorized yet.
 - The Vercel production path has no policy-compliant rollback/canary workflow and
   remains deliberately disabled.
 - Before promotion, `scripts/verify-age-recipient.sh` must derive exactly one

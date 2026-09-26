@@ -87,11 +87,14 @@ verification. Focused tests, lint, typecheck, and the smoke E2E suite pass, and
 `make test` now passes (101 frontend suites/1005 tests plus server coverage and
 both profile gates). The configured recipient matches the protected identity,
 and an isolated container encryption round-trip passed. Independent corrected-code follow-up reviews returned **OK with notes**, with
-no remaining code findings; the ops reviewer requested confirming the helper's
-executable mode, now verified as `0755`. The complete clean-commit release
-gate/stamp is still pending. Do not mark READY or infer readiness from these
-results. No image has been published or deployed; exact artifact approval and
-the controlled production canary remain required.
+no remaining code findings; the helper's executable mode is verified as
+`0755`. The complete local release gate passed for exact commit
+`7271711d7d75d6faf73f506a903ee073c2be501d` / `institutional`; its protected
+mode-0600 stamp is present. Policy remains **BLOCKED** because production
+rollback/canary preparedness and the scoped canary-token flow have not been
+verified against production. This gate does not itself confer `READY` or
+promotion approval. No image has been published or deployed; exact artifact
+approval and the controlled production canary remain required.
 
 - Browser save durability still requires a clean-candidate full test run and
   review, including offline queue replay, forked-project revision tracking,

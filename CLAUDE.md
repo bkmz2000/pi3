@@ -177,15 +177,14 @@ the restored Compose file hardcoded the prior digest. After separate explicit
 approval, only `.env`'s `PI3_IMAGE` was restored to the prior digest, with a
 mode-0600 audit copy at `/srv/pi3/backups/reconciliation-canary-failure-20260926T172215Z/.env.before`; the container was not restarted. Compose, `.env`, and the
 running container now select the prior digest; `.pi3-current-release-sha`
-remains `unknown`. One generated canary project, an expired scoped-token row,
-and one `live_presence` row containing the canary code remain. The guarded
-project/token cleanup transaction detected the presence dependency and aborted
-without deleting DB rows; normal live-presence retention is 24 hours. The
-rollback script also retired release-specific evidence markers on its success
-path, contrary to the attended-watch retention policy. Release policy is
-**BLOCKED** again. Do not retry or clean canary data/evidence until the 401,
-rollback evidence behavior, and remaining project/token/presence rows are
-reviewed and reconciled.
+remains `unknown`. After separate explicit authorization, a guarded transaction
+revalidated and removed only the exact generated canary project, its expired
+token, and its matching `live_presence` row; final SQLite integrity is `ok`,
+counts are 42 projects/17 users/16 migrations, and no canary artifacts remain.
+The rollback script also retired release-specific evidence markers on its
+success path, contrary to the attended-watch retention policy. Release policy is
+**BLOCKED** again. Do not retry until the 401 and rollback evidence behavior are
+reviewed and fixed, then require a fresh exact-commit gate and owner approval.
 
 **Testing the worker without Pyodide.** `src/runner/WorkerInterface.ts` defines
 typed `WorkerCommand`/`WorkerEvent` unions. Test `RunnerProvider` /

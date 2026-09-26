@@ -20,7 +20,9 @@ export default function ForkDialog({ onClose, onSave }: ForkDialogProps) {
       await onSave(name.trim());
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      setError(msg === "Unauthorized" ? "Sign in to save your project" : msg);
+      setError(msg === 'draftClaimVerificationFailed'
+        ? t('fork.draftClaimVerificationFailed')
+        : msg === 'Unauthorized' ? 'Sign in to save your project' : msg);
     } finally {
       setSaving(false);
     }

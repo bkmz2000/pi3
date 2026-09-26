@@ -4,6 +4,7 @@ import { fileURLToPath } from 'url';
 import { backfillHandles } from './handle.js';
 import { createLibsqlClient } from './libsql.js';
 import { createSqliteClient } from './sqlite-shim.js';
+import { assertMigrationSet } from './migrationSafety.js';
 import type { DbClient } from './client.js';
 
 // Production client (set by initDb); test client (set by setTestClient in beforeEach).
@@ -96,6 +97,10 @@ export async function initDb(): Promise<void> {
       await c.execute('INSERT INTO schema_migrations (filename, applied_at) VALUES (?, ?)', [file, now]);
     }
   }
+
+  const appliedMigrationNames = (await c.execute('SELECT filename FROM schema_migrations ORDER BY filename')).rows
+    .map((row) => String(row.filename));
+  assertMigrationSet(appliedMigrationNames, files);
 
   // Inline migrations for schema elements not yet extracted to migration files.
   // Each is individually guarded to stay idempotent across re-runs.
@@ -267,6 +272,7 @@ export async function resetDatabase(): Promise<void> {
     { sql: 'DROP TABLE IF EXISTS group_members' },
     { sql: 'DROP TABLE IF EXISTS groups' },
     { sql: 'DROP TABLE IF EXISTS project_shares' },
+    { sql: 'DROP TABLE IF EXISTS canary_tokens' },
     { sql: 'DROP TABLE IF EXISTS projects' },
     { sql: 'DROP TABLE IF EXISTS users' },
     { sql: 'DROP TABLE IF EXISTS schema_migrations' },

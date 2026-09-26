@@ -18,6 +18,7 @@ import { createCompeteRouter } from './routes/compete.js';
 import { createModerationRouter } from './routes/moderation.js';
 import { createSnapshotsRouter } from './routes/snapshots.js';
 import { createSessionsRouter } from './routes/sessions.js';
+import { createCanaryRouter } from './routes/canary.js';
 import { decompressRequest } from './middleware/decompress.js';
 import { requireCsrfHeader } from './middleware/auth.js';
 
@@ -135,7 +136,8 @@ app.post('/api/log/client-error', (req, res) => {
 });
 
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: Date.now() });
+  const e2eInstance = process.env.NODE_ENV !== 'production' ? process.env.PI3_E2E_INSTANCE_ID : undefined;
+  res.json({ status: 'ok', timestamp: Date.now(), ...(e2eInstance ? { e2eInstance } : {}) });
 });
 
 app.get('/api/config', (req, res) => {
@@ -155,6 +157,7 @@ app.use('/api', createCompeteRouter());
 app.use('/api/moderation', createModerationRouter());
 app.use('/api/snapshots', createSnapshotsRouter());
 app.use('/api/sessions', createSessionsRouter());
+app.use('/api/canary', createCanaryRouter());
 
 app.use((req, res, next) => {
   if (!req.path.startsWith('/api/')) {

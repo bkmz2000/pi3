@@ -31,6 +31,13 @@ const userState = { authState: 'logged_in', user: { role: 'student' } };
 
 jest.mock('../../src/hooks/useProjects', () => ({ useProjects: () => projectsState }));
 jest.mock('../../src/state/useUser', () => ({ useUser: () => userState }));
+jest.mock('../../src/utils/storage', () => ({
+  projectStorage: { listAnonymousDrafts: jest.fn().mockResolvedValue([]) },
+}));
+jest.mock('../../src/utils/anonStash', () => ({
+  migrateLegacyAnonStash: jest.fn().mockResolvedValue(undefined),
+}));
+jest.mock('../../src/utils/zip', () => ({ downloadProjectZip: jest.fn().mockResolvedValue(undefined) }));
 jest.mock('../../src/state/IdeState', () => ({
   useEditor: (selector: (state: typeof editorState) => unknown) => selector(editorState),
   isExampleSessionId: (id: string | null | undefined) => typeof id === 'string' && id.startsWith('__example_session_'),
@@ -50,6 +57,8 @@ jest.mock('../../src/state/useTheme', () => ({
 jest.mock('../../src/components/projects/ShareDialog', () => ({ ShareDialog: () => null }));
 
 import { ProjectsPage } from '../../src/components/projects/ProjectsPage';
+import { projectStorage } from '../../src/utils/storage';
+import { downloadProjectZip } from '../../src/utils/zip';
 
 function LocationProbe() {
   const location = useLocation();
@@ -67,6 +76,7 @@ function renderPage(path = '/projects') {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  (projectStorage.listAnonymousDrafts as jest.Mock).mockResolvedValue([]);
   userState.authState = 'logged_in';
   editorState.currentProjectId = 'mine-1';
 });
@@ -91,6 +101,43 @@ it('opens examples through an explicit draft route', () => {
   const helloRow = screen.getByText('Hello World').closest('article');
   fireEvent.click(helloRow!.querySelector('button')!);
   expect(screen.getByTestId('location')).toHaveTextContent('/ide/example/hello%20world');
+});
+
+it('shows and opens local recovery drafts even when signed out', async () => {
+  userState.authState = 'signed_out';
+  (projectStorage.listAnonymousDrafts as jest.Mock).mockResolvedValue([{
+    id: '__anon_draft_recovered_proj-queue_52',
+    project: { name: 'Recovered offline edits #52', files: { 'main.py': 'print(42)' }, assets: {}, tilemaps: {}, sounds: {} },
+    lastModified: Date.now(),
+  }]);
+
+  renderPage();
+
+  const recovery = await screen.findByRole('button', { name: /open recovered offline edits #52/i });
+  fireEvent.click(recovery);
+  expect(screen.getByTestId('location')).toHaveTextContent('/ide/__anon_draft_recovered_proj-queue_52');
+});
+
+it('exports the selected stored local draft even when signed out', async () => {
+  userState.authState = 'signed_out';
+  (projectStorage.listAnonymousDrafts as jest.Mock).mockResolvedValue([{
+    id: '__anon_draft_art',
+    project: {
+      name: 'Art project', files: { 'main.py': 'draw()' },
+      assets: { 'art.png': 'data:image/png;base64,abc' }, tilemaps: {},
+      sounds: { 'beep.wav': 'data:audio/wav;base64,def' }, currentFile: 'main.py',
+    },
+    lastModified: Date.now(),
+  }]);
+  renderPage();
+  fireEvent.click(await screen.findByRole('button', { name: /export project art project/i }));
+  await waitFor(() => expect(downloadProjectZip).toHaveBeenCalledWith(expect.objectContaining({
+    id: '__anon_draft_art',
+    files: [{ name: 'main.py', content: 'draw()' }],
+    assets: { 'art.png': 'data:image/png;base64,abc' },
+    sounds: { 'beep.wav': 'data:audio/wav;base64,def' },
+  })));
+  expect(screen.getByTestId('location')).toHaveTextContent('/projects');
 });
 
 it('returns to the currently loaded account project', () => {

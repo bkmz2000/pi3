@@ -4,6 +4,23 @@
 
 **Release gate status: BLOCKED**
 
+`READY` means **eligible to attempt a controlled promotion**, not "deployed" or
+"production canary passed." The operator may commit `READY` only after the
+pre-promotion controls are evidenced: reviewed durability changes, a tested
+rollback/canary path, and a recorded off-host restore drill. For this manually
+attended pilot, independent external host-down monitoring is recommended but
+not a launch gate (see the accepted risk below). The full release gate then
+runs on that exact clean `production` commit and creates a short-lived,
+commit/profile-bound
+stamp; candidate publication does not change production. Promotion still
+requires the published image digest and separate exact-tuple approval. The
+production canary cannot run against the new image until *after* promotion:
+`make promote-vps` must run it before declaring success and must roll back on
+failure. Keep release-specific rollback evidence through the attended watch;
+only `make finalize-vps FINALIZE_FOR_SHA=<full commit SHA>` may retire it after
+ten minutes and another health/identity check. Never set `READY` merely to get past
+a failing gate, or treat a successful local gate as a production canary.
+
 **Applies to:** every pi3 deployment, including institutional and public profiles
 
 **Owner:** release operator
@@ -63,7 +80,21 @@ from a green focused test run.
 
 - Browser save durability still requires a clean-candidate full test run and
   review, including offline queue replay, forked-project revision tracking,
-  conflict recovery, and IndexedDB abort behavior.
+  conflict recovery, and IndexedDB abort behavior. The 2026-09-25 reviewer
+  blocked the candidate on local-draft export, claim read-back, and candidate
+  migration dry-run; local fixes and focused tests are now staged and a
+  follow-up reviewer found no P0/P1 in their immediate blast radii. Two broader
+  reviewers then BLOCKED the clean WIP candidate `02fea4f` on reconnect/editor
+  revision and post-conflict recovery, clean-draft claiming, unsafe inherited
+  Turso credentials in a local fixture, and early rollback-evidence cleanup.
+  The follow-up release reviewer found no remaining issues; the client reviewer
+  found one further P1: after dirty-editor queue replay, *later* edits with an
+  unknown server revision only reached the cache and could be lost on reload.
+  The fix writes a distinct recovery draft on every such autosave. Both
+  focused follow-ups returned **OK with notes** for their fixes and immediate
+  blast radii (release operations on `e8265f2`; client recovery on `81a4e6d`).
+  Neither verdict is deployment approval or a full clean-`production` release
+  gate. The latter and controlled canary remain pending. Nothing is deployed.
 - **Migration dry-run recorded locally on 2026-09-25:** verified the encrypted
   checksum for `pi3-daily-2026-09-25.db.age`, decrypted only into a private local
   temporary directory, and ran the current `initDb()` migrations against that
@@ -71,21 +102,35 @@ from a green focused test run.
   to 16 tracked migrations (`014_canary_tokens.sql`), project/user counts stayed
   at 39/15, and a representative project content hash was unchanged. The
   plaintext and fixture were removed. This was against the current worktree,
-  not a clean committed image or the live database; the release gate must still
-  verify the exact committed candidate.
-- One local-only decrypt/restore drill was completed on 2026-09-25 from
-  `pi3-daily-2026-09-25.db.age`; integrity and application read-back passed for
-  39 projects, 15 users, and 15 migrations. Its representative project had four
-  files and a sheet, but the backup contained no assets, sounds, or tilemaps.
-  Monthly off-host restore cadence, monitoring, and alerting are not established.
+  not a clean committed image or the live database. The local release gate now
+  exercises an isolated candidate-migration fixture; the promotion script runs
+  the candidate image's migration code on a tmpfs copy of the verified snapshot
+  before changing the container. Neither is evidence for the exact clean
+  committed/published candidate until the gate and actual promotion are verified.
+- **Off-host restore drill recorded on 2026-09-25 at 17:57 UTC:** copied
+  `pi3-daily-2026-09-25.db.age` to a private local temporary directory, checked
+  its encrypted and decrypted SHA-256 values against the VPS manifest, restored
+  SQLite (`integrity_check=ok`, 39 projects, 15 users, 15 migrations), and read
+  a copied four-file project through the authenticated API of an isolated local
+  server. The temporary plaintext, test database, and server were removed.
+  The VPS marking helper preserved `pi3-restore-verified.db.age` and its matching
+  JSON record; the active freshness checker then passed. The legacy nightly
+  backup manifest omitted `file`, so a checksum-verified, append-only filename
+  binding was added before invoking the helper; the nightly executable itself
+  was not replaced. This snapshot has sheets but no assets, sounds, or tilemaps
+  to exercise. Repeat monthly; an independent external host-down monitor is
+  still missing but is not a gate for this attended pilot. Same-VPS retention
+  is not an off-host backup.
 - Read-only production inspection on 2026-09-25 found the running container
   mounted only the database Docker volume; `/srv/pi3/backups` was not mounted.
   The host backup directory was root-owned mode 700. Keep verifying this
   invariant; same-host backups do not protect against VPS/disk loss.
 - The configured production canary account ID was verified read-only as an
   existing student; its value is not recorded here. The scoped canary-token flow
-  is implemented locally but has not been tested against production; the API/UI
-  canary has not run, and no production promotion is authorized.
+  is implemented locally but has not been tested against production. Confirm
+  the account and rollback/canary machinery are ready *before* promotion; the
+  new image's authenticated API/UI canary runs *after* promotion, within the
+  same rollback-protected command. No production promotion is authorized yet.
 - The Vercel production path has no policy-compliant rollback/canary workflow and
   remains deliberately disabled.
 
@@ -95,9 +140,11 @@ and applies 7 daily, 4 weekly, and 1 monthly retention. The local code provides
 a separate protected restore-verified copy, Telegram success/failure messages,
 and a daily backup/restore freshness checker. Telegram credentials are now
 configured on the VPS in root-owned mode 0600, and Telegram's `getChat` API
-accepted the token/chat pair; the notifier scripts and freshness timer have not
-yet been installed or exercised there. The age private identity is local at
-`~/.config/age/pi3-backup-identity.txt` (mode 0600); only the public recipient is
+accepted the token/chat pair. On 2026-09-25 the notifier scripts and
+`pi3-backup-alert-check.timer` were installed, enabled, and exercised. The app
+container was not replaced. The existing nightly backup executable still lacks
+immediate Telegram hooks until a reviewed image establishes release markers.
+The age private identity is local at `~/.config/age/pi3-backup-identity.txt` (mode 0600); only the public recipient is
 on the VPS. These same-VPS backups are not off-host protection.
 
 ### Telegram backup alerts (local implementation)
@@ -121,8 +168,8 @@ Install `scripts/telegram-notify.sh` as
 `mark-restore-verified.sh` for operator use, install the two
 `scripts/systemd/pi3-backup-alert-check.*` units into `/etc/systemd/system`,
 then reload systemd and enable `pi3-backup-alert-check.timer`. Send a manual test
-message and run the checker once; the checker should initially alert that a
-restore drill has not yet been recorded.
+message and run the checker once; before the first drill the checker alerts
+that a restore drill has not yet been recorded.
 
 Do not replace the existing `/usr/local/sbin/pi3-vps-backup` yet. The local
 `vps-backup.sh` deliberately refuses to create backups unless the running image
@@ -132,14 +179,20 @@ nightly backup job intact until a reviewed candidate establishes that identity,
 then install the new backup implementation as a separate verified step.
 
 This on-host checker cannot notify if the entire VPS, its network, or Telegram
-connectivity is down. A separate external dead-man's-switch monitor is still
-needed for that failure mode; Telegram delivery alone does not establish
-host-loss monitoring. Keep release status **BLOCKED** until Telegram is
-configured and tested, the required off-host restore drill is recorded, and
-external monitoring/alerting is established.
+connectivity is down. **Accepted pilot risk:** for a manually attended release
+with a small user base, an independent external dead-man's-switch monitor is
+recommended, not a promotion prerequisite. The operator must watch the rollout
+and check service/backup health the next day. A later total VPS/network outage
+may go unnoticed until a human checks; same-host backups may be lost with the
+host. Add external monitoring before unattended releases or a larger cohort;
+manual attention at deploy time is not equivalent to 24/7 alerting. Telegram
+and the first off-host drill are recorded; keep status **BLOCKED** until the
+remaining pre-promotion review and rollback/canary preparations are evidenced.
+`READY` precedes the exact clean-commit release gate; the production canary is
+mandatory *after* the image switch and before rollout success.
 
-The current release workflow is intended to build/publish a candidate first,
-then require a separate, command-line approval bound to commit, registry
+The current release workflow builds/publishes a candidate first,
+then requires separate, command-line approval bound to commit, registry
 digest, deployment profile, VPS target, and origin before promotion. The
 production canary must then pass; rollback must restore the prior pinned image
 and Compose configuration. This workflow itself is not yet production-verified.
@@ -164,7 +217,8 @@ database have been preserved.
   Each daily/weekly/monthly manifest entry records its filename, source
   release/image digest, checksums, size, and verification metadata. The local
   implementation sends Telegram success/failure notices and includes a daily
-  freshness checker; neither is installed on the VPS yet. This is a snapshot
+  freshness checker. The new backup executable is not installed on the VPS;
+  the separate freshness checker is installed and active. This is a snapshot
   check—not a decrypt-and-restore drill. The age private identity stays
   off-host, so periodic off-host restore tests remain necessary.
 - **Retention:** 7 daily, 4 weekly, and 1 monthly, plus pre-deploy copies kept
@@ -172,7 +226,7 @@ database have been preserved.
   After a full off-host restore drill passes, an operator must run
   `scripts/mark-restore-verified.sh <backup-file.db.age> --restore-drill-passed`
   on the VPS to publish/replace that protected copy. Normal rotation never prunes
-  it. The new helper is local-only until installed and exercised on the VPS;
+  it. The 2026-09-25 off-host drill was recorded with the installed helper;
   prune only after a new snapshot passes its checks.
 - **Recovery keys:** keep the age private identity outside the VPS (password
   manager/offline recovery escrow), restrict access to named operators, and
@@ -253,45 +307,57 @@ release log:
 
 ### Before changing production
 
-1. Identify the exact commit and build an immutable image tagged with its full
-   commit SHA. Record the image digest.
-2. Run lint, unit/server tests, the full browser suite, and the storage migration
-   suite. `scripts/run-e2e.sh` must use a fresh temporary SQLite database with
-   Turso credentials unset so local browser tests cannot touch production.
-3. Confirm there are no unresolved data-safety blockers.
-4. Create the encrypted pre-deploy SQLite backup under `/srv/pi3/backups` and
-   verify its checksum and restored-copy integrity before changing containers.
-5. Record baseline row counts and successfully read a real canary project.
-6. Dry-run new migrations on the restored copy. Compare row counts and canary
-   project content before and after.
+1. Identify the exact candidate commit. Confirm the recorded restore drill,
+   review, and rollback/canary preparations are ready; explicitly accept the
+   missing external-monitor risk for this manually attended pilot. Commit
+   `READY` with the candidate on `production` only when these pre-promotion
+   conditions are met. It does not claim a gate stamp or a passed production
+   canary.
+2. Run the full release gate on that exact clean commit and deployment profile:
+   lint, unit/server tests, previous-version browser/storage migrations and
+   offline sync fixtures, the full browser suite, and builds. `scripts/run-e2e.sh`
+   must use a fresh temporary SQLite database with Turso credentials unset so
+   local browser tests cannot touch production. Retain the fresh gate stamp.
+3. Build and publish an immutable candidate tagged with the full commit SHA;
+   record the registry digest. Publication does not change production.
+4. Obtain final product-owner approval for that commit/digest/profile/VPS/origin
+   tuple. This is a separate command-line input, never stored in config.
 
-### Deploy
+### Controlled promotion (`make promote-vps`)
 
-7. Publish a candidate, record its exact registry digest, and obtain final
-   product-owner approval for that commit/digest/profile/VPS/origin tuple. The
-   approval is a separate command-line input; it must not be stored in config.
-8. Promote only the recorded image digest. Keep the previous Compose file and a
-   digest-pinned rollback configuration until the post-deploy canary passes.
-9. Do not delete or recreate the database volume. Wait for migrations and
-   health checks to complete. If either fails, stop the rollout; do not retry
-   destructive steps automatically.
+5. Before switching containers, create the encrypted pre-deploy SQLite backup
+   under `/srv/pi3/backups`; verify its checksum and restored-copy integrity.
+6. Record baseline row counts and read a representative pre-existing project.
+7. Dry-run the candidate image's migrations on an isolated restored copy;
+   compare row counts, migration names, and project content.
+8. Promote only the approved image digest. Keep the previous Compose file and a
+   digest-pinned rollback configuration through the canary and attended watch.
+9. Never delete or recreate the database volume. Wait for migrations and health
+   checks; on failure stop the rollout without automatic destructive retries.
 
 ### Verify before declaring success
 
 10. Compare post-deploy row counts with the baseline. Any unexplained decrease
     is an automatic rollback/incident condition.
-11. Read the pre-existing canary project and compare its content hash across
-    files, assets, tilemaps, sounds, sheet, current file, owner, and revision.
-12. Run `make promote-vps` with the dedicated canary account ID and a fresh
-    exact approval. Sign in through the opened browser; the server issues a
-    10-minute token scoped to that one canary project for read/delete only. The
-    canary creates the project in the authenticated session, edits/reloads it
-    through the IDE, verifies the server copy, deletes it, and confirms it is
-    gone. Failure triggers release-specific rollback of image and Compose.
-13. Verify a previous-version local browser fixture upgrades with all projects
-    intact, and verify offline-to-online sync.
-14. Monitor save failures, migration errors, and project-not-found responses for
-    at least 30 minutes.
+11. Read the pre-existing project and compare its content hash across files,
+    assets, tilemaps, sounds, sheet, current file, owner, and revision.
+12. During the same `make promote-vps` invocation, use the dedicated canary
+    account to sign in through the opened browser. After the image switch, the
+    server issues a 10-minute token scoped to that one canary project for
+    read/delete only. The canary creates the project in the authenticated
+    session, edits/reloads it through the IDE, verifies the server copy, deletes
+    it, and confirms it is gone. Failure triggers release-specific rollback of
+    image and Compose; the command cannot report success before this passes.
+    A passing canary retains rollback evidence rather than deleting it.
+13. Actively watch save failures, migration errors, and project-not-found
+    responses for at least 10 minutes after the canary. If anything fails, use
+    `make rollback ROLLBACK_FOR_SHA=<full commit SHA>` while its exact rollback
+    files are intact. After the watch passes, explicitly run
+    `make finalize-vps FINALIZE_FOR_SHA=<full commit SHA>`; it rechecks the live
+    image/health and the canary timestamp before retiring those files. Check
+    service health, backup freshness, and the same error signals again the next
+    day. Treat any data-loss symptom as an incident; the missing external
+    host-down monitor remains a separately documented follow-up.
 
 ## 6. Rollback and incident response
 
@@ -314,16 +380,23 @@ If any project disappears:
 
 ## 7. Required verification work
 
-The implementation is not release-ready until these controls are demonstrated
-on the exact clean candidate and supported operational environment:
+The implementation is not eligible for controlled promotion until the
+pre-promotion controls are demonstrated on the exact clean candidate and
+supported operational environment. Production acceptance additionally requires
+the post-promotion canary; it cannot be a prerequisite for setting `READY`:
 
 - verify claim/sync with revision comparison, read-back verification, and
   copy-first deletion; preserve conflicting revisions rather than overwriting
   silently;
-- complete monthly off-host decrypt/restore drills and alerting for missed
-  jobs, failed validation, low disk space, and stale drills;
-- run and verify the authenticated API/UI release canary on production; keep
-  the dedicated test-account token out of source control.
+- keep an encrypted pre-deploy backup and the recorded off-host restore drill;
+  continue monthly drills and on-host alerts for missed jobs, failed validation,
+  low disk space, and stale drills. A failed backup/restore validation blocks
+  promotion; the absent *external* host-down monitor alone does not block an
+  attended pilot release;
+- prepare the dedicated test account and rollback/canary tooling before
+  promotion; run and verify the authenticated API/UI canary on production
+  immediately after the image switch, with automatic rollback on failure.
+  Keep the test-account token out of source control.
 
 No checklist checkbox can waive the durability contract. If a required control
 cannot be demonstrated, the release does not proceed.

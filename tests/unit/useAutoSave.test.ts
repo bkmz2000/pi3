@@ -1,9 +1,7 @@
 /**
- * useAutoSave: the two autosave paths — a 60s periodic fallback interval
- * (snapshot dirty set, save, markClean(snapshot) only on success) and a 3s
- * debounced save after edits on real projects and local drafts alike. Payload-class
- * save errors (413/validation) sticky-skip both paths so we don't retry on
- * every keystroke.
+ * useAutoSave: a 60s periodic fallback and a 3s debounced save. The save action
+ * owns snapshot-aware dirty cleanup; the hook must never clear dirty keys a
+ * second time. Payload errors skip retries; conflicts persist later edits locally.
  *
  * Isolation trick: the periodic interval reads the dirty set via
  * useEditor.getState() at fire time (dirtyFiles is NOT an effect dep), while
@@ -56,7 +54,7 @@ afterEach(() => {
 });
 
 describe('periodic fallback interval (60s)', () => {
-  it('saves and marks clean with the snapshot when files become dirty', async () => {
+  it('delegates persistence and dirty cleanup to the save action', async () => {
     renderHook(() => useAutoSave());
     // A file becomes dirty with no re-render — the interval sees it via getState().
     editorState.dirtyFiles = new Set(['main.py']);
@@ -64,7 +62,7 @@ describe('periodic fallback interval (60s)', () => {
     await act(async () => { jest.advanceTimersByTime(60000); });
 
     expect(ideState.saveCurrentProject).toHaveBeenCalledTimes(1);
-    expect(editorState.markClean).toHaveBeenCalledWith(new Set(['main.py']));
+    expect(editorState.markClean).not.toHaveBeenCalled();
   });
 
   it('does not save when there are no dirty files at fire time', async () => {
@@ -106,15 +104,24 @@ describe('periodic fallback interval (60s)', () => {
     expect(ideState.saveCurrentProject).not.toHaveBeenCalled();
   });
 
-  it('snapshots the dirty set at callback time (concurrent edits excluded)', async () => {
+  it('continues saving later edits locally while a conflict blocks cloud writes', async () => {
+    ideState.saveError = { kind: 'conflict', message: 'revision conflict' };
+    const { rerender } = renderHook(() => useAutoSave());
+    editorState.dirtyFiles = new Set(['main.py']);
+    rerender();
+
+    await act(async () => { jest.advanceTimersByTime(3000); });
+    expect(ideState.saveCurrentProject).toHaveBeenCalledTimes(1);
+    expect(editorState.markClean).not.toHaveBeenCalled();
+  });
+
+  it('does not perform a second cleanup that could erase in-flight edits', async () => {
     renderHook(() => useAutoSave());
-    // A second file becomes dirty before the interval fires: the snapshot is
-    // taken from getState() inside the callback, so it includes both files.
     editorState.dirtyFiles = new Set(['main.py', 'extra.py']);
 
     await act(async () => { jest.advanceTimersByTime(60000); });
 
-    expect(editorState.markClean).toHaveBeenCalledWith(new Set(['main.py', 'extra.py']));
+    expect(editorState.markClean).not.toHaveBeenCalled();
   });
 });
 
@@ -130,7 +137,7 @@ describe('debounced save (3s after change)', () => {
 
     await act(async () => { jest.advanceTimersByTime(1); });
     expect(ideState.saveCurrentProject).toHaveBeenCalledTimes(1);
-    expect(editorState.markClean).toHaveBeenCalledWith(new Set(['main.py']));
+    expect(editorState.markClean).not.toHaveBeenCalled();
   });
 
   it('debounces example-session changes into the local draft store', async () => {
@@ -141,7 +148,7 @@ describe('debounced save (3s after change)', () => {
 
     await act(async () => { jest.advanceTimersByTime(3000); });
     expect(ideState.saveCurrentProject).toHaveBeenCalledTimes(1);
-    expect(editorState.markClean).toHaveBeenCalledWith(new Set(['main.py']));
+    expect(editorState.markClean).not.toHaveBeenCalled();
   });
 
   it('resets the debounce on every change (typing burst saves once)', async () => {

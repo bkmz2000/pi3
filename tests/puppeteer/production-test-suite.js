@@ -324,14 +324,15 @@ async function runProductionTests() {
     await page.goto(EDITOR_URL, { waitUntil: 'domcontentloaded', timeout: 60000 });
     
     await page.waitForSelector('#root', { timeout: 10000 });
-    await sleep(3000);
+    // The root div exists before React hydrates and CodeMirror mounts. Wait
+    // for the editor itself rather than assuming a fixed cold-start delay.
     
     console.log('\n=== Running Tests ===\n');
     
     // Test 1: Core UI Elements
     console.log('1. Core UI Elements');
     try {
-      await page.waitForSelector('.cm-editor', { timeout: 5000 });
+      await page.waitForSelector('.cm-editor', { timeout: 30000 });
       await page.waitForSelector('button[aria-label="Projects"]', { timeout: 5000 });
       await page.waitForSelector('button[aria-label="Run"]', { timeout: 5000 });
       await page.waitForSelector('button[aria-label="Examples"]', { timeout: 5000 });

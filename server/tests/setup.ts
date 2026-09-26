@@ -64,6 +64,18 @@ export function createTestDb(): Database.Database {
     CREATE INDEX IF NOT EXISTS idx_project_shares_user_id ON project_shares(user_id);
     CREATE INDEX IF NOT EXISTS idx_users_api_token ON users(api_token);
 
+    CREATE TABLE IF NOT EXISTS canary_tokens (
+      token_hash TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      project_id TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      expires_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_canary_tokens_user_project
+      ON canary_tokens(user_id, project_id);
+    CREATE INDEX IF NOT EXISTS idx_canary_tokens_expiry
+      ON canary_tokens(expires_at);
+
     CREATE TABLE IF NOT EXISTS groups (
       id TEXT PRIMARY KEY,
       teacher_id TEXT NOT NULL REFERENCES users(id),

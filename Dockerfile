@@ -28,6 +28,11 @@ RUN npm run build && npm run build:server
 # ── Runtime stage ─────────────────────────────────────────────────────────
 FROM node:22-alpine
 
+ARG DEPLOYMENT_PROFILE=public
+ARG BUILD_ID
+LABEL org.opencontainers.image.revision="$BUILD_ID" \
+      org.pi3.deployment-profile="$DEPLOYMENT_PROFILE"
+
 WORKDIR /app
 
 # Install toolchain, install runtime-only deps (--omit=dev drops puppeteer,
@@ -36,17 +41,18 @@ WORKDIR /app
 # is kept in the final image so the entrypoint can drop from root to node.
 COPY package.json package-lock.json .npmrc ./
 RUN apk add --no-cache --virtual .build-deps python3 build-base \
- && apk add --no-cache su-exec \
+ && apk add --no-cache su-exec age openssh-client \
  && npm ci --omit=dev --unsafe-perm \
  && apk del .build-deps \
  && chown -R node:node /app
 
 COPY --chown=node:node --from=builder /app/dist ./dist
 COPY --chown=node:node --from=builder /app/dist-server ./dist-server
-
+COPY --chown=node:node scripts/verify-candidate-migrations.mjs ./scripts/verify-candidate-migrations.mjs
 # SQLite DB dir — backed by a named volume in docker-compose.yml
 # (pi3-db:/app/db). The volume mounts with its host owner, so the entrypoint
-# re-chowns /app/db to node:node before dropping privileges.
+# re-chowns /app/db to node:node before dropping privileges. Backup artifacts
+# remain host-only and are never mounted into the application container.
 RUN mkdir -p /app/db && chown node:node /app/db
 
 COPY --chown=root:root docker-entrypoint.sh /usr/local/bin/pi3-entrypoint

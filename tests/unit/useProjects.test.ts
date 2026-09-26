@@ -81,12 +81,13 @@ it('deletes through the canonical store action', async () => {
 });
 
 it('normalizes a project before opening it', async () => {
-  (getProject as jest.Mock).mockResolvedValue({ id: 'p1', files: { 'main.py': '' } });
+  (getProject as jest.Mock).mockResolvedValue({ id: 'p1', files: { 'main.py': '' }, version: 4 });
   const { result } = renderHook(() => useProjects());
   await act(async () => { await result.current.loadProject('p1'); });
   expect(editorState.changeCurrentProject).toHaveBeenCalledWith(
     expect.objectContaining({ __normalized: true }),
     'p1',
+    4,
   );
 });
 
@@ -97,13 +98,14 @@ it('opens an example as a fresh draft without retaining the old project id', () 
 });
 
 it('forks and opens the complete normalized example', async () => {
-  ideState.forkExample.mockResolvedValue({ id: 'fork-1', files: {} });
+  ideState.forkExample.mockResolvedValue({ id: 'fork-1', files: {}, version: 8 });
   const { result } = renderHook(() => useProjects());
   await act(async () => { await result.current.handleForkExample('pong'); });
   expect(ideState.forkExample).toHaveBeenCalledWith('pong', ideState.projects.pong);
   expect(editorState.changeCurrentProject).toHaveBeenCalledWith(
     expect.objectContaining({ __normalized: true, id: 'fork-1' }),
     'fork-1',
+    8,
   );
 });
 
@@ -122,7 +124,7 @@ it('selects from post-delete state instead of reopening the deleted project', as
     { id: 'u1', name: 'a', files: {}, assets: {} },
     { id: 'u2', name: 'b', files: {}, assets: {} },
   ];
-  (getProject as jest.Mock).mockResolvedValue({ id: 'u2', files: {} });
+  (getProject as jest.Mock).mockResolvedValue({ id: 'u2', files: {}, version: 3 });
   const { result } = renderHook(() => useProjects());
 
   await act(async () => { await result.current.handleDeleteProject('u1'); });
@@ -132,6 +134,7 @@ it('selects from post-delete state instead of reopening the deleted project', as
   expect(editorState.changeCurrentProject).toHaveBeenCalledWith(
     expect.objectContaining({ __normalized: true }),
     'u2',
+    3,
   );
 });
 

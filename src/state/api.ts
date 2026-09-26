@@ -84,10 +84,11 @@ class ApiClient {
     });
   }
 
-  async put<T>(path: string, body?: unknown): Promise<T> {
+  async put<T>(path: string, body?: unknown, headers: Record<string, string> = {}): Promise<T> {
     return this.request<T>(path, {
       method: 'PUT',
       body: body ? JSON.stringify(body) : undefined,
+      headers,
     });
   }
 
@@ -135,6 +136,7 @@ export interface Project {
   current_file: string;
   created_at: number;
   updated_at: number;
+  version?: number;
   thumbnail_updated_at?: number | null;
 }
 
@@ -177,8 +179,11 @@ export async function updateProject(id: string, data: { name?: string; descripti
   return api.put<Project>(`/api/projects/${id}`, data);
 }
 
-export async function saveProjectContent(id: string, data: { files?: Record<string, string>; assets?: Record<string, string>; tilemaps?: Record<string, import('./IdeState').TilemapData>; sounds?: Record<string, string>; sheet?: import('./sheetCodec').SheetWire; currentFile?: string }): Promise<Project> {
-  return api.put<Project>(`/api/projects/${id}/save`, data);
+export async function saveProjectContent(id: string, data: { files?: Record<string, string>; assets?: Record<string, string>; tilemaps?: Record<string, import('./IdeState').TilemapData>; sounds?: Record<string, string>; sheet?: import('./sheetCodec').SheetWire; currentFile?: string }, expectedVersion?: number | null): Promise<Project> {
+  const headers: Record<string, string> = expectedVersion === undefined || expectedVersion === null
+    ? {}
+    : { 'If-Match': String(expectedVersion) };
+  return api.put<Project>(`/api/projects/${id}/save`, data, headers);
 }
 
 export async function deleteProject(id: string): Promise<void> {

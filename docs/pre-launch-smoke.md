@@ -10,7 +10,7 @@ out of scope here.
 **Before you start:**
 - Clean profile: open in an Incognito window (no SW, no localStorage carryover).
 - DevTools open, **Console** + **Performance** tabs visible.
-- Set Network throttling to "Fast 3G" for the save-race cases (P1.4, P1.5).
+- Set Network throttling to "Fast 3G" for the save-race cases (P1.3, P1.4).
   Reset to "No throttling" for the rest.
 - `npm run typecheck && npm test -- --silent` clean on the branch.
 
@@ -75,11 +75,16 @@ within 24h. **P2** is post-launch.
 2. **Pass:** error appears in console; canvas window either shows the error
    boundary fallback or returns to idle. App does not white-screen.
 
-### P0.8 — Anonymous stash persistence
-1. In Incognito (logged out), open an example (e.g. "asteroids"). Edit the
-   `main.py`.
-2. Reload the page.
-3. **Pass:** your edits survived (stash restored).
+### P0.8 — Anonymous draft persistence and recovery
+1. In a clean browser profile, open one example and edit `main.py`; then create
+   a second anonymous project and edit it as well.
+2. Reload `/ide` and verify the most recently edited draft reopens.
+3. Open Projects → My projects → Saved on this device and open the other draft.
+   Verify both projects, files, assets, sheet, sounds, and tilemaps are intact.
+4. Repeat with an existing `pi3_anon_stash` localStorage record present.
+5. **Pass:** each draft has its own record and ID; migrating the old stash does
+   not remove it until the IndexedDB copy succeeds; an IDB failure leaves work
+   dirty and shows a recovery error.
 
 ---
 
@@ -114,19 +119,21 @@ within 24h. **P2** is post-launch.
 Same as P1.3 but the trigger is Ctrl+S instead of debounce. Type during
 the in-flight save; second edit must remain dirty.
 
-### P1.5 — anonStash quota error chip
+### P1.5 — IndexedDB draft-write failure
 1. In Incognito, open an example.
-2. In DevTools console, run:
+2. In DevTools console, simulate an IDB quota error at the draft-write boundary:
    ```js
-   const blob = "x".repeat(2_500_000);
-   for (let i = 0; i < 5; i++) localStorage.setItem("pad" + i, blob);
+   window.__originalDraftPut = IDBObjectStore.prototype.put;
+   IDBObjectStore.prototype.put = function (value, ...args) {
+     if (this.name === "anonymousDrafts") throw new DOMException("simulated quota", "QuotaExceededError");
+     return window.__originalDraftPut.call(this, value, ...args);
+   };
    ```
-   to fill localStorage to near-quota.
-3. Edit the file. Wait for autosave (or Ctrl+S).
-4. **Pass:** save chip shows "Local storage full — sign in to save your work"
-   (red). No silent failure.
-5. Clear with `localStorage.clear()`. **Pass:** next save succeeds and the
-   chip clears.
+3. Edit the file and press **Ctrl+S**.
+4. **Pass:** save chip reports device storage full; the edit remains dirty and
+   no cloud-saved state is shown.
+5. Restore `IDBObjectStore.prototype.put = window.__originalDraftPut` and save
+   again. **Pass:** the draft persists and the error chip clears.
 
 ### P1.6 — Multi-editor error isolation
 1. Open the sprite editor. Force a crash in it (P0.6).
@@ -164,9 +171,10 @@ the in-flight save; second edit must remain dirty.
 
 ### P2.6 — Multi-tab project edit
 1. Open the same project in 2 tabs. Edit different files in each.
-2. Save both. **Pass:** last-save-wins; no crash; no infinite reload loop
-   from anonStash. (Document any inconsistency — multi-tab conflict is a
-   known limitation, not a blocker.)
+2. Save both. **Pass:** revision conflicts do not silently overwrite either
+   tab's edits; the rejected snapshot remains recoverable, with no crash or
+   infinite reload loop. Record any multi-tab conflict that needs manual
+   resolution.
 
 ### P2.7 — Service worker check
 1. DevTools → Application → Service Workers.

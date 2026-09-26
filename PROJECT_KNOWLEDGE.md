@@ -124,6 +124,14 @@ Actor registry + id counter reset, draw commands cleared, _loop_generation bumpe
 - Fixed semantic reactions (`good`, `question`, `try`) are bound to target + file + line. Only the teacher
   reacts in classroom mode; every link-room member may react.
 - Rate limiting + stale-presence pruning (pruneStaleLivePresence).
+- **Open privacy bug (verified on production 2026-09-16):** the legacy
+  `GET /api/live/group/:groupId` and `GET /api/live/group/:groupId/member/:studentId`
+  routes check teacher role/group ownership but do not require an active classroom
+  session or signed session token. A teacher can read a member's latest presence and
+  full selected editor buffer outside the time-boxed, explicitly joined session.
+  A disposable two-account live test received 200 from both endpoints and the
+  student's private buffer while `/api/groups/:id/session/active` returned 204.
+  Gate or retire these routes before promising session-only classroom visibility.
 
 ### Compete mode (teacher-authored problems)
 - server/routes/compete.ts (createCompeteRouter): problem CRUD, /problems/:slug/submit,

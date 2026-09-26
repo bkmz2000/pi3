@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { useIde, useEditor, isExampleSessionId } from '../state/IdeState';
+import { isAnonymousDraftId } from '../state/sessionId';
 import { useThemeStore } from '../state/useTheme';
 
 function CloudIcon() {
@@ -72,11 +73,15 @@ export function SaveErrorIndicator() {
     return <Chip icon="local" text={saveError.message} bg={theme.errorChipBg} />;
   }
 
-  if (saveError?.kind === 'payload') {
+  if (saveError?.kind === 'payload' || saveError?.kind === 'verification') {
     return <Chip icon="local" text={saveError.message} bg={theme.errorChipBg} />;
   }
 
-  if (isExampleSessionId(currentProjectId)) {
+  if (saveError?.kind === 'conflict') {
+    return <Chip icon="local" text={t('saveIndicator.conflict')} bg={theme.errorChipBg} />;
+  }
+
+  if (isExampleSessionId(currentProjectId) || isAnonymousDraftId(currentProjectId)) {
     if (dirtyFiles.size > 0) {
       return <Chip icon="local" text={t('saveIndicator.localOnly')} bg="rgba(80,80,80,0.7)" />;
     }

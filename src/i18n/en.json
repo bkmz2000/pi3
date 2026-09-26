@@ -1084,7 +1084,8 @@
     "saveAsNewProject": "Save as New Project",
     "saveExampleAsProject": "This is an example project. Save it as your own to keep your changes.",
     "save": "Save",
-    "saving": "Saving..."
+    "saving": "Saving...",
+    "draftClaimVerificationFailed": "The account copy could not be verified. Your work remains on this device. Please try again."
   },
   "projects": {
     "libraryTitle": "Projects",
@@ -1101,6 +1102,8 @@
     "manageProjects": "Manage projects",
     "savedToAccount": "Saved to your account",
     "savedOnDevice": "Saved on this device",
+    "localRecoveryDrafts": "Local recovery drafts",
+    "localRecoveryDraftsHint": "Unsynced work is stored only on this device. Open a draft to continue.",
     "exampleDraft": "Example draft · saved on this device",
     "loading": "Loading projects…",
     "noProjects": "No saved projects yet",
@@ -1585,6 +1588,8 @@
     "savedLocallySignIn": "Saved locally — sign in to sync",
     "savedOfflineWillSync": "Saved offline — will sync when online",
     "localOnly": "Local only — Ctrl+S to save",
+    "conflict": "Sync conflict — local recovery saved; open Projects to continue",
+    "claimDraft": "Save local project to account",
     "saved": "Saved"
   },
   "errorBoundary": {

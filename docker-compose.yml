@@ -1,6 +1,6 @@
 services:
   pi3:
-    image: ghcr.io/bkmz2000/pi3:latest
+    image: ${PI3_IMAGE:?PI3_IMAGE must be set to a registry image digest}
     container_name: pi3
     restart: unless-stopped
     ports:

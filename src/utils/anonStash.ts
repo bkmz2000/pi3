@@ -2,7 +2,7 @@
 // reloads so a logged-out user can keep tinkering with an example and not lose
 // it. On sign-in, the user is offered a "claim this work as a project" path.
 
-import type { Project } from "../state/IdeState";
+import type { Project } from "../state/projectTypes";
 
 const STASH_KEY = "pi3_anon_stash";
 
@@ -52,6 +52,30 @@ export function writeAnonStash(stash: Omit<AnonStash, "v" | "lastModified">): An
     return { ok: true };
   } catch (e) {
     return { ok: false, reason: isQuotaError(e) ? "quota" : "unavailable" };
+  }
+}
+
+export async function migrateLegacyAnonStash(): Promise<boolean> {
+  const legacy = readAnonStash();
+  if (!legacy) return true;
+  // Use a deterministic, distinct recovery ID. Reusing the active example
+  // session ID could overwrite a newer IndexedDB draft while the old localStorage
+  // key is still present (for example, after a prior interrupted migration).
+  const identity = legacy.exampleName ?? "draft";
+  const id = `__anon_draft_migrated_legacy_${identity}_${legacy.lastModified}`;
+  try {
+    const { projectStorage } = await import("./storage");
+    await projectStorage.saveAnonymousDraftIfAbsent({
+      id,
+      exampleName: legacy.exampleName,
+      project: legacy.project,
+      lastModified: legacy.lastModified,
+    });
+    clearAnonStash();
+    return true;
+  } catch {
+    // Keep the legacy entry intact unless the IndexedDB copy succeeded.
+    return false;
   }
 }
 

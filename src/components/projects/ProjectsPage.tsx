@@ -3,6 +3,9 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useProjects } from '../../hooks/useProjects';
 import { useEditor, isExampleSessionId, exampleNameFromSessionId } from '../../state/IdeState';
+import { projectStorage, type AnonymousDraft } from '../../utils/storage';
+import { migrateLegacyAnonStash } from '../../utils/anonStash';
+import { downloadProjectZip } from '../../utils/zip';
 import { useUser } from '../../state/useUser';
 import { useThemeStore } from '../../state/useTheme';
 import { EXAMPLES_CATALOG } from '../../data/examplesCatalog';
@@ -43,12 +46,23 @@ export function ProjectsPage() {
   const [joinCode, setJoinCode] = useState('');
   const [joinFeedback, setJoinFeedback] = useState<{ kind: 'success' | 'error'; text: string } | null>(null);
   const [joining, setJoining] = useState(false);
+  const [localDrafts, setLocalDrafts] = useState<AnonymousDraft[]>([]);
+  const [exportError, setExportError] = useState<string | null>(null);
   const importRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
     if (authState === 'logged_in') fetchProjects();
   }, [authState, fetchProjects]);
+
+  useEffect(() => {
+    let active = true;
+    migrateLegacyAnonStash()
+      .then(() => projectStorage.listAnonymousDrafts())
+      .then((drafts) => { if (active) setLocalDrafts(drafts); })
+      .catch((error) => console.error('Failed to load local recovery drafts:', error));
+    return () => { active = false; };
+  }, []);
 
   const mine = useMemo(() => apiProjects.filter((project) => project.role === 'owner'), [apiProjects]);
   const shared = useMemo(() => apiProjects.filter((project) => project.role !== 'owner'), [apiProjects]);
@@ -92,6 +106,26 @@ export function ProjectsPage() {
   const handleImport = async (file: File) => {
     const created = await importProjectFromFile(file);
     navigate(`/ide/${created.id}`);
+  };
+
+  const exportLocalDraft = async (draft: AnonymousDraft) => {
+    const { project } = draft;
+    setExportError(null);
+    try {
+      await downloadProjectZip({
+        id: draft.id,
+        name: project.name || draft.exampleName || 'project',
+        files: Object.entries(project.files).map(([name, content]) => ({ name, content })),
+        assets: project.assets,
+        tilemaps: project.tilemaps,
+        sounds: project.sounds || {},
+        sheet: project.sheet,
+        currentFile: project.currentFile,
+        updatedAt: new Date(draft.lastModified).toISOString(),
+      });
+    } catch {
+      setExportError(t('sideMenu.failedExport'));
+    }
   };
 
   const handleJoin = async () => {
@@ -312,6 +346,51 @@ export function ProjectsPage() {
                 />
               ))}
             </div>
+          )}
+
+          {section === 'mine' && localDrafts.length > 0 && (
+            <section
+              style={{ maxWidth: 940, margin: '22px auto 24px' }}
+              aria-label={t('projects.localRecoveryDrafts')}
+            >
+              <h2 style={{ margin: '0 0 8px', fontSize: 16, fontWeight: 750 }}>
+                {t('projects.localRecoveryDrafts')}
+              </h2>
+              <p style={{ margin: '0 0 10px', fontSize: 12, color: theme.panelTxtMute }}>
+                {t('projects.localRecoveryDraftsHint')}
+              </p>
+              {exportError && <p role="alert" style={{ color: theme.stopBg }}>{exportError}</p>}
+              <div style={{ borderTop: `1px solid ${theme.panelBorder}` }}>
+                {localDrafts.map((draft) => (
+                  <div key={draft.id} style={{ display: 'flex', alignItems: 'center', borderBottom: `1px solid ${theme.panelBorder}` }}>
+                    <button
+                      type="button"
+                      aria-label={`${t('projects.open')} ${draft.project.name || draft.exampleName || draft.id}`}
+                      onClick={() => navigate(`/ide/${encodeURIComponent(draft.id)}`)}
+                      style={{
+                        flex: 1, minWidth: 0, minHeight: 54, padding: '10px 12px', display: 'flex',
+                        alignItems: 'center', justifyContent: 'space-between', gap: 12, textAlign: 'left',
+                        border: 0, background: 'transparent', color: theme.panelTxt,
+                        cursor: 'pointer', fontFamily: theme.fontUI,
+                      }}
+                    >
+                      <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 700 }}>
+                        {draft.project.name || draft.exampleName || t('projects.localRecoveryDrafts')}
+                      </span>
+                      <span style={{ flex: 'none', color: theme.panelTxtMute, fontSize: 11 }}>
+                        {t('projects.savedOnDevice')}
+                      </span>
+                    </button>
+                    <button type="button" onClick={() => void exportLocalDraft(draft)}
+                      aria-label={`${t('sideMenu.exportProjectTooltip')} ${draft.project.name || draft.exampleName || draft.id}`}
+                      style={{ padding: '10px 12px', border: 0, background: 'transparent', color: theme.panelTxt, cursor: 'pointer' }}
+                    >
+                      <Icon name="export" size={16} color="currentColor" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </section>
           )}
         </main>
       </div>

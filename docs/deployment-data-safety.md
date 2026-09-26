@@ -2,7 +2,7 @@
 
 **Status:** Required release policy
 
-**Release gate status: READY**
+**Release gate status: BLOCKED**
 
 `READY` means **eligible to attempt a controlled promotion**, not "deployed" or
 "production canary passed." The operator may commit `READY` only after the
@@ -71,49 +71,51 @@ A release is blocked unless all of these are true:
 10. Storage quota or persistence failures keep the project dirty and show a
     blocking recovery action; they never resolve as a successful save.
 
-### Release-readiness assessment (2026-09-26)
+### Current release status: BLOCKED (2026-09-26)
 
-The pre-promotion controls are evidenced, so the policy is **READY for a
-controlled promotion attempt**. Independent corrected-code follow-up reviewers
-returned **OK with notes** and no remaining code findings. The current clean
-production candidate passed the full local release gate: lint, typecheck,
-coverage-gated container tests (101 frontend suites/1005 tests plus server
-coverage and both profile gates), unit tests, browser-storage migration
-fixtures, full E2E, production build, and isolated migration fixture. The
-protected age identity was verified against the configured recipient; the
-isolated candidate-container encryption round-trip passed; and the off-host
-restore drill is recorded below. The age helper is executable mode `0755`.
+A controlled promotion of commit `a8dd8c71a0409db155d3c49971347b585bcac497`
+was explicitly approved for institutional candidate
+`ghcr.io/bkmz2000/pi3@sha256:318fcb14de0a5a38faa5a3e843a29ef639f156e6470a77f5d402be2a42dd0906`
+and briefly started on 2026-09-26. Its immediate post-start health probe got
+a connection reset; automatic rollback started the prior image but its own
+immediate health probe also failed. The command exited nonzero and the canary
+never ran. These one-shot probes cannot distinguish normal startup delay from
+an unhealthy service, so this promotion workflow is **not verified**.
 
-READY means eligible to attempt promotion, not permission to switch or proof
-that the production canary passed. A read-only check found the current service
-healthy on the legacy `:latest` image without revision/profile labels or
-release markers. An authenticated canary attempt on that old image verified
-the dedicated student account and project creation, then got 404 for the
-candidate-only scoped-token endpoint. Its temporary project was removed with a
-guarded exact-row cleanup; no image/container was changed. The endpoint and
-rollback/finalize flow are covered by candidate tests, and the canary is
-intentionally run *after* the candidate switch inside the rollback-protected
-promotion command. Candidate publication and the production switch have not
-occurred. The published digest and separate exact-tuple approval are still
-required; no promotion will run without that approval.
+Subsequent read-only checks confirmed that the prior image digest
+`ghcr.io/bkmz2000/pi3@sha256:4f55bd0d89533ecd288694638c80c186fd6e36b55fb82b0c17a48cbbb12e0404`
+is selected by Compose and `.env`, is running, and returns HTTP 200 from
+internal and public `/api/health`. The container was recreated during rollback;
+this is not a successful promotion. The encrypted pre-deploy snapshot
+`pi3-predeploy-20260926T112917Z.db.age` remains mode `0600`, and rollback
+artifacts `.pi3-compose.previous`, `.pi3-compose.rollback`,
+`.pi3-previous-image`, and `.pi3-previous-release-sha` remain on the VPS. The
+previous release SHA is `unknown` because the legacy image had no release
+markers. Do not remove this evidence or retry while it remains. Any future
+cleanup requires a separately reviewed, guarded reconciliation of the prior
+image, database, and retained backup; none has been performed.
 
-- Browser save durability still requires a clean-candidate full test run and
-  review, including offline queue replay, forked-project revision tracking,
-  conflict recovery, and IndexedDB abort behavior. The 2026-09-25 reviewer
-  blocked the candidate on local-draft export, claim read-back, and candidate
-  migration dry-run; local fixes and focused tests are now staged and a
-  follow-up reviewer found no P0/P1 in their immediate blast radii. Two broader
-  reviewers then BLOCKED the clean WIP candidate `02fea4f` on reconnect/editor
-  revision and post-conflict recovery, clean-draft claiming, unsafe inherited
-  Turso credentials in a local fixture, and early rollback-evidence cleanup.
-  The follow-up release reviewer found no remaining issues; the client reviewer
-  found one further P1: after dirty-editor queue replay, *later* edits with an
-  unknown server revision only reached the cache and could be lost on reload.
-  The fix writes a distinct recovery draft on every such autosave. Both
-  focused follow-ups returned **OK with notes** for their fixes and immediate
-  blast radii (release operations on `e8265f2`; client recovery on `81a4e6d`).
-  Neither verdict is deployment approval or a full clean-`production` release
-  gate. The latter and controlled canary remain pending. Nothing is deployed.
+Candidate startup applied the additive `014_canary_tokens.sql` migration to
+the live database (migration count 15→16). The migration creates only a table
+and indexes; canary-token rows are zero. Project/user counts still match the
+pre-deploy snapshot (42/17), and the sampled project-content hash matches. The
+prior image is running and health probes return 200, but user-level operations
+against the expanded schema have not been revalidated. Retain the forward
+migration and never restore the older database snapshot as rollback.
+
+Before another attempt, implement bounded retrying readiness checks for both
+candidate startup and rollback, test recovery from transient probe failures
+and timeout behavior, gate a replacement exact commit, and obtain a new
+digest-bound approval. No promotion or canary success is recorded for the
+current candidate.
+
+- Historical browser-save review blockers (local-draft export, claim read-back,
+  reconnect/editor revision, post-conflict autosave, clean-draft claiming, and
+  recovery after unknown revisions) were fixed and covered by tests in the
+  reviewed candidate. Focused client and release follow-ups returned **OK with
+  notes**; the exact clean-commit release gate passed for the attempted
+  candidate. Those results do not override the current deployment failure or
+  mean the production canary passed.
 - **Migration dry-run recorded locally on 2026-09-25:** verified the encrypted
   checksum for `pi3-daily-2026-09-25.db.age`, decrypted only into a private local
   temporary directory, and ran the current `initDb()` migrations against that
@@ -160,7 +162,8 @@ required; no promotion will run without that approval.
   related rows. No image/container was changed. This verifies the old production
   image is not a valid target for the new canary; do not rerun against it. The
   candidate's canary runs *after* its approved switch, within the rollback-
-  protected command. No production promotion is authorized yet.
+  protected command. This legacy-image check preceded the approved but failed
+  candidate promotion described above; the candidate canary still has not run.
 - The Vercel production path has no policy-compliant rollback/canary workflow and
   remains deliberately disabled.
 - Before promotion, `scripts/verify-age-recipient.sh` must derive exactly one
@@ -225,9 +228,10 @@ and check service/backup health the next day. A later total VPS/network outage
 may go unnoticed until a human checks; same-host backups may be lost with the
 host. Add external monitoring before unattended releases or a larger cohort;
 manual attention at deploy time is not equivalent to 24/7 alerting. Telegram
-and the first off-host drill are recorded. The 2026-09-26 pre-promotion review
-and local rollback/canary tests satisfy the READY prerequisites. The exact
-clean-commit release gate must pass before candidate publication; the
+and the first off-host drill are recorded. Despite the prior local review and
+release gate, the 2026-09-26 promotion attempt failed during readiness/rollback
+probes. Status remains **BLOCKED** until bounded health polling and rollback
+verification are fixed, tested, reviewed, and gated on a new exact commit. The
 production canary is mandatory *after* the image switch and before rollout
 success.
 
@@ -237,10 +241,11 @@ digest, deployment profile, VPS target, and origin before promotion. The
 production canary must then pass; rollback must restore the prior pinned image
 and Compose configuration. This workflow itself is not yet production-verified.
 
-Even with READY, no production switch occurs until the exact published digest,
+Regardless of READY, no production switch occurs until the exact published digest,
 commit, profile, VPS target, and origin have been approved explicitly on the
 promotion command. If the canary or artifact checks fail, the command must roll
-back; keep rollback evidence through the attended watch.
+back; keep rollback evidence through the attended watch. The current status is
+BLOCKED; keep this attempt's rollback evidence intact while investigating.
 
 ## 3. Server data protection
 

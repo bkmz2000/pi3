@@ -2,6 +2,42 @@
 # Run on the production VPS. Args: immutable-image-ref release-sha age-recipient expected-app-origin deployment-profile
 set -eu
 
+wait_for_health() {
+  health_url=$1
+  service_label=$2
+  timeout_seconds=${3:-120}
+  retry_seconds=${4:-2}
+  case "$timeout_seconds" in ''|*[!0-9]*) echo 'ERROR: health timeout must be whole seconds' >&2; return 2 ;; esac
+  case "$retry_seconds" in ''|*[!0-9]*) echo 'ERROR: health retry interval must be whole seconds' >&2; return 2 ;; esac
+  [ "$timeout_seconds" -gt 0 ] && [ "$retry_seconds" -gt 0 ] || {
+    echo 'ERROR: health timeout and retry interval must be positive' >&2
+    return 2
+  }
+
+  deadline=$(( $(date +%s) + timeout_seconds ))
+  attempt=0
+  while :; do
+    now=$(date +%s)
+    remaining=$((deadline - now))
+    [ "$remaining" -gt 0 ] || break
+    probe_timeout=5
+    [ "$probe_timeout" -le "$remaining" ] || probe_timeout=$remaining
+    attempt=$((attempt + 1))
+    if curl -fsS --connect-timeout 2 --max-time "$probe_timeout" "$health_url" >/dev/null 2>&1; then
+      echo "✓ $service_label healthy after $attempt probe(s)."
+      return 0
+    fi
+    now=$(date +%s)
+    [ "$now" -lt "$deadline" ] || break
+    remaining=$((deadline - now))
+    delay=$retry_seconds
+    [ "$delay" -le "$remaining" ] || delay=$remaining
+    sleep "$delay"
+  done
+  echo "ERROR: $service_label did not become healthy within ${timeout_seconds}s ($attempt probes)." >&2
+  return 1
+}
+
 encrypt_predeploy_snapshot() {
   image_ref=$1
   recipient=$2
@@ -24,6 +60,12 @@ encrypt_predeploy_snapshot() {
 
 # Keep this operation independently testable with a stub Docker CLI; normal
 # deployment still invokes the exact same function after validating the live snapshot.
+if [ "${1:-}" = --wait-for-health ]; then
+  shift
+  [ "$#" -ge 2 ] && [ "$#" -le 4 ] || { echo 'usage: deploy-vps.sh --wait-for-health URL LABEL [TIMEOUT_SECONDS [RETRY_SECONDS]]' >&2; exit 2; }
+  wait_for_health "$@"
+  exit $?
+fi
 if [ "${1:-}" = --encrypt-predeploy-snapshot ]; then
   shift
   [ "$#" -eq 4 ] || { echo 'usage: deploy-vps.sh --encrypt-predeploy-snapshot IMAGE RECIPIENT SNAPSHOT OUTPUT' >&2; exit 2; }
@@ -169,7 +211,7 @@ cleanup() {
       rollback_image=$(docker inspect "$CONTAINER" --format '{{.Config.Image}}' 2>/dev/null || true)
       rollback_id=$(docker inspect "$CONTAINER" --format '{{.Image}}' 2>/dev/null || true)
       rollback_digest=$(docker image inspect "$rollback_id" --format '{{range .RepoDigests}}{{println .}}{{end}}' 2>/dev/null | grep -F 'ghcr.io/bkmz2000/pi3@sha256:' | head -n 1 || true)
-      if [ "$rollback_image" = "$current_digest" ] && [ "$rollback_digest" = "$current_digest" ] && curl -fsS "$HEALTH" >/dev/null 2>&1; then
+      if [ "$rollback_image" = "$current_digest" ] && [ "$rollback_digest" = "$current_digest" ] && wait_for_health "$HEALTH" 'previous rollback image'; then
         printf '%s\n' "$current_digest" > .pi3-current-image
         printf '%s\n' "$previous_release_sha" > .pi3-current-release-sha
         rm -f .pi3-compose.previous .pi3-compose.rollback .pi3-previous-image .pi3-previous-release-sha
@@ -244,7 +286,7 @@ actual_digest=$(docker image inspect "$actual_image_id" --format '{{range .RepoD
 assert_backup_storage_not_mounted
 new_app_origin=$(docker inspect "$CONTAINER" --format '{{range .Config.Env}}{{.}} {{end}}' | tr ' ' '\n' | sed -n 's/^APP_BASE_URL=//p' | head -n 1)
 [ "${new_app_origin%/}" = "$CANARY_BASE_URL" ] || { echo 'ERROR: deployed app origin differs from canary origin' >&2; exit 1; }
-curl -fsS "$HEALTH" >/dev/null
+wait_for_health "$HEALTH" 'candidate image'
 
 cat "$meta" | docker compose exec -T "$CONTAINER" node -e '
 const D=require("better-sqlite3"),fs=require("fs"),crypto=require("crypto"),d=new D("/app/db/pi3.db"),q=t=>d.prepare("select count(*) n from \""+t+"\"").get().n;

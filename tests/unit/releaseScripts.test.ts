@@ -27,6 +27,53 @@ function touchAt(path: string, epoch: number): void {
 describe('release script safety regressions', () => {
   jest.setTimeout(15_000);
 
+  it('retries health probes until a starting service becomes ready', async () => {
+    let requests = 0;
+    const server = createServer((_request, response) => {
+      requests += 1;
+      response.writeHead(requests < 3 ? 503 : 200, { connection: 'close' });
+      response.end(requests < 3 ? 'starting' : '{"status":"ok"}');
+    });
+    try {
+      await new Promise<void>((resolvePromise) => server.listen(0, '127.0.0.1', resolvePromise));
+      const address = server.address();
+      if (!address || typeof address === 'string') throw new Error('Test server did not bind a TCP port');
+      const result = await run('sh', [
+        'scripts/deploy-vps.sh', '--wait-for-health',
+        `http://127.0.0.1:${address.port}/api/health`, 'candidate image', '8', '1',
+      ]);
+      expect(result.code).toBe(0);
+      expect(requests).toBe(3);
+      expect(result.stdout).toContain('healthy after 3 probe(s)');
+    } finally {
+      server.closeAllConnections();
+      await new Promise<void>((resolvePromise) => server.close(() => resolvePromise()));
+    }
+  });
+
+  it('fails a bounded readiness wait when a service never becomes healthy', async () => {
+    const server = createServer((_request, response) => {
+      response.writeHead(503, { connection: 'close' });
+      response.end('not ready');
+    });
+    try {
+      await new Promise<void>((resolvePromise) => server.listen(0, '127.0.0.1', resolvePromise));
+      const address = server.address();
+      if (!address || typeof address === 'string') throw new Error('Test server did not bind a TCP port');
+      const started = Date.now();
+      const result = await run('sh', [
+        'scripts/deploy-vps.sh', '--wait-for-health',
+        `http://127.0.0.1:${address.port}/api/health`, 'candidate image', '1', '1',
+      ]);
+      expect(result.code).not.toBe(0);
+      expect(result.stderr).toContain('did not become healthy within 1s');
+      expect(Date.now() - started).toBeLessThan(5000);
+    } finally {
+      server.closeAllConnections();
+      await new Promise<void>((resolvePromise) => server.close(() => resolvePromise()));
+    }
+  });
+
   it('validates the local age identity and binds the configured recipient before promotion', async () => {
     const temp = mkdtempSync(join(tmpdir(), 'pi3-age-identity-test-'));
     const bin = join(temp, 'bin');
@@ -122,13 +169,17 @@ describe('release script safety regressions', () => {
     expect(deploy).toContain('encrypt_predeploy_snapshot "$IMAGE_REF" "$AGE_RECIPIENT" "$backup" "$encrypted_backup"');
     expect(deploy).not.toContain('-v "$BACKUP_DIR:/backups"');
     expect(deploy).toContain('rm -f "$backup" "$encrypted_tmp"');
+    expect(deploy).toContain('wait_for_health "$HEALTH" \'candidate image\'');
+    expect(deploy).toContain('wait_for_health "$HEALTH" \'previous rollback image\'');
   });
 
   it('treats READY as pre-promotion eligibility, with canary and rollback after the image switch', () => {
     const policy = readFileSync(join(root, 'docs/deployment-data-safety.md'), 'utf8');
     const check = readFileSync(join(root, 'scripts/release-policy-check.sh'), 'utf8');
     const makefile = readFileSync(join(root, 'Makefile'), 'utf8');
+    expect(policy).toContain('**Release gate status: BLOCKED**');
     expect(policy).toContain('`READY` means **eligible to attempt a controlled promotion**');
+    expect(policy).toContain('candidate canary still has not run');
     const normalizedPolicy = policy.replace(/\s+/g, ' ');
     expect(normalizedPolicy).toContain('The production canary cannot run against the new image until *after* promotion');
     expect(normalizedPolicy).toContain('independent external host-down monitoring is recommended but not a launch gate');
@@ -369,14 +420,18 @@ describe('release script safety regressions', () => {
     writeFileSync(fakeDocker, `#!/bin/sh\ncase "$1:$2" in\n  compose:pull) exit "${'${'}TEST_DOCKER_PULL_STATUS:-0}" ;;\n  compose:up) exit 0 ;;\n  inspect:pi3)\n    case "$*" in *Config.Image*) printf '%s\\n' "$TEST_PREVIOUS_IMAGE" ;; *) printf 'image-id\\n' ;; esac ;;\n  image:inspect) printf '%s\\n' "$TEST_PREVIOUS_IMAGE" ;;\n  *) exit 0 ;;\nesac\n`);
     chmodSync(fakeDocker, 0o755);
     const fakeCurl = join(bin, 'curl');
-    writeFileSync(fakeCurl, '#!/bin/sh\nexit 0\n');
+    writeFileSync(fakeCurl, '#!/bin/sh\nn=0\n[ ! -f "$TEST_CURL_COUNT" ] || n=$(cat "$TEST_CURL_COUNT")\nn=$((n + 1))\nprintf "%s\\n" "$n" > "$TEST_CURL_COUNT"\n[ "$n" -ge 3 ]\n');
     chmodSync(fakeCurl, 0o755);
+    writeFileSync(join(bin, 'sleep'), '#!/bin/sh\nexit 0\n');
+    chmodSync(join(bin, 'sleep'), 0o755);
 
+    const curlCount = join(temp, 'curl-count');
     const env = {
       ...process.env,
       PATH: `${bin}:${process.env.PATH ?? ''}`,
       TEST_REMOTE_DIR: remote,
       TEST_PREVIOUS_IMAGE: previous,
+      TEST_CURL_COUNT: curlCount,
       IMAGE_REPO: 'ghcr.io/example/pi3',
     };
     try {
@@ -387,10 +442,12 @@ describe('release script safety regressions', () => {
       expect(existsSync(join(remote, '.pi3-compose.rollback'))).toBe(true);
       expect(readFileSync(join(remote, 'docker-compose.yml'), 'utf8')).toContain('previous');
 
+      rmSync(curlCount, { force: true });
       const succeeded = await run('bash', ['scripts/rollback-vps.sh', 'test-vps', release, 'ghcr.io/example/pi3'], {
         ...env, TEST_DOCKER_PULL_STATUS: '0',
       });
       expect(succeeded.code).toBe(0);
+      expect(readFileSync(curlCount, 'utf8').trim()).toBe('3');
       expect(existsSync(join(remote, '.pi3-compose.rollback'))).toBe(false);
       expect(readFileSync(join(remote, '.pi3-current-image'), 'utf8').trim()).toBe(previous);
       expect(existsSync(join(remote, '.pi3-previous-image'))).toBe(false);

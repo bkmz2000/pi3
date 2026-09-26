@@ -152,16 +152,13 @@ unit test, deliver `IDBOpenDBRequest.onblocked` explicitly: fake-indexeddb's
 outstanding upgrade can hang this Jest case. Then close the old v3 connection
 and test a real v4 retry. In the production browser suite, wait for `.cm-editor`
 rather than treating `#root` plus a fixed sleep as proof that CodeMirror mounted;
-a slow cold start previously produced a false UI failure. The local full unit,
-server matrix, E2E, lint, typecheck, and build pass on the dirty worktree,
-**not** on a reviewed clean release commit. The 2026-09-25 follow-up reviewer
-cleared the three local P1 fixes in their immediate blast radii (draft export,
-claim verification, and predeploy candidate migration dry-run), but release
-policy remains BLOCKED pending clean-candidate proof. A later full-candidate
-review of `02fea4f` found reconnect/editor revision, post-conflict autosave,
-clean-draft claim, remote-credential fixture, and early rollback-evidence
-cleanup defects; both focused fix re-reviews later returned OK with notes, not
-deployment approval. Exact clean-production commit gates remain pending.
+a slow cold start previously produced a false UI failure. The 2026-09-25 review findings and `02fea4f` blockers described above were
+subsequently fixed and re-reviewed. A clean full gate passed for candidate
+`a8dd8c7`, but its explicitly approved promotion failed during immediate
+candidate/rollback health probes; see Deployment data safety for the incident,
+live additive migration, and verified prior-image status. Production remains
+**BLOCKED**. This health-polling fix must pass a new exact-commit release gate
+before another candidate can be promoted.
 
 **Testing the worker without Pyodide.** `src/runner/WorkerInterface.ts` defines
 typed `WorkerCommand`/`WorkerEvent` unions. Test `RunnerProvider` /
@@ -226,11 +223,17 @@ matches `BACKUP_AGE_RECIPIENT`; the private identity never enters Docker/VPS.
 Predeploy encryption uses a network-disabled, read-only candidate container
 with only the plaintext snapshot file mounted read-only, and streams ciphertext
 into a private host temp file. The release-gate stamp requires `make test`
-(coverage-gated container suite) before all other gates complete. Production
-remains **BLOCKED** pending corrected-code review and rollback/canary preparation;
-the scoped-token flow cannot be tested against the new production image before
-promotion. Independent external host-down monitoring is absent but is a
-recommended follow-up rather than a gate for this manually attended pilot;
+(coverage-gated container suite) before all other gates complete. Production remains **BLOCKED** after the 2026-09-26 approved promotion attempt
+failed its immediate candidate health probe and the rollback health probe also
+raced startup. Subsequent read-only checks confirmed the prior digest is running
+and internal/public `/api/health` return 200; candidate startup applied the
+additive migration `014_canary_tokens.sql`
+(15→16 migrations; project/user counts and sampled content hash matched the
+predeploy snapshot). Rollback evidence and the encrypted snapshot remain on the
+VPS. Fix and test bounded readiness polling for both deployment and rollback
+before any new candidate/approval. Independent external host-down monitoring is
+absent but is a recommended follow-up rather than a gate for this manually
+attended pilot;
 the completed off-host restore snapshot did not contain assets, sounds, or
 tilemaps. On 2026-09-25 at 17:57 UTC,
 the drill passed encrypted/decrypted checksum, SQLite integrity/counts, and

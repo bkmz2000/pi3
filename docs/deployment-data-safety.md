@@ -2,7 +2,7 @@
 
 **Status:** Required release policy
 
-**Release gate status: BLOCKED**
+**Release gate status: READY**
 
 `READY` means **eligible to attempt a controlled promotion**, not "deployed" or
 "production canary passed." The operator may commit `READY` only after the
@@ -71,7 +71,26 @@ A release is blocked unless all of these are true:
 10. Storage quota or persistence failures keep the project dirty and show a
     blocking recovery action; they never resolve as a successful save.
 
-### Current release status: BLOCKED after failed canary (2026-09-26)
+### Current release status: READY for a corrected controlled attempt (2026-09-26)
+
+The failed canary's 401 was reproduced in the real `server/index.ts` assembly:
+`createCompeteRouter()` is mounted at `/api` and its account-auth middleware
+rejected the scoped token before `/api/canary` was reached. The scoped router
+now mounts before that broad router, without granting scoped tokens access to
+normal account APIs. Production-assembly regression coverage verifies issuance,
+scoped read/delete/absence, and rejection by `/api/users/me`. The 403 fallback
+cleanup was missing the CSRF header on its bodyless DELETE; the browser helper
+now always sends `X-Requested-With: XMLHttpRequest`. Scoped deletion removes
+project presence, and the canary leaves the editor before cleanup to stop its
+background writes. Reload comparison now normalizes actual newlines rather than
+literal backslash sequences. Both rollback paths retain their evidence for
+operator reconciliation; post-canary rollback also restores `.env`'s image.
+
+Local regressions and full browser E2E pass. The reconciled production baseline
+is the healthy prior digest, with no canary leftovers. READY permits a new
+controlled attempt only: exact-commit gates, immutable publication and fresh
+digest-bound owner approval remain mandatory. No new promotion success is
+claimed by these fixes. The incident history below records the earlier state.
 
 A controlled promotion of commit `a8dd8c71a0409db155d3c49971347b585bcac497`
 was explicitly approved for institutional candidate
@@ -120,7 +139,7 @@ release gate and be published as an immutable matching digest. READY means
 explicit approval for the exact commit/profile/digest/VPS/origin is still
 required. No successful promotion or canary is recorded.
 
-A later explicit approval authorized commit `39eafcd2eb58b2c958c50a9a6cd07d407cae8629`, profile `institutional`, image `ghcr.io/bkmz2000/pi3@sha256:d064fe858559bbd38352b925ee02eac79c4a0ec1173b21bac4f0879cd00e7a29`, VPS `root@159.194.196.40`, and origin `https://pi3.sys5.ru`. Its exact-commit release gate passed and the digest labels matched. Candidate health and DB read-back passed (42 projects, 17 users, 16 migrations, project read-back verified), but the post-switch API/UI canary failed: scoped project read returned HTTP 401; automatic scoped cleanup returned 401 and the session cleanup path returned 403. `make promote-vps` automatically rolled back to the prior pinned digest `sha256:4f55bd0d89533ecd288694638c80c186fd6e36b55fb82b0c17a48cbbb12e0404`; rollback health passed after two probes. Subsequent read-only checks showed the prior image running and both internal/public health 200. The encrypted attempt snapshot `pi3-predeploy-20260926T153328Z.db.age` remains mode 0600. The approved `.env` repair changed only `PI3_IMAGE` to the prior digest, without restarting the container; its pre-edit copy is preserved mode 0600 at `/srv/pi3/backups/reconciliation-canary-failure-20260926T172215Z/.env.before` in a mode-0700 directory. Compose, `.env`, and the running container now select the prior digest; the current release SHA remains `unknown`. The rollback command retired its release-specific markers after verified rollback. A later owner-authorized, guarded transaction revalidated the exact generated project, expired scoped token, and matching `live_presence` row, confirmed no other project-ID dependencies, and removed exactly those three rows. Final SQLite integrity is `ok`; counts returned to 42 projects, 17 users, 16 migrations, with both internal/public health 200 and no canary artifacts remaining. No production promotion or canary success occurred. Keep policy **BLOCKED**: the scoped-canary 401 and rollback evidence-retention defect remain unresolved; do not retry until they are fixed/reviewed and a new exact-commit candidate receives fresh owner approval.
+A later explicit approval authorized commit `39eafcd2eb58b2c958c50a9a6cd07d407cae8629`, profile `institutional`, image `ghcr.io/bkmz2000/pi3@sha256:d064fe858559bbd38352b925ee02eac79c4a0ec1173b21bac4f0879cd00e7a29`, VPS `root@159.194.196.40`, and origin `https://pi3.sys5.ru`. Its exact-commit release gate passed and the digest labels matched. Candidate health and DB read-back passed (42 projects, 17 users, 16 migrations, project read-back verified), but the post-switch API/UI canary failed: scoped project read returned HTTP 401; automatic scoped cleanup returned 401 and the session cleanup path returned 403. `make promote-vps` automatically rolled back to the prior pinned digest `sha256:4f55bd0d89533ecd288694638c80c186fd6e36b55fb82b0c17a48cbbb12e0404`; rollback health passed after two probes. Subsequent read-only checks showed the prior image running and both internal/public health 200. The encrypted attempt snapshot `pi3-predeploy-20260926T153328Z.db.age` remains mode 0600. The approved `.env` repair changed only `PI3_IMAGE` to the prior digest, without restarting the container; its pre-edit copy is preserved mode 0600 at `/srv/pi3/backups/reconciliation-canary-failure-20260926T172215Z/.env.before` in a mode-0700 directory. Compose, `.env`, and the running container now select the prior digest; the current release SHA remains `unknown`. The rollback command retired its release-specific markers after verified rollback. A later owner-authorized, guarded transaction revalidated the exact generated project, expired scoped token, and matching `live_presence` row, confirmed no other project-ID dependencies, and removed exactly those three rows. Final SQLite integrity is `ok`; counts returned to 42 projects, 17 users, 16 migrations, with both internal/public health 200 and no canary artifacts remaining. No production promotion or canary success occurred. Policy was kept **BLOCKED** until the reproduced routing defect and rollback handling were fixed as described above; the failed candidate itself remains ineligible for retry.
 
 - Historical browser-save review blockers (local-draft export, claim read-back,
   reconnect/editor revision, post-conflict autosave, clean-draft claiming, and

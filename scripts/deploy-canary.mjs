@@ -52,6 +52,7 @@ async function browserApi(path, options = {}) {
       credentials: 'include',
       redirect: 'error',
       headers: {
+        'X-Requested-With': 'XMLHttpRequest',
         ...(requestOptions.body ? { 'Content-Type': 'application/json' } : {}),
         ...(requestOptions.headers || {}),
       },
@@ -152,7 +153,7 @@ try {
   await page.waitForFunction(
     (expected) => {
       const text = document.querySelector('.cm-content')?.innerText || '';
-      return text.replace(/\\r/g, '').replace(/\\n$/, '') === expected;
+      return text.replace(/\r/g, '').replace(/\n$/, '') === expected;
     },
     { timeout: 30000 }, canaryCode,
   );
@@ -181,6 +182,12 @@ if (!projectId && page && !page.isClosed()) {
 }
 
 if (projectId) {
+  // Unmount the editor before cleanup so its presence/autosave timers cannot
+  // recreate telemetry while the scoped delete is running.
+  if (page && !page.isClosed()) {
+    try { await page.goto(`${baseUrl}/projects`, { waitUntil: 'networkidle0', timeout: 30000 }); }
+    catch (error) { cleanupErrors.push(new Error(`Could not leave canary editor: ${error.message}`)); }
+  }
   let cleanupVerified = false;
   let scopedCleanupError;
   if (token) {

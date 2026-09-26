@@ -234,7 +234,7 @@ cleanup() {
       if [ "$rollback_image" = "$current_digest" ] && [ "$rollback_digest" = "$current_digest" ] && wait_for_health "$HEALTH" 'previous rollback image'; then
         printf '%s\n' "$current_digest" > .pi3-current-image
         printf '%s\n' "$previous_release_sha" > .pi3-current-release-sha
-        rm -f .pi3-compose.previous .pi3-compose.rollback .pi3-previous-image .pi3-previous-release-sha
+        echo 'Rollback evidence retained; operator reconciliation required before another promotion.' >&2
         echo "✓ Previous image and pinned Compose restored and healthy: $current_digest" >&2
       else
         echo 'ERROR: rollback did not restore the expected image digest and health' >&2

@@ -153,6 +153,7 @@ export function createCanaryRouter(): Router {
     }
 
     await client.batch([
+      { sql: 'DELETE FROM live_presence WHERE project_id = ?', args: [req.params.id] },
       { sql: 'DELETE FROM help_requests WHERE project_id = ?', args: [req.params.id] },
       { sql: 'DELETE FROM comments WHERE project_id = ?', args: [req.params.id] },
       { sql: 'DELETE FROM project_shares WHERE project_id = ?', args: [req.params.id] },

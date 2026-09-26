@@ -28,6 +28,14 @@ ssh "$VPS" "set -eu; cd /app/pi3; \
   current=\$(cat .pi3-current-release-sha); test \"\$current\" = '$ROLLBACK_FOR_SHA' || { echo 'ERROR: requested rollback does not match current release' >&2; exit 1; }; \
   previous=\$(cat .pi3-previous-image); previous_sha=\$(cat .pi3-previous-release-sha); \
   test -n \"\$previous\" && test -s .pi3-compose.rollback || { echo 'ERROR: release-specific rollback evidence is missing' >&2; exit 1; }; \
+  case \"\$previous\" in '$IMAGE_REPO'@sha256:*) ;; *) echo 'ERROR: invalid previous image repository' >&2; exit 1 ;; esac; \
+  digest=\${previous##*@sha256:}; test \"\${#digest}\" -eq 64 || exit 1; \
+  case \"\$digest\" in *[!0123456789abcdef]*) exit 1 ;; esac; \
+  test ! -L .env && test -f .env || { echo 'ERROR: missing or symlinked .env' >&2; exit 1; }; \
+  umask 077; env_tmp=\$(mktemp .env.rollback.XXXXXX); \
+  trap 'rm -f \"\$env_tmp\"' EXIT; \
+  awk -v image=\"\$previous\" 'BEGIN { replaced=0 } /^PI3_IMAGE=/ { if (!replaced) print \"PI3_IMAGE=\" image; replaced=1; next } { print } END { if (!replaced) print \"PI3_IMAGE=\" image }' .env > \"\$env_tmp\"; \
+  chmod --reference=.env \"\$env_tmp\"; mv -f \"\$env_tmp\" .env; trap - EXIT; \
   cp -p .pi3-compose.rollback '$rollback_tmp'; \
   mv -f '$rollback_tmp' docker-compose.yml; \
   docker compose pull pi3; docker compose up -d --no-deps pi3; \
@@ -37,5 +45,5 @@ ssh "$VPS" "set -eu; cd /app/pi3; \
   test \"\$actual_digest\" = \"\$previous\" || { echo 'ERROR: rollback image digest mismatch' >&2; exit 1; }; \
   wait_for_health http://127.0.0.1:8080/api/health 'rollback image'; \
   printf '%s\\n' \"\$previous\" > .pi3-current-image; printf '%s\\n' \"\$previous_sha\" > .pi3-current-release-sha; \
-  rm -f .pi3-compose.previous .pi3-compose.rollback .pi3-previous-image .pi3-previous-release-sha .pi3-canary-passed-at; \
+  echo 'Rollback evidence retained; operator reconciliation required before another promotion.'; \
   echo '✓ Release-specific rollback restored and verified:' \"\$previous\""

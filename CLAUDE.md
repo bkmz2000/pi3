@@ -183,8 +183,15 @@ token, and its matching `live_presence` row; final SQLite integrity is `ok`,
 counts are 42 projects/17 users/16 migrations, and no canary artifacts remain.
 The rollback script also retired release-specific evidence markers on its
 success path, contrary to the attended-watch retention policy. Release policy is
-**BLOCKED** again. Do not retry until the 401 and rollback evidence behavior are
-reviewed and fixed, then require a fresh exact-commit gate and owner approval.
+**BLOCKED** again at that point. The subsequent fix reproduced the exact 401
+in the real app assembly: `/api` competition auth intercepted scoped tokens.
+The canary router now mounts before it; scoped tokens still cannot authenticate
+normal APIs. The browser canary sends the CSRF header on bodyless cleanup,
+normalizes real newline characters on reload, and leaves the editor before
+cleanup. Scoped deletion removes presence rows. Both rollback paths now retain
+evidence; post-canary rollback restores `.env` to the prior digest. Regression
+and full browser tests pass. Policy is READY for a corrected attempt, still
+requiring exact-commit gates and fresh digest-bound approval.
 
 **Testing the worker without Pyodide.** `src/runner/WorkerInterface.ts` defines
 typed `WorkerCommand`/`WorkerEvent` unions. Test `RunnerProvider` /
@@ -259,10 +266,10 @@ migrations, 42 projects, 17 users, zero canary rows); an isolated prior-image
 startup test with 014 passed. The later
 approved switch attempt on `39eafcd` failed its scoped canary read-back with
 HTTP 401 and automatically rolled back; see the incident note above. Release
-policy is currently **BLOCKED**. Neither the old `6998282` digest nor the failed
-`39eafcd` candidate is eligible for retry. Resolve the canary authorization and
-rollback-state issues, then require a new exact-commit gate, matching candidate
-digest, and explicit owner approval. Independent external host-down monitoring is
+policy was **BLOCKED** pending the fixes documented above and is now READY for
+a corrected attempt. Neither the old `6998282` digest nor the failed `39eafcd`
+candidate is eligible for retry. Require a new exact-commit gate, matching
+candidate digest, and explicit owner approval. Independent external host-down monitoring is
 absent but is a recommended follow-up rather than a gate for this manually
 attended pilot;
 the completed off-host restore snapshot did not contain assets, sounds, or

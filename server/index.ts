@@ -153,11 +153,13 @@ if (process.env.NODE_ENV !== 'test') {
   setInterval(() => { void pruneStaleLivePresence(); }, 60 * 60 * 1000).unref();
 }
 app.use('/api/help-requests', createHelpRequestsRouter());
+// Scoped canary credentials are not general account tokens. Handle them before
+// the /api-wide competition router's normal-account authentication middleware.
+app.use('/api/canary', createCanaryRouter());
 app.use('/api', createCompeteRouter());
 app.use('/api/moderation', createModerationRouter());
 app.use('/api/snapshots', createSnapshotsRouter());
 app.use('/api/sessions', createSessionsRouter());
-app.use('/api/canary', createCanaryRouter());
 
 app.use((req, res, next) => {
   if (!req.path.startsWith('/api/')) {

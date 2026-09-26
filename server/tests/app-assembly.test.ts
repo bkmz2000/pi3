@@ -72,6 +72,30 @@ describe('production app assembly (server/index.ts)', () => {
     expect(typeof res.body.timestamp).toBe('number');
   });
 
+  it('accepts scoped canary credentials through the real production router stack', async () => {
+    const created = await request(app).post('/api/projects')
+      .set('Authorization', `Bearer ${testToken}`)
+      .send({ name: 'Release canary assembly', files: { 'main.py': 'print(1)' } });
+    expect(created.status).toBe(201);
+    const id = created.body.id as string;
+    const issued = await request(app).post('/api/canary/token')
+      .set('Authorization', `Bearer ${testToken}`).send({ projectId: id });
+    expect(issued.status).toBe(201);
+    const authorization = `Bearer ${issued.body.token}`;
+    const read = await request(app).get(`/api/canary/projects/${id}`)
+      .set('Authorization', authorization);
+    expect(read.status).toBe(200);
+    expect(read.body.files['main.py']).toBe('print(1)');
+    expect((await request(app).get('/api/users/me').set('Authorization', authorization)).status).toBe(401);
+    db.prepare(`INSERT INTO live_presence (student_id, project_id, file, cursor_line, updated_at)
+      VALUES (?, ?, 'main.py', 1, ?)`).run('app-assembly-user', id, Date.now());
+    expect((await request(app).delete(`/api/canary/projects/${id}`)
+      .set('Authorization', authorization)).status).toBe(204);
+    expect((await request(app).get(`/api/canary/projects/${id}`)
+      .set('Authorization', authorization)).status).toBe(404);
+    expect(db.prepare('SELECT count(*) AS n FROM live_presence WHERE project_id = ?').get(id)).toEqual({ n: 0 });
+  });
+
   it('serves /api/config with allowPasswordAuth', async () => {
     const res = await request(app).get('/api/config');
     expect(res.status).toBe(200);
@@ -127,6 +151,14 @@ describe('production app assembly (server/index.ts)', () => {
       .set('Content-Type', 'application/x-www-form-urlencoded');
     expect(res.status).toBe(403);
     expect(res.body.error).toBe('Forbidden');
+  });
+
+  it('requires a CSRF header on bodyless cookie-client DELETE requests', async () => {
+    expect((await request(app).delete('/api/projects/missing')).status).toBe(403);
+    // With the header the request reaches authentication (no cookie in this
+    // request), rather than being rejected by the global CSRF gate.
+    expect((await request(app).delete('/api/projects/missing')
+      .set('X-Requested-With', 'XMLHttpRequest')).status).toBe(401);
   });
 
   it('ingests client-error reports (204)', async () => {

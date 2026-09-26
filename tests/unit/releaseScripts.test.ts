@@ -182,6 +182,14 @@ describe('release script safety regressions', () => {
     }
   });
 
+  it('sends CSRF headers for bodyless canary cleanup and retains failed-deploy evidence', () => {
+    const canary = readFileSync(join(root, 'scripts/deploy-canary.mjs'), 'utf8');
+    expect(canary).toContain("'X-Requested-With': 'XMLHttpRequest'");
+    expect(canary).toContain('await page.goto(`${baseUrl}/projects`');
+    const deploy = readFileSync(join(root, 'scripts/deploy-vps.sh'), 'utf8');
+    expect(deploy).not.toContain('rm -f .pi3-compose.previous .pi3-compose.rollback');
+  });
+
   it('requires coverage-gated container tests before stamping and isolates predeploy encryption', () => {
     const gate = readFileSync(join(root, 'scripts/release-gate.sh'), 'utf8');
     const deploy = readFileSync(join(root, 'scripts/deploy-vps.sh'), 'utf8');
@@ -205,7 +213,7 @@ describe('release script safety regressions', () => {
     const policy = readFileSync(join(root, 'docs/deployment-data-safety.md'), 'utf8');
     const check = readFileSync(join(root, 'scripts/release-policy-check.sh'), 'utf8');
     const makefile = readFileSync(join(root, 'Makefile'), 'utf8');
-    expect(policy).toContain('**Release gate status: BLOCKED**');
+    expect(policy).toContain('**Release gate status: READY**');
     expect(policy).toContain('`READY` means **eligible to attempt a controlled promotion**');
     expect(policy).toContain('canary attempt failed with HTTP 401 on scoped read-back');
     const normalizedPolicy = policy.replace(/\s+/g, ' ');
@@ -436,7 +444,7 @@ describe('release script safety regressions', () => {
     }
   });
 
-  it('keeps the rollback Compose evidence on failure and removes it only after verification', async () => {
+  it('restores the environment and retains rollback evidence even after verified rollback', async () => {
     const temp = mkdtempSync(join(tmpdir(), 'pi3-rollback-test-'));
     const remote = join(temp, 'remote');
     const bin = join(temp, 'bin');
@@ -449,6 +457,7 @@ describe('release script safety regressions', () => {
     writeFileSync(join(remote, '.pi3-previous-release-sha'), `${'c'.repeat(40)}\n`);
     writeFileSync(join(remote, '.pi3-compose.rollback'), 'services:\n  pi3:\n    image: previous\n');
     writeFileSync(join(remote, 'docker-compose.yml'), 'services:\n  pi3:\n    image: candidate\n');
+    writeFileSync(join(remote, '.env'), 'SECRET=unchanged\nPI3_IMAGE=candidate\n', { mode: 0o600 });
 
     const fakeSsh = join(bin, 'ssh');
     writeFileSync(fakeSsh, '#!/bin/bash\nset -eu\nshift\nremote_cmd="$1"\nremote_cmd="${remote_cmd#*cd /app/pi3; }"\ncd "$TEST_REMOTE_DIR"\nexec bash -euc "$remote_cmd"\n');
@@ -485,9 +494,10 @@ describe('release script safety regressions', () => {
       });
       expect(succeeded.code).toBe(0);
       expect(readFileSync(curlCount, 'utf8').trim()).toBe('3');
-      expect(existsSync(join(remote, '.pi3-compose.rollback'))).toBe(false);
+      expect(existsSync(join(remote, '.pi3-compose.rollback'))).toBe(true);
       expect(readFileSync(join(remote, '.pi3-current-image'), 'utf8').trim()).toBe(previous);
-      expect(existsSync(join(remote, '.pi3-previous-image'))).toBe(false);
+      expect(existsSync(join(remote, '.pi3-previous-image'))).toBe(true);
+      expect(readFileSync(join(remote, '.env'), 'utf8')).toBe(`SECRET=unchanged\nPI3_IMAGE=${previous}\n`);
     } finally {
       rmSync(temp, { recursive: true, force: true });
     }

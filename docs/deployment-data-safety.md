@@ -2,7 +2,7 @@
 
 **Status:** Required release policy
 
-**Release gate status: BLOCKED**
+**Release gate status: READY**
 
 `READY` means **eligible to attempt a controlled promotion**, not "deployed" or
 "production canary passed." The operator may commit `READY` only after the
@@ -71,30 +71,31 @@ A release is blocked unless all of these are true:
 10. Storage quota or persistence failures keep the project dirty and show a
     blocking recovery action; they never resolve as a successful save.
 
-### Current release blockers (review state: 2026-09-26)
+### Release-readiness assessment (2026-09-26)
 
-The policy remains **BLOCKED**. Independent reviews of merged production
-candidate `b586c92` found five issues: no current-project export action when
-IndexedDB persistence fails; an older anonymous draft could replace a newly
-selected clean project; the predeploy recipient was not proven to match the
-operator's recovery identity; the release stamp could omit coverage-gated
-container tests; and encryption exposed the whole backup directory to a
-network-enabled candidate container. Those fixes are in the production
-worktree. Follow-up reviewers then identified a host-dependent missing-tool
-test and gaps in async restoration/ZIP-content assertions; these are now fixed
-with an isolated test PATH, a deferred-storage component test, and ZIP content
-verification. Focused tests, lint, typecheck, and the smoke E2E suite pass, and
-`make test` now passes (101 frontend suites/1005 tests plus server coverage and
-both profile gates). The configured recipient matches the protected identity,
-and an isolated container encryption round-trip passed. Independent corrected-code follow-up reviews returned **OK with notes**, with
-no remaining code findings; the helper's executable mode is verified as
-`0755`. The complete local release gate has passed on clean production
-commits/profile `institutional`; stamps are private mode 0600 and bound to
-exact commits. Policy remains **BLOCKED**: no candidate has been promoted, so
-production rollback/canary behavior is not yet verified. This gate does not
-itself confer `READY` or promotion approval. No image has been published or
-deployed; exact artifact approval and the controlled production canary remain
-required.
+The pre-promotion controls are evidenced, so the policy is **READY for a
+controlled promotion attempt**. Independent corrected-code follow-up reviewers
+returned **OK with notes** and no remaining code findings. The current clean
+production candidate passed the full local release gate: lint, typecheck,
+coverage-gated container tests (101 frontend suites/1005 tests plus server
+coverage and both profile gates), unit tests, browser-storage migration
+fixtures, full E2E, production build, and isolated migration fixture. The
+protected age identity was verified against the configured recipient; the
+isolated candidate-container encryption round-trip passed; and the off-host
+restore drill is recorded below. The age helper is executable mode `0755`.
+
+READY means eligible to attempt promotion, not permission to switch or proof
+that the production canary passed. A read-only check found the current service
+healthy on the legacy `:latest` image without revision/profile labels or
+release markers. An authenticated canary attempt on that old image verified
+the dedicated student account and project creation, then got 404 for the
+candidate-only scoped-token endpoint. Its temporary project was removed with a
+guarded exact-row cleanup; no image/container was changed. The endpoint and
+rollback/finalize flow are covered by candidate tests, and the canary is
+intentionally run *after* the candidate switch inside the rollback-protected
+promotion command. Candidate publication and the production switch have not
+occurred. The published digest and separate exact-tuple approval are still
+required; no promotion will run without that approval.
 
 - Browser save durability still requires a clean-candidate full test run and
   review, including offline queue replay, forked-project revision tracking,
@@ -224,10 +225,11 @@ and check service/backup health the next day. A later total VPS/network outage
 may go unnoticed until a human checks; same-host backups may be lost with the
 host. Add external monitoring before unattended releases or a larger cohort;
 manual attention at deploy time is not equivalent to 24/7 alerting. Telegram
-and the first off-host drill are recorded; keep status **BLOCKED** until the
-remaining pre-promotion review and rollback/canary preparations are evidenced.
-`READY` precedes the exact clean-commit release gate; the production canary is
-mandatory *after* the image switch and before rollout success.
+and the first off-host drill are recorded. The 2026-09-26 pre-promotion review
+and local rollback/canary tests satisfy the READY prerequisites. The exact
+clean-commit release gate must pass before candidate publication; the
+production canary is mandatory *after* the image switch and before rollout
+success.
 
 The current release workflow builds/publishes a candidate first,
 then requires separate, command-line approval bound to commit, registry
@@ -235,9 +237,10 @@ digest, deployment profile, VPS target, and origin before promotion. The
 production canary must then pass; rollback must restore the prior pinned image
 and Compose configuration. This workflow itself is not yet production-verified.
 
-Until these blockers are closed, deployments may continue only for an incident
-fix approved by the product owner, after affected browser profiles and the VPS
-database have been preserved.
+Even with READY, no production switch occurs until the exact published digest,
+commit, profile, VPS target, and origin have been approved explicitly on the
+promotion command. If the canary or artifact checks fail, the command must roll
+back; keep rollback evidence through the attended watch.
 
 ## 3. Server data protection
 

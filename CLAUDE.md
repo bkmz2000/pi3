@@ -153,12 +153,15 @@ outstanding upgrade can hang this Jest case. Then close the old v3 connection
 and test a real v4 retry. In the production browser suite, wait for `.cm-editor`
 rather than treating `#root` plus a fixed sleep as proof that CodeMirror mounted;
 a slow cold start previously produced a false UI failure. The 2026-09-25 review findings and `02fea4f` blockers described above were
-subsequently fixed and re-reviewed. A clean full gate passed for candidate
-`a8dd8c7`, but its explicitly approved promotion failed during immediate
-candidate/rollback health probes; see Deployment data safety for the incident,
-live additive migration, and verified prior-image status. Production remains
-**BLOCKED**. This health-polling fix must pass a new exact-commit release gate
-before another candidate can be promoted.
+subsequently fixed and re-reviewed. The approved `a8dd8c7` promotion failed
+during immediate candidate/rollback health probes. Bounded health polling was
+then committed and gated as `6998282`, and an immutable replacement candidate
+was published, but not promoted. Production remains **BLOCKED**: the previous
+release SHA is unknown, rollback evidence remains on the VPS, and compatibility
+of the prior image with the live additive migration has not been revalidated.
+The current source follow-up makes promotion fail closed on incomplete rollback
+markers; it requires its own exact-commit gate and candidate before any future
+attempt. See Deployment data safety for required operator reconciliation.
 
 **Testing the worker without Pyodide.** `src/runner/WorkerInterface.ts` defines
 typed `WorkerCommand`/`WorkerEvent` unions. Test `RunnerProvider` /

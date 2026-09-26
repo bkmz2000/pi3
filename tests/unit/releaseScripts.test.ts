@@ -74,6 +74,34 @@ describe('release script safety regressions', () => {
     }
   });
 
+  it('fails closed on every unresolved deployment marker, including an unknown prior SHA', async () => {
+    const stateDir = mkdtempSync(join(tmpdir(), 'pi3-pending-state-test-'));
+    const markers = [
+      '.pi3-compose.rollback',
+      '.pi3-previous-image',
+      '.pi3-previous-release-sha',
+      '.pi3-canary-passed-at',
+    ];
+    try {
+      const args = ['scripts/deploy-vps.sh', '--assert-no-pending-state', stateDir];
+      expect((await run('sh', args)).code).toBe(0);
+      for (const marker of markers) {
+        const markerPath = join(stateDir, marker);
+        writeFileSync(markerPath, marker === '.pi3-previous-release-sha' ? 'unknown\n' : 'pending\n');
+        const blocked = await run('sh', args);
+        expect(blocked.code).not.toBe(0);
+        expect(blocked.stderr).toContain(marker);
+        rmSync(markerPath);
+      }
+      symlinkSync(join(stateDir, 'missing-target'), join(stateDir, '.pi3-compose.rollback'));
+      const danglingMarker = await run('sh', args);
+      expect(danglingMarker.code).not.toBe(0);
+      expect(danglingMarker.stderr).toContain('.pi3-compose.rollback');
+    } finally {
+      rmSync(stateDir, { recursive: true, force: true });
+    }
+  });
+
   it('validates the local age identity and binds the configured recipient before promotion', async () => {
     const temp = mkdtempSync(join(tmpdir(), 'pi3-age-identity-test-'));
     const bin = join(temp, 'bin');
@@ -187,6 +215,15 @@ describe('release script safety regressions', () => {
     expect(check).toContain("grep -Fqx '**Release gate status: READY**'");
     expect(check).toContain('stamp="$stamp_dir/${sha}-${profile}.stamp"');
     expect(check).toContain('-le 86400');
+    for (const marker of [
+      '.pi3-compose.previous',
+      '.pi3-compose.rollback',
+      '.pi3-previous-image',
+      '.pi3-previous-release-sha',
+      '.pi3-canary-passed-at',
+    ]) {
+      expect(makefile).toContain(`test ! -e ${marker} && test ! -L ${marker}`);
+    }
     const promotion = makefile.indexOf('promote-vps: release-policy-check');
     const imageSwitch = makefile.indexOf("/tmp/pi3-deploy-vps-$(SHA).sh '$(CANDIDATE_IMAGE_REF)'", promotion);
     const canary = makefile.indexOf('if node scripts/deploy-canary.mjs &&', promotion);

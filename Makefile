@@ -91,7 +91,7 @@ promote-vps: release-policy-check
 	@test "$$(docker image inspect "$(CANDIDATE_IMAGE_REF)" --format '{{range .RepoDigests}}{{println .}}{{end}}' | grep -F '$(IMAGE)@sha256:' | head -n 1)" = "$(CANDIDATE_IMAGE_REF)" || { echo 'ERROR: local image does not match the approved immutable candidate' >&2; exit 1; }
 	@test "$$(docker image inspect "$(CANDIDATE_IMAGE_REF)" --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')" = "$(SHA)" || { echo 'ERROR: candidate image revision label does not match HEAD' >&2; exit 1; }
 	@test "$$(docker image inspect "$(CANDIDATE_IMAGE_REF)" --format '{{index .Config.Labels "org.pi3.deployment-profile"}}')" = "$(DEPLOYMENT_PROFILE)" || { echo 'ERROR: candidate image profile label differs from approval' >&2; exit 1; }
-	@ssh $(VPS) "set -eu; cd /app/pi3; test ! -e .pi3-compose.previous && test ! -e .pi3-compose.rollback && test ! -e .pi3-canary-passed-at || { echo 'ERROR: a prior canary/rollback/watch is still pending' >&2; exit 1; }"
+	@ssh $(VPS) "set -eu; cd /app/pi3; test ! -e .pi3-compose.previous && test ! -L .pi3-compose.previous && test ! -e .pi3-compose.rollback && test ! -L .pi3-compose.rollback && test ! -e .pi3-previous-image && test ! -L .pi3-previous-image && test ! -e .pi3-previous-release-sha && test ! -L .pi3-previous-release-sha && test ! -e .pi3-canary-passed-at && test ! -L .pi3-canary-passed-at || { echo 'ERROR: prior promotion/rollback/watch state needs operator reconciliation' >&2; exit 1; }"
 	@scp scripts/deploy-vps.sh $(VPS):/tmp/pi3-deploy-vps-$(SHA).sh
 	@scp docker-compose.yml $(VPS):/app/pi3/docker-compose.yml.new-$(SHA)
 	@ssh $(VPS) "set -eu; cd /app/pi3; cp -p docker-compose.yml .pi3-compose.previous; \

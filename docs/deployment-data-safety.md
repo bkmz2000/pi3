@@ -103,11 +103,28 @@ prior image is running and health probes return 200, but user-level operations
 against the expanded schema have not been revalidated. Retain the forward
 migration and never restore the older database snapshot as rollback.
 
-Before another attempt, implement bounded retrying readiness checks for both
-candidate startup and rollback, test recovery from transient probe failures
-and timeout behavior, gate a replacement exact commit, and obtain a new
-digest-bound approval. No promotion or canary success is recorded for the
-current candidate.
+Bounded health polling for candidate startup and rollback was implemented,
+regression-tested (transient recovery and timeout), and passed the exact
+institutional release gate on commit
+`69982820f24be48ef1fab4b017a4b3bdb23bd85a`. Replacement candidate
+`ghcr.io/bkmz2000/pi3@sha256:edacd140b849984f1e89ae93a4aae93d96dd563070b951572498b3106be9395e`
+was published, but no production switch or canary was attempted. The current
+source follow-up strengthens the deployment checks for incomplete rollback
+state and is not part of the already-published `6998282` digest. Do not promote
+that digest or retry while the retained evidence remains. The `make promote-vps` preflight now fails if any Compose, prior-image,
+prior-SHA, or canary-watch marker exists (including symlinks); the on-VPS deploy
+script independently rejects unresolved rollback/image/SHA/watch markers before
+mutating deployment state. Marker values such as `unknown` are not treated as
+safe. These guards preserve evidence and require operator reconciliation; they
+do not remove or rewrite it.
+
+Before any future attempt, an operator must independently reconcile and retain
+an audit copy of the existing rollback markers and verify prior-image operation
+against the already-migrated database. Do not restore the older database
+snapshot or clear markers automatically. Then review and gate the exact clean
+source commit (including this guard), publish its matching immutable digest,
+and obtain new commit/profile/VPS/origin/digest-bound approval. No promotion or canary success
+is recorded for the replacement candidate.
 
 - Historical browser-save review blockers (local-draft export, claim read-back,
   reconnect/editor revision, post-conflict autosave, clean-draft claiming, and

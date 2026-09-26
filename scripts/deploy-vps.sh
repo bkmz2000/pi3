@@ -58,6 +58,25 @@ encrypt_predeploy_snapshot() {
   mv -f "$temporary" "$destination"
 }
 
+assert_no_pending_release_state() {
+  state_dir=$1
+  for marker in .pi3-compose.rollback .pi3-previous-image .pi3-previous-release-sha .pi3-canary-passed-at; do
+    marker_path=$state_dir/$marker
+    if [ -e "$marker_path" ] || [ -L "$marker_path" ]; then
+      echo "ERROR: unresolved prior deployment state '$marker' exists; operator reconciliation is required before promotion" >&2
+      return 1
+    fi
+  done
+}
+
+# Keep state checks independently testable; normal deployment uses the same check.
+if [ "${1:-}" = --assert-no-pending-state ]; then
+  shift
+  [ "$#" -eq 1 ] || { echo 'usage: deploy-vps.sh --assert-no-pending-state STATE_DIR' >&2; exit 2; }
+  assert_no_pending_release_state "$1"
+  exit $?
+fi
+
 # Keep this operation independently testable with a stub Docker CLI; normal
 # deployment still invokes the exact same function after validating the live snapshot.
 if [ "${1:-}" = --wait-for-health ]; then
@@ -101,6 +120,7 @@ case "$origin_host" in ''|*/*|*@*|*\?*|*\#*) echo 'ERROR: expected app origin mu
 CANARY_BASE_URL=${CANARY_BASE_URL%/}
 
 cd /app/pi3
+assert_no_pending_release_state .
 mkdir -p "$BACKUP_DIR"
 chmod 700 "$BACKUP_DIR"
 

@@ -65,6 +65,9 @@ async function browserApi(path, options = {}) {
 
 try {
   browser = await puppeteer.launch({
+    // The sign-in wait is 10 minutes; Puppeteer's default CDP timeout is 3 minutes.
+    // Keep the protocol alive long enough for the operator to authenticate.
+    protocolTimeout: 11 * 60 * 1000,
     headless: process.env.PI3_CANARY_HEADLESS === 'true',
     devtools: false,
     defaultViewport: { width: 1280, height: 800 },

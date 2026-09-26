@@ -144,10 +144,15 @@ approval and the controlled production canary remain required.
   The host backup directory was root-owned mode 700. Keep verifying this
   invariant; same-host backups do not protect against VPS/disk loss.
 - The configured production canary account ID was verified read-only as an
-  existing student; its value is not recorded here. The scoped canary-token flow
-  is implemented locally but has not been tested against production. Confirm
-  the account and rollback/canary machinery are ready *before* promotion; the
-  new image's authenticated API/UI canary runs *after* promotion, within the
+  existing student; its value is not recorded here. An unauthenticated probe
+  confirms `/api/canary/token` is mounted (401); this does not verify token
+  issuance. The first live canary attempt could not authenticate and hit
+  Puppeteer's default three-minute CDP timeout while the script allows ten
+  minutes for operator sign-in. No canary project was created, and a subsequent
+  read-only DB query found no `Release canary` projects. The launcher now sets
+  an 11-minute protocol timeout; the authenticated API/UI canary must still be
+  completed. Confirm the account and rollback/canary machinery are ready
+  *before* promotion; the candidate canary runs *after* promotion, within the
   same rollback-protected command. No production promotion is authorized yet.
 - The Vercel production path has no policy-compliant rollback/canary workflow and
   remains deliberately disabled.

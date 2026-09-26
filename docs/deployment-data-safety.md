@@ -71,12 +71,27 @@ A release is blocked unless all of these are true:
 10. Storage quota or persistence failures keep the project dirty and show a
     blocking recovery action; they never resolve as a successful save.
 
-### Current release blockers (review state: 2026-09-25)
+### Current release blockers (review state: 2026-09-26)
 
-The policy remains **BLOCKED**. Recent client-side changes and release scripts
-are under adversarial review; focused local tests have passed, but the complete
-release gate has not passed on a reviewed, clean commit. Do not infer readiness
-from a green focused test run.
+The policy remains **BLOCKED**. Independent reviews of merged production
+candidate `b586c92` found five issues: no current-project export action when
+IndexedDB persistence fails; an older anonymous draft could replace a newly
+selected clean project; the predeploy recipient was not proven to match the
+operator's recovery identity; the release stamp could omit coverage-gated
+container tests; and encryption exposed the whole backup directory to a
+network-enabled candidate container. Those fixes are in the production
+worktree. Follow-up reviewers then identified a host-dependent missing-tool
+test and gaps in async restoration/ZIP-content assertions; these are now fixed
+with an isolated test PATH, a deferred-storage component test, and ZIP content
+verification. Focused tests, lint, typecheck, and the smoke E2E suite pass, and
+`make test` now passes (101 frontend suites/1005 tests plus server coverage and
+both profile gates). The configured recipient matches the protected identity,
+and an isolated container encryption round-trip passed. Independent corrected-code follow-up reviews returned **OK with notes**, with
+no remaining code findings; the ops reviewer requested confirming the helper's
+executable mode, now verified as `0755`. The complete clean-commit release
+gate/stamp is still pending. Do not mark READY or infer readiness from these
+results. No image has been published or deployed; exact artifact approval and
+the controlled production canary remain required.
 
 - Browser save durability still requires a clean-candidate full test run and
   review, including offline queue replay, forked-project revision tracking,
@@ -133,6 +148,15 @@ from a green focused test run.
   same rollback-protected command. No production promotion is authorized yet.
 - The Vercel production path has no policy-compliant rollback/canary workflow and
   remains deliberately disabled.
+- Before promotion, `scripts/verify-age-recipient.sh` must derive exactly one
+  public recipient from the operator-owned mode-0600 local age identity using
+  trusted host `age-keygen -y`, and match it exactly to
+  `BACKUP_AGE_RECIPIENT`. The private identity is never sent to the VPS or
+  mounted into a candidate container. The predeploy encryption container has
+  no network, sees only the snapshot via a read-only file mount, and writes
+  ciphertext to a private host temp file through stdout. The release stamp now
+  requires `make test`'s coverage-gated container suite in addition to the
+  existing local gates; a failed run must not leave a valid stamp.
 
 Operationally verified: the installed `pi3-backup.timer` runs nightly (00:30 UTC
 with up to 10 minutes randomized delay), encrypts backups under `/srv/pi3/backups`,

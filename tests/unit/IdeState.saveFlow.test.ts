@@ -48,6 +48,7 @@ import {
   isExampleSessionId, exampleNameFromSessionId,
   EXAMPLE_SESSION_PREFIX,
 } from '../../src/state/IdeState';
+import { ANON_DRAFT_PREFIX } from '../../src/state/sessionId';
 import { saveProjectContent, getProject, ApiHttpError } from '../../src/state/api';
 import { projectStorage, isOnline } from '../../src/utils/storage';
 import { downloadProjectZip } from '../../src/utils/zip';
@@ -191,6 +192,37 @@ describe('downloadProject — anonymous draft', () => {
       currentFile: 'main.py',
     }));
     expect(projectStorage.downloadProjectZip).not.toHaveBeenCalled();
+  });
+
+  it('exports the latest in-memory snapshot after local persistence fails', async () => {
+    useEditor.setState({
+      currentProjectId: `${ANON_DRAFT_PREFIX}storage-failure`,
+      project: {
+        name: 'Unsaved work',
+        files: { 'main.py': 'print("latest")' },
+        assets: { 'sprite.png': 'data:image/png;base64,AA==' },
+        tilemaps: { level: { width: 1, height: 1 } },
+        sounds: {},
+      },
+      currentFile: 'main.py',
+      dirtyFiles: new Set(['main.py']),
+    });
+    mockSaveAnonymousDraft.mockRejectedValueOnce(new DOMException('quota', 'QuotaExceededError'));
+
+    await act(async () => {
+      expect(await useIde.getState().saveCurrentProject()).toBe(false);
+      await useIde.getState().downloadProject();
+    });
+
+    expect(mockDownloadProjectZip).toHaveBeenCalledWith(expect.objectContaining({
+      name: 'Unsaved work',
+      files: [{ name: 'main.py', content: 'print("latest")' }],
+      assets: { 'sprite.png': 'data:image/png;base64,AA==' },
+      tilemaps: { level: { width: 1, height: 1 } },
+    }));
+    expect(useEditor.getState().dirtyFiles.size).toBeGreaterThan(0);
+    expect(projectStorage.listAnonymousDrafts).not.toHaveBeenCalled();
+    expect(mockSaveProjectContent).not.toHaveBeenCalled();
   });
 });
 

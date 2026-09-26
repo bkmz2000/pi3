@@ -1,6 +1,36 @@
 #!/bin/sh
 # Run on the production VPS. Args: immutable-image-ref release-sha age-recipient expected-app-origin deployment-profile
 set -eu
+
+encrypt_predeploy_snapshot() {
+  image_ref=$1
+  recipient=$2
+  snapshot=$3
+  destination=$4
+  temporary="$destination.tmp.$$"
+  if ! (umask 077; docker run --rm --network none --read-only \
+    --mount "type=bind,src=$snapshot,dst=/snapshot/pi3.db,readonly" \
+    --entrypoint age "$image_ref" -r "$recipient" /snapshot/pi3.db > "$temporary"); then
+    rm -f "$temporary"
+    return 1
+  fi
+  if [ ! -s "$temporary" ]; then
+    rm -f "$temporary"
+    return 1
+  fi
+  chmod 600 "$temporary"
+  mv -f "$temporary" "$destination"
+}
+
+# Keep this operation independently testable with a stub Docker CLI; normal
+# deployment still invokes the exact same function after validating the live snapshot.
+if [ "${1:-}" = --encrypt-predeploy-snapshot ]; then
+  shift
+  [ "$#" -eq 4 ] || { echo 'usage: deploy-vps.sh --encrypt-predeploy-snapshot IMAGE RECIPIENT SNAPSHOT OUTPUT' >&2; exit 2; }
+  encrypt_predeploy_snapshot "$@"
+  exit $?
+fi
+
 IMAGE_REF=${1:?immutable image ref required}
 RELEASE_SHA=${2:?release SHA required}
 AGE_RECIPIENT=${3:?age public recipient required}
@@ -114,6 +144,7 @@ ts=$(date -u +%Y%m%dT%H%M%SZ)
 backup_name="pi3-predeploy-$ts.db"
 backup="$BACKUP_DIR/$backup_name"
 encrypted_backup="$backup.age"
+encrypted_tmp="$encrypted_backup.tmp.$$"
 meta="$BACKUP_DIR/.pi3-predeploy-$ts.json"
 container_backup="/tmp/$backup_name"
 container_meta="/tmp/.pi3-predeploy-$ts.json"
@@ -124,7 +155,7 @@ cleanup() {
   status=$?
   trap - EXIT HUP INT TERM
   # Never leave a plaintext production database in the backup directory.
-  rm -f "$backup" 2>/dev/null || true
+  rm -f "$backup" "$encrypted_tmp" 2>/dev/null || true
   if [ "$encrypted_ready" -eq 0 ]; then rm -f "$encrypted_backup" 2>/dev/null || true; fi
   docker compose exec -T "$CONTAINER" rm -f "$container_backup" "$container_meta" 2>/dev/null || true
 
@@ -171,9 +202,12 @@ docker compose cp "$CONTAINER:$container_meta" "$meta" >/dev/null
 
 plain_sha=$(sha256sum "$backup" | awk '{print $1}')
 bytes=$(wc -c < "$backup" | tr -d ' ')
-docker run --rm --entrypoint age -v "$BACKUP_DIR:/backups" "$IMAGE_REF" \
-  -r "$AGE_RECIPIENT" -o "/backups/$backup_name.age" "/backups/$backup_name"
-[ -s "$encrypted_backup" ] || { echo 'ERROR: encrypted pre-deploy backup is empty' >&2; exit 1; }
+# The candidate sees only this snapshot read-only, with networking disabled;
+# ciphertext is streamed to a private host temp file, never a backup-dir mount.
+if ! encrypt_predeploy_snapshot "$IMAGE_REF" "$AGE_RECIPIENT" "$backup" "$encrypted_backup"; then
+  echo 'ERROR: candidate could not encrypt the verified pre-deploy snapshot' >&2
+  exit 1
+fi
 enc_sha=$(sha256sum "$encrypted_backup" | awk '{print $1}')
 encrypted_ready=1
 # Run the exact candidate's initDb() in the pinned image, with no network,

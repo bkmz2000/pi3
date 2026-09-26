@@ -38,8 +38,7 @@ if (url.protocol !== 'https:' || url.origin !== value.replace(/\/$/, '') || url.
 NODE
 
 identity="$HOME/.config/age/pi3-backup-identity.txt"
-[ -s "$identity" ] || fail "local age recovery identity missing: $identity"
-[ "$(stat -c '%a' "$identity")" = 600 ] || fail 'local age recovery identity must have mode 600'
+scripts/verify-age-recipient.sh "$identity" "$BACKUP_AGE_RECIPIENT" || fail 'pre-deploy backups must be decryptable with the protected local recovery identity'
 
 stamp_dir=$(git rev-parse --git-path pi3-release-gates)
 stamp="$stamp_dir/${sha}-${profile}.stamp"

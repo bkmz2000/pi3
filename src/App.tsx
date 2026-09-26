@@ -7,6 +7,7 @@ import { graphicsProfile } from "./editor/profiles";
 import Rail from "./SideMenu";
 import { useEditor, useIde, isExampleSessionId, EXAMPLE_SESSION_PREFIX } from "./state/IdeState";
 import { isAnonymousDraftId } from "./state/sessionId";
+import { AnonStashLoader } from "./components/AnonStashLoader";
 import {
   getComments, listSessionReactions,
   ApiHttpError, type ApiComment, type SessionReaction,
@@ -46,7 +47,7 @@ import { ToastContainer } from "./components/ToastContainer";
 import { SaveErrorIndicator } from "./components/SaveErrorIndicator";
 import { ClaimLocalDraftButton } from "./components/ClaimLocalDraftButton";
 import { getCmTheme } from "./editor/cmTheme";
-import { migrateLegacyAnonStash, clearAnonStash } from "./utils/anonStash";
+import { clearAnonStash } from "./utils/anonStash";
 
 const SESSION_REACTION_GLYPHS: Record<SessionReaction["reaction"], string> = {
   good: "👍",
@@ -59,38 +60,6 @@ function SessionChecker() {
   useEffect(() => {
     checkSession();
   }, [checkSession]);
-  return null;
-}
-
-function AnonStashLoader() {
-  const changeCurrentProject = useEditor((s) => s.changeCurrentProject);
-  const ran = useRef(false);
-
-  useEffect(() => {
-    if (ran.current) return;
-    ran.current = true;
-
-    // Restore only on the fresh editor URL; never override a project route.
-    if (window.location.pathname !== "/ide") return;
-
-    void (async () => {
-      try {
-        // Migrate the historical single-stash entry before enumerating drafts.
-        await migrateLegacyAnonStash();
-        const drafts = await projectStorage.listAnonymousDrafts();
-        const latestEditor = useEditor.getState();
-        // A user may begin editing while IDB is opening. Preserve that work;
-        // its own autosave will persist it, and keep the existing drafts listed.
-        if (window.location.pathname !== "/ide" || latestEditor.dirtyFiles.size > 0 || drafts.length === 0) return;
-        const latest = drafts[0];
-        changeCurrentProject(latest.project, latest.id);
-        localStorage.setItem("pi3_last_editor_path", `/ide/${latest.id}`);
-      } catch (error) {
-        console.error("Failed to restore anonymous draft:", error);
-      }
-    })();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
   return null;
 }
 

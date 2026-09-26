@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useProjects } from '../../hooks/useProjects';
 import { useEditor, isExampleSessionId, exampleNameFromSessionId } from '../../state/IdeState';
+import { createAnonymousDraftId } from '../../state/sessionId';
 import { projectStorage, type AnonymousDraft } from '../../utils/storage';
 import { migrateLegacyAnonStash } from '../../utils/anonStash';
 import { downloadProjectZip } from '../../utils/zip';
@@ -98,7 +99,7 @@ export function ProjectsPage() {
       assets: {},
       tilemaps: {},
       sounds: {},
-    });
+    }, createAnonymousDraftId());
     setShowNewProject(false);
     navigate('/ide');
   };

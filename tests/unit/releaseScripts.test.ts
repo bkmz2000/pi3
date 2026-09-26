@@ -1,7 +1,7 @@
 import { createServer } from 'node:http';
-import { spawn } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { chmodSync, existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -26,6 +26,103 @@ function touchAt(path: string, epoch: number): void {
 
 describe('release script safety regressions', () => {
   jest.setTimeout(15_000);
+
+  it('validates the local age identity and binds the configured recipient before promotion', async () => {
+    const temp = mkdtempSync(join(tmpdir(), 'pi3-age-identity-test-'));
+    const bin = join(temp, 'bin');
+    const identity = join(temp, 'identity.txt');
+    const recipient = 'age1' + 'a'.repeat(58);
+    mkdirSync(bin);
+    writeFileSync(identity, 'AGE-SECRET-KEY-1-TEST-FIXTURE\n');
+    chmodSync(identity, 0o600);
+    const fakeAgeKeygen = join(bin, 'age-keygen');
+    writeFileSync(fakeAgeKeygen, '#!/bin/sh\n[ "$1" = -y ] && [ -f "$2" ] || exit 4\n[ "${TEST_AGE_FAIL:-0}" = 0 ] || exit 9\nprintf "%s\\n" "$TEST_DERIVED_RECIPIENT"\n');
+    chmodSync(fakeAgeKeygen, 0o755);
+    const env = { ...process.env, PATH: `${bin}:${process.env.PATH ?? ''}`, TEST_DERIVED_RECIPIENT: recipient };
+    try {
+      const check = async (expected: string, testEnv = env) => run('bash', ['scripts/verify-age-recipient.sh', identity, expected], testEnv);
+      expect((await check(recipient)).code).toBe(0);
+      const missingIdentity = await run('bash', ['scripts/verify-age-recipient.sh', join(temp, 'missing'), recipient], env);
+      expect(missingIdentity.code).not.toBe(0);
+      const symlink = join(temp, 'identity-link');
+      writeFileSync(symlink, '');
+      rmSync(symlink);
+      symlinkSync(identity, symlink);
+      expect((await run('bash', ['scripts/verify-age-recipient.sh', symlink, recipient], env)).code).not.toBe(0);
+      const deriveFailure = await check(recipient, { ...env, TEST_AGE_FAIL: '1' });
+      expect(deriveFailure.stderr).toContain('could not derive');
+      const mismatch = await check('age1' + 'b'.repeat(58));
+      expect(mismatch.code).not.toBe(0);
+      expect(mismatch.stderr).toContain('does not match');
+      expect((await check(recipient, { ...env, TEST_DERIVED_RECIPIENT: `${recipient}\n${recipient}` })).code).not.toBe(0);
+      chmodSync(identity, 0o644);
+      expect((await check(recipient)).stderr).toContain('mode 600');
+      chmodSync(identity, 0o600);
+      const noAgeBin = join(temp, 'no-age-bin');
+      mkdirSync(noAgeBin);
+      for (const utility of ['bash', 'stat', 'id']) {
+        const resolved = execFileSync('which', [utility], { encoding: 'utf8' }).trim();
+        symlinkSync(resolved, join(noAgeBin, utility));
+      }
+      const noTool = await check(recipient, { ...process.env, PATH: noAgeBin });
+      expect(noTool.stderr).toContain('age-keygen is required');
+      expect(noTool.stderr).not.toContain('AGE-SECRET-KEY');
+    } finally {
+      rmSync(temp, { recursive: true, force: true });
+    }
+  });
+
+  it('streams predeploy ciphertext through isolated Docker and removes partial output on failure', async () => {
+    const temp = mkdtempSync(join(tmpdir(), 'pi3-encrypt-snapshot-test-'));
+    const bin = join(temp, 'bin');
+    mkdirSync(bin);
+    const snapshot = join(temp, 'source.db');
+    const output = join(temp, 'backup.db.age');
+    const argsLog = join(temp, 'docker-args.txt');
+    writeFileSync(snapshot, 'isolated test snapshot');
+    const fakeDocker = join(bin, 'docker');
+    writeFileSync(fakeDocker, '#!/bin/sh\nprintf "%s\\n" "$@" > "$TEST_DOCKER_ARGS"\nprintf partial-ciphertext\n[ "${TEST_DOCKER_FAIL:-0}" = 0 ] || exit 17\n');
+    chmodSync(fakeDocker, 0o755);
+    const env = { ...process.env, PATH: `${bin}:${process.env.PATH ?? ''}`, TEST_DOCKER_ARGS: argsLog };
+    try {
+      const args = ['scripts/deploy-vps.sh', '--encrypt-predeploy-snapshot', 'candidate-image', 'age1' + 'a'.repeat(58), snapshot, output];
+      const encrypted = await run('bash', args, env);
+      expect(encrypted.code).toBe(0);
+      expect(readFileSync(output, 'utf8')).toBe('partial-ciphertext');
+      expect(statSync(output).mode & 0o777).toBe(0o600);
+      const dockerArgs = readFileSync(argsLog, 'utf8');
+      expect(dockerArgs).toContain('--network\nnone');
+      expect(dockerArgs).toContain('--read-only');
+      expect(dockerArgs).toContain(`type=bind,src=${snapshot},dst=/snapshot/pi3.db,readonly`);
+      expect(dockerArgs).toContain('--entrypoint\nage');
+      expect(dockerArgs).not.toContain(temp + '/:');
+
+      rmSync(output);
+      const failed = await run('bash', args, { ...env, TEST_DOCKER_FAIL: '1' });
+      expect(failed.code).not.toBe(0);
+      expect(existsSync(output)).toBe(false);
+      expect(readdirSync(temp).some((name) => name.startsWith('backup.db.age.tmp.'))).toBe(false);
+    } finally {
+      rmSync(temp, { recursive: true, force: true });
+    }
+  });
+
+  it('requires coverage-gated container tests before stamping and isolates predeploy encryption', () => {
+    const gate = readFileSync(join(root, 'scripts/release-gate.sh'), 'utf8');
+    const deploy = readFileSync(join(root, 'scripts/deploy-vps.sh'), 'utf8');
+    const removeOldStamp = gate.indexOf('rm -f "$stamp" "$stamp.tmp"');
+    const coverageTest = gate.indexOf('make test');
+    const writeStamp = gate.indexOf("printf 'v1 %s %s %s\\n'");
+    expect(removeOldStamp).toBeGreaterThan(-1);
+    expect(coverageTest).toBeGreaterThan(removeOldStamp);
+    expect(writeStamp).toBeGreaterThan(coverageTest);
+    expect(deploy).toContain('docker run --rm --network none --read-only');
+    expect(deploy).toContain('--mount "type=bind,src=$backup,dst=/snapshot/pi3.db,readonly"');
+    expect(deploy).toContain('> "$temporary"');
+    expect(deploy).toContain('encrypt_predeploy_snapshot "$IMAGE_REF" "$AGE_RECIPIENT" "$backup" "$encrypted_backup"');
+    expect(deploy).not.toContain('-v "$BACKUP_DIR:/backups"');
+    expect(deploy).toContain('rm -f "$backup" "$encrypted_tmp"');
+  });
 
   it('treats READY as pre-promotion eligibility, with canary and rollback after the image switch', () => {
     const policy = readFileSync(join(root, 'docs/deployment-data-safety.md'), 'utf8');

@@ -8,6 +8,10 @@ export function createAnonymousDraftId(): string {
   return `${ANON_DRAFT_PREFIX}${id}`;
 }
 
+export function canRestoreAnonymousDraft(pathname: string, currentProjectId: string | null, hasDirtyFiles: boolean): boolean {
+  return pathname === "/ide" && currentProjectId === null && !hasDirtyFiles;
+}
+
 export function isAnonymousDraftId(id: string | null | undefined): boolean {
   return typeof id === "string" && id.startsWith(ANON_DRAFT_PREFIX);
 }

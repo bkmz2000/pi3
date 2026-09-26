@@ -66,7 +66,7 @@ const ideState = {
   deleteUserProject: jest.fn(),
   renameUserProject: jest.fn(),
   forkExample: jest.fn(),
-  downloadProject: jest.fn<(id: string) => Promise<void>>().mockResolvedValue(undefined),
+  downloadProject: jest.fn<() => Promise<void>>().mockResolvedValue(undefined),
   activePanel: null as string | null,
   setActivePanel: jest.fn(),
   togglePanel: jest.fn(),
@@ -241,6 +241,26 @@ describe('Rail buttons', () => {
     ideState.activePanel = 'projects';
     renderRail();
     expect(screen.getByTestId('project-explorer')).toBeInTheDocument();
+  });
+
+  test('exports the current project directly without changing dirty state', async () => {
+    editorState.dirtyFiles = new Set(['main.py']);
+    renderRail();
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Export project' }));
+    });
+    expect(ideState.downloadProject).toHaveBeenCalledWith();
+    expect(editorState.markClean).not.toHaveBeenCalled();
+    expect(editorState.dirtyFiles.has('main.py')).toBe(true);
+  });
+
+  test('shows an accessible error when current-project export fails', async () => {
+    ideState.downloadProject.mockRejectedValueOnce(new Error('download failed'));
+    renderRail();
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Export project' }));
+    });
+    expect(screen.getByRole('alert')).toHaveTextContent('Failed to export project. Please try again.');
   });
 
   test('run button triggers the runner', async () => {

@@ -96,6 +96,21 @@ it('uses one surface with owned, examples, and shared categories', async () => {
   expect(screen.queryByText('My game')).toBeNull();
 });
 
+it('assigns a stable draft ID when creating a clean signed-out project', async () => {
+  userState.authState = 'signed_out';
+  editorState.currentProjectId = null;
+  renderPage();
+  fireEvent.click(screen.getByRole('button', { name: 'New project' }));
+  fireEvent.change(screen.getByPlaceholderText('Enter project name'), { target: { value: 'Fresh project' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Create' }));
+  await waitFor(() => expect(editorState.changeCurrentProject).toHaveBeenCalled());
+  expect(editorState.changeCurrentProject).toHaveBeenCalledWith(
+    expect.objectContaining({ name: 'Fresh project' }),
+    expect.stringMatching(/^__anon_draft_/),
+  );
+  expect(screen.getByTestId('location')).toHaveTextContent('/ide');
+});
+
 it('opens examples through an explicit draft route', () => {
   renderPage('/projects?tab=examples');
   const helloRow = screen.getByText('Hello World').closest('article');

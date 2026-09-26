@@ -216,8 +216,18 @@ Compose rollback. The canary uses the normal browser session to mint a
 10-minute bearer credential limited to read/delete of one owned canary project;
 the hash is stored server-side, and the credential is not injected into browser
 requests. The configured canary account ID was verified read-only as an
-existing student, but its value is not stored in docs. Production remains
-**BLOCKED** pending full candidate review and rollback/canary preparation;
+existing student, but its value is not stored in docs. Current review fixes add
+an editor-rail ZIP export sourced directly from in-memory state (including when
+IndexedDB writes fail), assign stable IDs to new signed-out projects, and guard
+anonymous draft restoration both before and after async storage reads so a
+selected project is not replaced. Release operations derive the public age
+recipient on the trusted host with `age-keygen -y` and fail closed unless it
+matches `BACKUP_AGE_RECIPIENT`; the private identity never enters Docker/VPS.
+Predeploy encryption uses a network-disabled, read-only candidate container
+with only the plaintext snapshot file mounted read-only, and streams ciphertext
+into a private host temp file. The release-gate stamp requires `make test`
+(coverage-gated container suite) before all other gates complete. Production
+remains **BLOCKED** pending corrected-code review and rollback/canary preparation;
 the scoped-token flow cannot be tested against the new production image before
 promotion. Independent external host-down monitoring is absent but is a
 recommended follow-up rather than a gate for this manually attended pilot;

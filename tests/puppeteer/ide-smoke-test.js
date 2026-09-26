@@ -24,6 +24,10 @@
  */
 
 import puppeteer from 'puppeteer';
+import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import JSZip from 'jszip';
 import { waitForElement, waitForFn, sleep } from './test-utils.js';
 
 const URL = process.env.PUPPETEER_URL || 'http://localhost:5173';
@@ -248,7 +252,10 @@ async function caseAnonymousDraftPersistence(browser) {
 
 async function caseIndexedDbFailureChip(browser) {
   const { page, ctx } = await freshPage(browser);
+  const downloads = mkdtempSync(join(tmpdir(), 'pi3-smoke-download-'));
   try {
+    const cdp = await page.createCDPSession();
+    await cdp.send('Page.setDownloadBehavior', { behavior: 'allow', downloadPath: downloads });
     await waitForPyodideReady(page);
 
     // Simulate an IndexedDB quota failure at the draft write boundary. Browser
@@ -262,7 +269,8 @@ async function caseIndexedDbFailureChip(browser) {
     });
 
     await clearEditor(page);
-    await typeInEditor(page, '# overflow ' + Date.now());
+    const exportSentinel = 'overflow-' + Date.now();
+    await typeInEditor(page, `# ${exportSentinel}`);
     await page.keyboard.down('Control');
     await page.keyboard.press('s');
     await page.keyboard.up('Control');
@@ -271,8 +279,19 @@ async function caseIndexedDbFailureChip(browser) {
       return await page.evaluate(() => /device storage full|device storage unavailable/i.test(document.body.innerText));
     }, { timeout: 5000 });
 
+    // The current in-memory project must still be exportable even though its
+    // IndexedDB recovery write failed. Verify a real browser download occurs.
+    await page.click('button[aria-label="Export project"]');
+    await waitForFn(page, async () => readdirSync(downloads).some((name) => name.endsWith('.zip')), { timeout: 10000 });
+    const zipName = readdirSync(downloads).find((name) => name.endsWith('.zip'));
+    assert(!!zipName, 'export download is missing');
+    const archive = await JSZip.loadAsync(readFileSync(join(downloads, zipName)));
+    const mainFile = archive.file('files/main.py');
+    assert(!!mainFile, 'downloaded project ZIP has no main.py');
+    assert((await mainFile.async('string')).includes(exportSentinel), 'ZIP omitted the latest unsaved in-memory edit');
   } finally {
     await ctx.close();
+    rmSync(downloads, { recursive: true, force: true });
   }
 }
 

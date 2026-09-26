@@ -29,6 +29,8 @@ echo '→ ESLint'
 npm run lint
 echo '→ TypeScript (frontend + server)'
 npm run typecheck
+echo '→ Coverage-gated container test suite'
+make test
 echo '→ Unit tests'
 npm test -- --runInBand
 echo '→ Server deployment-profile matrix'
@@ -48,13 +50,14 @@ sh -n scripts/finalize-vps.sh
 sh -n scripts/vps-backup.sh
 sh -n scripts/backup-retention.sh
 sh -n scripts/mark-restore-verified.sh
+bash -n scripts/verify-age-recipient.sh
 bash -n scripts/telegram-notify.sh
 bash -n scripts/backup-alert-check.sh
 node --check scripts/deploy-canary.mjs
 node --check scripts/verify-candidate-migrations.mjs
 node --check scripts/test-candidate-migrations.mjs
 if command -v shellcheck >/dev/null 2>&1; then
-  shellcheck scripts/deploy-vps.sh scripts/rollback-vps.sh scripts/finalize-vps.sh scripts/vps-backup.sh scripts/backup-retention.sh scripts/mark-restore-verified.sh scripts/telegram-notify.sh scripts/backup-alert-check.sh scripts/release-gate.sh scripts/release-policy-check.sh
+  shellcheck scripts/deploy-vps.sh scripts/rollback-vps.sh scripts/finalize-vps.sh scripts/vps-backup.sh scripts/backup-retention.sh scripts/mark-restore-verified.sh scripts/telegram-notify.sh scripts/backup-alert-check.sh scripts/release-gate.sh scripts/release-policy-check.sh scripts/verify-age-recipient.sh
 fi
 cleanup_generated_results
 [ -z "$(git status --porcelain --untracked-files=all)" ] || fail 'tests/build modified tracked source or left untracked files'

@@ -6,7 +6,7 @@
  */
 import { describe, test, expect, beforeEach } from '@jest/globals';
 import { useEditor } from '../../src/state/editorStore';
-import { ANON_DRAFT_PREFIX, EXAMPLE_SESSION_PREFIX } from '../../src/state/sessionId';
+import { ANON_DRAFT_PREFIX, EXAMPLE_SESSION_PREFIX, canRestoreAnonymousDraft } from '../../src/state/sessionId';
 
 beforeEach(() => {
   // Reset to the hello-world example default between tests.
@@ -15,6 +15,16 @@ beforeEach(() => {
     currentFile: 'main.py',
     dirtyFiles: new Set(),
     queuedSaveCount: 0,
+  });
+});
+
+describe('anonymous draft restoration guard', () => {
+  test('restores only on a fresh clean editor with no selected project', () => {
+    expect(canRestoreAnonymousDraft('/ide', null, false)).toBe(true);
+    expect(canRestoreAnonymousDraft('/ide', '__anon_draft_new', false)).toBe(false);
+    expect(canRestoreAnonymousDraft('/ide', 'server-project', false)).toBe(false);
+    expect(canRestoreAnonymousDraft('/ide', null, true)).toBe(false);
+    expect(canRestoreAnonymousDraft('/ide/route-project', null, false)).toBe(false);
   });
 });
 

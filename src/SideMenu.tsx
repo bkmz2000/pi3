@@ -120,6 +120,7 @@ export default function Rail() {
   const currentProjectId = useEditor((s) => s.currentProjectId);
   const dirtyFiles = useEditor((s) => s.dirtyFiles);
   const saveCurrentProject = useIde((s) => s.saveCurrentProject);
+  const downloadCurrentProject = useIde((s) => s.downloadProject);
   const markClean = useEditor((s) => s.markClean);
 
   // Single unified launch point for sprite/animation/tilemap editing.
@@ -148,6 +149,7 @@ export default function Rail() {
   const { ready } = useRunner();
   const { running, handleRunToggle } = useRunButton();
   const [transitioning, setTransitioning] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   // Clear transitioning state once the runner settles (running becomes false).
   useEffect(() => {
@@ -278,6 +280,16 @@ export default function Rail() {
         />
 
         <RailButton
+          icon="export"
+          label={t('sideMenu.exportProjectTooltip')}
+          onClick={() => {
+            setExportError(null);
+            void downloadCurrentProject().catch(() => setExportError(t('sideMenu.failedExport')));
+          }}
+          theme={theme}
+        />
+
+        <RailButton
           icon="users"
           label={t('session.panelTitle')}
           active={isOpen("live")}
@@ -358,6 +370,11 @@ export default function Rail() {
           onClick={() => togglePanel("settings")}
           theme={theme}
         />
+        {exportError && (
+          <div role="alert" style={{ position: 'fixed', left: 68, bottom: 12, zIndex: 100, maxWidth: 320, padding: '8px 12px', borderRadius: 6, background: theme.stopBg, color: theme.runTxt }}>
+            {exportError}
+          </div>
+        )}
       </div>
 
       <Backdrop open={activePanel !== null} onClick={closePanels} />

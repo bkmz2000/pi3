@@ -35,7 +35,7 @@ ssh "$VPS" "set -eu; cd /app/pi3; \
   umask 077; env_tmp=\$(mktemp .env.rollback.XXXXXX); \
   trap 'rm -f \"\$env_tmp\"' EXIT; \
   awk -v image=\"\$previous\" 'BEGIN { replaced=0 } /^PI3_IMAGE=/ { if (!replaced) print \"PI3_IMAGE=\" image; replaced=1; next } { print } END { if (!replaced) print \"PI3_IMAGE=\" image }' .env > \"\$env_tmp\"; \
-  chmod --reference=.env \"\$env_tmp\"; mv -f \"\$env_tmp\" .env; trap - EXIT; \
+  chmod \"\$(stat -c '%a' .env)\" \"\$env_tmp\"; mv -f \"\$env_tmp\" .env; trap - EXIT; \
   cp -p .pi3-compose.rollback '$rollback_tmp'; \
   mv -f '$rollback_tmp' docker-compose.yml; \
   docker compose pull pi3; docker compose up -d --no-deps pi3; \

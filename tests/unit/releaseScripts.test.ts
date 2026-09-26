@@ -205,7 +205,7 @@ describe('release script safety regressions', () => {
     const policy = readFileSync(join(root, 'docs/deployment-data-safety.md'), 'utf8');
     const check = readFileSync(join(root, 'scripts/release-policy-check.sh'), 'utf8');
     const makefile = readFileSync(join(root, 'Makefile'), 'utf8');
-    expect(policy).toContain('**Release gate status: BLOCKED**');
+    expect(policy).toContain('**Release gate status: READY**');
     expect(policy).toContain('`READY` means **eligible to attempt a controlled promotion**');
     expect(policy).toContain('candidate canary still has not run');
     const normalizedPolicy = policy.replace(/\s+/g, ' ');

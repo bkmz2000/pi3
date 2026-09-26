@@ -2,7 +2,7 @@
 
 **Status:** Required release policy
 
-**Release gate status: BLOCKED**
+**Release gate status: READY**
 
 `READY` means **eligible to attempt a controlled promotion**, not "deployed" or
 "production canary passed." The operator may commit `READY` only after the
@@ -71,60 +71,54 @@ A release is blocked unless all of these are true:
 10. Storage quota or persistence failures keep the project dirty and show a
     blocking recovery action; they never resolve as a successful save.
 
-### Current release status: BLOCKED (2026-09-26)
+### Current release status: READY for a controlled attempt (2026-09-26)
 
 A controlled promotion of commit `a8dd8c71a0409db155d3c49971347b585bcac497`
 was explicitly approved for institutional candidate
 `ghcr.io/bkmz2000/pi3@sha256:318fcb14de0a5a38faa5a3e843a29ef639f156e6470a77f5d402be2a42dd0906`
-and briefly started on 2026-09-26. Its immediate post-start health probe got
-a connection reset; automatic rollback started the prior image but its own
-immediate health probe also failed. The command exited nonzero and the canary
-never ran. These one-shot probes cannot distinguish normal startup delay from
-an unhealthy service, so this promotion workflow is **not verified**.
+and briefly started on 2026-09-26. Its immediate health probe got a connection reset; rollback's one-shot health
+probe also failed, and the production canary never ran. Bounded polling was
+implemented, regression-tested for startup recovery/timeouts, and passed the
+exact institutional release gate in commit
+`69982820f24be48ef1fab4b017a4b3bdb23bd85a`. Its replacement digest
+`ghcr.io/bkmz2000/pi3@sha256:edacd140b849984f1e89ae93a4aae93d96dd563070b951572498b3106be9395e`
+was published but not promoted; it lacks the subsequent fail-closed state
+guard and must not be used.
 
-Subsequent read-only checks confirmed that the prior image digest
-`ghcr.io/bkmz2000/pi3@sha256:4f55bd0d89533ecd288694638c80c186fd6e36b55fb82b0c17a48cbbb12e0404`
-is selected by Compose and `.env`, is running, and returns HTTP 200 from
-internal and public `/api/health`. The container was recreated during rollback;
-this is not a successful promotion. The encrypted pre-deploy snapshot
-`pi3-predeploy-20260926T112917Z.db.age` remains mode `0600`, and rollback
-artifacts `.pi3-compose.previous`, `.pi3-compose.rollback`,
-`.pi3-previous-image`, and `.pi3-previous-release-sha` remain on the VPS. The
-previous release SHA is `unknown` because the legacy image had no release
-markers. Do not remove this evidence or retry while it remains. Any future
-cleanup requires a separately reviewed, guarded reconciliation of the prior
-image, database, and retained backup; none has been performed.
+The failed state was reconciled on 2026-09-26 without changing the running
+container, `docker-compose.yml`, `.env`, or database. Compose, `.env`, container
+reference, and running image ID all select prior digest
+`ghcr.io/bkmz2000/pi3@sha256:4f55bd0d89533ecd288694638c80c186fd6e36b55fb82b0c17a48cbbb12e0404`;
+internal and public `/api/health` returned 200 on repeated checks. The legacy
+image has no release labels, so its release SHA remains **unknown**; no SHA was
+invented. The four retained Compose/image/SHA markers were copied byte-for-byte,
+checksum-verified, and archived at
+`/srv/pi3/backups/reconciliation-failed-promotion-20260926T112917Z-20260926T140349Z`
+(mode `0700`, files `0600`) and in a protected local archive under
+`~/.local/share/pi3/reconciliation/`. Only after both copies verified were the
+active markers retired. The encrypted pre-deploy snapshot
+`pi3-predeploy-20260926T112917Z.db.age` remains mode `0600` with its manifest
+binding intact.
 
 Candidate startup applied the additive `014_canary_tokens.sql` migration to
-the live database (migration count 15→16). The migration creates only a table
-and indexes; canary-token rows are zero. Project/user counts still match the
-pre-deploy snapshot (42/17), and the sampled project-content hash matches. The
-prior image is running and health probes return 200, but user-level operations
-against the expanded schema have not been revalidated. Retain the forward
-migration and never restore the older database snapshot as rollback.
+the live database (migration count 15→16). Read-only checks after reconciliation
+found SQLite integrity `ok`, 42 projects, 17 users, 16 migrations including
+014, and zero canary-token rows. An isolated fixture using the exact prior image
+applied 014, then successfully reran that image's `initDb()`; integrity remained
+`ok` and all 16 migration records remained. This verifies prior-image startup
+against the additive schema, not student-level API behavior. The actual
+authenticated API/UI canary remains mandatory after the next approved image
+switch. Never restore the older database snapshot as rollback.
 
-Bounded health polling for candidate startup and rollback was implemented,
-regression-tested (transient recovery and timeout), and passed the exact
-institutional release gate on commit
-`69982820f24be48ef1fab4b017a4b3bdb23bd85a`. Replacement candidate
-`ghcr.io/bkmz2000/pi3@sha256:edacd140b849984f1e89ae93a4aae93d96dd563070b951572498b3106be9395e`
-was published, but no production switch or canary was attempted. The current
-source follow-up strengthens the deployment checks for incomplete rollback
-state and is not part of the already-published `6998282` digest. Do not promote
-that digest or retry while the retained evidence remains. The `make promote-vps` preflight now fails if any Compose, prior-image,
-prior-SHA, or canary-watch marker exists (including symlinks); the on-VPS deploy
-script independently rejects unresolved rollback/image/SHA/watch markers before
-mutating deployment state. Marker values such as `unknown` are not treated as
-safe. These guards preserve evidence and require operator reconciliation; they
-do not remove or rewrite it.
-
-Before any future attempt, an operator must independently reconcile and retain
-an audit copy of the existing rollback markers and verify prior-image operation
-against the already-migrated database. Do not restore the older database
-snapshot or clear markers automatically. Then review and gate the exact clean
-source commit (including this guard), publish its matching immutable digest,
-and obtain new commit/profile/VPS/origin/digest-bound approval. No promotion or canary success
-is recorded for the replacement candidate.
+The current source adds fail-closed guards: `make promote-vps` rejects all five
+pending Compose/image/SHA/watch markers (including symlinks), and the VPS deploy
+script independently rejects rollback/image/SHA/watch markers before deployment
+mutations. The earlier `6998282` image does not contain those guards and is not
+eligible for this attempt. The exact current source commit must pass its own
+release gate and be published as an immutable matching digest. READY means
+**eligible to attempt** a controlled promotion, not deployed or canary-passed;
+explicit approval for the exact commit/profile/digest/VPS/origin is still
+required. No promotion or canary success is recorded.
 
 - Historical browser-save review blockers (local-draft export, claim read-back,
   reconnect/editor revision, post-conflict autosave, clean-draft claiming, and
@@ -247,8 +241,9 @@ host. Add external monitoring before unattended releases or a larger cohort;
 manual attention at deploy time is not equivalent to 24/7 alerting. Telegram
 and the first off-host drill are recorded. Despite the prior local review and
 release gate, the 2026-09-26 promotion attempt failed during readiness/rollback
-probes. Status remains **BLOCKED** until bounded health polling and rollback
-verification are fixed, tested, reviewed, and gated on a new exact commit. The
+probes. Bounded health polling is now implemented and gated, and the failed state was
+reconciled with evidence preserved as recorded above. Current status is **READY
+for a controlled attempt only**. The
 production canary is mandatory *after* the image switch and before rollout
 success.
 
@@ -256,13 +251,16 @@ The current release workflow builds/publishes a candidate first,
 then requires separate, command-line approval bound to commit, registry
 digest, deployment profile, VPS target, and origin before promotion. The
 production canary must then pass; rollback must restore the prior pinned image
-and Compose configuration. This workflow itself is not yet production-verified.
+and Compose configuration. The failed attempt means the full controlled promotion workflow has not yet
+completed successfully.
 
 Regardless of READY, no production switch occurs until the exact published digest,
 commit, profile, VPS target, and origin have been approved explicitly on the
 promotion command. If the canary or artifact checks fail, the command must roll
-back; keep rollback evidence through the attended watch. The current status is
-BLOCKED; keep this attempt's rollback evidence intact while investigating.
+back; keep rollback evidence through the attended watch. The failed attempt's markers are archived and checksum-verified at the
+locations recorded above. The prior release SHA remains unknown; do not infer
+or fabricate it. This reconciliation does not count as candidate canary or
+promotion success.
 
 ## 3. Server data protection
 

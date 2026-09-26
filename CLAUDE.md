@@ -156,12 +156,15 @@ a slow cold start previously produced a false UI failure. The 2026-09-25 review 
 subsequently fixed and re-reviewed. The approved `a8dd8c7` promotion failed
 during immediate candidate/rollback health probes. Bounded health polling was
 then committed and gated as `6998282`, and an immutable replacement candidate
-was published, but not promoted. Production remains **BLOCKED**: the previous
-release SHA is unknown, rollback evidence remains on the VPS, and compatibility
-of the prior image with the live additive migration has not been revalidated.
-The current source follow-up makes promotion fail closed on incomplete rollback
-markers; it requires its own exact-commit gate and candidate before any future
-attempt. See Deployment data safety for required operator reconciliation.
+was published, but not promoted. The failed state was reconciled without changing the container, database,
+Compose file, or `.env`; rollback files were checksum-archived both on the VPS
+and locally before active markers were retired. The legacy prior release SHA
+remains unknown. The exact prior image successfully reran `initDb()` against an
+isolated fixture after migration 014, though student-level API behavior still
+requires the post-switch canary. Release policy is now **READY for a controlled
+attempt only**. The `6998282` digest lacks the current marker guard and must not
+be used; any attempt requires a new exact-commit candidate and explicit
+digest-bound owner approval. See Deployment data safety for evidence paths.
 
 **Testing the worker without Pyodide.** `src/runner/WorkerInterface.ts` defines
 typed `WorkerCommand`/`WorkerEvent` unions. Test `RunnerProvider` /
@@ -226,15 +229,18 @@ matches `BACKUP_AGE_RECIPIENT`; the private identity never enters Docker/VPS.
 Predeploy encryption uses a network-disabled, read-only candidate container
 with only the plaintext snapshot file mounted read-only, and streams ciphertext
 into a private host temp file. The release-gate stamp requires `make test`
-(coverage-gated container suite) before all other gates complete. Production remains **BLOCKED** after the 2026-09-26 approved promotion attempt
-failed its immediate candidate health probe and the rollback health probe also
-raced startup. Subsequent read-only checks confirmed the prior digest is running
-and internal/public `/api/health` return 200; candidate startup applied the
-additive migration `014_canary_tokens.sql`
-(15→16 migrations; project/user counts and sampled content hash matched the
-predeploy snapshot). Rollback evidence and the encrypted snapshot remain on the
-VPS. Fix and test bounded readiness polling for both deployment and rollback
-before any new candidate/approval. Independent external host-down monitoring is
+(coverage-gated container suite) before all other gates complete. The 2026-09-26 approved promotion failed its immediate candidate and rollback
+health probes. Bounded polling was implemented and gated; the retained rollback
+markers were later archived with verified copies on the VPS and local machine,
+then retired without changing the running prior digest, `.env`, Compose file, or
+database. Internal/public health remain 200. The live schema includes additive
+migration `014_canary_tokens.sql` (16 migrations, 42 projects, 17 users, zero
+canary rows); an isolated prior-image startup test with 014 passed, while the
+production authenticated canary still must run after an approved image switch.
+Release policy is **READY for a controlled attempt only**. The old `6998282`
+digest lacks the current marker guard and is not eligible; any next attempt
+requires a new exact-commit gate, matching candidate digest, and explicit owner
+approval. Independent external host-down monitoring is
 absent but is a recommended follow-up rather than a gate for this manually
 attended pilot;
 the completed off-host restore snapshot did not contain assets, sounds, or

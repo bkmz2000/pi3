@@ -97,7 +97,35 @@ describe('ellipseOutline', () => {
     }
   });
 
-  test('degenerate (zero size) does not crash', () => {
-    expect(() => collect(p => ellipseOutline(5, 5, 5, 5, p))).not.toThrow();
+  test('circles from 2px through 64px form one closed 8-connected contour', () => {
+    for (let diameter = 2; diameter <= 64; diameter++) {
+      const points = collect(p => ellipseOutline(0, 0, diameter, diameter, p));
+      const cells = new Set(points.map(([x, y]) => `${x},${y}`));
+      const pending = [points[0]];
+      const visited = new Set<string>();
+
+      while (pending.length > 0) {
+        const [x, y] = pending.pop()!;
+        const key = `${x},${y}`;
+        if (visited.has(key)) continue;
+        visited.add(key);
+        for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+          if ((dx !== 0 || dy !== 0) && cells.has(`${x + dx},${y + dy}`)) pending.push([x + dx, y + dy]);
+        }
+      }
+
+      expect(visited.size).toBe(cells.size);
+      for (const [x, y] of points) {
+        let neighbors = 0;
+        for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+          if ((dx !== 0 || dy !== 0) && cells.has(`${x + dx},${y + dy}`)) neighbors++;
+        }
+        expect(neighbors).toBeGreaterThanOrEqual(2);
+      }
+    }
+  });
+
+  test('degenerate (zero size) produces exactly the selected cell', () => {
+    expect(collect(p => ellipseOutline(5, 5, 5, 5, p))).toEqual([[5, 5]]);
   });
 });

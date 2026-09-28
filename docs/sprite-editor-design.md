@@ -49,6 +49,21 @@ The kid-mode editor is now the sheet editor in the app.
 - src/KidSheetEditor.tsx - the React component (port of the approved mockup): 7 tools + shift-lines, brush 1/3/5, 10-step mixer + My-colors (custom-only, 30px), named animations (New/Rename/Delete), frame chips with drag-reorder, hotkeys (Ctrl+Z/Y/S/A/C/V, B/E/G/I/L/R/C, Esc), difference-outline onion skin (blue prev / pink next at 85%), zoom, grid, undo/redo, toast. Saves to SheetData via setSheet on Done and Ctrl+S.
 - src/AssetEditor.tsx - mode 'sheet' now mounts KidSheetEditor (the old SheetEditor.tsx stays on disk, un-wired, for reference/tests).
 - i18n: kidSheet.* in en.json + ru.json (49 keys, parity-checked).
-- Tests: tests/unit/kidSheet.test.ts (11: round-trip, sprite preservation, strip clearing, non-overlap packing, frame cap, mixer) and tests/unit/KidSheetEditor.test.tsx (4: render+draw->save, frame add, named animation, Ctrl+Z). Gates: lint, typecheck, test:ci (88 suites / 912 tests) all green.
+- Tests: tests/unit/kidSheet.test.ts covers round-trip, sprite preservation, packing, frame caps, and mixing. tests/unit/KidSheetEditor.test.tsx has 11 checks covering persistence, frames, animations, undo, brush preview, shape preview isolation, continuous strokes, outside-pointer release, resize safety, drawer lifecycle, palette order, and inline mixing. `sheetRaster.test.ts` additionally verifies closed circle contours for every diameter from 2 through 64 pixels. Latest gates: lint, typecheck/build, 101 suites / 1017 tests, and 5 sprite browser checks pass.
 
 Known v1 limits: undo does not restore frame order after a reorder; a renamed sprite colliding with an existing sprite name overwrites it; the kid editor edits one sprite at a time (first sprite or initialSprite); frame limit per animation = 512/size.
+
+## Drawing and UX fixes (2026-09-28)
+
+A hands-on review and follow-up found these defects; all were fixed in focused editor/raster changes:
+
+- Resize now clears incompatible undo/redo and frame-clipboard buffers, so Undo cannot restore old-dimension pixel data and crash `ImageData`.
+- Pointer capture plus window-level pointer-up/cancel handling ends strokes released outside the canvas; buttonless re-entry cannot paint phantom pixels.
+- Pencil and eraser movement interpolates between pointer samples with Bresenham lines, eliminating gaps during fast strokes.
+- The animation drawer starts closed and is conditionally mounted with an explicit labelled close button, so hidden controls leave the accessibility tree instead of overlapping another active panel.
+- Shape previews track only pixels touched by the preview shape, so overlapping circles no longer recolor or fill existing artwork while dragging.
+- The 3×3 and 5×5 brush ghost is centered on the same cell as `paintBrush()`.
+- The 19-color palette renders directly in canonical visual order in a wider Colors panel.
+- Color mixing is inline beside the always-clickable palette: choose A/B, inspect the 10-step ramp, and save mixed colors without a blocking modal.
+- Circle rasterization joins every rounded angular sample to the next—including the closing last-to-first segment—so all 2–64px circles have one continuous, closed 8-connected outline.
+- Canvas size moved out of the Colors panel into a compact `16 × 16`–`128 × 128` selector in the top toolbar; resize confirmation behavior is unchanged.

@@ -21,18 +21,40 @@ export function rectOutline(x0: number, y0: number, x1: number, y1: number, plot
 }
 
 export function ellipseOutline(x0: number, y0: number, x1: number, y1: number, plot: (x: number, y: number) => void) {
+  if (x0 === x1 && y0 === y1) {
+    plot(x0, y0);
+    return;
+  }
+
   const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
-  const rx = Math.max(0.5, Math.abs(x1 - x0) / 2);
-  const ry = Math.max(0.5, Math.abs(y1 - y0) / 2);
-  const steps = Math.max(16, Math.round(2 * Math.PI * Math.max(rx, ry)));
-  const seen = new Set<string>();
+  const rx = Math.abs(x1 - x0) / 2;
+  const ry = Math.abs(y1 - y0) / 2;
+  const steps = Math.max(16, Math.ceil(2 * Math.PI * Math.max(rx, ry)));
+  const samples: [number, number][] = [];
+
   for (let i = 0; i < steps; i++) {
     const a = (i / steps) * Math.PI * 2;
-    const px = Math.round(cx + Math.cos(a) * rx);
-    const py = Math.round(cy + Math.sin(a) * ry);
-    const k = `${px},${py}`;
-    if (seen.has(k)) continue;
-    seen.add(k);
-    plot(px, py);
+    const point: [number, number] = [
+      Math.round(cx + Math.cos(a) * rx),
+      Math.round(cy + Math.sin(a) * ry),
+    ];
+    const previous = samples[samples.length - 1];
+    if (!previous || previous[0] !== point[0] || previous[1] !== point[1]) samples.push(point);
+  }
+
+  // Rounded angular samples can land two cells apart, leaving visible holes.
+  // Join every neighboring sample, including last → first, to guarantee a
+  // continuous closed contour while emitting each raster cell only once.
+  const seen = new Set<string>();
+  const emit = (x: number, y: number) => {
+    const key = `${x},${y}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    plot(x, y);
+  };
+  for (let i = 0; i < samples.length; i++) {
+    const from = samples[i];
+    const to = samples[(i + 1) % samples.length];
+    bresenhamLine(from[0], from[1], to[0], to[1], emit);
   }
 }

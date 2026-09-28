@@ -10,7 +10,7 @@ import { useEditor } from "./state/IdeState";
 import { useThemeStore } from "./state/useTheme";
 import {
   Pencil, Eraser, PaintBucket, Pipette, Undo2, Redo2, Trash2, Play, Pause,
-  Grid2x2, Square, Circle, X, Plus, Copy, Check, ZoomIn, ZoomOut, Sparkles, PanelRight, ChevronRight,
+  Grid2x2, Square, Circle, X, Plus, Copy, Check, ZoomIn, ZoomOut, Sparkles, PanelRight,
 } from "lucide-react";
 import {
   kidStateFromSheet, kidStateToSheet, kidDefaultState, blankKidFrame,
@@ -48,10 +48,6 @@ function LineIcon({ size = 17 }: { size?: number }) {
     </svg>
   );
 }
-
-const PALETTE_CM_ORDER = [0, 8, 1, 9, 16, 17, 2, 18, 3, 10, 4, 11, 5, 12, 6, 13, 7, 14, 15];
-const PALETTE_CM = PALETTE_CM_ORDER.map((i) => PALETTE_RGB[i]);
-const PALETTE_TITLE_CM = PALETTE_CM_ORDER.map((i) => PALETTE_TITLES[i]);
 
 export default function KidSheetEditor({ onClose, initialSprite }: { onClose: () => void; initialSprite?: string }) {
   const { t } = useTranslation();
@@ -113,7 +109,7 @@ export default function KidSheetEditor({ onClose, initialSprite }: { onClose: ()
   const [allSelected, setAllSelected] = useState(false);
   const [sizeModal, setSizeModal] = useState<number | null>(null);
   const [nameModal, setNameModal] = useState<{ mode: "add" | "rename"; value: string; error: string } | null>(null);
-  const [drawerOpen, setDrawerOpen] = useState(true);
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const playRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -121,6 +117,7 @@ export default function KidSheetEditor({ onClose, initialSprite }: { onClose: ()
   const undoStack = useRef<{ a: number; f: number; data: Uint8ClampedArray }[]>([]);
   const redoStack = useRef<{ a: number; f: number; data: Uint8ClampedArray }[]>([]);
   const painting = useRef(false);
+  const lastStroke = useRef<{ x: number; y: number } | null>(null);
   const shapeStart = useRef<{ x: number; y: number } | null>(null);
   const shapeEnd = useRef<{ x: number; y: number } | null>(null);
   const shiftLine = useRef<{ x: number; y: number } | null>(null);
@@ -216,24 +213,29 @@ export default function KidSheetEditor({ onClose, initialSprite }: { onClose: ()
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d")!;
-    const scratch = new Uint8ClampedArray(size * size * 4);
-    const hex = rgbToHex(color[0], color[1], color[2]);
-    const plot = (x: number, y: number) => paintBrush(scratch, size, size, x, y, erasing ? "eraser" : "pencil", hex, brush, null);
-    if (kind === "line") bresenhamLine(a.x, a.y, b?.x ?? a.x, b?.y ?? a.y, plot);
-    else if (kind === "rect") rectOutline(a.x, a.y, b?.x ?? a.x, b?.y ?? a.y, plot);
-    else if (kind === "circle") ellipseOutline(a.x, a.y, b?.x ?? a.x, b?.y ?? a.y, plot);
-    else plot(a.x, a.y);
-    const cur = curFrame();
+    const touched = new Uint8Array(size * size);
+    const mark = (x: number, y: number) => {
+      const r = Math.floor(brush / 2);
+      for (let dy = -r; dy < brush - r; dy++) {
+        for (let dx = -r; dx < brush - r; dx++) {
+          const tx = x + dx, ty = y + dy;
+          if (tx >= 0 && ty >= 0 && tx < size && ty < size) touched[ty * size + tx] = 1;
+        }
+      }
+    };
+    if (kind === "line") bresenhamLine(a.x, a.y, b?.x ?? a.x, b?.y ?? a.y, mark);
+    else if (kind === "rect") rectOutline(a.x, a.y, b?.x ?? a.x, b?.y ?? a.y, mark);
+    else if (kind === "circle") ellipseOutline(a.x, a.y, b?.x ?? a.x, b?.y ?? a.y, mark);
+    else mark(a.x, a.y);
     ctx.globalCompositeOperation = erasing ? "destination-out" : "source-over";
     ctx.fillStyle = rgb2css(color);
-    for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
-      const i = (y * size + x) * 4;
-      if (scratch[i] !== cur[i] || scratch[i + 1] !== cur[i + 1] || scratch[i + 2] !== cur[i + 2] || scratch[i + 3] !== cur[i + 3]) {
-        ctx.fillRect(x, y, 1, 1);
+    for (let y = 0; y < size; y++) {
+      for (let x = 0; x < size; x++) {
+        if (touched[y * size + x]) ctx.fillRect(x, y, 1, 1);
       }
     }
     ctx.globalCompositeOperation = "source-over";
-  }, [size, brush, curFrame]);
+  }, [size, brush]);
 
   const pushUndo = useCallback(() => {
     undoStack.current.push({ a: active, f: fi, data: new Uint8ClampedArray(curFrame()) });
@@ -259,9 +261,10 @@ export default function KidSheetEditor({ onClose, initialSprite }: { onClose: ()
     const canvas = canvasRef.current;
     if (!c || !canvas) { g.style.display = "none"; return; }
     const sx = canvas.getBoundingClientRect().width / size;
+    const r = Math.floor(brush / 2);
     g.style.display = "block";
-    g.style.left = (c.x * sx + 1) + "px";
-    g.style.top = (c.y * sx + 1) + "px";
+    g.style.left = ((c.x - r) * sx + 1) + "px";
+    g.style.top = ((c.y - r) * sx + 1) + "px";
     g.style.width = (brush * sx) + "px";
     g.style.height = (brush * sx) + "px";
   }, [tool, brush, cellOf, size]);
@@ -294,6 +297,8 @@ export default function KidSheetEditor({ onClose, initialSprite }: { onClose: ()
     e.preventDefault();
     const c = cellOf(e);
     if (!c) return;
+    try { e.currentTarget.setPointerCapture?.(e.pointerId); } catch { /* best effort */ }
+    lastStroke.current = null;
     if (allSelected && tool !== "pick") setAllSelected(false);
     if ((tool === "pencil" || tool === "eraser") && e.shiftKey) {
       pushUndo();
@@ -313,24 +318,17 @@ export default function KidSheetEditor({ onClose, initialSprite }: { onClose: ()
     }
     if (tool !== "pick") pushUndo();
     strokeAt(c.x, c.y);
-    painting.current = true;
     drawAll();
-  }, [cellOf, allSelected, tool, pushUndo, renderPreviewShape, strokeAt, drawAll]);
-
-  const onPointerMove = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
-    if (!painting.current) { updateGhost(e); return; }
-    const c = cellOf(e);
-    if (!c) return;
-    if (shiftLine.current || shapeStart.current) {
-      shapeEnd.current = { x: c.x, y: c.y };
-      renderPreviewShape();
+    if (tool === "fill" || tool === "pick") {
+      painting.current = false;
       return;
     }
-    strokeAt(c.x, c.y);
-    drawAll();
-  }, [updateGhost, cellOf, renderPreviewShape, strokeAt, drawAll]);
+    lastStroke.current = c;
+    painting.current = true;
+  }, [cellOf, allSelected, tool, pushUndo, renderPreviewShape, strokeAt, drawAll]);
 
-  const onPointerUp = useCallback(() => {
+  const finishPointer = useCallback(() => {
+    if (!painting.current) return;
     if (shiftLine.current || shapeStart.current) {
       const kind = shiftLine.current ? "line" : tool;
       const color: Rgb = shiftLine.current ? (tool === "eraser" ? [0, 0, 0] : sel) : sel;
@@ -346,12 +344,42 @@ export default function KidSheetEditor({ onClose, initialSprite }: { onClose: ()
         else plot(a.x, a.y);
       }
       shapeStart.current = null; shiftLine.current = null; shapeEnd.current = null;
-      painting.current = false;
       drawAll();
-      return;
     }
+    lastStroke.current = null;
     painting.current = false;
   }, [tool, sel, brush, size, curFrame, drawAll]);
+
+  useEffect(() => {
+    const finish = () => finishPointer();
+    window.addEventListener("pointerup", finish);
+    window.addEventListener("pointercancel", finish);
+    return () => {
+      window.removeEventListener("pointerup", finish);
+      window.removeEventListener("pointercancel", finish);
+    };
+  }, [finishPointer]);
+
+  const onPointerMove = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!painting.current) { updateGhost(e); return; }
+    if (e.pointerType !== "touch" && e.buttons === 0) {
+      finishPointer();
+      updateGhost(e);
+      return;
+    }
+    const c = cellOf(e);
+    if (!c) return;
+    if (shiftLine.current || shapeStart.current) {
+      shapeEnd.current = { x: c.x, y: c.y };
+      renderPreviewShape();
+      return;
+    }
+    const prev = lastStroke.current;
+    if (prev) bresenhamLine(prev.x, prev.y, c.x, c.y, strokeAt);
+    else strokeAt(c.x, c.y);
+    lastStroke.current = c;
+    drawAll();
+  }, [updateGhost, finishPointer, cellOf, renderPreviewShape, strokeAt, drawAll]);
 
   const bump = useCallback(() => setVersion((v) => v + 1), []);
 
@@ -512,7 +540,9 @@ export default function KidSheetEditor({ onClose, initialSprite }: { onClose: ()
   const doResize = useCallback((ns: number, scale: boolean) => {
     setSizeModal(null);
     if (ns === size) return;
-    pushUndo();
+    undoStack.current = [];
+    redoStack.current = [];
+    clipboard.current = null;
     setAnims((a) => a.map((an) => ({
       ...an,
       frames: an.frames.map((f) => {
@@ -529,7 +559,7 @@ export default function KidSheetEditor({ onClose, initialSprite }: { onClose: ()
     setSize(ns);
     setFi(0);
     bump();
-  }, [size, pushUndo, bump]);
+  }, [size, bump]);
 
   const addCustom = useCallback((c: Rgb) => {
     if (isPaletteRgb(c)) return;
@@ -590,6 +620,11 @@ export default function KidSheetEditor({ onClose, initialSprite }: { onClose: ()
           style={{ ...btnBase, width: 28, height: 28, color: drawerOpen ? accent : panelTxtMute, background: drawerOpen ? accent + "11" : "transparent" }}>
           <PanelRight size={15} />
         </button>
+        <select aria-label={t("kidSheet.canvasSize")} title={t("kidSheet.canvasSize")} value={size}
+          onChange={(e) => askResize(Number(e.target.value))}
+          style={{ height: 26, width: 70, padding: "0 5px", borderRadius: 5, border: "1px solid " + panelBorder, background: surface, color: panelTxt, fontFamily: fontMono, fontSize: 10, cursor: "pointer", flexShrink: 0 }}>
+          {KID_SIZES.map((sz) => <option key={sz} value={sz}>{sz} × {sz}</option>)}
+        </select>
         <div style={{ display: "flex", alignItems: "center", gap: 2, flexShrink: 0 }}>
           <button onClick={() => setZoom((z) => Math.max(1, +(z - 0.5).toFixed(1)))} style={{ ...btnBase, width: 22, height: 24 }}><ZoomOut size={13} /></button>
           <span style={{ fontSize: 10, color: panelTxtMute, fontFamily: fontMono, minWidth: 34, textAlign: "center" }}>{Math.round(zoom * 100)}%</span>
@@ -617,40 +652,6 @@ export default function KidSheetEditor({ onClose, initialSprite }: { onClose: ()
               </button>
             ))}
           </div>
-          <div style={{ height: 1, background: "rgba(148,210,216,0.22)", margin: "2px 0" }} />
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <span style={{ fontSize: 10, color: panelTxtMute }}>{t("kidSheet.current")}</span>
-            <span style={{ flex: 1, height: 18, borderRadius: 5, border: "2px solid " + accent, background: rgb2css(sel) }} />
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 3 }}>
-            {PALETTE_CM.map((c, i) => (
-              <button key={i} title={PALETTE_TITLE_CM[i]}
-                onClick={() => {
-                  setSel(c);
-                  if (mixOpen) {
-                    if (pickSlot === "A") { setMixA(c); setPickSlot("B"); }
-                    else { setMixB(c); setPickSlot("A"); }
-                  }
-                }}
-                style={{ height: 26, borderRadius: 5, border: sameRgb(c, sel) ? "2px solid " + accent : "2px solid transparent", background: rgb2css(c), cursor: "pointer", padding: 0 }} />
-            ))}
-          </div>
-          <button onClick={() => { setMixA(null); setMixB(null); setPickSlot("A"); setMixOpen(true); }}
-            style={{ ...chipStyle, width: "100%", justifyContent: "center", height: 28, borderColor: mixOpen ? accent : panelBorder, color: mixOpen ? accent : panelTxt }}>
-            <Sparkles size={12} /> {t("kidSheet.mixToggle")}
-          </button>
-
-          {custom.length > 0 && (
-            <>
-              <span style={{ fontSize: 10, color: panelTxtMute }}>{t("kidSheet.myColors")}</span>
-              <div style={{ display: "flex", gap: 3, flexWrap: "wrap" }}>
-                {custom.map((c, i) => (
-                  <button key={i} onClick={() => setSel(c)} title={t("kidSheet.myColor")}
-                    style={{ width: 26, height: 26, borderRadius: 5, border: sameRgb(c, sel) ? "2px solid " + accent : "2px solid transparent", background: rgb2css(c), cursor: "pointer", padding: 0 }} />
-                ))}
-              </div>
-            </>
-          )}
         </aside>
 
         <div style={{ flex: 1, position: "relative", overflow: "hidden", background: "#091d23" }}>
@@ -659,12 +660,12 @@ export default function KidSheetEditor({ onClose, initialSprite }: { onClose: ()
               <div style={{ position: "relative", display: "inline-block" }}>
                 <canvas ref={canvasRef} width={size} height={size}
                   style={{ width: cellPx, height: cellPx, imageRendering: "pixelated", cursor: "crosshair", touchAction: "none", border: "1px solid " + panelBorder, borderRadius: 6, backgroundImage: "repeating-conic-gradient(rgba(255,255,255,0.06) 0% 25%, transparent 0% 50%)", backgroundSize: "16px 16px" }}
-                  onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp}
+                  onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={finishPointer} onPointerCancel={finishPointer}
                   onPointerLeave={() => { if (ghostRef.current) ghostRef.current.style.display = "none"; }}
                   onContextMenu={(e) => e.preventDefault()} />
                 {showGrid && <div style={{ position: "absolute", inset: 0, pointerEvents: "none", backgroundImage: "linear-gradient(to right, rgba(255,255,255,0.16) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.16) 1px, transparent 1px)", backgroundSize: "calc(100%/" + size + ") calc(100%/" + size + ")" }} />}
                 <div ref={selRef} style={{ position: "absolute", inset: 0, border: "2px dashed " + accent, borderRadius: 6, pointerEvents: "none", display: allSelected ? "block" : "none" }} />
-                <div ref={ghostRef} style={{ position: "absolute", display: "none", pointerEvents: "none", border: "1px solid rgba(255,255,255,0.9)", boxShadow: "0 0 0 1px rgba(0,0,0,0.6)", borderRadius: 2 }} />
+                <div ref={ghostRef} data-testid="kid-ghost" style={{ position: "absolute", display: "none", pointerEvents: "none", border: "1px solid rgba(255,255,255,0.9)", boxShadow: "0 0 0 1px rgba(0,0,0,0.6)", borderRadius: 2 }} />
               </div>
               {onion && (
                 <div style={{ display: "flex", gap: 10, fontSize: 10, color: panelTxtMute }}>
@@ -676,26 +677,74 @@ export default function KidSheetEditor({ onClose, initialSprite }: { onClose: ()
           </div>
         </div>
 
-                          <aside style={{ width: 220, flexShrink: 0, display: "flex", flexDirection: "column", gap: 10, padding: 10, background: panelHeader, borderLeft: "1px solid " + panelBorder, overflowY: "auto" }}>
+        {!drawerOpen && <aside style={{ width: 240, flexShrink: 0, display: "flex", flexDirection: "column", gap: 10, padding: 10, background: panelHeader, borderLeft: "1px solid " + panelBorder, overflowY: "auto" }}>
           <section style={{ background: surface, border: "1px solid " + panelBorder, borderRadius: 8, padding: 8 }}>
-            <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".04em", textTransform: "uppercase", color: panelTxtMute, margin: "0 0 6px" }}>{t("kidSheet.canvasSize")}</p>
-            <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
-              {KID_SIZES.map((sz) => (
-                <button key={sz} onClick={() => askResize(sz)}
-                  style={{ ...chipStyle, minWidth: 40, justifyContent: "center", borderColor: sz === size ? accent : panelBorder, color: sz === size ? accent : panelTxt }}>
-                  {sz}
-                </button>
+            <p style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 10, fontWeight: 700, letterSpacing: ".04em", textTransform: "uppercase", color: panelTxtMute, margin: "0 0 6px" }}>
+              {t("kidSheet.colors")}
+              <span style={{ flex: 1 }} />
+              <span style={{ fontSize: 9, fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>{t("kidSheet.current")}</span>
+              <span style={{ width: 18, height: 18, borderRadius: 5, border: "2px solid " + accent, background: rgb2css(sel), flexShrink: 0 }} />
+            </p>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(8, 1fr)", gap: 4 }}>
+              {PALETTE_RGB.map((c, i) => (
+                <button key={i} title={PALETTE_TITLES[i]}
+                  onClick={() => {
+                    setSel(c);
+                    if (mixOpen) {
+                      if (pickSlot === "A") { setMixA(c); setPickSlot("B"); }
+                      else { setMixB(c); setPickSlot("A"); }
+                    }
+                  }}
+                  style={{ aspectRatio: "1", borderRadius: 5, border: sameRgb(c, sel) ? "2px solid " + accent : "2px solid transparent", background: rgb2css(c), cursor: "pointer", padding: 0 }} />
               ))}
             </div>
+            <button onClick={() => {
+              if (mixOpen) setMixOpen(false);
+              else { setMixA(null); setMixB(null); setPickSlot("A"); setMixOpen(true); }
+            }}
+              style={{ ...chipStyle, width: "100%", boxSizing: "border-box", justifyContent: "center", height: 28, marginTop: 6, borderColor: mixOpen ? accent : panelBorder, color: mixOpen ? accent : panelTxt }}>
+              <Sparkles size={12} /> {t("kidSheet.mixToggle")}
+            </button>
+            {mixOpen && (
+              <div style={{ border: "1px solid " + panelBorder, borderRadius: 8, padding: 6, marginTop: 6 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                  <span style={{ fontSize: 10, color: panelTxtMute }}>{t("kidSheet.mixFirst")}</span>
+                  <button onClick={() => setPickSlot("A")} title={t("kidSheet.mixHintA")}
+                    style={{ width: 24, height: 24, borderRadius: 6, border: pickSlot === "A" ? "2px solid " + accent : "2px solid " + panelBorder, backgroundColor: mixA ? rgb2css(mixA) : "transparent", backgroundImage: mixA ? "none" : "repeating-conic-gradient(rgba(0,0,0,0.2) 0% 25%, transparent 25% 50%)", backgroundSize: "6px 6px", cursor: "pointer", padding: 0 }} />
+                  <span style={{ fontSize: 10, color: panelTxtMute }}>{t("kidSheet.mixSecond")}</span>
+                  <button onClick={() => setPickSlot("B")} title={t("kidSheet.mixHintB")}
+                    style={{ width: 24, height: 24, borderRadius: 6, border: pickSlot === "B" ? "2px solid " + accent : "2px solid " + panelBorder, backgroundColor: mixB ? rgb2css(mixB) : "transparent", backgroundImage: mixB ? "none" : "repeating-conic-gradient(rgba(0,0,0,0.2) 0% 25%, transparent 25% 50%)", backgroundSize: "6px 6px", cursor: "pointer", padding: 0 }} />
+                  {(!mixA || !mixB) && <span style={{ fontSize: 10, color: panelTxtMute }}>{pickSlot === "A" ? t("kidSheet.mixHintA") : t("kidSheet.mixHintB")}</span>}
+                </div>
+                {ramp.length > 0 && (
+                  <div style={{ display: "flex", gap: 3, marginTop: 4 }}>
+                    {ramp.map((c, i) => (
+                      <button key={i} onClick={() => { setSel(c); addCustom(c); }} title={t("kidSheet.mixed")}
+                        style={{ flex: 1, height: 24, borderRadius: 4, border: "none", background: rgb2css(c), cursor: "pointer", padding: 0 }} />
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+            {custom.length > 0 && (
+              <>
+                <p style={{ fontSize: 9, color: panelTxtMute, margin: "8px 0 4px", letterSpacing: ".04em", textTransform: "uppercase" }}>{t("kidSheet.myColors")}</p>
+                <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                  {custom.map((c, i) => (
+                    <button key={i} onClick={() => setSel(c)} title={t("kidSheet.myColor")}
+                      style={{ width: 30, height: 30, borderRadius: 5, border: sameRgb(c, sel) ? "2px solid " + accent : "2px solid transparent", background: rgb2css(c), cursor: "pointer", padding: 0 }} />
+                  ))}
+                </div>
+              </>
+            )}
           </section>
-        </aside>
-      </div>
+        </aside>}
 
-      {/* Animation drawer — slides in from the right */}
-      <div style={{ position: "absolute", top: 44, bottom: 0, right: 0, width: 300, background: panelHeader, borderLeft: "1px solid " + panelBorder, transform: drawerOpen ? "none" : "translateX(100%)", transition: "transform .18s ease", display: "flex", flexDirection: "column", gap: 10, padding: 10, overflowY: "auto", zIndex: 6 }}>
+      {drawerOpen && <aside style={{ width: 300, flexShrink: 0, background: panelHeader, borderLeft: "1px solid " + panelBorder, display: "flex", flexDirection: "column", gap: 10, padding: 10, overflowY: "auto" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: ".04em", textTransform: "uppercase", color: panelTxtMute, flex: 1 }}>{t("kidSheet.animations")}</span>
-          <button onClick={() => setDrawerOpen(false)} title={t("kidSheet.hideAnims")} style={{ ...btnBase, width: 24, height: 24 }}><ChevronRight size={15} /></button>
+          <button onClick={() => setDrawerOpen(false)} title={t("kidSheet.hideAnims")} aria-label={t("kidSheet.hideAnims")}
+            style={{ ...btnBase, width: 27, height: 27, border: "1px solid " + panelBorder, color: panelTxt }}><X size={17} /></button>
         </div>
         <section style={{ background: surface, border: "1px solid " + panelBorder, borderRadius: 8, padding: 8 }}>
           <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
@@ -743,6 +792,7 @@ export default function KidSheetEditor({ onClose, initialSprite }: { onClose: ()
             <p style={{ fontSize: 10, color: "#e08a3c", margin: "6px 0 0" }}>{t("kidSheet.frameLimit", { n: maxFramesPerStrip(size) })}</p>
           )}
         </section>
+      </aside>}
       </div>
 
       {sizeModal !== null && (
@@ -770,31 +820,6 @@ export default function KidSheetEditor({ onClose, initialSprite }: { onClose: ()
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
               <button onClick={() => setNameModal(null)} style={chipStyle}>{t("kidSheet.cancel")}</button>
               <button onClick={commitName} style={{ ...chipStyle, borderColor: accent, color: accent }}>{t("kidSheet.ok")}</button>
-            </div>
-          </div>
-        </div>
-      )}
-      {mixOpen && (
-        <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.55)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 20, borderRadius: 8 }} onClick={() => setMixOpen(false)}>
-          <div onClick={(e) => e.stopPropagation()} style={{ background: surface, border: "1px solid " + panelBorder, borderRadius: 10, padding: 14, width: 320 }}>
-            <p style={{ fontSize: 13, fontWeight: 700, margin: "0 0 8px" }}>{t("kidSheet.mixToggle")}</p>
-            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
-              <span style={{ fontSize: 10, color: panelTxtMute }}>{t("kidSheet.mixFirst")}</span>
-              <button onClick={() => setPickSlot("A")} style={{ width: 22, height: 22, borderRadius: 4, border: pickSlot === "A" ? "2px solid " + accent : "1px solid " + panelBorder, background: mixA ? rgb2css(mixA) : "transparent", cursor: "pointer", padding: 0 }} />
-              <span style={{ fontSize: 10, color: panelTxtMute }}>{t("kidSheet.mixSecond")}</span>
-              <button onClick={() => setPickSlot("B")} style={{ width: 22, height: 22, borderRadius: 4, border: pickSlot === "B" ? "2px solid " + accent : "1px solid " + panelBorder, background: mixB ? rgb2css(mixB) : "transparent", cursor: "pointer", padding: 0 }} />
-            </div>
-            {(!mixA || !mixB) && <p style={{ fontSize: 10, color: panelTxtMute, margin: "0 0 6px" }}>{pickSlot === "A" ? t("kidSheet.mixHintA") : t("kidSheet.mixHintB")}</p>}
-            {ramp.length > 0 && (
-              <div style={{ display: "flex", gap: 3 }}>
-                {ramp.map((c, i) => (
-                  <button key={i} onClick={() => { setSel(c); addCustom(c); }} title={t("kidSheet.mixed")}
-                    style={{ flex: 1, height: 24, borderRadius: 4, border: "none", background: rgb2css(c), cursor: "pointer", padding: 0 }} />
-                ))}
-              </div>
-            )}
-            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 10 }}>
-              <button onClick={() => setMixOpen(false)} style={chipStyle}>{t("kidSheet.ok")}</button>
             </div>
           </div>
         </div>

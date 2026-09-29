@@ -51,6 +51,7 @@ type RunnerState = {
   output: OutputLine[];
   inputPrompt: string | null;
   canvasActive: boolean;
+  retainedCanvas: boolean;
   canvasWidth: number;
   canvasHeight: number;
   canvasScale: number;
@@ -75,6 +76,7 @@ type RunnerState = {
   debugScrubTo: (index: number | null) => void;
   clear: () => void;
   stop: () => void;
+  dismissRetainedCanvas: () => void;
   pushErrorCard: (error: RuntimeError) => void;
   respondToInput: (value: string) => void;
   setLintErrors: (errors: LintDiagnostic[]) => void;
@@ -109,6 +111,7 @@ export const useRunnerStore = create<RunnerState>((set) => ({
   output: [],
   inputPrompt: null,
   canvasActive: false,
+  retainedCanvas: false,
   canvasWidth: 0,
   canvasHeight: 0,
   canvasScale: 1,
@@ -154,11 +157,12 @@ export const useRunnerStore = create<RunnerState>((set) => ({
       }
       case "result": {
         stopAllSounds();
-        set({
+        set((s) => ({
           running: false,
           inputPrompt: null,
-          canvasActive: msg.keepCanvas === true ? useRunnerStore.getState().canvasActive : false,
-        });
+          canvasActive: msg.keepCanvas === true && s.canvasActive,
+          retainedCanvas: msg.keepCanvas === true && s.canvasActive,
+        }));
         break;
       }
       case "interrupt_ack": {
@@ -200,6 +204,7 @@ export const useRunnerStore = create<RunnerState>((set) => ({
         } catch { /* swallow */ }
         set((s) => ({
           running: false,
+          retainedCanvas: false,
           inputPrompt: null,
           output: [...s.output, { kind: "error_card", error: internalError }],
         }));
@@ -227,6 +232,7 @@ export const useRunnerStore = create<RunnerState>((set) => ({
         } catch { /* swallow */ }
         set((s) => ({
           running: false,
+          retainedCanvas: false,
           inputPrompt: null,
           output: [...s.output, { kind: "error_card", error: msg.error }],
           // Also push to lintErrors for inline gutter display if location available
@@ -251,6 +257,7 @@ export const useRunnerStore = create<RunnerState>((set) => ({
       case "start": {
         set({
           running: true,
+          retainedCanvas: false,
           canvasActive: msg.canvasActive,
         });
         break;
@@ -336,13 +343,18 @@ export const useRunnerStore = create<RunnerState>((set) => ({
     flushNow();
     stopAllSounds();
     useRunnerStore.getState().frameHistory.forEach((f) => URL.revokeObjectURL(f.url));
-    set({ output: [], inputPrompt: null, running: false, canvasActive: false, lintErrors: [], canvasWidth: 0, canvasHeight: 0, canvasScale: 1, watches: [], paused: false, speed: 1, frameHistory: [], scrubIndex: null, debugFrames: [], debugScrubIndex: null });
+    set({ output: [], inputPrompt: null, running: false, canvasActive: false, retainedCanvas: false, lintErrors: [], canvasWidth: 0, canvasHeight: 0, canvasScale: 1, watches: [], paused: false, speed: 1, frameHistory: [], scrubIndex: null, debugFrames: [], debugScrubIndex: null });
   },
   stop: () => {
     flushNow();
     stopAllSounds();
     useRunnerStore.getState().frameHistory.forEach((f) => URL.revokeObjectURL(f.url));
-    set({ inputPrompt: null, running: false, canvasActive: false, paused: false, frameHistory: [], scrubIndex: null, debugFrames: [], debugScrubIndex: null });
+    set({ inputPrompt: null, running: false, canvasActive: false, retainedCanvas: false, paused: false, frameHistory: [], scrubIndex: null, debugFrames: [], debugScrubIndex: null });
+  },
+  dismissRetainedCanvas: () => {
+    const state = useRunnerStore.getState();
+    if (state.running || !state.retainedCanvas) return;
+    state.stop();
   },
 
   respondToInput: (value) => {
@@ -809,7 +821,7 @@ export function runChecker(
 }
 
 export function useRunner() {
-  const { ready, running, output, clear, pushErrorCard, inputPrompt, respondToInput, canvasActive, canvasWidth, canvasHeight, canvasScale, lintErrors, appendOutput, applySuggestion, watches, paused, speed, setPaused, setSpeed, frameHistory, scrubIndex, scrubTo } =
+  const { ready, running, output, clear, pushErrorCard, inputPrompt, respondToInput, canvasActive, retainedCanvas, dismissRetainedCanvas, canvasWidth, canvasHeight, canvasScale, lintErrors, appendOutput, applySuggestion, watches, paused, speed, setPaused, setSpeed, frameHistory, scrubIndex, scrubTo } =
     useRunnerStore();
 
   useEffect(() => {
@@ -1065,6 +1077,8 @@ export function useRunner() {
     ready,
     running,
     canvasActive,
+    retainedCanvas,
+    dismissRetainedCanvas,
     canvasWidth,
     canvasHeight,
     canvasScale,

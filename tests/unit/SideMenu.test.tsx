@@ -88,6 +88,8 @@ const ideState = {
 const runnerState = {
   ready: true,
   running: false,
+  retainedCanvas: false,
+  dismissRetainedCanvas: jest.fn(),
   run: jest.fn(),
   interrupt: jest.fn(async () => {}),
   lint: jest.fn(async () => []),
@@ -204,6 +206,8 @@ beforeEach(() => {
   setFontSizeMock.mockClear();
   navigateMock.mockClear();
   editorState.dirtyFiles = new Set<string>();
+  runnerState.running = false;
+  runnerState.retainedCanvas = false;
   ideState.activePanel = null;
   userState.user = null;
 });
@@ -269,6 +273,19 @@ describe('Rail buttons', () => {
       fireEvent.click(screen.getByTitle('Run'));
     });
     expect(runnerState.run).toHaveBeenCalledWith(editorState.project.files, editorState.project.assets, 'main.py');
+  });
+
+  test('a completed show() picture offers Stop and dismisses it locally', async () => {
+    runnerState.retainedCanvas = true;
+    renderRail();
+    const stop = screen.getByRole('button', { name: 'Stop' });
+    expect(stop).toHaveAttribute('title', 'Stop');
+
+    await act(async () => { fireEvent.click(stop); });
+
+    expect(runnerState.dismissRetainedCanvas).toHaveBeenCalledTimes(1);
+    expect(runnerState.interrupt).not.toHaveBeenCalled();
+    expect(runnerState.run).not.toHaveBeenCalled();
   });
 
   test('teacher link only renders for a teacher user', () => {

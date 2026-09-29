@@ -54,6 +54,7 @@ describe("result — keepCanvas (live-code session)", () => {
     expect(s.running).toBe(false);
     expect(s.inputPrompt).toBeNull();
     expect(s.canvasActive).toBe(true); // last frame stays up for the session
+    expect(s.retainedCanvas).toBe(true);
   });
 
   it("keepCanvas: false clears the canvas (default run-end behavior)", () => {
@@ -64,6 +65,7 @@ describe("result — keepCanvas (live-code session)", () => {
     const s = useRunnerStore.getState();
     expect(s.running).toBe(false);
     expect(s.canvasActive).toBe(false);
+    expect(s.retainedCanvas).toBe(false);
   });
 
   it("keepCanvas absent clears the canvas (legacy result event)", () => {
@@ -72,12 +74,61 @@ describe("result — keepCanvas (live-code session)", () => {
     useRunnerStore.getState()._onMessage({ type: "result" });
 
     expect(useRunnerStore.getState().canvasActive).toBe(false);
+    expect(useRunnerStore.getState().retainedCanvas).toBe(false);
   });
 
   it("keepCanvas: true with no prior canvas leaves canvasActive false", () => {
     // canvasActive starts false (no start event) — keepCanvas must not fabricate one.
     useRunnerStore.getState()._onMessage({ type: "result", keepCanvas: true });
     expect(useRunnerStore.getState().canvasActive).toBe(false);
+    expect(useRunnerStore.getState().retainedCanvas).toBe(false);
+  });
+
+  it("dismisses a retained picture without clearing console output", () => {
+    const s = useRunnerStore.getState();
+    s._onMessage({ type: "start", canvasActive: true });
+    s._onMessage({ type: "stdout", text: "drawing finished" });
+    s._onMessage({ type: "result", keepCanvas: true });
+    s.dismissRetainedCanvas();
+
+    expect(useRunnerStore.getState()).toMatchObject({
+      running: false, canvasActive: false, retainedCanvas: false,
+      output: [{ kind: "stdout", text: "drawing finished" }],
+    });
+  });
+
+  it("does not dismiss an active run or a canvas without retention", () => {
+    const s = useRunnerStore.getState();
+    s._onMessage({ type: "start", canvasActive: true });
+    s.dismissRetainedCanvas();
+    expect(useRunnerStore.getState().running).toBe(true);
+    s._onMessage({ type: "result", keepCanvas: true });
+    s._onMessage({ type: "start", canvasActive: true });
+    s.dismissRetainedCanvas();
+    expect(useRunnerStore.getState()).toMatchObject({ running: true, canvasActive: true });
+  });
+
+  it("does not retain a failed run", () => {
+    const s = useRunnerStore.getState();
+    s._onMessage({ type: "start", canvasActive: true });
+    s._onMessage({ type: "error", payload: { message: "boom", phase: "exec" } });
+    s._onMessage({ type: "result" });
+    expect(useRunnerStore.getState().retainedCanvas).toBe(false);
+  });
+
+  it("resets retention on clear, stop and non-retained completion", () => {
+    const s = useRunnerStore.getState();
+    s._onMessage({ type: "start", canvasActive: true });
+    s._onMessage({ type: "result", keepCanvas: true });
+    s.clear();
+    expect(useRunnerStore.getState().retainedCanvas).toBe(false);
+    s._onMessage({ type: "start", canvasActive: true });
+    s._onMessage({ type: "result", keepCanvas: true });
+    s.stop();
+    expect(useRunnerStore.getState().retainedCanvas).toBe(false);
+    s._onMessage({ type: "start", canvasActive: true });
+    s._onMessage({ type: "result" });
+    expect(useRunnerStore.getState().retainedCanvas).toBe(false);
   });
 });
 

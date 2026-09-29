@@ -21,6 +21,8 @@ const ideState = {
 
 const runnerState = {
   running: false,
+  retainedCanvas: false,
+  dismissRetainedCanvas: jest.fn(),
   run: jest.fn(),
   interrupt: jest.fn<() => Promise<void>>().mockResolvedValue(undefined),
   lint: jest.fn<(code: string, filename: string) => Promise<LintDiagnostic[]>>().mockResolvedValue([]),
@@ -53,6 +55,7 @@ beforeEach(() => {
   ideState.saveCurrentProject.mockResolvedValue(true);
   runnerState.lint.mockResolvedValue([]);
   runnerState.running = false;
+  runnerState.retainedCanvas = false;
   ideState.enableLinting = true;
   editorState.dirtyFiles = new Set<string>();
 });
@@ -66,6 +69,47 @@ describe('running -> interrupt toggle', () => {
 
     expect(runnerState.interrupt).toHaveBeenCalled();
     expect(runnerState.run).not.toHaveBeenCalled();
+  });
+});
+
+describe('completed show() picture -> dismiss', () => {
+  it('dismisses locally without interrupting, saving, linting, or rerunning', async () => {
+    runnerState.retainedCanvas = true;
+    editorState.dirtyFiles = new Set(['main.py']);
+    const { result } = renderHook(() => useRunButton());
+
+    await act(async () => { await result.current.handleRunToggle(); });
+
+    expect(runnerState.dismissRetainedCanvas).toHaveBeenCalledTimes(1);
+    expect(runnerState.interrupt).not.toHaveBeenCalled();
+    expect(runnerState.run).not.toHaveBeenCalled();
+    expect(runnerState.lint).not.toHaveBeenCalled();
+    expect(ideState.saveCurrentProject).not.toHaveBeenCalled();
+    expect(runnerState.clear).not.toHaveBeenCalled();
+  });
+
+  it('runs normally after the retained picture has been dismissed', async () => {
+    runnerState.retainedCanvas = true;
+    const { result, rerender } = renderHook(() => useRunButton());
+    await act(async () => { await result.current.handleRunToggle(); });
+    runnerState.retainedCanvas = false;
+    rerender();
+
+    await act(async () => { await result.current.handleRunToggle(); });
+
+    expect(runnerState.dismissRetainedCanvas).toHaveBeenCalledTimes(1);
+    expect(runnerState.run).toHaveBeenCalledTimes(1);
+  });
+
+  it('prioritizes interrupt when a program is running', async () => {
+    runnerState.running = true;
+    runnerState.retainedCanvas = true;
+    const { result } = renderHook(() => useRunButton());
+
+    await act(async () => { await result.current.handleRunToggle(); });
+
+    expect(runnerState.interrupt).toHaveBeenCalledTimes(1);
+    expect(runnerState.dismissRetainedCanvas).not.toHaveBeenCalled();
   });
 });
 

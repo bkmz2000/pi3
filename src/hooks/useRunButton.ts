@@ -18,13 +18,17 @@ export function useRunButton(options: UseRunButtonOptions = {}) {
   const saveCurrentProject = useIde((s) => s.saveCurrentProject);
   const enableLinting = useIde((s) => s.enableLinting);
 
-  const { running, run, interrupt, lint, clear, appendOutput, pushErrorCard } = useRunner();
+  const { running, retainedCanvas, dismissRetainedCanvas, run, interrupt, lint, clear, appendOutput, pushErrorCard } = useRunner();
 
   const isStartingRef = useRef(false);
 
   const handleRunToggle = useCallback(async () => {
     if (running) {
       await interrupt();
+      return;
+    }
+    if (retainedCanvas) {
+      dismissRetainedCanvas();
       return;
     }
 
@@ -123,10 +127,11 @@ export function useRunButton(options: UseRunButtonOptions = {}) {
     } finally {
       isStartingRef.current = false;
     }
-  }, [running, project, currentFile, dirtyFiles, lint, clear, appendOutput, pushErrorCard, run, interrupt, saveCurrentProject, markClean, options, t, enableLinting]);
+  }, [running, retainedCanvas, dismissRetainedCanvas, project, currentFile, dirtyFiles, lint, clear, appendOutput, pushErrorCard, run, interrupt, saveCurrentProject, markClean, options, t, enableLinting]);
 
   return {
     running,
+    retainedCanvas,
     handleRunToggle,
   };
 }

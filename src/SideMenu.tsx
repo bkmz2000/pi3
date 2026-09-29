@@ -147,7 +147,7 @@ export default function Rail() {
 
   const { user } = useUser();
   const { ready } = useRunner();
-  const { running, handleRunToggle } = useRunButton();
+  const { running, retainedCanvas, handleRunToggle } = useRunButton();
   const [transitioning, setTransitioning] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
 
@@ -180,8 +180,8 @@ export default function Rail() {
 
   const saveTilemap = useEditor((s) => s.saveTilemap);
 
-  const isRunning = running;
-  const runIcon: IconName = !ready ? "settings" : isRunning ? "stop" : "play";
+  const showStop = running || retainedCanvas;
+  const runIcon: IconName = !ready ? "settings" : showStop ? "stop" : "play";
 
   return (
     <>
@@ -313,14 +313,14 @@ export default function Rail() {
               // Space/Enter activate it — those are common in-game keys.
               if (e.key === ' ' || e.key === 'Enter') e.preventDefault();
             }}
-            aria-label={isRunning ? t('sideMenu.stop') : t('sideMenu.run')}
-            title={isRunning ? t('sideMenu.stop') : t('sideMenu.run')}
+            aria-label={showStop ? t('sideMenu.stop') : t('sideMenu.run')}
+            title={showStop ? t('sideMenu.stop') : t('sideMenu.run')}
             disabled={!ready || transitioning}
             style={{
               all: "unset",
               cursor: ready && !transitioning ? "pointer" : "not-allowed",
               width: 44, height: 44, borderRadius: theme.radiusButton,
-              background: transitioning ? theme.stopBg : isRunning ? theme.stopBg : theme.runBg,
+              background: transitioning ? theme.stopBg : showStop ? theme.stopBg : theme.runBg,
               color: theme.runTxt,
               display: "flex", alignItems: "center", justifyContent: "center",
               opacity: ready && !transitioning ? 1 : 0.5,

@@ -378,33 +378,44 @@ async function runProductionTests() {
       addTestResult('p5.js sketch execution', false, error);
     }
     
-    // Test 4: show() paints once and its completed frame remains visible.
-    console.log('\n4. show() Still-picture Persistence');
+    // Test 4: show() keeps a completed picture until Stop dismisses it.
+    console.log('\n4. show() Still-picture Stop');
     try {
       await clearEditor(page);
       await typeCode(page, 'from graphics import *\n\nbackground("sky")\nfill("red")\ncircle(150, 150, 40)\nshow()');
       await clickRun(page);
 
-      // The program must have completed (Run is back) while the canvas window
-      // remains visible. This catches the historical split-second flash where
-      // the worker posted a plain result event immediately after show().
+      // Stop remains after completion, but the live canvas pause control
+      // disappears. The still picture must survive after execution finishes.
       await page.waitForFunction(() => {
-        const run = document.querySelector('button[aria-label="Run"]');
         const canvas = document.querySelector('canvas');
         const canvasWindow = canvas?.parentElement?.parentElement;
-        return !!run && !!canvasWindow && window.getComputedStyle(canvasWindow).opacity === '1';
+        return !!document.querySelector('button[aria-label="Stop"]') &&
+          !!canvasWindow && window.getComputedStyle(canvasWindow).opacity === '1' &&
+          !canvasWindow.querySelector('button[title="Pause"]');
       }, { timeout: 10000 });
       await sleep(750);
-
       const stillVisible = await page.evaluate(() => {
         const canvas = document.querySelector('canvas');
         const canvasWindow = canvas?.parentElement?.parentElement;
         return !!canvasWindow && window.getComputedStyle(canvasWindow).opacity === '1';
       });
       if (!stillVisible) throw new Error('show() canvas disappeared after execution completed');
-      addTestResult('show() still-picture persistence', true);
+
+      await page.click('button[aria-label="Stop"]');
+      await page.waitForFunction(() => {
+        const canvas = document.querySelector('canvas');
+        const canvasWindow = canvas?.parentElement?.parentElement;
+        return !!document.querySelector('button[aria-label="Run"]') &&
+          !!canvasWindow && window.getComputedStyle(canvasWindow).opacity === '0';
+      }, { timeout: 10000 });
+      await clearEditor(page);
+      await typeCode(page, 'print("after-show-dismiss")');
+      await clickRun(page);
+      await page.waitForFunction(() => document.body.innerText.includes('after-show-dismiss'), { timeout: 10000 });
+      addTestResult('show() still-picture Stop and rerun', true);
     } catch (error) {
-      addTestResult('show() still-picture persistence', false, error);
+      addTestResult('show() still-picture Stop and rerun', false, error);
     }
 
     // Test 5: Asset Management — the Projects panel hosts the sprite /

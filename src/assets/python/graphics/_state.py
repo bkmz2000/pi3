@@ -39,8 +39,11 @@ _paused = False       # True = tick loop suspended; resume() restarts it
 _step_once = False    # True = run exactly one tick then re-pause
 _speed_divisor = 1    # tick interval multiplier: 1=1x, 2=½x, 4=¼x
 
-_watches: dict = {}       # label -> repr-string; cleared each tick
-_watch_last_sent = 0.0    # JS timestamp of last flush; for throttle
+_watches: dict = {}       # label -> last repr-string; cleared on a new program run
+_watch_called: set = set()  # labels explicitly watched since the previous frame
+_watch_last_frame: dict = {}  # label -> last frame where watch() was called
+_watch_last_emitted_fresh: set = set()  # freshness in the last UI snapshot
+_watch_last_sent = 0.0    # JS timestamp of last fresh flush; for throttle
 
 # Set by worker.ts before each run so _tick can classify runtime errors.
 _user_code = ""

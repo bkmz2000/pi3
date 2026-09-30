@@ -1,13 +1,26 @@
 import type { PyodideInterface } from "pyodide";
-import { WorkerCommand, WorkerEvent, LintDiagnostic, SheetRunPayload, RuntimeError } from "./WorkerInterface";
+import { WorkerCommand, WorkerEvent, LintDiagnostic, SheetRunPayload, RuntimeError, type WatchValue } from "./WorkerInterface";
 import { PYODIDE_CDN } from "./pyodideVersion";
 import { executeDrawCommands } from "./canvasRenderer";
+import { canvasBackingSize } from "./canvasResolution";
 import { blitPngToCanvas, PendingMatplotlibBuffer } from "./matplotlibBlit";
 import { hoistStarImports } from "./hoistStarImports";
 import { isInterruptError } from "./isInterruptError";
 
 let pyodide: PyodideInterface | null = null;
 let offscreen: OffscreenCanvas | null = null;
+let canvasPixelRatio = 1;
+
+function resizeCanvas(width: number, height: number) {
+  if (!offscreen) return;
+  const backing = canvasBackingSize(width, height, canvasPixelRatio);
+  offscreen.width = backing.width;
+  offscreen.height = backing.height;
+  // Canvas resizing resets the 2D state. Student drawing commands still use
+  // logical coordinates, independently of the display's backing resolution.
+  offscreen.getContext("2d")?.setTransform(backing.scaleX, 0, 0, backing.scaleY, 0, 0);
+}
+
 // Buffer matplotlib PNGs that arrive before the canvas is attached; drained
 // as soon as attach_canvas lands.
 const pendingMatplotlibFigures = new PendingMatplotlibBuffer();
@@ -30,9 +43,9 @@ const MAX_REWIND_FRAMES = 200;
 const MAX_REWIND_BYTES = 16 * 1024 * 1024; // 16 MB
 const REWIND_INTERVAL_MS = 50; // 20 fps throttle
 let rewindArmed = false;
-let rewindBuf: { frame: number; blob: Blob; bytes: number; watches: { label: string; value: string }[] }[] = [];
+let rewindBuf: { frame: number; blob: Blob; bytes: number; watches: WatchValue[] }[] = [];
 let rewindBytes = 0;
-let lastWatchValues: { label: string; value: string }[] = [];
+let lastWatchValues: WatchValue[] = [];
 let rewindLastCapture = 0;
 let stepBlobPending = false;
 // Capture rewind frames ONLY while the user is debugging (paused/stepping).
@@ -211,10 +224,7 @@ async function initPyodide(
     post({ type: "input_request", prompt });
   });
   p.globals.set("_ide_canvas_resize", (width: number, height: number) => {
-    if (offscreen) {
-      offscreen.width = width;
-      offscreen.height = height;
-    }
+    resizeCanvas(width, height);
     post({ type: "canvas_resize", width, height });
   });
   p.globals.set(
@@ -259,7 +269,7 @@ async function initPyodide(
 
   // _ide_post_watch_values: called from Python after each tick with JSON-encoded watch entries
   p.globals.set("_ide_post_watch_values", (json: string) => {
-    const data = JSON.parse(json) as { values: { label: string; value: string }[]; frame: number };
+    const data = JSON.parse(json) as { values: WatchValue[]; frame: number };
     lastWatchValues = data.values;
     post({ type: "watch", values: data.values, frame: data.frame });
   });
@@ -679,6 +689,9 @@ _gs._debug_frames.clear()
 _gs._debug_fresh_slots.clear()
 _gs._debug_line_offset = 0
 _gs._watches.clear()
+_gs._watch_called.clear()
+_gs._watch_last_frame.clear()
+_gs._watch_last_emitted_fresh.clear()
 _gs._watch_last_sent = 0.0
 `);
 
@@ -980,6 +993,9 @@ _gs._debug_frames.clear()
 _gs._debug_fresh_slots.clear()
 _gs._debug_line_offset = ${preambleLines}
 _gs._watches.clear()
+_gs._watch_called.clear()
+_gs._watch_last_frame.clear()
+_gs._watch_last_emitted_fresh.clear()
 _gs._watch_last_sent = 0.0
 `);
 
@@ -1049,6 +1065,9 @@ self.onmessage = async (e: MessageEvent<WorkerCommand>) => {
     }
   } else if (msg.cmd === "attach_canvas") {
     offscreen = msg.canvas;
+    canvasPixelRatio = msg.pixelRatio;
+    // The initial canvas is 300×300 until Python calls size().
+    resizeCanvas(offscreen.width, offscreen.height);
     if (!pyodide) pendingOffscreen = msg.canvas;
     drainPendingMatplotlib();
   } else if (msg.cmd === "run") {

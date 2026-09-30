@@ -150,7 +150,22 @@ export function executeDrawCommands(
         const [x, y, w, h] = args as [number, number, number, number];
         ctx.beginPath();
         ctx.rect(x, y, w, h);
-        ctx.fill();
+        const t = ctx.getTransform();
+        if (t.b === 0 && t.c === 0 && [x, y, w, h].every(Number.isInteger)) {
+          // Adjacent grid tiles must share the same physical edge. At DPR 1.25,
+          // a 50px tile ends on a half pixel; separate antialiased fills leave
+          // a dark seam even though their logical edges coincide.
+          const x0 = Math.round(t.a * x + t.e);
+          const x1 = Math.round(t.a * (x + w) + t.e);
+          const y0 = Math.round(t.d * y + t.f);
+          const y1 = Math.round(t.d * (y + h) + t.f);
+          ctx.save();
+          ctx.setTransform(1, 0, 0, 1, 0, 0);
+          ctx.fillRect(Math.min(x0, x1), Math.min(y0, y1), Math.abs(x1 - x0), Math.abs(y1 - y0));
+          ctx.restore();
+        } else {
+          ctx.fill();
+        }
         ctx.stroke();
         break;
       }

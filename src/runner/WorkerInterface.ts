@@ -48,7 +48,7 @@ export type WorkerCommand =
   | { cmd: "step" }
   | { cmd: "set_speed"; divisor: 1 | 2 | 4 }
   | { cmd: "set_interrupt_buffer"; buffer: SharedArrayBuffer }
-  | { cmd: "attach_canvas"; canvas: OffscreenCanvas }
+  | { cmd: "attach_canvas"; canvas: OffscreenCanvas; pixelRatio: number }
   | { cmd: "event"; kind: WorkerEventType; data: InputEventData }
   | { cmd: "input_response"; value: string }
   | { cmd: "lint"; code: string; filename: string; reqId: number }
@@ -160,9 +160,11 @@ export type SlotSnapshot = {
   fresh: boolean;
 };
 
+export type WatchValue = { label: string; value: string; fresh?: boolean; lastFrame?: number };
+
 export type DebugFrame = {
   index: number;
-  watches?: { label: string; value: string }[];
+  watches?: WatchValue[];
   slots: SlotSnapshot[];
 };
 
@@ -183,8 +185,8 @@ export type WorkerEvent =
   | { type: "canvas_resize"; width: number; height: number }
   | { type: "sound"; action: "play" | "pause" | "loop" | "stop" | "volume"; name: string; value?: number }
   | { type: "screenshot"; reqId: number; blob: Blob | null }
-  | { type: "watch"; values: { label: string; value: string }[]; frame: number }
-  | { type: "frame_history"; frames: { frame: number; blob: Blob; watches: { label: string; value: string }[] }[] }
+  | { type: "watch"; values: WatchValue[]; frame: number }
+  | { type: "frame_history"; frames: { frame: number; blob: Blob; watches: WatchValue[] }[] }
   | { type: "debug_frame"; frame: DebugFrame }
   | { type: "generator_result"; stdout: string; reqId: number }
   | { type: "generator_error"; error: string; reqId: number }

@@ -1030,42 +1030,51 @@ _WATCH_SENTINEL = object()
 
 
 def watch(label, value=_WATCH_SENTINEL) -> None:
-    """Pin a live value to the Watch panel (updated every frame, no console flood).
+    """Show a value for this frame; keep its last value visibly stale later.
 
     watch('score', score)  — shows 'score  5'
     watch(player.x)        — shows '100.0'
     """
     if value is _WATCH_SENTINEL:
-        _state._watches[repr(label)] = ""
+        key = repr(label)
+        _state._watches[key] = ""
     else:
-        _state._watches[str(label)] = repr(value)
+        key = str(label)
+        _state._watches[key] = repr(value)
+    _state._watch_called.add(key)
 
 
-def _flush_watches(frame: int) -> None:
-    """Push pinned watch() values to JS (throttled to once per 100ms).
+def _flush_watches(frame: int) -> list:
+    """Emit fresh watches (throttled), or one stale transition per label.
 
-    Values persist in `_state._watches` for the life of the run — pinned,
-    not per-tick — so a label stays visible even on a frame that doesn't
-    call watch() for it again. Called once per "frame": a canvas tick or a
-    pi3.debug.show() call are both natural frame boundaries for this
-    purpose. `_state._watches` is reset only at the start of a new run
-    (see worker.ts).
+    A canvas tick or pi3.debug.show() ends a watch frame. Past values stay
+    visible, but an omitted watch() becomes stale and sends no more packets
+    until a later frame explicitly calls watch() again.
     """
-    if _state._watches:
-        try:
-            import js as _js
-            _now = _js.Date.now()
-            if _now - _state._watch_last_sent >= 100:
-                import json as _json
-                from js import _ide_post_watch_values
-                _ide_post_watch_values(_json.dumps({
-                    "values": [{"label": k, "value": v}
-                               for k, v in _state._watches.items()],
-                    "frame": frame,
-                }))
-                _state._watch_last_sent = _now
-        except Exception:
-            pass
+    fresh = set(_state._watch_called)
+    _state._watch_called.clear()
+    for key in fresh:
+        _state._watch_last_frame[key] = frame
+    values = [
+        {"label": key, "value": value, "fresh": key in fresh,
+         "lastFrame": _state._watch_last_frame.get(key, frame)}
+        for key, value in _state._watches.items()
+    ]
+    if not values or (not fresh and not _state._watch_last_emitted_fresh):
+        return values
+    try:
+        import js as _js
+        now = _js.Date.now()
+        # A freshness transition (including fresh -> stale) must not wait for
+        # the throttle; otherwise stale data can appear live for extra frames.
+        if fresh != _state._watch_last_emitted_fresh or now - _state._watch_last_sent >= 100:
+            import json as _json
+            _js._ide_post_watch_values(_json.dumps({"values": values, "frame": frame}))
+            _state._watch_last_sent = now
+            _state._watch_last_emitted_fresh = fresh
+    except Exception:
+        pass
+    return values
 
 
 # === RUN ===
@@ -1091,6 +1100,7 @@ def _tick(main, my_generation):
         return
 
     try:
+        this_frame = frame_count
         _ide_flush_draw_commands(to_js(_state._draw_commands))
         _state._draw_commands.clear()
 
@@ -1115,10 +1125,10 @@ def _tick(main, my_generation):
             from graphics.actors import _draw_actor_info_overlay
             _draw_actor_info_overlay()
 
-        _ide_flush_draw_commands(to_js(_state._draw_commands), frame_count)
+        _ide_flush_draw_commands(to_js(_state._draw_commands), this_frame)
         _state._draw_commands.clear()
 
-        _flush_watches(frame_count)
+        _flush_watches(this_frame)
 
         frame_count += 1
 

@@ -367,8 +367,7 @@ def members(data, **kwargs):
 
 def show() -> None:
     """Capture a timeline frame from all registered slots and emit it to JS."""
-    watch_snapshot = [{"label": k, "value": v} for k, v in _state._watches.items()]
-    _flush_watches(len(_state._debug_frames))
+    watch_snapshot = _flush_watches(len(_state._debug_frames))
     if not _state._debug_slots:
         return
     frame = {

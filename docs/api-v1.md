@@ -1,5 +1,14 @@
 # pi3 Graphics API v1 Changelog
 
+## 2026-09-30: frame-local `watch()` freshness
+
+- `watch(label, value)` updates a row only in frames that call it. If the next
+  frame omits that label, its last value remains visible but is marked **stale**
+  with the frame number of its last update (as in the algorithm visualizer).
+- A frame with no `watch()` calls sends at most one stale transition; subsequent
+  idle frames do not resend old values. Calling `watch()` again revives the row.
+  `run(splash)` no longer keeps the last game watch deceptively live.
+
 ## 2026-09-12: kid-friendly color vocabulary
 
 - The original Sweetie 16 values remain unchanged.

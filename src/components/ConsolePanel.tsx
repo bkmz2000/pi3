@@ -321,6 +321,7 @@ export function ErrorCard({ error }: { error: RuntimeError }) {
 }
 
 function WatchRow({ entry, theme }: { entry: WatchEntry; theme: Theme }) {
+  const { t } = useTranslation();
   const [highlighted, setHighlighted] = useState(false);
 
   useEffect(() => {
@@ -343,11 +344,14 @@ function WatchRow({ entry, theme }: { entry: WatchEntry; theme: Theme }) {
         minHeight: 22,
       }}
     >
-      <span style={{ color: theme.consoleTxtMute, fontFamily: theme.fontMono, fontSize: 12, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "45%" }}>
+      <span style={{ color: theme.consoleTxtMute, fontFamily: theme.fontMono, fontSize: 12, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", flex: "0 1 auto", maxWidth: "36%", opacity: entry.fresh ? 1 : 0.55 }}>
         {entry.label}
       </span>
+      <span style={{ color: theme.consoleTxtMute, fontFamily: theme.fontMono, fontSize: 10, whiteSpace: "nowrap", opacity: 0.65, flexShrink: 0 }}>
+        {entry.fresh ? t('console.watchFrame', { frame: entry.lastFrame }) : t('console.watchStale', { frame: entry.lastFrame })}
+      </span>
       {entry.value !== "" && (
-        <span style={{ color: theme.consoleTxt, fontFamily: theme.fontMono, fontSize: 12, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "52%" }}>
+        <span style={{ color: theme.consoleTxt, fontFamily: theme.fontMono, fontSize: 12, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", flex: "1 1 0", minWidth: 0, opacity: entry.fresh ? 1 : 0.55 }}>
           {entry.value}
         </span>
       )}
@@ -394,9 +398,9 @@ export default function ConsolePanel({ onRight = false }: { onRight?: boolean })
   const rewinding = scrubIndex !== null || debugScrubIndex !== null;
   const shownWatches: WatchEntry[] =
     scrubIndex !== null && frameHistory[scrubIndex]
-      ? frameHistory[scrubIndex].watches.map((w) => ({ ...w, changedAt: 0 }))
+      ? frameHistory[scrubIndex].watches.map((w) => ({ ...w, fresh: w.fresh ?? true, lastFrame: w.lastFrame ?? frameHistory[scrubIndex].frame, changedAt: 0 }))
       : debugIdx !== null && debugFrames[debugIdx]
-      ? (debugFrames[debugIdx].watches ?? []).map((w) => ({ ...w, changedAt: 0 }))
+      ? (debugFrames[debugIdx].watches ?? []).map((w) => ({ ...w, fresh: w.fresh ?? true, lastFrame: w.lastFrame ?? debugFrames[debugIdx].index, changedAt: 0 }))
       : watches;
   const [inputValue, setInputValue] = useState("");
   const [queuedLines, setQueuedLines] = useState<string[]>([]);

@@ -199,6 +199,8 @@ export default function CanvasWindow() {
         onPointerUp={onPointerUp}
         style={{
           height: 30,
+          boxSizing: "border-box",
+          flexShrink: 0,
           padding: "0 10px 0 14px",
           display: "flex",
           alignItems: "center",
@@ -381,7 +383,7 @@ export default function CanvasWindow() {
                 opacity: canPersist ? 1 : 0.6,
               }}
             >
-              <img src={s.url} width={48} height={48} style={{ display: 'block', objectFit: 'cover', imageRendering: 'pixelated' }} alt="" />
+              <img src={s.url} width={48} height={48} style={{ display: 'block', objectFit: 'cover' }} alt="" />
             </button>
           ))}
         </div>
@@ -392,7 +394,7 @@ export default function CanvasWindow() {
           height: `${visualH}px`,
           position: "relative",
           background: theme.canvasBg,
-          imageRendering: "pixelated",
+          flexShrink: 0,
           overflow: "hidden",
         }}
       >
@@ -405,7 +407,6 @@ export default function CanvasWindow() {
             display: 'block',
             width: '100%',
             height: '100%',
-            imageRendering: 'pixelated',
           }}
         />
         <MeasureOverlay
@@ -426,7 +427,6 @@ export default function CanvasWindow() {
                 position: "absolute",
                 top: 0, left: 0,
                 width: "100%", height: "100%",
-                imageRendering: "pixelated",
                 outline: "2px solid rgba(255,220,0,0.7)",
                 outlineOffset: "-2px",
                 boxSizing: "border-box",

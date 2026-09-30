@@ -4,17 +4,23 @@ interface Call {
   fill?: [number, number, number, number];
   fillStyle?: string;
   drawImage?: { dx: number; dy: number; dw: number; dh: number; srcW: number; srcH: number };
+  transform?: number[];
 }
 
 function mockCanvas(width: number, height: number) {
   const calls: Call[] = [];
+  let savedTransform: number[] = [];
   const ctx = {
     fillStyle: '',
+    transform: [1, 0, 0, 1, 0, 0],
+    save() { savedTransform = [...this.transform]; },
+    restore() { this.transform = savedTransform; },
+    setTransform(...values: number[]) { this.transform = values; },
     fillRect(x: number, y: number, w: number, h: number) {
-      calls.push({ fill: [x, y, w, h], fillStyle: this.fillStyle });
+      calls.push({ fill: [x, y, w, h], fillStyle: this.fillStyle, transform: [...this.transform] });
     },
     drawImage(bmp: ImageBitmap, dx: number, dy: number, dw: number, dh: number) {
-      calls.push({ drawImage: { dx, dy, dw, dh, srcW: bmp.width, srcH: bmp.height } });
+      calls.push({ drawImage: { dx, dy, dw, dh, srcW: bmp.width, srcH: bmp.height }, transform: [...this.transform] });
     },
   };
   return {
@@ -63,6 +69,19 @@ describe('blitPngToCanvas — letterboxing math', () => {
     expect(calls[0].fillStyle).toBe('#0a1414');
     expect(calls[0].fill).toEqual([0, 0, 400, 300]);
     expect(calls[1].drawImage).toEqual({ dx: 0, dy: 50, dw: 400, dh: 200, srcW: 800, srcH: 400 });
+  });
+
+  it('uses physical pixels without disturbing a DPR-scaled graphics context', async () => {
+    const { canvas, ctx, calls } = mockCanvas(750, 750);
+    ctx.setTransform(1.25, 0, 0, 1.25, 0, 0);
+    const res = await blitPngToCanvas(new Uint8Array([1]), canvas, {
+      createBitmap: async () => fakeBitmap(600, 600),
+      BlobCtor: FakeBlob as unknown as typeof Blob,
+    });
+    expect(res.ok).toBe(true);
+    expect(calls[0].transform).toEqual([1, 0, 0, 1, 0, 0]);
+    expect(calls[1].transform).toEqual([1, 0, 0, 1, 0, 0]);
+    expect(ctx.transform).toEqual([1.25, 0, 0, 1.25, 0, 0]);
   });
 
   it('scales up a small square to fit the smaller axis of a rectangle', async () => {

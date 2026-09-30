@@ -29,7 +29,7 @@ if "graphics" not in _sys.modules:
     _g_mod._state = _state_mod
     # pi3/debug.py re-exports these from graphics; stub them out like _state
     # since the real ones need JS interop this harness deliberately avoids.
-    _g_mod._flush_watches = lambda frame: None
+    _g_mod._flush_watches = lambda frame: []
     _g_mod.peek = lambda x: print(repr(x))
     _g_mod.watch = lambda label, value=None: None
     _sys.modules["graphics"] = _g_mod

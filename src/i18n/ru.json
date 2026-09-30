@@ -225,7 +225,9 @@
     "foundWarnings": "Предупреждений: {{count}}. Запуск...",
     "noErrors": "Ошибок не найдено. Запуск...",
     "foundErrorsBatch": "{{count}} проблем(ы) ({{summary}}) — исправь перед запуском",
-    "errorFormat": "  {{message}} ({{line}})"
+    "errorFormat": "  {{message}} ({{line}})",
+    "watchFrame": "кадр {{frame}}",
+    "watchStale": "устарело · кадр {{frame}}"
   },
   "linter": {
     "firstRunNotice": "Подсказки включены! Они показывают ошибки, пока вы печатаете — их можно выключить в настройках.",

@@ -11,6 +11,9 @@ export interface BlitTarget {
 
 export interface BlitContext {
   fillStyle: unknown;
+  save(): void;
+  restore(): void;
+  setTransform(a: number, b: number, c: number, d: number, e: number, f: number): void;
   fillRect(x: number, y: number, w: number, h: number): void;
   drawImage(bmp: ImageBitmap, dx: number, dy: number, dw: number, dh: number): void;
 }
@@ -57,14 +60,20 @@ export async function blitPngToCanvas(
   const cw = canvas.width;
   const ch = canvas.height;
   const bg = "#0a1414";
-  ctx.fillStyle = bg;
-  ctx.fillRect(0, 0, cw, ch);
   const scale = Math.min(cw / bmp.width, ch / bmp.height);
   const dw = bmp.width * scale;
   const dh = bmp.height * scale;
   const dx = (cw - dw) / 2;
   const dy = (ch - dh) / 2;
+  // Graphics commands use logical coordinates on a DPR-scaled context, but
+  // this PNG is fitted to the physical backing pixels. Restore the student's
+  // transform afterwards so subsequent graphics frames are unaffected.
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, cw, ch);
   ctx.drawImage(bmp, dx, dy, dw, dh);
+  ctx.restore();
   const srcW = bmp.width;
   const srcH = bmp.height;
   (bmp as unknown as { close?: () => void }).close?.();

@@ -202,6 +202,28 @@ describe('executeDrawCommands', () => {
     expect(ctx.beginPath).toHaveBeenCalledTimes(5);
   });
 
+  it('snaps adjacent integer rectangles to shared physical edges at fractional DPR', () => {
+    const ctx = makeCtx();
+    (ctx.getTransform as jest.Mock).mockReturnValue({ a: 1.25, b: 0, c: 0, d: 1.25, e: 0, f: 0 });
+    executeDrawCommands(ctx, [
+      ['rect', [100, 100, 50, 50]],
+      ['rect', [150, 100, 50, 50]],
+    ], {}, 750, 750);
+    expect(ctx.fillRect).toHaveBeenNthCalledWith(1, 125, 125, 63, 63);
+    expect(ctx.fillRect).toHaveBeenNthCalledWith(2, 188, 125, 62, 63);
+    expect(ctx.stroke).toHaveBeenCalledTimes(2);
+  });
+
+  it('preserves antialiasing for rotated and fractional rectangles', () => {
+    const ctx = makeCtx();
+    (ctx.getTransform as jest.Mock).mockReturnValue({ a: 1, b: 0.5, c: 0, d: 1, e: 0, f: 0 });
+    executeDrawCommands(ctx, [['rect', [10, 10, 50, 50]]], {}, 100, 100);
+    (ctx.getTransform as jest.Mock).mockReturnValue({ a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 });
+    executeDrawCommands(ctx, [['rect', [10.5, 10, 50, 50]]], {}, 100, 100);
+    expect(ctx.fill).toHaveBeenCalledTimes(2);
+    expect(ctx.fillRect).not.toHaveBeenCalled();
+  });
+
   it('fill / no_fill / stroke / no_stroke / stroke_width set state', () => {
     const ctx = makeCtx();
     executeDrawCommands(

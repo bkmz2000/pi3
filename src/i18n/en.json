@@ -225,7 +225,9 @@
     "foundWarnings": "{{count}} warning(s). Starting anyway...",
     "noErrors": "No errors found. Starting...",
     "foundErrorsBatch": "{{count}} issue(s) ({{summary}}) — fix before running",
-    "errorFormat": "  {{message}} ({{line}})"
+    "errorFormat": "  {{message}} ({{line}})",
+    "watchFrame": "frame {{frame}}",
+    "watchStale": "stale · frame {{frame}}"
   },
   "linter": {
     "firstRunNotice": "Lint hints are on! They point out mistakes while you type — you can switch them off in Settings.",

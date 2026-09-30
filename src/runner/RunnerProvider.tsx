@@ -1,6 +1,6 @@
 import { useCallback, useEffect } from "react";
 import { create } from "zustand";
-import { WorkerCommand, WorkerEvent, WorkerEventType, LintDiagnostic, type RuntimeError, type JediCompletion, type DebugFrame } from "./WorkerInterface";
+import { WorkerCommand, WorkerEvent, WorkerEventType, LintDiagnostic, type RuntimeError, type JediCompletion, type DebugFrame, type WatchValue } from "./WorkerInterface";
 import { useIde, useEditor } from "../state/IdeState";
 import GraphicsInit from "../assets/python/graphics/__init__.py?raw";
 import GraphicsActors from "../assets/python/graphics/actors/__init__.py?raw";
@@ -43,7 +43,7 @@ type OutputLine = {
 };
 
 export type Screenshot = { id: number; url: string; blob: Blob };
-export type WatchEntry = { label: string; value: string; changedAt: number };
+export type WatchEntry = { label: string; value: string; changedAt: number; fresh: boolean; lastFrame: number };
 
 type RunnerState = {
   ready: boolean;
@@ -61,7 +61,7 @@ type RunnerState = {
   watches: WatchEntry[];
   paused: boolean;
   speed: 1 | 2 | 4;
-  frameHistory: { frame: number; url: string; watches: { label: string; value: string }[] }[];
+  frameHistory: { frame: number; url: string; watches: WatchValue[] }[];
   scrubIndex: number | null;
   debugFrames: DebugFrame[];
   debugScrubIndex: number | null;
@@ -285,13 +285,23 @@ export const useRunnerStore = create<RunnerState>((set) => ({
       }
       case "watch": {
         const prev = useRunnerStore.getState().watches;
+        // A pinned watch can keep sending the same value after the game changes
+        // to a splash screen. Do not re-render the IDE for identical packets.
         const prevMap = new Map(prev.map((w) => [w.label, w]));
         const now = Date.now();
         const next: WatchEntry[] = msg.values.map((v) => {
           const old = prevMap.get(v.label);
-          const changedAt = old && old.value === v.value ? old.changedAt : now;
-          return { label: v.label, value: v.value, changedAt };
+          return {
+            label: v.label,
+            value: v.value,
+            changedAt: old && old.value === v.value ? old.changedAt : now,
+            fresh: v.fresh ?? true,
+            lastFrame: v.lastFrame ?? old?.lastFrame ?? msg.frame,
+          };
         });
+        if (prev.length === next.length && prev.every((w, i) =>
+          w.label === next[i].label && w.value === next[i].value &&
+          w.fresh === next[i].fresh && w.lastFrame === next[i].lastFrame)) break;
         set({ watches: next });
         break;
       }
@@ -960,7 +970,7 @@ export function useRunner() {
     if (!canvasTransferred) {
       const offscreen = el.transferControlToOffscreen();
       getWorker().postMessage(
-        { cmd: "attach_canvas", canvas: offscreen } satisfies WorkerCommand,
+        { cmd: "attach_canvas", canvas: offscreen, pixelRatio: window.devicePixelRatio || 1 } satisfies WorkerCommand,
         [offscreen],
       );
       canvasTransferred = true;

@@ -218,7 +218,7 @@ function AppInner() {
   const showConsole = !showConsoleOnRun || running;
   const theme = useThemeStore((s) => s.theme);
   const fontSize = useThemeStore((s) => s.fontSize);
-  const cmTheme = getCmTheme(theme);
+  const cmTheme = useMemo(() => getCmTheme(theme), [theme]);
 
   const [showForkDialog, setShowForkDialog] = useState(false);
   const [fileComments, setFileComments] = useState<ApiComment[]>([]);
@@ -227,6 +227,17 @@ function AppInner() {
   const [anchorY, setAnchorY] = useState<number | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
   const editorRef = useRef<ReactCodeMirrorRef>(null);
+  const onLineSelect = useCallback((line: number | null, y: number | null) => {
+    setSelectedLine(line);
+    setAnchorY(y);
+  }, []);
+  // Runner watch updates re-render AppInner. Recreating these extensions on
+  // every update makes @uiw/react-codemirror reconfigure the entire editor.
+  const editorExtensions = useMemo(() => graphicsProfile({
+    theme, lang, fontSize, cmTheme, enableAutocomplete,
+    requestCompletions: runner.requestCompletions,
+    onLineSelect,
+  }), [theme, lang, fontSize, cmTheme, enableAutocomplete, runner.requestCompletions, onLineSelect]);
 
   // First-run lint notice: once per browser, tell the student hints are on
   // (and where the toggle lives). Only fires when linting is enabled.
@@ -547,15 +558,7 @@ function AppInner() {
                   key={`${currentFile || "no-file"}-${theme.editorBg}`}
                   value={project.files[currentFile] ?? ""}
                   onChange={onChange}
-                  extensions={graphicsProfile({
-                    theme,
-                    lang,
-                    fontSize,
-                    cmTheme,
-                    enableAutocomplete,
-                    requestCompletions: runner.requestCompletions,
-                    onLineSelect: (line, y) => { setSelectedLine(line); setAnchorY(y); },
-                  })}
+                  extensions={editorExtensions}
                   height="100%"
                   width="100%"
                   className="h-full text-left"

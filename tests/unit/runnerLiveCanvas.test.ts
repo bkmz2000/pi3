@@ -40,6 +40,44 @@ beforeEach(() => {
   global.fetch = jest.fn().mockResolvedValue({ ok: true }) as unknown as typeof fetch;
 });
 
+describe("watch updates", () => {
+  it("does not notify subscribers when a pinned watch repeats unchanged", () => {
+    const notify = jest.fn();
+    const unsubscribe = useRunnerStore.subscribe(notify);
+    try {
+      const first = { type: "watch" as const, frame: 1, values: [{ label: "tail", value: "[State(x=0)]" }] };
+      useRunnerStore.getState()._onMessage(first);
+      const watches = useRunnerStore.getState().watches;
+      const updates = notify.mock.calls.length;
+      expect(updates).toBe(1);
+
+      useRunnerStore.getState()._onMessage({ ...first, frame: 2 });
+      expect(useRunnerStore.getState().watches).toBe(watches);
+      expect(notify).toHaveBeenCalledTimes(updates);
+
+      useRunnerStore.getState()._onMessage({ type: "watch", frame: 3, values: [{ label: "tail", value: "[State(x=1)]" }] });
+      expect(notify).toHaveBeenCalledTimes(updates + 1);
+      expect(useRunnerStore.getState().watches[0].value).toBe("[State(x=1)]");
+    } finally {
+      unsubscribe();
+    }
+  });
+
+  it("updates on additions, removals, and label-order changes", () => {
+    const send = (values: { label: string; value: string }[]) =>
+      useRunnerStore.getState()._onMessage({ type: "watch", frame: 1, values });
+    send([{ label: "x", value: "1" }, { label: "y", value: "2" }]);
+    const before = useRunnerStore.getState().watches;
+    send([{ label: "y", value: "2" }, { label: "x", value: "1" }]);
+    expect(useRunnerStore.getState().watches.map((w) => w.label)).toEqual(["y", "x"]);
+    expect(useRunnerStore.getState().watches[0].changedAt).toBe(before[1].changedAt);
+    send([{ label: "y", value: "2" }]);
+    expect(useRunnerStore.getState().watches).toHaveLength(1);
+    send([]);
+    expect(useRunnerStore.getState().watches).toEqual([]);
+  });
+});
+
 // ── result.keepCanvas — the live-code canvas-persistence branch ────────────────
 
 describe("result — keepCanvas (live-code session)", () => {

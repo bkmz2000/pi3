@@ -81,6 +81,39 @@ describe("DBG-2 — Watch panel", () => {
     jest.restoreAllMocks();
   });
 
+  it("keeps the last value and frame while marking an omitted watch stale", () => {
+    useRunnerStore.getState()._onMessage({
+      type: "watch", frame: 12,
+      values: [{ label: "tail", value: "[1]", fresh: true, lastFrame: 12 }],
+    });
+    const first = useRunnerStore.getState().watches[0];
+    const notify = jest.fn();
+    const unsubscribe = useRunnerStore.subscribe(notify);
+    try {
+      useRunnerStore.getState()._onMessage({
+        type: "watch", frame: 13,
+        values: [{ label: "tail", value: "[1]", fresh: false, lastFrame: 12 }],
+      });
+      expect(useRunnerStore.getState().watches[0]).toEqual({ ...first, fresh: false });
+      expect(notify).toHaveBeenCalledTimes(1);
+
+      // No repeated stale updates, even if a legacy worker repeats a packet.
+      useRunnerStore.getState()._onMessage({
+        type: "watch", frame: 14,
+        values: [{ label: "tail", value: "[1]", fresh: false, lastFrame: 12 }],
+      });
+      expect(notify).toHaveBeenCalledTimes(1);
+
+      useRunnerStore.getState()._onMessage({
+        type: "watch", frame: 15,
+        values: [{ label: "tail", value: "[1]", fresh: true, lastFrame: 15 }],
+      });
+      expect(useRunnerStore.getState().watches[0]).toMatchObject({ fresh: true, lastFrame: 15, changedAt: first.changedAt });
+    } finally {
+      unsubscribe();
+    }
+  });
+
   it("watches clear on clear()", () => {
     useRunnerStore.getState()._onMessage({
       type: "watch",

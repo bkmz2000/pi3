@@ -37,6 +37,7 @@
     "test:e2e": "bash scripts/run-e2e.sh",
     "test:e2e:smoke": "E2E_SMOKE_ONLY=1 bash scripts/run-e2e.sh",
     "test:puppeteer": "node tests/puppeteer/production-test-suite.js",
+    "test:canvas-spa": "node tests/puppeteer/canvas-spa-navigation.test.js",
     "test:smoke": "node tests/puppeteer/ide-smoke-test.js",
     "test:comprehensive": "node tests/puppeteer/ide-comprehensive-test.js",
     "test:sprite": "node tests/puppeteer/sprite-editor-test-runner.js",

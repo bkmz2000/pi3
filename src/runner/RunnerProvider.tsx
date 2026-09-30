@@ -443,7 +443,7 @@ function stopAllSounds() {
 let worker: Worker | null = null;
 let lintReqId = 0;
 let cleanupEvents: (() => void) | null = null;
-let canvasTransferred = false;
+let transferredCanvases = new WeakSet<HTMLCanvasElement>();
 let interruptBuffer: Uint8Array | null = null;
 
 // Output batching — accumulate lines and flush on animation frame
@@ -536,7 +536,7 @@ function hardKillWorker() {
   flushNow();
   worker?.terminate();
   worker = null;
-  canvasTransferred = false;
+  transferredCanvases = new WeakSet<HTMLCanvasElement>();
   interruptBuffer = null;
   stopAllSounds();
   // reset UI state: stop() clears running/inputPrompt/canvasActive; also mark not ready
@@ -967,13 +967,13 @@ export function useRunner() {
     cleanupEvents = null;
     if (!el) return;
 
-    if (!canvasTransferred) {
+    if (!transferredCanvases.has(el)) {
       const offscreen = el.transferControlToOffscreen();
       getWorker().postMessage(
         { cmd: "attach_canvas", canvas: offscreen, pixelRatio: window.devicePixelRatio || 1 } satisfies WorkerCommand,
         [offscreen],
       );
-      canvasTransferred = true;
+      transferredCanvases.add(el);
     }
 
     cleanupEvents = wireEvents(el);

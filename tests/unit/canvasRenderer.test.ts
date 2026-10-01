@@ -9,6 +9,7 @@ function makeCtx() {
     rotate: jest.fn(),
     scale: jest.fn(),
     beginPath: jest.fn(),
+    getLineDash: jest.fn(() => []),
     arc: jest.fn(),
     ellipse: jest.fn(),
     rect: jest.fn(),
@@ -26,6 +27,14 @@ function makeCtx() {
     fillStyle: '',
     strokeStyle: '',
     lineWidth: 1,
+    lineCap: 'butt',
+    globalAlpha: 1,
+    globalCompositeOperation: 'source-over' as GlobalCompositeOperation,
+    filter: 'none',
+    shadowBlur: 0,
+    shadowOffsetX: 0,
+    shadowOffsetY: 0,
+    shadowColor: 'rgba(0, 0, 0, 0)',
     font: '16px sans-serif',
     textAlign: 'start' as CanvasTextAlign,
     textBaseline: 'alphabetic' as CanvasTextBaseline,
@@ -197,9 +206,104 @@ describe('executeDrawCommands', () => {
     );
     expect(ctx.arc).toHaveBeenCalled();
     expect(ctx.rect).toHaveBeenCalledWith(0, 0, 30, 40);
-    expect(ctx.lineTo).toHaveBeenCalledWith(10, 10);
+    expect(ctx.lineTo).not.toHaveBeenCalled();
+    expect(ctx.fillRect).toHaveBeenCalled();
     expect(ctx.ellipse).toHaveBeenCalled();
-    expect(ctx.beginPath).toHaveBeenCalledTimes(5);
+    expect(ctx.beginPath).toHaveBeenCalledTimes(4);
+  });
+
+  it('rasterizes default lines into integral device pixels at DPR 1, 1.25, and 2', () => {
+    for (const scale of [1, 1.25, 2]) {
+      const ctx = makeCtx();
+      const strokeStyle = 'rgb(12,34,56)';
+      (ctx as unknown as { strokeStyle: string }).strokeStyle = strokeStyle;
+      (ctx.getTransform as jest.Mock).mockReturnValue({ a: scale, b: 0, c: 0, d: scale, e: 0, f: 0 });
+      (ctx as unknown as { globalAlpha: number }).globalAlpha = 0.5;
+      (ctx.fillRect as jest.Mock).mockImplementation((x: number, y: number, w: number, h: number) => {
+        expect([x, y, w, h].every(Number.isInteger)).toBe(true);
+        expect(w === 1 || h === 1).toBe(true);
+        expect((ctx as unknown as { fillStyle: string }).fillStyle).toBe(strokeStyle);
+        expect((ctx as unknown as { globalAlpha: number }).globalAlpha).toBe(0.5);
+      });
+
+      executeDrawCommands(ctx, [['line', [0, 90, 200, 110]]], {}, Math.round(200 * scale), Math.round(200 * scale));
+
+      expect(ctx.fillRect).toHaveBeenCalled();
+      expect(ctx.stroke).not.toHaveBeenCalled();
+      expect(ctx.setTransform).toHaveBeenCalledWith(1, 0, 0, 1, 0, 0);
+      expect(ctx.restore).toHaveBeenCalled();
+      for (const [x, y, w, h] of (ctx.fillRect as jest.Mock).mock.calls) {
+        expect(x).toBeGreaterThanOrEqual(0);
+        expect(x + w).toBeLessThanOrEqual(Math.round(200 * scale));
+        expect(y).toBeGreaterThanOrEqual(0);
+        expect(y + h).toBeLessThanOrEqual(Math.round(200 * scale));
+      }
+    }
+  });
+
+  it('restores transform, fill style, alpha, and width after solid pixel drawing', () => {
+    const ctx = makeCtx();
+    const initialTransform = { a: 1.25, b: 0, c: 0, d: 1.25, e: 10, f: 20 };
+    let transform = { ...initialTransform };
+    let saved: { transform: typeof transform; fillStyle: string; lineWidth: number; globalAlpha: number } | null = null;
+    (ctx.getTransform as jest.Mock).mockImplementation(() => transform);
+    (ctx.setTransform as jest.Mock).mockImplementation((a, b, c, d, e, f) => {
+      transform = { a, b, c, d, e, f };
+    });
+    (ctx as unknown as { fillStyle: string }).fillStyle = 'previous fill';
+    (ctx as unknown as { globalAlpha: number }).globalAlpha = 0.4;
+    (ctx.save as jest.Mock).mockImplementation(() => {
+      saved = { transform: { ...transform }, fillStyle: ctx.fillStyle as string,
+        lineWidth: ctx.lineWidth as number, globalAlpha: ctx.globalAlpha as number };
+    });
+    (ctx.restore as jest.Mock).mockImplementation(() => {
+      if (!saved) throw new Error('restore without save');
+      transform = saved.transform;
+      (ctx as unknown as { fillStyle: string }).fillStyle = saved.fillStyle;
+      (ctx as unknown as { lineWidth: number }).lineWidth = saved.lineWidth;
+      (ctx as unknown as { globalAlpha: number }).globalAlpha = saved.globalAlpha;
+    });
+
+    executeDrawCommands(ctx, [['line', [0, 0, 10, 0]]], {}, 250, 250);
+
+    expect(transform).toEqual(initialTransform);
+    expect((ctx as unknown as { fillStyle: string }).fillStyle).toBe('previous fill');
+    expect((ctx as unknown as { lineWidth: number }).lineWidth).toBe(1);
+    expect((ctx as unknown as { globalAlpha: number }).globalAlpha).toBe(0.4);
+  });
+
+  it('falls back to native Canvas for coincident endpoints and overflowing finite deltas', () => {
+    for (const coords of [[20, 20, 20, 20], [-1e308, 100, 1e308, 100]]) {
+      const ctx = makeCtx();
+      executeDrawCommands(ctx, [['line', coords]], {}, 250, 250);
+      expect(ctx.stroke).toHaveBeenCalledTimes(1);
+      expect(ctx.fillRect).not.toHaveBeenCalled();
+    }
+  }, 2000);
+
+  it('falls back before iterating a huge finite transformed stroke width', () => {
+    const ctx = makeCtx();
+    (ctx.getTransform as jest.Mock).mockReturnValue({ a: 1e6, b: 0, c: 0, d: 1e6, e: 0, f: 0 });
+    executeDrawCommands(ctx, [['line', [0, 0, 0.0001, 0]]], {}, 200, 200);
+    expect(ctx.lineTo).toHaveBeenCalledWith(0.0001, 0);
+    expect(ctx.stroke).toHaveBeenCalledTimes(1);
+    expect(ctx.fillRect).not.toHaveBeenCalled();
+  }, 2000);
+
+  it('keeps wider strokes, non-source-over compositing, and sheared transforms on native Canvas semantics', () => {
+    for (const state of [
+      { lineWidth: 2, globalCompositeOperation: 'source-over', transform: { a: 1.25, b: 0, c: 0, d: 1.25, e: 0, f: 0 } },
+      { lineWidth: 1, globalCompositeOperation: 'copy', transform: { a: 1.25, b: 0, c: 0, d: 1.25, e: 0, f: 0 } },
+      { lineWidth: 1, globalCompositeOperation: 'source-over', transform: { a: 1.25, b: 0.25, c: 0, d: 1.25, e: 0, f: 0 } },
+    ]) {
+      const ctx = makeCtx();
+      (ctx as unknown as typeof state[number]).lineWidth = state.lineWidth;
+      (ctx as unknown as typeof state[number]).globalCompositeOperation = state.globalCompositeOperation;
+      (ctx.getTransform as jest.Mock).mockReturnValue(state.transform);
+      executeDrawCommands(ctx, [['line', [0, 90, 200, 110]]], {}, 250, 250);
+      expect(ctx.stroke).toHaveBeenCalledTimes(1);
+      expect(ctx.fillRect).not.toHaveBeenCalled();
+    }
   });
 
   it('snaps adjacent integer rectangles to shared physical edges at fractional DPR', () => {

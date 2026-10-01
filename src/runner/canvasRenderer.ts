@@ -100,6 +100,127 @@ function getLightmap(canvasW: number, canvasH: number): OffscreenCanvas {
   return lightmap;
 }
 
+function drawSolidDefaultLine(
+  ctx: OffscreenCanvasRenderingContext2D,
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number,
+  canvasW: number,
+  canvasH: number,
+): boolean {
+  const t = ctx.getTransform();
+  const scale = Math.abs(t.a);
+  if (
+    ctx.lineWidth !== 1 ||
+    t.b !== 0 ||
+    t.c !== 0 ||
+    scale === 0 ||
+    Math.abs(scale - Math.abs(t.d)) > 1e-9 ||
+    ctx.lineCap !== "butt" ||
+    ctx.globalCompositeOperation !== "source-over" ||
+    ctx.filter !== "none" ||
+    ctx.shadowBlur !== 0 ||
+    ctx.shadowOffsetX !== 0 ||
+    ctx.shadowOffsetY !== 0 ||
+    ctx.shadowColor !== "rgba(0, 0, 0, 0)" ||
+    ctx.getLineDash().length > 0
+  ) return false;
+
+  const physicalWidth = Math.max(1, Math.round(ctx.lineWidth * scale));
+  if (!Number.isSafeInteger(physicalWidth) || physicalWidth > Math.max(canvasW, canvasH)) return false;
+  let px1 = t.a * x1 + t.e;
+  let py1 = t.d * y1 + t.f;
+  let px2 = t.a * x2 + t.e;
+  let py2 = t.d * y2 + t.f;
+  if (![px1, py1, px2, py2].every(Number.isFinite)) return false;
+
+  // Clip the centerline before stepping so offscreen endpoints cannot cause
+  // work proportional to arbitrarily large student coordinates.
+  const dx = px2 - px1;
+  const dy = py2 - py1;
+  if (!Number.isFinite(dx) || !Number.isFinite(dy) || (dx === 0 && dy === 0)) return false;
+  const pad = physicalWidth;
+  let enter = 0;
+  let leave = 1;
+  for (const [p, q] of [
+    [-dx, px1 + pad], [dx, canvasW + pad - px1],
+    [-dy, py1 + pad], [dy, canvasH + pad - py1],
+  ]) {
+    if (p === 0) {
+      if (q < 0) return true;
+      continue;
+    }
+    const r = q / p;
+    if (!Number.isFinite(r)) return false;
+    if (p < 0) {
+      if (r > leave) return true;
+      enter = Math.max(enter, r);
+    } else {
+      if (r < enter) return true;
+      leave = Math.min(leave, r);
+    }
+  }
+  [px1, py1, px2, py2] = [px1 + enter * dx, py1 + enter * dy, px1 + leave * dx, py1 + leave * dy];
+  if (![px1, py1, px2, py2].every(Number.isFinite)) return false;
+
+  let x = Math.floor(px1);
+  let y = Math.floor(py1);
+  const endX = Math.floor(px2);
+  const endY = Math.floor(py2);
+  if (![x, y, endX, endY].every(Number.isSafeInteger)) return false;
+  const stepX = x < endX ? 1 : -1;
+  const stepY = y < endY ? 1 : -1;
+  const absX = Math.abs(endX - x);
+  const absY = Math.abs(endY - y);
+  let error = absX - absY;
+  // Merge contiguous pixels into scan-line spans to avoid one Canvas call per pixel.
+  const spans = new Map<number, { start: number; end: number }>();
+  const startOffset = -Math.floor(physicalWidth / 2);
+  const horizontalMajor = absX >= absY;
+
+  for (;;) {
+    for (let offset = startOffset; offset < startOffset + physicalWidth; offset += 1) {
+      const pixelX = x + (horizontalMajor ? 0 : offset);
+      const pixelY = y + (horizontalMajor ? offset : 0);
+      if (pixelX >= 0 && pixelX < canvasW && pixelY >= 0 && pixelY < canvasH) {
+        const crossAxis = horizontalMajor ? pixelY : pixelX;
+        const majorAxis = horizontalMajor ? pixelX : pixelY;
+        const span = spans.get(crossAxis);
+        if (span) {
+          span.start = Math.min(span.start, majorAxis);
+          span.end = Math.max(span.end, majorAxis);
+        } else {
+          spans.set(crossAxis, { start: majorAxis, end: majorAxis });
+        }
+      }
+    }
+    if (x === endX && y === endY) break;
+    const twiceError = 2 * error;
+    if (twiceError > -absY) {
+      error -= absY;
+      x += stepX;
+    }
+    if (twiceError < absX) {
+      error += absX;
+      y += stepY;
+    }
+  }
+
+  ctx.save();
+  try {
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.fillStyle = ctx.strokeStyle;
+    for (const [crossAxis, span] of spans) {
+      if (horizontalMajor) ctx.fillRect(span.start, crossAxis, span.end - span.start + 1, 1);
+      else ctx.fillRect(crossAxis, span.start, 1, span.end - span.start + 1);
+    }
+  } finally {
+    ctx.restore();
+  }
+  return true;
+}
+
 export function executeDrawCommands(
   ctx: OffscreenCanvasRenderingContext2D,
   commands: unknown[],
@@ -171,10 +292,12 @@ export function executeDrawCommands(
       }
       case "line": {
         const [x1, y1, x2, y2] = args as [number, number, number, number];
-        ctx.beginPath();
-        ctx.moveTo(x1, y1);
-        ctx.lineTo(x2, y2);
-        ctx.stroke();
+        if (!drawSolidDefaultLine(ctx, x1, y1, x2, y2, canvasW, canvasH)) {
+          ctx.beginPath();
+          ctx.moveTo(x1, y1);
+          ctx.lineTo(x2, y2);
+          ctx.stroke();
+        }
         break;
       }
       case "polyline": {

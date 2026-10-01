@@ -99,6 +99,8 @@ else
   if ! node tests/puppeteer/production-test-suite.js; then failures=1; fi
   echo "→ Running sprite editor suite..."
   if ! node tests/puppeteer/sprite-editor-test-runner.js; then failures=1; fi
+  echo "→ Checking solid default-width line pixels..."
+  if ! node tests/puppeteer/canvas-line-rasterization.test.js; then failures=1; fi
 fi
 
 if [ "$failures" != "0" ]; then

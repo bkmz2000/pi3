@@ -444,6 +444,228 @@ describe('release script safety regressions', () => {
     }
   });
 
+  it('cleans only stale pi3 images after finalized-state checks, with dry-run and fail-closed guards', async () => {
+    const temp = mkdtempSync(join(tmpdir(), 'pi3-image-cleanup-test-'));
+    const rootDir = join(temp, 'app');
+    const backups = join(temp, 'backups');
+    const bin = join(temp, 'bin');
+    const state = join(temp, 'state');
+    const actions = join(temp, 'actions');
+    mkdirSync(rootDir);
+    mkdirSync(backups);
+    writeFileSync(join(backups, '.pi3-cleanup-test-fixture'), 'test-only fixture');
+    mkdirSync(bin);
+    mkdirSync(state);
+    writeFileSync(join(rootDir, '.pi3-cleanup-test-fixture'), 'test-only fixture');
+    const release = 'a'.repeat(40);
+    const priorRelease = 'd'.repeat(40);
+    const currentDigest = `ghcr.io/bkmz2000/pi3@sha256:${'c'.repeat(64)}`;
+    const previousDigest = `ghcr.io/bkmz2000/pi3@sha256:${'b'.repeat(64)}`;
+    const staleDigest = `ghcr.io/bkmz2000/pi3@sha256:${'9'.repeat(64)}`;
+    const currentId = `sha256:${'1'.repeat(64)}`;
+    const previousId = `sha256:${'2'.repeat(64)}`;
+    const staleId = `sha256:${'3'.repeat(64)}`;
+    const runningContainer = 'c'.repeat(64);
+    const stoppedContainer = 'e'.repeat(64);
+    const backupFile = 'pi3-predeploy-20261001T120000Z.db.age';
+    writeFileSync(join(rootDir, '.pi3-current-release-sha'), `${release}\n`);
+    writeFileSync(join(rootDir, '.pi3-current-image'), `${currentDigest}\n`);
+    writeFileSync(join(rootDir, '.env'), `PI3_IMAGE=${currentDigest}\n`);
+    writeFileSync(join(rootDir, 'docker-compose.yml'), 'services:\n  pi3:\n    image: ${PI3_IMAGE}\n');
+    writeFileSync(join(backups, backupFile), 'encrypted-fixture');
+    writeFileSync(join(backups, 'manifest.jsonl'), JSON.stringify({
+      release, path: backupFile, sourceImage: previousDigest, encryptedSha256: 'f'.repeat(64),
+    }) + '\n');
+    const backupHash = createHash('sha256').update(readFileSync(join(backups, backupFile))).digest('hex');
+    const manifestHash = createHash('sha256').update(readFileSync(join(backups, 'manifest.jsonl'))).digest('hex');
+
+    writeFileSync(join(bin, 'docker'), `#!/bin/sh
+set -eu
+cmd=$1
+shift
+case "$cmd" in
+  image)
+    sub=$1; shift
+    case "$sub" in
+      ls)
+        printf '%s\\n' '${currentId}' '${previousId}'
+        [ -f "$TEST_STATE/stale-image-removed" ] || printf '%s\\n' '${staleId}'
+        ;;
+      inspect)
+        target=$1; shift
+        [ "$#" -eq 0 ] && exit 0
+        [ "$1" = --format ] || exit 90
+        fmt=$2
+        case "$target" in
+          '${currentDigest}'|'${currentId}') image_id='${currentId}'; digest='${currentDigest}'; revision='${release}' ;;
+          '${previousDigest}'|'${previousId}') image_id='${previousId}'; digest='${previousDigest}'; revision='${priorRelease}' ;;
+          '${staleId}') image_id='${staleId}'; digest='${staleDigest}'; revision='${'f'.repeat(40)}' ;;
+          *) exit 91 ;;
+        esac
+        case "$fmt" in
+          *RepoTags*) printf '%s\\n' "$digest" ;;
+          *org.opencontainers.image.revision*) printf '%s\\n' "$revision" ;;
+          *org.pi3.deployment-profile*) printf 'institutional\\n' ;;
+          *'{{.Id}}'*) printf '%s\\n' "$image_id" ;;
+          *) exit 92 ;;
+        esac
+        ;;
+      rm)
+        [ "$#" -eq 1 ] || exit 93
+        case "$1" in -* ) exit 94 ;; esac
+        printf 'image-rm %s\\n' "$1" >> "$TEST_ACTIONS"
+        touch "$TEST_STATE/stale-image-removed"
+        ;;
+      *) exit 95 ;;
+    esac
+    ;;
+  inspect)
+    target=$1; shift
+    [ "$1" = --format ] || exit 96
+    fmt=$2
+    case "$target" in
+      pi3|'${runningContainer}') name='/pi3'; image_id='${currentId}'; state='running'; project='pi3'; service='pi3' ;;
+      '${stoppedContainer}')
+        [ -f "$TEST_STATE/stopped-container-removed" ] && exit 97
+        name='/pi3-pre'; image_id='${staleId}'; state='exited';
+        if [ "\${TEST_UNKNOWN_CONTAINER:-0}" = 1 ]; then project='other'; service='other'; else project='pi3'; service='pi3'; fi
+        ;;
+      *) exit 98 ;;
+    esac
+    case "$fmt" in
+      *Config.Image*) [ "$target" = pi3 ] && printf '%s\\n' '${currentDigest}' || printf '%s\\n' "$image_id" ;;
+      *State.Status*) printf '%s\\n' "$state" ;;
+      *com.docker.compose.project*)
+        [ "$fmt" = '{{if .Config.Labels}}{{index .Config.Labels "com.docker.compose.project"}}{{end}}' ] || exit 103
+        printf '%s\\n' "$project"
+        ;;
+      *com.docker.compose.service*)
+        [ "$fmt" = '{{if .Config.Labels}}{{index .Config.Labels "com.docker.compose.service"}}{{end}}' ] || exit 104
+        printf '%s\\n' "$service"
+        ;;
+      *Mounts*) printf 'pi3_pi3-db:volume\\n' ;;
+      *'{{.Name}}'*) printf '%s\\n' "$name" ;;
+      *'{{.Image}}'*) printf '%s\\n' "$image_id" ;;
+      *) exit 99 ;;
+    esac
+    ;;
+  ps)
+    printf '%s\\n' '${runningContainer}'
+    [ -f "$TEST_STATE/stopped-container-removed" ] || printf '%s\\n' '${stoppedContainer}'
+    ;;
+  diff)
+    [ "\${TEST_WRITABLE_DIFF:-0}" = 1 ] && printf '/app/data.db\\n'
+    exit 0
+    ;;
+  rm)
+    [ "$#" -eq 1 ] || exit 100
+    case "$1" in -* ) exit 101 ;; esac
+    printf 'container-rm %s\\n' "$1" >> "$TEST_ACTIONS"
+    touch "$TEST_STATE/stopped-container-removed"
+    ;;
+  volume) [ "$1" = inspect ] && exit 0 ;;
+  *) exit 102 ;;
+esac
+`);
+    chmodSync(join(bin, 'docker'), 0o755);
+    writeFileSync(join(bin, 'curl'), '#!/bin/sh\nexit 0\n');
+    writeFileSync(join(bin, 'systemctl'), '#!/bin/sh\n[ "$1" = is-active ]\n');
+    writeFileSync(join(bin, 'df'), `#!/bin/sh
+n=1000000000
+[ -f "$TEST_STATE/stopped-container-removed" ] && n=$((n + 100))
+[ -f "$TEST_STATE/stale-image-removed" ] && n=$((n + 200))
+printf 'Filesystem 1B-blocks Used Available Use%% Mounted on\\nroot 2000000000 1000000000 %s 50%% /\\n' "$n"
+`);
+    for (const executable of ['curl', 'systemctl', 'df']) chmodSync(join(bin, executable), 0o755);
+
+    const env = {
+      ...process.env,
+      PATH: `${bin}:${process.env.PATH ?? ''}`,
+      PI3_CLEANUP_TESTING: '1',
+      PI3_CLEANUP_TEST_ROOT: rootDir,
+      PI3_CLEANUP_TEST_BACKUP_DIR: backups,
+      TEST_STATE: state,
+      TEST_ACTIONS: actions,
+      TEST_CURRENT_IMAGE: currentDigest,
+    };
+    const clean = async (extra: NodeJS.ProcessEnv = {}) => run('sh', ['scripts/cleanup-vps-images.sh', '--apply', release], { ...env, ...extra });
+    try {
+      writeFileSync(join(rootDir, '.pi3-compose.rollback'), 'pending');
+      const pending = await clean();
+      expect(pending.code).not.toBe(0);
+      expect(pending.stderr).toContain('pending release/rollback marker');
+      expect(existsSync(actions)).toBe(false);
+      rmSync(join(rootDir, '.pi3-compose.rollback'));
+
+      const dryRun = await run('sh', ['scripts/cleanup-vps-images.sh', '--dry-run', release], env);
+      expect(dryRun.code).toBe(0);
+      expect(dryRun.stdout).toContain('Dry run only');
+      expect(dryRun.stdout).toContain(staleId);
+      expect(existsSync(actions)).toBe(false);
+
+      const unknownDependency = await clean({ TEST_UNKNOWN_CONTAINER: '1' });
+      expect(unknownDependency.code).not.toBe(0);
+      expect(unknownDependency.stderr).toContain('non-pi3 container depends on a stale PI3 image');
+      expect(existsSync(actions)).toBe(false);
+
+      const writableLayer = await clean({ TEST_WRITABLE_DIFF: '1' });
+      expect(writableLayer.code).not.toBe(0);
+      expect(writableLayer.stderr).toContain('writable changes');
+      expect(existsSync(actions)).toBe(false);
+
+      const applied = await clean();
+      expect(applied.code).toBe(0);
+      expect(applied.stdout).toContain('preserving current');
+      expect(applied.stdout).toContain('delta +300');
+      expect(readFileSync(actions, 'utf8')).toBe(`container-rm ${stoppedContainer}\nimage-rm ${staleId}\n`);
+      expect(readFileSync(join(backups, backupFile)).toString()).toBe('encrypted-fixture');
+      expect(createHash('sha256').update(readFileSync(join(backups, backupFile))).digest('hex')).toBe(backupHash);
+      expect(createHash('sha256').update(readFileSync(join(backups, 'manifest.jsonl'))).digest('hex')).toBe(manifestHash);
+      expect(readFileSync(join(rootDir, '.pi3-current-image'), 'utf8')).toBe(`${currentDigest}\n`);
+      expect(existsSync(join(rootDir, '.pi3-compose.rollback'))).toBe(false);
+    } finally {
+      rmSync(temp, { recursive: true, force: true });
+    }
+  });
+
+  it('uses production paths by default and rejects test overrides without the fixture harness', async () => {
+    const env: NodeJS.ProcessEnv = { ...process.env };
+    delete env.PI3_CLEANUP_TESTING;
+    delete env.PI3_CLEANUP_TEST_ROOT;
+    delete env.PI3_CLEANUP_TEST_BACKUP_DIR;
+
+    const release = 'a'.repeat(40);
+    const productionRun = await run('sh', ['scripts/cleanup-vps-images.sh', '--dry-run', release], env);
+    const productionOutput = `${productionRun.stderr}${productionRun.stdout}`;
+    expect(productionRun.code).not.toBe(0);
+    expect(productionOutput).not.toContain('test path overrides are not permitted');
+    expect(productionOutput).toMatch(/can't cd to \/app\/pi3|required release state file is missing or symlinked/);
+
+    const partialOverride = await run('sh', ['scripts/cleanup-vps-images.sh', '--dry-run', release], {
+      ...env, PI3_CLEANUP_TEST_ROOT: '/tmp/pi3-cleanup-fixture',
+    });
+    expect(partialOverride.code).not.toBe(0);
+    expect(partialOverride.stderr).toContain('test path overrides are not permitted outside the test harness');
+
+    const completeOverrides = await run('sh', ['scripts/cleanup-vps-images.sh', '--dry-run', release], {
+      ...env,
+      PI3_CLEANUP_TEST_ROOT: '/tmp/pi3-cleanup-fixture',
+      PI3_CLEANUP_TEST_BACKUP_DIR: '/tmp/pi3-cleanup-backups',
+    });
+    expect(completeOverrides.code).not.toBe(0);
+    expect(completeOverrides.stderr).toContain('test path overrides are not permitted outside the test harness');
+  });
+
+  it('wires image cleanup strictly after the successful finalizer command', () => {
+    const makefile = readFileSync(join(root, 'Makefile'), 'utf8');
+    const finalizer = makefile.indexOf("@scripts/finalize-vps.sh '$(VPS)' '$(FINALIZE_FOR_SHA)'");
+    expect(finalizer).toBeGreaterThan(-1);
+    const following = makefile.slice(finalizer).split('\n').slice(0, 2);
+    expect(following[1]).toContain("ssh '$(VPS)' \"sh -s -- --apply");
+    expect(following[1]).toContain('< scripts/cleanup-vps-images.sh');
+    expect(following[1].trimStart()).not.toMatch(/^-/);
+  });
+
   it('restores the environment and retains rollback evidence even after verified rollback', async () => {
     const temp = mkdtempSync(join(tmpdir(), 'pi3-rollback-test-'));
     const remote = join(temp, 'remote');

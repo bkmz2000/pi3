@@ -18,8 +18,19 @@ production canary cannot run against the new image until *after* promotion:
 `make promote-vps` must run it before declaring success and must roll back on
 failure. Keep release-specific rollback evidence through the attended watch;
 only `make finalize-vps FINALIZE_FOR_SHA=<full commit SHA>` may retire it after
-ten minutes and another health/identity check. Never set `READY` merely to get past
-a failing gate, or treat a successful local gate as a production canary.
+ten minutes and another health/identity check. Only after that finalizer exits
+successfully does the Make target run a pi3-scoped image cleanup. It verifies the
+finalized running digest and the unique pre-deploy manifest row, preserves the
+current and immediately previous image, and removes only unused pi3 images and
+stopped empty-writable-layer pi3 app containers (never `-v`). Cleanup fails
+closed on pending markers, unknown aliases/dependencies, or missing backup,
+timer, image, or volume evidence. It never prunes globally or mutates backups,
+the manifest, or database volume; cleanup failure does not roll back the
+finalized release. After finalization, a dry-run can be run with
+`ssh "$VPS" "sh -s -- --dry-run <full-release-sha>" < scripts/cleanup-vps-images.sh`.
+
+Never set `READY` merely to get past a failing gate, or treat a successful local
+gate as a production canary.
 
 **Applies to:** every pi3 deployment, including institutional and public profiles
 

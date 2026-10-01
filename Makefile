@@ -118,6 +118,7 @@ finalize-vps:
 	@test -n "$(VPS)" || { echo 'ERROR: VPS is not configured' >&2; exit 1; }
 	@test "$(origin FINALIZE_FOR_SHA)" = 'command line' || { echo 'ERROR: finalize requires FINALIZE_FOR_SHA on the command line' >&2; exit 1; }
 	@scripts/finalize-vps.sh '$(VPS)' '$(FINALIZE_FOR_SHA)'
+	@env -u PI3_CLEANUP_TESTING -u PI3_CLEANUP_TEST_ROOT -u PI3_CLEANUP_TEST_BACKUP_DIR ssh '$(VPS)' "sh -s -- --apply '$(FINALIZE_FOR_SHA)'" < scripts/cleanup-vps-images.sh
 
 rollback:
 	@test -n "$(VPS)" || { echo 'ERROR: VPS is not configured' >&2; exit 1; }

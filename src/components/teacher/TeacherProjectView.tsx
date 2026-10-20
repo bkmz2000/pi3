@@ -112,8 +112,8 @@ function CommentPopover({
             style={{
               all: 'unset', cursor: draft.trim() ? 'pointer' : 'default',
               padding: '5px 12px', borderRadius: 5, fontSize: 12,
-              background: draft.trim() ? theme.runBg : theme.railActiveBg,
-              color: draft.trim() ? theme.runTxt : theme.panelTxtMute,
+              background: draft.trim() ? theme.actionBg : theme.railActiveBg,
+              color: draft.trim() ? theme.actionTxt : theme.panelTxtMute,
               fontWeight: 600, textAlign: 'center',
             }}
           >

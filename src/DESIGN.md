@@ -16,7 +16,8 @@ Redesigned teacher-side problem authoring form for the pi3 coding platform. Teac
 - **chip**: #f3ebd7 (badge background, pill chips)
 - **border**: rgba(20,30,40,0.08) (soft card separators)
 - **borderStrong**: rgba(20,30,40,0.15) (input borders)
-- **teal**: #0e9aa7 (primary accent — buttons, icons, section headers)
+- **teal**: #0e9aa7 (brand accent — icons, links, section headers)
+- **actionBg/actionTxt**: #b45309/#ffffff (filled create/save/preview actions; high-contrast warm action color)
 - **amber**: #d48c1a (unsaved/dirty state)
 - **green**: #0e7c52 (saved state, use-tests button)
 
@@ -47,7 +48,7 @@ Container with panel background, soft border, 12px radius. Icon+title header str
 
 ### Topbar
 
-Sticky at top, panel background (#fffaf0), subtle shadow. Left: back link + divider + title + save-status pill. Right: keyboard shortcut hint + discard + save button. Save button uses teal fill with white text and checkmark icon.
+Sticky at top, panel background (#fffaf0), subtle shadow. Left: back link + divider + title + save-status pill. Right: keyboard shortcut hint + discard + save button. Save button uses the shared `actionBg`/`actionTxt` warm fill with a checkmark icon.
 
 ### TestCaseCard
 
@@ -63,12 +64,12 @@ Right-side sticky panel (400px). Teal topbar with preview icon. Problem title in
 
 ### Generator
 
-ConsoleView shows script output with status dot. Dark-background code editor surface (nord-inspired syntax colors: blue comments, peach/orange variables, green functions). Run button in teal. Generated test table with tier, visibility, input/expected columns, remove button, and "Use These Tests" green action button.
+ConsoleView shows script output with status dot. Dark-background code editor surface (nord-inspired syntax colors: blue comments, peach/orange variables, green functions). Run button uses the shared green `runBg`/`runTxt` tokens. Generated test table with tier, visibility, input/expected columns, remove button, and "Use These Tests" green action button.
 
 ## Interactions
 
 - Typing marks form dirty → amber "Unsaved" pill (auto-clears after 4s idle)
 - Run Generator button shows loading state, then populates output console + test table
 - Test visibility toggle switches between green "Shown" and muted "Hidden" pill
-- Generated tests have per-row remove (`×`) and bulk "Use These Tests" adoption
+- Generated tests have per-row remove (`×`) and bulk "Use These Tests" adoption in the shared warm `actionBg`/`actionTxt` style
 - Discard button and duplicate save bar at bottom for long-form ergonomics

@@ -169,8 +169,8 @@ export default function TestCardExpanded({
             fontWeight: 600,
             padding: '4px 12px',
             borderRadius: 6,
-            background: theme.primaryBg,
-            color: theme.primaryTxt,
+            background: theme.actionBg,
+            color: theme.actionTxt,
             fontFamily: theme.fontUI,
           }}
         >

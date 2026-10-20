@@ -633,7 +633,7 @@ export default function TileEditor({ open, initialName, onClose, onSave, onNewSp
             }}
             style={{
               all: "unset", cursor: "pointer", padding: "4px 10px",
-              background: theme.runBg, color: theme.runTxt, borderRadius: 4,
+              background: theme.actionBg, color: theme.actionTxt, borderRadius: 4,
               fontWeight: 600, fontSize: 12,
               display: "inline-flex", alignItems: "center", gap: 4,
             }}

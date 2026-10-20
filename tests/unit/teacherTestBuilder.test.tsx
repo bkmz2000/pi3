@@ -2,7 +2,7 @@
  * Tests for Test Builder components: toolbar, canvas, card expansion, DnD.
  */
 
-jest.mock("../../../src/state/IdeState", () => ({
+jest.mock("../../src/state/IdeState", () => ({
   useIde: jest.fn(() => ({})),
   useEditor: jest.fn(() => ({})),
   isExampleSessionId: jest.fn(() => false),
@@ -13,6 +13,15 @@ jest.mock("react-router-dom", () => ({
   useNavigate: () => jest.fn(),
   useParams: () => ({ slug: undefined }),
 }));
+
+jest.mock("react-markdown", () => ({
+  __esModule: true,
+  default: () => null,
+}));
+
+jest.mock("remark-gfm", () => ({ __esModule: true, default: () => null }));
+jest.mock("remark-math", () => ({ __esModule: true, default: () => null }));
+jest.mock("rehype-katex", () => ({ __esModule: true, default: () => null }));
 
 import React from "react";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";

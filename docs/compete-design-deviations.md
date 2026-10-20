@@ -68,7 +68,9 @@ A bespoke 56px mini-rail is rendered with:
 
 ## D4 — Submit button uses hardcoded colors
 
-**File**: `src/compete/CompeteLeft.tsx:116-134`
+**Status**: Resolved — `CompeteLeft` now uses the shared warm `actionBg`/`actionTxt` pair for Submit; Run remains green.
+
+**File at review time**: `src/compete/CompeteLeft.tsx:116-134`
 ```tsx
 background: '#2d5ea8',
 color: '#e8f0ff',
@@ -81,7 +83,7 @@ color: '#e8f0ff',
 - Add a new semantic pair `submitBg` / `submitTxt` to `useTheme.ts` in both Studio and Midnight themes.
 - Use `theme.runBg` with a different icon — but that conflates Run and Submit visually.
 
-**Proposed**: Add `submitBg` (a cool blue: `#2563eb` Studio / `#3b82f6` Midnight) and reuse `theme.runTxt` as the text color (white/dark-teal), since both themes' `runTxt` work on blue. Alternatively, if Ilya prefers no new tokens, map Submit to `theme.accent` since contest submission is conceptually the "success path."
+**Implemented**: Use `theme.actionBg`/`theme.actionTxt`. The earlier blue-token proposal is superseded by the student styling direction that primary actions are warm while teal remains a brand accent.
 
 ---
 
@@ -197,7 +199,7 @@ The Problems panel already exists in Rail (`activePanel === "problems"` → `<Pr
 | D1 | CompetePage.tsx:105-108 | High | No — remove code |
 | D2 | CompetePage.tsx:267-285 | High | No — use real Rail |
 | D3 | CompetePage.tsx:289-302 | Medium | No — remove element |
-| D4 | CompeteLeft.tsx:116-134 | High | Yes — `submitBg`/`submitTxt` or `accent` |
+| D4 | CompeteLeft.tsx:116-134 | High | No — resolved with shared `actionBg`/`actionTxt` |
 | D5 | CompeteLeft.tsx:74-79 | Medium | No — `successPill`/`successPillTxt` |
 | D6 | CompeteLeft.tsx:6,141 | High | No — use IDE CM theme |
 | D7 | CompetePage.tsx:35-68 | High | No — `successPill`, `consoleErr` |

@@ -163,7 +163,7 @@ export function ProjectsPage() {
                   style={{
                     all: "unset", cursor: "pointer",
                     padding: "8px 16px", borderRadius: 6,
-                    background: theme.runBg, color: theme.runTxt,
+                    background: theme.actionBg, color: theme.actionTxt,
                     fontSize: 12.5, fontWeight: 600,
                     display: "inline-flex", alignItems: "center", gap: 6,
                   }}
@@ -213,7 +213,7 @@ export function ProjectsPage() {
                   style={{
                     all: "unset", cursor: "pointer",
                     padding: "8px 16px", borderRadius: 6,
-                    background: theme.runBg, color: theme.runTxt,
+                    background: theme.actionBg, color: theme.actionTxt,
                     fontSize: 12.5, fontWeight: 600,
                   }}
                 >
@@ -291,7 +291,7 @@ export function ProjectsPage() {
                 style={{
                   all: 'unset', cursor: joining ? 'default' : 'pointer',
                   padding: '8px 16px', borderRadius: 6,
-                  background: theme.runBg, color: theme.runTxt,
+                  background: theme.actionBg, color: theme.actionTxt,
                   fontSize: 12.5, fontWeight: 600,
                   opacity: joining || !joinCode.trim() ? 0.5 : 1,
                 }}

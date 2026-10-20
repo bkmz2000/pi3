@@ -19,7 +19,7 @@ jest.mock("react-markdown", () => ({
   __esModule: true,
   default: ({ children }: { children: string }) => {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    return require("react").createElement("div", { "data-testid": "preview" }, children);
+    return require("react").createElement("div", null, children);
   },
 }));
 jest.mock("remark-gfm", () => ({ __esModule: true, default: () => {} }));
@@ -105,11 +105,11 @@ describe("TeacherProblemForm (new mode)", () => {
 
   it("adds a test when add test button is clicked", () => {
     render(<MemoryRouter><TeacherProblemForm /></MemoryRouter>);
-    const textareasBefore = document.querySelectorAll("textarea").length;
+    const removeButtonsBefore = screen.getAllByRole("button", { name: /remove/i }).length;
     const addBtns = screen.getAllByText(/add test to tier/i);
     fireEvent.click(addBtns[0]);
-    const textareasAfter = document.querySelectorAll("textarea").length;
-    expect(textareasAfter).toBeGreaterThan(textareasBefore);
+    const removeButtonsAfter = screen.getAllByRole("button", { name: /remove/i }).length;
+    expect(removeButtonsAfter).toBe(removeButtonsBefore + 1);
   });
 
   it("removes a test when remove button is clicked", () => {

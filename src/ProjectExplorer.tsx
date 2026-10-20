@@ -390,13 +390,14 @@ function ScreenshotsSection({ theme, currentProjectId }: { theme: Theme; current
               style={{
                 all: 'unset', cursor: busy ? 'default' : 'pointer',
                 padding: '8px 20px', borderRadius: 6,
-                background: lightboxSnap.id === coverId ? theme.accent : theme.runBg,
-                color: '#fff', fontFamily: theme.fontUI, fontSize: 13, fontWeight: 600,
+                background: lightboxSnap.id === coverId ? theme.successPill : theme.actionBg,
+                color: lightboxSnap.id === coverId ? theme.successPillTxt : theme.actionTxt,
+                fontFamily: theme.fontUI, fontSize: 13, fontWeight: 600,
                 display: 'flex', alignItems: 'center', gap: 8,
                 opacity: busy ? 0.5 : 1,
               }}
             >
-              <Icon name="camera" size={14} color="#fff" />
+              <Icon name="camera" size={14} color={lightboxSnap.id === coverId ? theme.successPillTxt : theme.actionTxt} />
               {lightboxSnap.id === coverId
                 ? t('canvas.setAsCover') + ' ✓'
                 : t('canvas.setAsCover')}

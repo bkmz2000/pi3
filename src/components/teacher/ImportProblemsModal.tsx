@@ -122,8 +122,8 @@ export default function ImportProblemsModal({ onClose, onImported }: Props) {
     fontSize: 13,
     fontWeight: 600,
     fontFamily: theme.fontUI,
-    background: disabled ? theme.chip : primary ? theme.primaryBg : theme.chip,
-    color: disabled ? theme.panelTxtMute : primary ? theme.primaryTxt : theme.panelTxt,
+    background: disabled ? theme.chip : primary ? theme.actionBg : theme.chip,
+    color: disabled ? theme.panelTxtMute : primary ? theme.actionTxt : theme.panelTxt,
     opacity: disabled ? 0.6 : 1,
   });
 

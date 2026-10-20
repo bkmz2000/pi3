@@ -85,8 +85,8 @@ export default function TestBuilderToolbar({
           fontWeight: 600,
           padding: '6px 14px',
           borderRadius: 7,
-          background: theme.primaryBg,
-          color: theme.primaryTxt,
+          background: theme.actionBg,
+          color: theme.actionTxt,
           fontFamily: theme.fontUI,
         }}
       >

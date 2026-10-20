@@ -140,7 +140,6 @@ export default function TierColumn({
                     onExpand={() => onSetExpanded(idx)}
                     onSetTest={onSetTest}
                     onRemove={onRemoveTest}
-                    isExpanded={false}
                   />
                 )}
               </div>

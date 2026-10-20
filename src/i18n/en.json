@@ -5,6 +5,15 @@
     "sounds": "The sound library is being curated. Sound assets will be available soon.",
     "sprites": "The sprite library is being curated. Sprite packs will be available soon."
   },
+  "examples": {
+    "title": "Examples",
+    "intro": "Open a project, press Run, then change something and see what happens.",
+    "startHere": "Start here",
+    "games": "Games",
+    "more": "More to explore",
+    "open": "Open {{name}} example",
+    "openAction": "Open"
+  },
   "app": {
     "loading": "Loading Python runtime...",
     "loadingHint": "This may take a few seconds on first load. After that, Python will be cached for faster startup.",

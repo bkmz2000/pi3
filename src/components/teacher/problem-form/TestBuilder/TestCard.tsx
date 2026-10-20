@@ -16,7 +16,6 @@ interface Props {
   onExpand: () => void;
   onSetTest: (idx: number, patch: Partial<TestDraft>) => void;
   onRemove: (idx: number) => void;
-  isExpanded: boolean;
 }
 
 function truncate(s: string, maxLen: number): string {
@@ -33,7 +32,6 @@ export default function TestCard({
   onExpand,
   onSetTest,
   onRemove,
-  isExpanded,
 }: Props) {
   const { t } = useTranslation();
   const theme = useThemeStore((s) => s.theme);

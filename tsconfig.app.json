@@ -17,5 +17,7 @@
       "emitDeclarationOnly": true,
       "outDir": "./.tsbuild/app"
     },
-    "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.json", "src/vite-env.d.ts"]
+    "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.json", "src/vite-env.d.ts"],
+    // Historical reference components are not imported by the shipped app.
+    "exclude": ["src/references/**"]
   }

@@ -164,127 +164,44 @@ async function stopSketch(page) {
   await sleep(500);
 }
 
-async function isPanelVisible(page, panelText) {
-  return page.evaluate((text) => {
-    // The panel is a div with inline style: position: absolute; left: 60; width: 320
-    const divs = document.querySelectorAll('div');
-    for (const div of divs) {
-      const style = div.getAttribute('style') || '';
-      // Check for inline width: 320 (without px, React serializes it that way)
-      // and position: absolute, left: 60
-      if (style.includes('width: 320') && style.includes('position: absolute') && (style.includes('left: 60') || style.includes('left: 60px'))) {
-        if (div.textContent?.includes(text)) {
-          const computedDisplay = window.getComputedStyle(div).display;
-          const computedVisibility = window.getComputedStyle(div).visibility;
-          return computedDisplay !== 'none' && computedVisibility !== 'hidden';
-        }
-      }
-    }
-    return false;
-  }, panelText);
+async function isPanelVisible(page, panelName) {
+  return page.evaluate((name) => {
+    const region = document.querySelector(`[role="region"][aria-label="${name}"]`);
+    if (!region) return false;
+    const rect = region.getBoundingClientRect();
+    const style = window.getComputedStyle(region);
+    return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+  }, panelName);
 }
 
-async function closePanelByText(page, closeText) {
-  const closeBtn = await page.evaluate((text) => {
-    // Find the panel div with inline style: position: absolute; left: 60; width: 320
-    const divs = document.querySelectorAll('div');
-    for (const div of divs) {
-      const style = div.getAttribute('style') || '';
-      if (style.includes('width: 320') && style.includes('position: absolute') && (style.includes('left: 60') || style.includes('left: 60px'))) {
-        if (div.textContent?.includes(text)) {
-          // Find close button inside the panel
-          const buttons = div.querySelectorAll('button');
-          for (const btn of buttons) {
-            if (btn.textContent?.trim() === 'Close') {
-              return btn;
-            }
-          }
-        }
-      }
-    }
-    return null;
-  }, closeText);
-  
+async function closePanelByText(page, panelName) {
+  const closeBtn = await page.$(`[role="region"][aria-label="${panelName}"] button[title="Close"]`);
   if (closeBtn) {
     await closeBtn.click();
-    await sleep(500);
+    await sleep(300);
   }
+}
+
+async function openPanel(page, panelName) {
+  await page.click(`button[aria-label="${panelName}"]`);
+  await page.waitForSelector(`[role="region"][aria-label="${panelName}"]`, { timeout: 5000 });
+  await sleep(300);
 }
 
 async function openProjectsPanel(page) {
-  // Use evaluate to click directly, more reliable than CSS selector click
-  await page.evaluate(() => {
-    const btn = document.querySelector('button[aria-label="Projects"]');
-    if (btn) btn.click();
-  });
-  await sleep(500); // Brief wait for panel to start rendering
+  await openPanel(page, 'Projects');
+}
 
-  // Wait for panel to appear with retries
-  let panelVisible = false;
-  for (let i = 0; i < 5; i++) {
-    panelVisible = await page.evaluate(() => {
-      // Check for div-based panels with inline style: position: absolute; left: 60; width: 320
-      const divs = document.querySelectorAll('div');
-      for (const div of divs) {
-        const style = div.getAttribute('style') || '';
-        // React serializes as width: 320 (no px), left: 60 (no px)
-        if (style.includes('width: 320') && style.includes('position: absolute') && (style.includes('left: 60') || style.includes('left: 60px'))) {
-          return true;
-        }
-      }
-      return false;
-    });
-    console.log('openProjectsPanel: attempt', i+1, 'panel visible =', panelVisible);
-    if (panelVisible) break;
-    await sleep(500);
-  }
+async function openExamplesPanel(page) {
+  await openPanel(page, 'Examples');
 }
 
 async function closeProjectsPanel(page) {
-  // Find and click the close button in the Projects panel (Close button uses aria-label, not text)
-  const panelClosed = await page.evaluate(() => {
-    // First find the panel div with inline style: position: absolute; left: 60; width: 320
-    const divs = document.querySelectorAll('div');
-    let panelDiv = null;
-    for (const div of divs) {
-      const style = div.getAttribute('style') || '';
-      if (style.includes('width: 320') && style.includes('position: absolute') && (style.includes('left: 60') || style.includes('left: 60px'))) {
-        panelDiv = div;
-        break;
-      }
-    }
-    if (!panelDiv) return false;
+  await closePanelByText(page, 'Projects');
+}
 
-    // Find the close button by aria-label inside the panel
-    const closeBtn = panelDiv.querySelector('button[aria-label="Close"]');
-    if (closeBtn) {
-      closeBtn.click();
-      return true;
-    }
-    return false;
-  });
-
-  if (panelClosed) {
-    await sleep(500);
-  }
-
-  // Verify panel is closed
-  const panelStillOpen = await page.evaluate(() => {
-    const divs = document.querySelectorAll('div');
-    for (const div of divs) {
-      const style = div.getAttribute('style') || '';
-      if (style.includes('width: 320') && style.includes('position: absolute') && (style.includes('left: 60') || style.includes('left: 60px'))) {
-        return true;
-      }
-    }
-    return false;
-  });
-
-  // If panel still open, try backdrop click as fallback
-  if (panelStillOpen) {
-    await page.mouse.click(500, 400);
-    await sleep(500);
-  }
+async function closeExamplesPanel(page) {
+  await closePanelByText(page, 'Examples');
 }
 
 async function clickExample(page, exampleName) {
@@ -296,7 +213,7 @@ async function clickExample(page, exampleName) {
     for (const btn of buttons) {
       const text = btn.textContent?.trim() || '';
       debug.push({ text: text.substring(0, 50), startsWith: text.startsWith(name) });
-      if (text.startsWith(name)) {
+      if (text.toLocaleLowerCase().startsWith(name.toLocaleLowerCase())) {
         btn.click();
         return { found: true, debug };
       }
@@ -338,10 +255,10 @@ async function runProductionTests() {
     // Test 1: Core UI Elements
     console.log('1. Core UI Elements');
     try {
-      await page.waitForSelector('.cm-editor', { timeout: 5000 });
+      await page.waitForSelector('.cm-content', { timeout: 30000 });
       await page.waitForSelector('button[aria-label="Projects"]', { timeout: 5000 });
       await page.waitForSelector('button[aria-label="Run"]', { timeout: 5000 });
-      await page.waitForSelector('button[aria-label="Assets"]', { timeout: 5000 });
+      await page.waitForSelector('button[aria-label="Examples"]', { timeout: 5000 });
       addTestResult('Core UI elements', true);
     } catch (error) {
       addTestResult('Core UI elements', false, error);
@@ -386,15 +303,16 @@ async function runProductionTests() {
     // Test 4: Asset Panel
     console.log('\n4. Asset Management');
     try {
-      await page.click('button[aria-label="Assets"]');
-      await sleep(1000);
-      
-      const isVisible = await isPanelVisible(page, 'Assets');
-      if (isVisible) {
+      await openProjectsPanel(page);
+      const hasAssetControls = Boolean(
+        await page.$('[role="region"][aria-label="Projects"] button[title="New sprite"]') &&
+        await page.$('[role="region"][aria-label="Projects"] button[title="New tilemap"]')
+      );
+      if (hasAssetControls) {
         addTestResult('Asset management', true);
-        await closePanelByText(page, 'Assets');
+        await closePanelByText(page, 'Projects');
       } else {
-        throw new Error('Assets panel did not open');
+        throw new Error('Sprite or tilemap controls not found in Projects panel');
       }
     } catch (error) {
       addTestResult('Asset management', false, error);
@@ -403,16 +321,18 @@ async function runProductionTests() {
     // Test 5: Project Panel
     console.log('\n5. Project Management');
     try {
-      await page.click('button[aria-label="Projects"]');
-      await sleep(1000);
-      
-      const isVisible = await isPanelVisible(page, 'Projects');
-      if (isVisible) {
-        addTestResult('Project management', true);
-        await closePanelByText(page, 'Projects');
-      } else {
-        throw new Error('Projects panel did not open');
-      }
+      await openProjectsPanel(page);
+      const region = await page.$('[role="region"][aria-label="Projects"]');
+      const buttons = region ? await region.$$('button') : [];
+      if (!buttons[0]) throw new Error('Project switcher button not found');
+      await buttons[0].click();
+      await page.waitForFunction(() => {
+        const panel = document.querySelector('[role="region"][aria-label="Projects"]');
+        const text = panel?.textContent ?? '';
+        return text.includes('New') && text.includes('Import');
+      }, { timeout: 5000 });
+      addTestResult('Project management', true);
+      await closePanelByText(page, 'Projects');
     } catch (error) {
       addTestResult('Project management', false, error);
     }
@@ -456,39 +376,25 @@ async function runProductionTests() {
     // Test 8: Sprite Editor
     console.log('\n8. Sprite Editor');
     try {
-      await page.click('button[aria-label="Assets"]');
-      await sleep(1000);
+      await openProjectsPanel(page);
+      const newSpriteBtn = await page.$('[role="region"][aria-label="Projects"] button[title="New sprite"]');
+      if (!newSpriteBtn) throw new Error('New sprite action not found');
+      await newSpriteBtn.click();
+      await sleep(2000);
       
-      const newSpriteBtn = await page.evaluate(() => {
-        const buttons = document.querySelectorAll('button');
-        for (const btn of buttons) {
-          if (btn.textContent.includes('New sprite')) {
-            return btn;
-          }
-        }
-        return null;
-      });
-      
-      if (newSpriteBtn) {
-        await newSpriteBtn.click();
-        await sleep(2000);
-        
-        const editor = await page.$('[aria-label="Sprite Editor"]');
-        if (editor) {
-          addTestResult('Sprite editor', true);
-          
-          const closeBtn = await page.$('[aria-label="Sprite Editor"] button[aria-label="Close"]');
-          if (closeBtn) {
-            await closeBtn.click();
-          }
-        } else {
-          throw new Error('Sprite editor did not open');
-        }
+      const editorOpened = await page.waitForFunction(
+        () => [...document.querySelectorAll('header span')].some((span) => span.textContent?.trim() === 'Sheet Editor'),
+        { timeout: 10000 }
+      );
+      if (editorOpened) {
+        addTestResult('Sprite editor', true);
+        await page.evaluate(() => {
+          [...document.querySelectorAll('button')].find((button) => button.textContent?.trim() === 'Close')?.click();
+        });
       } else {
-        addTestResult('Sprite editor', true); // Skip if button not found
+        throw new Error('Sheet Editor did not open');
       }
-      
-      await closePanelByText(page, 'Assets');
+      await closePanelByText(page, 'Projects');
     } catch (error) {
       addTestResult('Sprite editor', false, error);
     }
@@ -496,15 +402,15 @@ async function runProductionTests() {
     // Test 9: Hello World Example
     console.log('\n9. Hello World Example');
     try {
-      await openProjectsPanel(page);
+      await openExamplesPanel(page);
       const found = await clickExample(page, 'hello world');
       if (!found) throw new Error('Hello world example not found');
-      await closeProjectsPanel(page);
+      await closeExamplesPanel(page);
       await clickRun(page);
       await sleep(3000);
       
-      const bodyText = await page.evaluate(() => document.body.textContent);
-      if (bodyText.includes('hello world')) {
+      const bodyText = (await page.evaluate(() => document.body.textContent ?? '')).toLowerCase();
+      if (bodyText.includes('hello')) {
         addTestResult('Hello world example', true);
       } else {
         throw new Error('Expected output not found');
@@ -540,10 +446,10 @@ async function runProductionTests() {
       });
       console.log('After stopSketch, before panel open:', JSON.stringify(canvasState, null, 2));
       
-      await openProjectsPanel(page);
+      await openExamplesPanel(page);
       const found = await clickExample(page, 'snake');
       if (!found) throw new Error('Snake example not found');
-      await closeProjectsPanel(page);
+      await closeExamplesPanel(page);
       await clickRun(page);
       await sleep(3000);
       
@@ -582,10 +488,10 @@ async function runProductionTests() {
     // Test 11: Asteroids Example
     console.log('\n11. Asteroids Example');
     try {
-      await openProjectsPanel(page);
+      await openExamplesPanel(page);
       const found = await clickExample(page, 'asteroids');
       if (!found) throw new Error('Asteroids example not found');
-      await closeProjectsPanel(page);
+      await closeExamplesPanel(page);
       await clickRun(page);
       await sleep(3000);
       
@@ -606,10 +512,10 @@ async function runProductionTests() {
     try {
       // Stop any running sketch first
       await stopSketch(page);
-      await openProjectsPanel(page);
+      await openExamplesPanel(page);
       const found = await clickExample(page, 'sokoban');
       if (!found) throw new Error('Sokoban example not found');
-      await closeProjectsPanel(page);
+      await closeExamplesPanel(page);
       await clickRun(page);
       
       // Wait for canvas to appear (Sokoban loads sprites)

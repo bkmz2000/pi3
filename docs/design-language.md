@@ -21,6 +21,7 @@ All colors, typography, and geometry live in `src/state/useTheme.ts`.
 | `consoleTxtMute` | `#7a8696` | `#7d9499` | Console copy/clear button labels |
 | `railIcon` | `rgba(255,255,255,0.78)` | `rgba(155,210,216,0.7)` | Inactive rail button icons |
 | `railIconActive` | `#ffffff` | `#ffffff` | Active/selected rail button icons |
+| `railLabelTxt` | `#04201d` | `#e8f2f4` | Visible rail labels, chosen for contrast in each theme |
 | `railLogo` | `#fffaf0` | `#5fd4dc` | Pi3 logo mark in the rail (cream in Studio, teal in Midnight) |
 | `canvasTitleTxt` | `#fffaf0` | `#e8f2f4` | Canvas window titlebar text |
 | `canvasTitleTxtMute` | `rgba(255,250,240,0.55)` | `rgba(232,242,244,0.55)` | Muted canvas titlebar text |
@@ -86,12 +87,13 @@ All colors, typography, and geometry live in `src/state/useTheme.ts`.
 **Actions / Accents**
 | Token | Studio | Midnight | Usage example |
 |---|---|---|---|
-| `accent` | `#f6a560` | `#f7b67a` | Active selectors, links, progress fills, range accent |
+| `accent` | `#f6a560` | `#f7b67a` | Active selectors, progress fills, range accent |
+| `linkTxt` | `#0a3d44` | `#5fd4dc` | Text-only links on panel surfaces (contrast-safe teal) |
+| `actionBg` | `#b45309` | `#b45309` | Warm primary action buttons (create, save, preview, import); distinct from Run/Stop |
+| `actionTxt` | `#ffffff` | `#ffffff` | Text on `actionBg` (5.02:1 contrast) |
 | `runBg` | `#34a853` | `#7ed3a4` | Run button background, toggle-on state |
 | `runTxt` | `#ffffff` | `#062a26` | Run button text |
 | `stopBg` | `#ef4444` | `#ff8b8b` | Stop button background |
-| `submitBg` | `#2563eb` | `#3b82f6` | Submit button background (compete mode); blue distinguishes it from run/stop |
-| `submitTxt` | `#ffffff` | `#ffffff` | Submit button text |
 | `successPillTxt` | `#0e7c52` | `#7ee0a8` | Running status pill text |
 
 **Console output colors**
@@ -161,8 +163,8 @@ Note: components sometimes deviate upward from these values for specific UI elem
 **Structure**:
 - Background: `theme.railBg`
 - Logo at top (`Pi3Logo` component, 26px Nunito font, `theme.railLogo`)
-- Stack of `RailButton`s (44×44 each, `theme.radiusButton`, gap 8)
-- Run/stop button (same 44×44 size) with `theme.runBg`/`stopBg`
+- Stack of `RailButton`s (56px wide ×44px high, `theme.radiusButton`, gap 8); each shows an 18px icon and a visible 10px label
+- Run/stop button (44×44) with `theme.runBg`/`stopBg`; its 10px Run/Stop label sits below the button
 - Thin horizontal divider: `width: 26, height: 1, background: rgba(148,210,216,0.22)`
 - Spacer (`flex: 1`) pushes bottom buttons down
 - Bottom: docs + settings rail buttons
@@ -172,7 +174,8 @@ Note: components sometimes deviate upward from these values for specific UI elem
 - Hover: `theme.railHoverBg` bg, same icon color
 - Active (panel open): `theme.railActiveBg` bg, `theme.railIconActive` color
 - All transitions: `0.15s background, 0.15s color`
-- Icon size: 21 (via `<Icon name="..." size={21} color="currentColor" />`)
+- Label text: `theme.railLabelTxt`, 10px, visible at all viewport sizes
+- Icon size: 18 (via `<Icon name="..." size={18} color="currentColor" />`)
 
 ### 2b. Floating panels
 
@@ -394,7 +397,7 @@ These float outside the normal layout, anchored to the viewport:
 - `height: 40`, `background: theme.surfacePanel`, `borderBottom: 1px solid panelBorder`
 - Left side: Python language pill (uses `successPill` bg + `successPillTxt` color, `fontMono`, `borderRadius: radiusCard`) + `solution.py` filename (`fontMono`, 12px, `panelTxtMute`)
 - Middle: test pass count pill — `borderRadius: 999`; pass: `successPill` bg + `successPillTxt`; fail: `${consoleErr}22` bg + `consoleErr` text
-- Right: **Run** button (`runBg`/`runTxt`) + **Submit** button (`submitBg`/`submitTxt`); both 12.5px, weight 700, `radiusButton`, `opacity: 0.6` when disabled
+- Right: **Run** button (`runBg`/`runTxt`) + **Submit** button (`actionBg`/`actionTxt`); both 12.5px, weight 700, `radiusButton`, `opacity: 0.6` when disabled
 
 **Console strip** (bottom of `CompeteLeft`):
 - `borderTop: 1px solid consoleBorder`, `background: consoleBg`
@@ -552,7 +555,7 @@ These appear once and may or may not be patterns — noted for honesty:
 - **`ThemedDialog` `borderRadius: 10`** vs token value of `radiusWindow: 4` — dialogs intentionally use a rounder radius to feel distinct from the workspace.
 - **`ProblemsPanel` header** does not use the `PanelHeader` component; it rolls its own 40px header at 13px title. This is an inconsistency from its age, not a deliberate choice.
 - **`railLogo` color** in Midnight is `#5fd4dc` (teal accent); in Studio it is `#fffaf0` (cream). The `Pi3Logo` component renders in the rail with this token — the logo deliberately changes color per theme (see §1a Text table).
-- **`submitBg`/`submitTxt`** are blue (Studio `#2563eb`, Midnight `#3b82f6`) — the only blue action in the app. This is intentional: compete submission is a distinct semantic action from running code (green) or stopping it (red). Do not use blue for anything else.
+- **Primary actions** use the warm `actionBg`/`actionTxt` pair; Run remains green and Stop remains red. Teal is reserved for brand surfaces and non-button accents.
 - **Canvas game tokens** (`canvasStar`, `canvasRock`, `canvasShip`, `canvasHud`) are used exclusively by the built-in BFS visualiser and asteroid-game canvas rendering. They are not general-purpose colors; do not use them outside of canvas game drawing code. `canvasOverlay` and `canvasHintTxt` may be used for any overlay drawn on the canvas surface.
 - **`SidePanel`** (`src/components/SidePanel.tsx`) uses Tailwind classes (`bg-cyan-800`, `border-white/10`, etc.) instead of theme tokens. This component is unused by the main IDE; it was scaffolded for a different context. Do not use it as a model.
 - **`LoadingScreen`** (`src/components/LoadingScreen.tsx`) also uses Tailwind (`bg-cyan-950`, `text-cyan-300`, `animate-spin`) and is the only screen that shows while Pyodide loads before the theme store is available — it has no access to `theme.*` by design. This is the single valid use of Tailwind for visual styling.

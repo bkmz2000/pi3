@@ -127,7 +127,7 @@ export default function GeneratorSection({
               all: 'unset', cursor: generatorRunning || !generatorPy.trim() ? 'not-allowed' : 'pointer',
               display: 'inline-flex', alignItems: 'center', gap: 5,
               fontSize: 12, fontWeight: 600, padding: '4px 11px', borderRadius: 7,
-              background: theme.primaryBg, color: theme.primaryTxt,
+              background: theme.runBg, color: theme.runTxt,
               opacity: generatorRunning || !generatorPy.trim() ? 0.5 : 1,
             }}
           >

@@ -81,19 +81,32 @@ function RailButton({
       style={{
         all: "unset",
         cursor: "pointer",
-        width: 44,
+        width: 56,
         height: 44,
         borderRadius: theme.radiusButton,
         display: "flex",
+        flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
+        gap: 2,
         background: bg,
         color: active ? theme.railIconActive : theme.railIcon,
         position: "relative",
         transition: "background 0.15s, color 0.15s",
       }}
     >
-      <Icon name={icon} size={21} color="currentColor" />
+      <Icon name={icon} size={18} color="currentColor" />
+      <span style={{
+        maxWidth: "100%",
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        whiteSpace: "nowrap",
+        color: theme.railLabelTxt,
+        fontFamily: theme.fontUI,
+        fontSize: 10,
+        fontWeight: 600,
+        lineHeight: "10px",
+      }}>{label}</span>
       {badge && (
         <span
           style={{
@@ -240,7 +253,7 @@ export default function Rail() {
               style={{
                 all: 'unset', cursor: 'pointer',
                 padding: '7px 16px', borderRadius: 6,
-                background: theme.runBg, color: theme.runTxt,
+                background: theme.actionBg, color: theme.actionTxt,
                 fontSize: 13, fontWeight: 600,
               }}
             >
@@ -299,7 +312,7 @@ export default function Rail() {
               style={{
                 all: 'unset', cursor: 'pointer',
                 padding: '7px 16px', borderRadius: 6,
-                background: theme.runBg, color: theme.runTxt,
+                background: theme.actionBg, color: theme.actionTxt,
                 fontSize: 13, fontWeight: 600,
               }}
             >
@@ -351,7 +364,7 @@ export default function Rail() {
           theme={theme}
         />
 
-        <div style={{ position: "relative", marginTop: 4, marginBottom: 4 }}>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, marginTop: 4, marginBottom: 4 }}>
           <button
             type="button"
             onClick={() => {
@@ -377,6 +390,13 @@ export default function Rail() {
               <Icon name={runIcon} size={20} color="currentColor" />
             )}
           </button>
+          <span style={{
+            color: theme.railLabelTxt,
+            fontFamily: theme.fontUI,
+            fontSize: 10,
+            fontWeight: 600,
+            lineHeight: "10px",
+          }}>{isRunning ? t('sideMenu.stop') : t('sideMenu.run')}</span>
         </div>
 
 
@@ -390,13 +410,14 @@ export default function Rail() {
             title={t('teacher.navLabel')}
             aria-label={t('teacher.navLabel')}
             style={{
-              display: "flex", alignItems: "center", justifyContent: "center",
-              width: 44, height: 44, borderRadius: theme.radiusButton,
+              display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2,
+              width: 56, height: 44, borderRadius: theme.radiusButton,
               color: theme.railIcon,
               textDecoration: "none",
             }}
           >
-            <Icon name="users" size={21} color="currentColor" />
+            <Icon name="users" size={18} color="currentColor" />
+            <span style={{ color: theme.railLabelTxt, fontFamily: theme.fontUI, fontSize: 10, fontWeight: 600, lineHeight: "10px", whiteSpace: "nowrap" }}>{t('teacher.navLabel')}</span>
           </a>
         )}
 

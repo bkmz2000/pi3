@@ -49,7 +49,7 @@ function validateForm(f: FormState, t: (k: string) => string): string | null {
 }
 
 export default function TeacherProblemForm() {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const theme = useThemeStore((s) => s.theme);
   const navigate = useNavigate();
   const { slug: editSlug } = useParams<{ slug?: string }>();
@@ -79,7 +79,6 @@ export default function TeacherProblemForm() {
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [dragoverTier, setDragoverTier] = useState<1 | 2 | 3 | null>(null);
-  const [dragTestIndex, setDragTestIndex] = useState<number | null>(null);
 
   const snapshotRef = useRef<string>(JSON.stringify(form));
   const dirty = JSON.stringify(form) !== snapshotRef.current;
@@ -144,24 +143,6 @@ export default function TeacherProblemForm() {
   const removeTest = (idx: number) => {
     setForm((f) => ({ ...f, tests: f.tests.filter((_, i) => i !== idx) }));
     if (expandedIndex === idx) setExpandedIndex(null);
-  };
-
-  // Drag-and-drop: reorder within a tier
-  const handleReorder = (tier: 1 | 2 | 3, fromIndex: number, toIndex: number) => {
-    setForm((f) => {
-      const tests = [...f.tests];
-      // Get indices of all tests with this tier
-      const tierIndices: number[] = [];
-      tests.forEach((t, i) => { if (t.tier === tier) tierIndices.push(i); });
-      const fromGlobal = tierIndices[fromIndex];
-      const toGlobal = tierIndices[toIndex];
-      if (fromIndex === toIndex || fromIndex + 1 === toIndex) return f;
-      // Move element
-      const [moved] = tests.splice(fromGlobal, 1);
-      const newToGlobal = fromGlobal < toGlobal ? toGlobal - 1 : toGlobal;
-      tests.splice(newToGlobal, 0, moved);
-      return { ...f, tests };
-    });
   };
 
   // Drag-and-drop: change tier
@@ -488,8 +469,8 @@ export default function TeacherProblemForm() {
             fontWeight: 600,
             padding: '7px 15px',
             borderRadius: 8,
-            background: saving ? theme.chip : theme.primaryBg,
-            color: saving ? theme.panelTxtMute : theme.primaryTxt,
+            background: saving ? theme.chip : theme.actionBg,
+            color: saving ? theme.panelTxtMute : theme.actionTxt,
             fontFamily: theme.fontUI,
             opacity: saving ? 0.7 : 1,
           }}
@@ -601,12 +582,9 @@ export default function TeacherProblemForm() {
               onRemoveTest={removeTest}
               onAddTest={addTest}
               onChangeTier={handleChangeTier}
-              onReorder={handleReorder}
               dragoverTier={dragoverTier}
               setDragoverTier={setDragoverTier}
-              onDragStart={setDragTestIndex}
-              onDragEnd={() => setDragTestIndex(null)}
-              dragTestIndex={dragTestIndex}
+              onDragEnd={() => setDragoverTier(null)}
             />
           </div>
         </div>

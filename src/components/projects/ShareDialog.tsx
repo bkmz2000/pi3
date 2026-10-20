@@ -303,7 +303,7 @@ export function ShareDialog({ open, onClose, projectId, projectName }: ShareDial
               style={{
                 all: 'unset', cursor: !picked || loading ? 'default' : 'pointer',
                 padding: '7px 16px', borderRadius: 5,
-                background: theme.runBg, color: theme.runTxt,
+                background: theme.actionBg, color: theme.actionTxt,
                 fontSize: 12.5, fontWeight: 600,
                 opacity: !picked || loading ? 0.5 : 1,
               }}

@@ -7,14 +7,12 @@
 import { readFileSync } from "fs";
 import { resolve } from "path";
 
-// Read the resolved version from package-lock.json
-const lockPath = resolve(__dirname, "../../package-lock.json");
-const lock = JSON.parse(readFileSync(lockPath, "utf-8")) as {
-  packages: Record<string, { version: string }>;
+// Read the installed package version so the check matches the active package manager.
+const packagePath = resolve(__dirname, "../../node_modules/pyodide/package.json");
+const installedPackage = JSON.parse(readFileSync(packagePath, "utf-8")) as {
+  version: string;
 };
-const resolvedVersion =
-  lock.packages["node_modules/pyodide"]?.version ??
-  lock.packages[""]?.dependencies?.pyodide;
+const resolvedVersion = installedPackage.version;
 
 describe("pyodideVersion", () => {
   it("PYODIDE_CDN contains the same version as the installed pyodide package", async () => {

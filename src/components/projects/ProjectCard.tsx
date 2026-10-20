@@ -74,7 +74,7 @@ export function ProjectCard({ project, onSelect, showManagement }: ProjectCardPr
             style={{
               all: "unset", cursor: "pointer",
               padding: "6px 12px", borderRadius: 5,
-              background: theme.runBg, color: theme.runTxt,
+              background: theme.actionBg, color: theme.actionTxt,
               fontFamily: theme.fontUI, fontSize: 12, fontWeight: 600,
             }}
           >

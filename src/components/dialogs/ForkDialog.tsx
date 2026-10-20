@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useThemeStore } from "../../state/useTheme";
 
 type ForkDialogProps = {
   onClose: () => void;
@@ -8,9 +9,12 @@ type ForkDialogProps = {
 
 export default function ForkDialog({ onClose, onSave }: ForkDialogProps) {
   const { t } = useTranslation();
+  const theme = useThemeStore((s) => s.theme);
   const [name, setName] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [cancelHovered, setCancelHovered] = useState(false);
+  const [saveHovered, setSaveHovered] = useState(false);
 
   const handleSave = async () => {
     if (!name.trim() || saving) return;
@@ -27,55 +31,157 @@ export default function ForkDialog({ onClose, onSave }: ForkDialogProps) {
   };
 
   const isAuthError = error === "Sign in to save your project";
+  const dialogStyle: React.CSSProperties = {
+    width: 384,
+    maxWidth: "calc(100vw - 32px)",
+    boxSizing: "border-box",
+    background: theme.surfacePanel,
+    border: `1px solid ${theme.panelBorder}`,
+    borderRadius: 10,
+    padding: 24,
+    boxShadow: theme.shadowWindow,
+    color: theme.panelTxt,
+    fontFamily: theme.fontUI,
+  };
+  const buttonBase: React.CSSProperties = {
+    all: "unset",
+    boxSizing: "border-box",
+    minHeight: 40,
+    padding: "8px 16px",
+    borderRadius: theme.radiusButton,
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontFamily: theme.fontUI,
+    fontSize: 14,
+    fontWeight: 600,
+    transition: "background 0.15s, opacity 0.15s",
+  };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80">
-      <div className="bg-cyan-800 rounded-lg p-6 w-96 max-w-[90vw]">
-        <h3 className="text-lg font-semibold mb-2">{t('fork.saveAsNewProject')}</h3>
-        <p className="text-sm text-cyan-200 mb-4">
-          {t('fork.saveExampleAsProject')}
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 50,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 16,
+        background: "rgba(0,0,0,0.5)",
+      }}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="fork-dialog-title"
+        aria-busy={saving}
+        style={dialogStyle}
+      >
+        <h3
+          id="fork-dialog-title"
+          style={{ margin: "0 0 8px", fontSize: 17, fontWeight: theme.weightHeader }}
+        >
+          {t("fork.saveAsNewProject")}
+        </h3>
+        <p style={{ margin: "0 0 16px", fontSize: 14, lineHeight: 1.55, color: theme.panelTxtMute }}>
+          {t("fork.saveExampleAsProject")}
         </p>
-        <div className="space-y-4">
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <div>
-            <label className="block text-sm mb-2">{t('sideMenu.projectName')}</label>
+            <label
+              htmlFor="fork-project-name"
+              style={{ display: "block", marginBottom: 6, fontSize: 14, fontWeight: 600 }}
+            >
+              {t("sideMenu.projectName")}
+            </label>
             <input
+              id="fork-project-name"
               type="text"
               value={name}
               onChange={(e) => { setName(e.target.value); setError(null); }}
-              className="w-full px-3 py-2 bg-cyan-900 border border-cyan-700 rounded focus:outline-none focus:ring-2 focus:ring-cyan-500"
-              placeholder={t('sideMenu.projectNamePlaceholder')}
-              autoFocus
-              disabled={saving}
               onKeyDown={(e) => {
                 if (e.key === "Enter") handleSave();
                 if (e.key === "Escape") onClose();
               }}
+              placeholder={t("sideMenu.projectNamePlaceholder")}
+              autoFocus
+              disabled={saving}
+              aria-describedby={error ? "fork-dialog-error" : undefined}
+              style={{
+                boxSizing: "border-box",
+                width: "100%",
+                minHeight: 44,
+                padding: "10px 12px",
+                background: theme.editorBg,
+                border: `1px solid ${theme.panelBorder}`,
+                borderRadius: theme.radiusButton,
+                fontFamily: theme.fontUI,
+                fontSize: 14,
+                color: theme.panelTxt,
+              }}
             />
           </div>
+
           {error && (
-            <div className="text-sm text-amber-300 bg-amber-900/40 border border-amber-700 rounded px-3 py-2">
+            <div
+              id="fork-dialog-error"
+              role="alert"
+              style={{
+                padding: "8px 12px",
+                background: `${theme.stopBg}22`,
+                border: `1px solid ${theme.stopBg}66`,
+                borderRadius: theme.radiusCard + 4,
+                fontSize: 14,
+                lineHeight: 1.45,
+                color: theme.stopBg,
+              }}
+            >
               {error}
               {isAuthError && (
-                <a href="/api/auth/login" className="block mt-1 underline text-amber-200 hover:text-amber-100">
+                <a
+                  href="/api/auth/login"
+                  style={{ display: "block", marginTop: 4, color: theme.accent, textDecoration: "underline" }}
+                >
                   Sign in
                 </a>
               )}
             </div>
           )}
-          <div className="flex justify-end gap-2">
+
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
             <button
+              type="button"
               onClick={onClose}
               disabled={saving}
-              className="px-4 py-2 text-sm rounded hover:bg-cyan-700 transition-colors"
+              onMouseEnter={() => setCancelHovered(true)}
+              onMouseLeave={() => setCancelHovered(false)}
+              style={{
+                ...buttonBase,
+                cursor: saving ? "not-allowed" : "pointer",
+                background: cancelHovered && !saving ? theme.panelHeader : theme.chip,
+                color: theme.panelTxt,
+                opacity: saving ? 0.6 : 1,
+              }}
             >
-              {t('sideMenu.cancel')}
+              {t("sideMenu.cancel")}
             </button>
             <button
+              type="button"
               onClick={handleSave}
               disabled={!name.trim() || saving}
-              className="px-4 py-2 text-sm bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed rounded transition-colors"
+              onMouseEnter={() => setSaveHovered(true)}
+              onMouseLeave={() => setSaveHovered(false)}
+              style={{
+                ...buttonBase,
+                cursor: !name.trim() || saving ? "not-allowed" : "pointer",
+                background: theme.actionBg,
+                color: theme.actionTxt,
+                opacity: !name.trim() || saving ? 0.5 : saveHovered ? 0.9 : 1,
+              }}
             >
-              {saving ? t('fork.saving') : t('fork.save')}
+              {saving ? t("fork.saving") : t("fork.save")}
             </button>
           </div>
         </div>

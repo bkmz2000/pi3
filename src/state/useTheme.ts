@@ -22,6 +22,7 @@ export interface Theme {
   railActiveBg: string;
   railHoverBg: string;
   railLogo: string;
+  railLabelTxt: string;
 
   filebarBg: string;
   tabActiveBg: string;
@@ -54,13 +55,14 @@ export interface Theme {
 
   primaryBg: string;
   primaryTxt: string;
+  linkTxt: string;
+  actionBg: string;
+  actionTxt: string;
 
   accent: string;
   runBg: string;
   runTxt: string;
   stopBg: string;
-  submitBg: string;
-  submitTxt: string;
 
   canvasFrame: string;
   canvasBorder: string;
@@ -133,6 +135,7 @@ const THEMES: Record<ThemeId, Theme> = {
     railActiveBg: "rgba(255,255,255,0.20)",
     railHoverBg: "rgba(255,255,255,0.10)",
     railLogo: "#fffaf0",
+    railLabelTxt: "#04201d",
     filebarBg: "#0e9aa7",
     tabActiveBg: "#fffaf0",
     tabActiveTxt: "#0a3d44",
@@ -160,12 +163,13 @@ const THEMES: Record<ThemeId, Theme> = {
     successPillTxt: "#0e7c52",
     primaryBg: "#0e9aa7",
     primaryTxt: "#ffffff",
+    linkTxt: "#0a3d44",
+    actionBg: "#b45309",
+    actionTxt: "#ffffff",
     accent: "#f6a560",
     runBg: "#34a853",
     runTxt: "#ffffff",
     stopBg: "#ef4444",
-    submitBg: "#2563eb",
-    submitTxt: "#ffffff",
     canvasFrame: "#0a3d44",
     canvasBorder: "rgba(255,255,255,0.10)",
     canvasTitle: "#0a3d44",
@@ -210,6 +214,7 @@ const THEMES: Record<ThemeId, Theme> = {
     railActiveBg: "rgba(120,210,220,0.18)",
     railHoverBg: "rgba(120,210,220,0.08)",
     railLogo: "#5fd4dc",
+    railLabelTxt: "#e8f2f4",
     filebarBg: "#0c2e34",
     tabActiveBg: "#11444b",
     tabActiveTxt: "#fff8ec",
@@ -237,12 +242,13 @@ const THEMES: Record<ThemeId, Theme> = {
     successPillTxt: "#7ee0a8",
     primaryBg: "#0e9aa7",
     primaryTxt: "#ffffff",
+    linkTxt: "#5fd4dc",
+    actionBg: "#b45309",
+    actionTxt: "#ffffff",
     accent: "#f7b67a",
     runBg: "#7ed3a4",
     runTxt: "#062a26",
     stopBg: "#ff8b8b",
-    submitBg: "#3b82f6",
-    submitTxt: "#ffffff",
     canvasFrame: "#031518",
     canvasBorder: "rgba(255,255,255,0.06)",
     canvasTitle: "#031518",

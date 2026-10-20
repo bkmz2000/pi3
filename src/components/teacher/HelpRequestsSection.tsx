@@ -47,7 +47,7 @@ export function HelpRequestsSection() {
                 <button
                   type="button"
                   onClick={() => address(hr.id)}
-                  style={{ all: 'unset', cursor: 'pointer', fontSize: 12, padding: '5px 10px', borderRadius: 5, background: theme.runBg, color: theme.runTxt, fontWeight: 600 }}
+                  style={{ all: 'unset', cursor: 'pointer', fontSize: 12, padding: '5px 10px', borderRadius: 5, background: theme.actionBg, color: theme.actionTxt, fontWeight: 600 }}
                 >
                   {t('teacher.addressed')}
                 </button>

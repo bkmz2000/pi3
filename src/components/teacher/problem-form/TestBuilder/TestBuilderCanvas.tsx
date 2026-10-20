@@ -16,12 +16,9 @@ interface Props {
   onRemoveTest: (idx: number) => void;
   onAddTest: (tier: 1 | 2 | 3) => void;
   onChangeTier: (testIndex: number, newTier: 1 | 2 | 3, insertIndex: number) => void;
-  onReorder: (tier: 1 | 2 | 3, fromIndex: number, toIndex: number) => void;
   dragoverTier: 1 | 2 | 3 | null;
   setDragoverTier: (t: 1 | 2 | 3 | null) => void;
-  onDragStart: (testIndex: number) => void;
   onDragEnd: () => void;
-  dragTestIndex: number | null;
 }
 
 export default function TestBuilderCanvas({
@@ -32,12 +29,9 @@ export default function TestBuilderCanvas({
   onRemoveTest,
   onAddTest,
   onChangeTier,
-  onReorder,
   dragoverTier,
   setDragoverTier,
-  onDragStart,
   onDragEnd,
-  dragTestIndex,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [windowWidth, setWindowWidth] = useState(

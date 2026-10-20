@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
@@ -27,16 +28,14 @@ export default function PreviewDrawer({
 }: Props) {
   const theme = useThemeStore((s) => s.theme);
 
-  // Close on Escape
-  if (typeof window !== 'undefined') {
-    const prevHandler = (window as any).__previewEscapeHandler;
-    if (prevHandler) window.removeEventListener('keydown', prevHandler);
+  // Close on Escape while this preview drawer is mounted.
+  useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
     };
-    (window as any).__previewEscapeHandler = handler;
     window.addEventListener('keydown', handler);
-  }
+    return () => window.removeEventListener('keydown', handler);
+  }, [onClose]);
 
   return (
     <>
@@ -52,7 +51,9 @@ export default function PreviewDrawer({
       />
 
       {/* Drawer panel */}
-      <div style={{
+      <div
+        data-testid="preview"
+        style={{
         position: 'fixed',
         top: 0,
         right: 0,

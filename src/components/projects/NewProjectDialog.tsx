@@ -161,7 +161,7 @@ export function NewProjectDialog({ open, onClose, onCreate }: NewProjectDialogPr
               style={{
                 all: "unset", cursor: loading ? "default" : "pointer",
                 padding: "7px 16px", borderRadius: 5,
-                background: theme.runBg, color: theme.runTxt,
+                background: theme.actionBg, color: theme.actionTxt,
                 fontFamily: theme.fontUI, fontSize: 12.5, fontWeight: 600,
                 opacity: (!name.trim() || loading) ? 0.5 : 1,
               }}

@@ -132,7 +132,7 @@
   "overrides": {
     "@codemirror/highlight": "^1.2.3",
     "@codemirror/lang-python": "^6.2.1",
-    "@codemirror/state": "^6.5.4",
-    "@codemirror/view": "^6.39.16"
+    "@codemirror/state": "$@codemirror/state",
+    "@codemirror/view": "$@codemirror/view"
   }
 }

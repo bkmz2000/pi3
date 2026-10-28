@@ -96,17 +96,6 @@ function RailButton({
       }}
     >
       <Icon name={icon} size={18} color="currentColor" />
-      <span style={{
-        maxWidth: "100%",
-        overflow: "hidden",
-        textOverflow: "ellipsis",
-        whiteSpace: "nowrap",
-        color: theme.railLabelTxt,
-        fontFamily: theme.fontUI,
-        fontSize: 10,
-        fontWeight: 600,
-        lineHeight: "10px",
-      }}>{label}</span>
       {badge && (
         <span
           style={{
@@ -390,13 +379,6 @@ export default function Rail() {
               <Icon name={runIcon} size={20} color="currentColor" />
             )}
           </button>
-          <span style={{
-            color: theme.railLabelTxt,
-            fontFamily: theme.fontUI,
-            fontSize: 10,
-            fontWeight: 600,
-            lineHeight: "10px",
-          }}>{isRunning ? t('sideMenu.stop') : t('sideMenu.run')}</span>
         </div>
 
 
@@ -417,7 +399,6 @@ export default function Rail() {
             }}
           >
             <Icon name="users" size={18} color="currentColor" />
-            <span style={{ color: theme.railLabelTxt, fontFamily: theme.fontUI, fontSize: 10, fontWeight: 600, lineHeight: "10px", whiteSpace: "nowrap" }}>{t('teacher.navLabel')}</span>
           </a>
         )}
 

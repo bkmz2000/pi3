@@ -378,7 +378,6 @@ export default function CanvasWindow() {
           height: `${visualH}px`,
           position: "relative",
           background: theme.canvasBg,
-          imageRendering: "pixelated",
           overflow: "hidden",
         }}
       >
@@ -391,7 +390,6 @@ export default function CanvasWindow() {
             display: 'block',
             width: '100%',
             height: '100%',
-            imageRendering: 'pixelated',
           }}
         />
         {scrubIndex !== null && frameHistory[scrubIndex] && (
